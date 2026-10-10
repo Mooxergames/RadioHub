@@ -56,13 +56,13 @@ test('compressed station glow retains every original RGBA pixel and saves at lea
   assert.ok(optimized.length < original.length * 0.75);
 });
 
-test('station glow stays decorative with the same desktop-only square stretch and coordinates', async () => {
+test('station glow stays decorative and preserves the exported canvas proportions', async () => {
   const source = await readFile(path.resolve(import.meta.dirname, '../src/pages/stations/[id].tsx'), 'utf8');
   assert.match(source, /import bgGradient from "@assets\/bg-gradient\.lossless\.png"/);
-  const decoration = source.match(/<div\s+aria-hidden="true"\s+className="hidden md:block absolute pointer-events-none w-\[521px\] h-\[521px\]"\s+style=\{\{([\s\S]*?)\}\}\s*\/>/);
+  const decoration = source.match(/<div\s+aria-hidden="true"\s+className="hidden md:block absolute pointer-events-none w-\[704px\] h-\[351px\]"\s+style=\{\{([\s\S]*?)\}\}\s*\/>/);
   assert.ok(decoration);
-  assert.match(decoration[1], /top: '-41px'/);
-  assert.match(decoration[1], /left: '-64px'/);
+  assert.match(decoration[1], /top: 0/);
+  assert.match(decoration[1], /left: 0/);
   assert.match(decoration[1], /opacity: 1/);
   assert.match(decoration[1], /backgroundImage: `url\(\$\{bgGradient\}\)`/);
   assert.match(decoration[1], /backgroundSize: '100% 100%'/);

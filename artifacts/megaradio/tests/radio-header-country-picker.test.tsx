@@ -158,6 +158,10 @@ function renderHeader(selectedCountry = 'all') {
 // rAF polyfill for jsdom (used by closeCountryDropdownAndRestoreFocus to
 // defer focus restoration until after the portal unmounts).
 beforeEach(() => {
+  // Radix ScrollArea measures its viewport; jsdom has no layout observer.
+  vi.stubGlobal('ResizeObserver', class {
+    observe() {} unobserve() {} disconnect() {}
+  });
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
     cb(0);
     return 0 as unknown as number;

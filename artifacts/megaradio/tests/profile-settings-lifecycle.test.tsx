@@ -5,8 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProfileSettings from '../src/pages/profile-settings';
 
 const fixture = vi.hoisted(() => ({ user: {} as any, request: vi.fn(), toast: vi.fn(), language: 'de', subscribe: vi.fn(), unsubscribe: vi.fn(), sendTest: vi.fn() }));
+vi.mock('@/hooks/useSeoRouting', () => ({ useSeoRouting: () => ({ getLocalizedUrl: (path: string) => `/${fixture.language}${path}` }) }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: fixture.user }) }));
 vi.mock('@/components/auth/ProtectedRoute', () => ({ ProtectedRoute: ({ children }: any) => children }));
+vi.mock('@/components/RouteBreadcrumbs', () => ({ RouteBreadcrumbs: () => null }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: fixture.toast }) }));
 vi.mock('@/hooks/usePushNotifications', () => ({ usePushNotifications: () => ({ isSupported: true, isSubscribed: false, permission: 'default', isLoading: false, subscribe: fixture.subscribe, unsubscribe: fixture.unsubscribe, sendTestNotification: fixture.sendTest }) }));
 vi.mock('@/components/ManageSubscriptionButton', () => ({ ManageSubscriptionButton: () => <button>Manage subscription</button> }));
@@ -122,7 +124,7 @@ it('saves toggles with the supported playback contract and clears normalized dra
   mount();
   expect(screen.getByRole('button', { name: 'Änderungen speichern' })).toBeDisabled();
   expect(screen.getByLabelText('Favorit')).toBeDisabled();
-  fireEvent.click(screen.getByRole('switch', { name: 'Automatische Wiedergabe' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Automatische Wiedergabe' }));
   expect(screen.getByLabelText('Favorit')).toBeEnabled();
   fireEvent.click(screen.getByLabelText('Favorit'));
   fireEvent.change(screen.getByLabelText('Vollständiger Name'), { target: { value: '  New name  ' } });
@@ -171,9 +173,26 @@ it('restores the last successful avatar when a second upload fails before user d
 
 it('uses native Arabic labels and RTL form flow', () => {
   fixture.language = 'ar'; const view = mount();
-  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('ملفك الشخصي. راديوك.');
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('الملف الشخصي');
   expect(view.container.querySelector('[dir="rtl"]')).toBeInTheDocument();
   expect(screen.getByLabelText('الاسم الكامل')).toHaveValue('Alice');
   expect(screen.getByLabelText('البريد الإلكتروني')).toHaveAttribute('dir', 'ltr');
   expect(screen.queryByText('Play at log in')).not.toBeInTheDocument();
+});
+
+it('formats account listening minutes and shows only available activity data', () => {
+  fixture.language = 'en';
+  fixture.user = { ...user(), totalListeningTime: 123, favoriteStationsCount: 6 };
+  const view = mount();
+  expect(screen.getByRole('region', { name: 'Total listening' })).toHaveTextContent('2 hr 3 min');
+  expect(screen.getByRole('region', { name: 'Total listening' })).toHaveTextContent('Favorite stations6');
+  fixture.user = user('bob'); view.rerender(<ProfileSettings />);
+  expect(screen.getByRole('region', { name: 'Total listening' })).toHaveTextContent('Total listening—');
+  expect(screen.getByRole('region', { name: 'Total listening' })).not.toHaveTextContent('2 hr 3 min');
+});
+
+it('links profile relationship counts to their separate localized lists', () => {
+  fixture.user = { ...user(), followersCount: 23, followingCount: 8 }; mount();
+  expect(screen.getByRole('link', { name: /23/ })).toHaveAttribute('href', '/de/profile/followers');
+  expect(screen.getByRole('link', { name: /8/ })).toHaveAttribute('href', '/de/profile/following');
 });

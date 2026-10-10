@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Bell, BellOff, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import type { ProfileSettingsCopy } from '@/lib/profile-settings-copy';
@@ -20,13 +20,10 @@ export function ProfileSettingsNotifications({ copy }: { copy: ProfileSettingsCo
     try { await action(); } finally { actionPending.current = false; setPending(false); }
   };
   const busy = isLoading || pending;
-  return <section aria-labelledby="profile-notifications-title" className="rounded-2xl border border-white/[0.08] bg-[#151515] p-5 sm:p-6">
+  return <section aria-labelledby="profile-notifications-title" className="rounded-[10px] bg-[#151515] p-5 sm:p-[30px]">
     <div className="flex items-start gap-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF4199]/10 text-[#FF4199]">
-        {isSupported ? <Bell className="h-5 w-5" aria-hidden="true" /> : <BellOff className="h-5 w-5" aria-hidden="true" />}
-      </span>
       <div className="min-w-0 flex-1">
-        <h2 id="profile-notifications-title" className="text-lg font-bold text-white">{copy.notifications}</h2>
+        <h2 id="profile-notifications-title" className="text-base font-bold text-white">{copy.notifications}</h2>
         <p className="mt-1 text-sm leading-relaxed text-[#a3a3a3]">{isSupported ? copy.notificationsHint : copy.unsupported}</p>
       </div>
     </div>
@@ -37,7 +34,7 @@ export function ProfileSettingsNotifications({ copy }: { copy: ProfileSettingsCo
       </div>
       {permission === 'denied' && <p className="mb-4 text-sm leading-relaxed text-[#a3a3a3]">{copy.notificationBlockedHint}</p>}
       <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal border-white/15 bg-transparent px-4 py-2 text-white hover:bg-white/5" disabled={busy || (!isSubscribed && permission === 'denied')} onClick={() => void run(isSubscribed ? unsubscribe : subscribe)}>
+        <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal rounded-lg border-[#656565] bg-transparent px-4 py-2 text-white hover:bg-white/5" disabled={busy || (!isSubscribed && permission === 'denied')} onClick={() => void run(isSubscribed ? unsubscribe : subscribe)}>
           {busy && <Loader2 className="me-2 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />}
           {isSubscribed ? copy.disableNotifications : copy.enableNotifications}
         </Button>

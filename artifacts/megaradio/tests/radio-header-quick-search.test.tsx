@@ -46,6 +46,10 @@ const jazzStation = { _id: 'jazz', slug: 'jazz-one', name: 'Jazz One', country: 
 let client: QueryClient;
 
 beforeEach(() => {
+  // Radix ScrollArea measures its viewport; jsdom has no layout observer.
+  vi.stubGlobal('ResizeObserver', class {
+    observe() {} unobserve() {} disconnect() {}
+  });
   vi.clearAllMocks();
   fixture.authenticated = false;
   fixture.fetchStations.mockResolvedValue({ ok: true, json: async () => ({ stations: [jazzStation] }) });
@@ -258,4 +262,55 @@ it('never activates old results while a new query is pending or too short', asyn
   expectPlaybackUntouched();
   expect(screen.getByTestId('current-route')).toHaveTextContent(originalRoute);
   await act(async () => { finishRequest({ ok: true, json: async () => ({ stations: [] }) }); });
+});
+
+it('keeps all returned stations reachable with the keyboard in the scrollable list', async () => {
+  const stations = Array.from({ length: 20 }, (_, index) => ({
+    _id: `radio-${index}`, slug: `radio-${index}`, name: `Radio ${index}`, country: 'Germany', votes: 2300,
+  }));
+  fixture.fetchStations.mockResolvedValue({ ok: true, json: async () => ({ stations }) });
+  const user = userEvent.setup();
+  mount();
+  shortcut();
+  const dialog = await findSearchDialog();
+  const input = within(dialog).getByRole('combobox');
+  fireEvent.change(input, { target: { value: 'radio' } });
+  await within(dialog).findByRole('option', { name: /Radio 19/ });
+  expect(within(dialog).getAllByRole('option')).toHaveLength(20);
+  expect(within(dialog).getByText('20 stations found')).toBeInTheDocument();
+  await user.keyboard('{End}');
+  expect(input).toHaveAttribute('aria-activedescendant', 'station-radio-19-19');
+  expectPlaybackUntouched();
+  await user.keyboard('{Enter}');
+  expect(fixture.playStation).toHaveBeenCalledWith(stations[19]);
+  expect(screen.getByTestId('current-route')).toHaveTextContent('/station/radio-19');
+});
+
+it('tracks keyboard viewport changes inside the portal without losing query, page or playback', async () => {
+  const viewport = Object.assign(new EventTarget(), { height: 760, offsetTop: 0 });
+  const removeListener = vi.spyOn(viewport, 'removeEventListener');
+  vi.stubGlobal('visualViewport', viewport);
+  const user = userEvent.setup();
+  mount();
+  shortcut();
+  const dialog = await findSearchDialog();
+  const input = within(dialog).getByRole('combobox');
+  fireEvent.change(input, { target: { value: 'jazz' } });
+  await within(dialog).findByRole('option', { name: /Jazz One/ });
+  act(() => {
+    viewport.height = 300;
+    viewport.offsetTop = 85;
+    viewport.dispatchEvent(new Event('resize'));
+    viewport.dispatchEvent(new Event('scroll'));
+  });
+  await waitFor(() => expect(dialog.style.getPropertyValue('--home-search-viewport-top')).toBe('85px'));
+  expect(dialog.style.getPropertyValue('--home-search-viewport-height')).toBe('300px');
+  expect(input).toHaveValue('jazz');
+  expect(input).toHaveFocus();
+  expect(screen.getByTestId('current-route')).toHaveTextContent(originalRoute);
+  expectPlaybackUntouched();
+  await user.keyboard('{Escape}');
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(removeListener).toHaveBeenCalledWith('resize', expect.any(Function));
+  expect(removeListener).toHaveBeenCalledWith('scroll', expect.any(Function));
 });

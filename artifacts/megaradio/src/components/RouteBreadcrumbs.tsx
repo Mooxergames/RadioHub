@@ -133,6 +133,8 @@ function computeItems(params: {
 
   for (let i = 0; i < pathSegments.length; i++) {
     const segment = pathSegments[i];
+    // Settings is the profile itself, not a second child profile screen.
+    if (pathSegments[0] === 'profile' && pathSegments.length === 2 && segment === 'settings') continue;
     const isLastSegment = i === pathSegments.length - 1;
     const isStationDetailSlug =
       isLastSegment && (cleanPath.includes('/station/') || cleanPath.includes('/stations/'));
@@ -152,7 +154,10 @@ function computeItems(params: {
         ? localeTranslations?.[translationKey]?.trim() || (accountBreadcrumbLabels[lang] || accountBreadcrumbLabels.en)[accountLabelIndex]
         : t(translationKey, fallback);
       const displayName = isLastSegment && lastItemName ? lastItemName : baseName;
-      items.push({ name: displayName, path: `/${lang}${currentPath}` });
+      const path = i === 0 && segment === 'profile'
+        ? `/${lang}/${translateSeg('profile')}/${translateSeg('settings')}`
+        : `/${lang}${currentPath}`;
+      items.push({ name: displayName, path });
     }
   }
 

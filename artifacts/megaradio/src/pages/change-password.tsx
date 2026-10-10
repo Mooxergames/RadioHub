@@ -132,7 +132,7 @@ export default function ChangePassword() {
               </button>
 
               <Link
-                href={getLocalizedPath("/profile")}
+                href={getLocalizedPath("/profile/settings")}
                 className="block text-center text-xl font-medium text-[#FFFFFF30] underline"
               >
                 Back to Profile

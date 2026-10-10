@@ -17,6 +17,8 @@ import { PublicProfileAvatar } from "@/components/ui/public-profile-avatar";
 const AddYourStationModal = lazy(() => import("@/components/modals/AddYourStationModal"));
 const MobileNavigation = lazy(() => import('./mobile-navigation'));
 const QuickSearchDialog = lazy(() => import('./quick-search-dialog'));
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { formatSearchVoteCount } from '@/lib/search-presentation';
 import { getQuickSearchCopy } from '@/lib/quick-search-copy';
 import { requestHomeSearch } from '@/lib/home-search';
 import { useTranslation } from "@/hooks/useTranslation";
@@ -29,14 +31,13 @@ import { getImageUrl, getUserDisplayName } from "@/lib/utils";
 import { getStationUrl } from "@/utils/slugs";
 import { StationLogo } from "@/components/ui/station-logo";
 import { HeaderBrand } from './header-brand';
-import { HighlightMatch } from "@/components/HighlightMatch";
 import { getCountryCodeFromApiName, getLanguageForCountry } from "@workspace/seo-shared/seo-config";
 import {
   canonicalizeCountry,
   countrySlug,
   getRegionSlugForCountry,
 } from "@workspace/seo-shared/country-regions";
-import { Music, Globe, Crown, Heart, Compass, MessageCircle, MessageSquareWarning, LogOut } from "lucide-react";
+import { Music, Globe, ThumbsUp, Crown, Heart, Compass, MessageCircle, MessageSquareWarning, LogOut } from "lucide-react";
 import {
   buildDropdownKeyHandler as buildSharedDropdownKeyHandler,
   focusFirstInside as focusFirstInsideShared,
@@ -140,7 +141,6 @@ export default function RadioHeader({
   // Touch handling for mobile scroll
   const [touchStartY, setTouchStartY] = useState<number>(0);
   const [touchStartTime, setTouchStartTime] = useState<number>(0);
-  const [avatarError, setAvatarError] = useState(false);
   const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
@@ -250,7 +250,7 @@ export default function RadioHeader({
     []
   );
 
-  const { playStation, currentStation, isPlaying } = useGlobalPlayer();
+  const { playStation } = useGlobalPlayer();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { isPremium } = usePremiumStatus();
   const notificationQueryClient = useQueryClient();
@@ -557,7 +557,7 @@ export default function RadioHeader({
   // Keyboard navigation for the header search dropdown — mirrors /search.
   // Items are flattened in display order: genres → countries → stations.
   const PAGE_STEP = 10;
-  const STATION_LIMIT = 10;
+  const STATION_LIMIT = 20;
   const visibleStations = useMemo(
     () => filteredStations.slice(0, STATION_LIMIT),
     [filteredStations]
@@ -727,7 +727,6 @@ export default function RadioHeader({
 
   const activeSearchId =
     activeSearchIndex >= 0 ? flatSearchItems[activeSearchIndex]?.id ?? null : null;
-  const searchFocusRingClass = '';
 
   // ---------- Country picker keyboard navigation ----------
   const countryItems = useMemo(() => {
@@ -998,18 +997,14 @@ export default function RadioHeader({
                     <button 
                       ref={mobileProfileTriggerButtonRef}
                       onClick={toggleMobileProfileMenu}
-                      className="flex items-center justify-center overflow-hidden bg-[#FF4199]"
+                      className="flex items-center justify-center overflow-hidden"
                       style={{ width: '45px', height: '45px', borderRadius: '50px' }}
                       aria-label="Profile menu"
                       aria-haspopup="menu"
                       aria-expanded={isMobileProfileMenuOpen}
                       data-testid="button-mobile-profile"
                     >
-                      {user?.avatar && !avatarError ? (
-                        <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
-                      ) : (
-                        <User className="w-6 h-6 text-white" />
-                      )}
+                      <PublicProfileAvatar profile={user ?? {}} name={getUserDisplayName(user)} className="size-[45px]" size={45} />
                     </button>
                   </div>
                 </div>
@@ -1083,25 +1078,6 @@ export default function RadioHeader({
                 </div>
               ) : isAuthenticated ? (
                 <>
-                  {/* 1. Notification Icon - desktop only (xl+) */}
-                  <button
-                    ref={notificationButtonDesktopRef}
-                    onClick={toggleNotificationDropdown}
-                    className="hidden xl:flex relative items-center justify-center"
-                    style={{ width: '24px', height: '24px' }}
-                    aria-label="Notifications"
-                    aria-haspopup="dialog"
-                    aria-expanded={isNotificationDropdownOpen}
-                    data-testid="button-notifications-desktop"
-                  >
-                    <img src={notificationIcon} alt="Notifications" style={{ width: '24px', height: '24px' }} />
-                    {unreadCount > 0 && (
-                      <span className="absolute bg-[#FF4199]" style={{ width: '8px', height: '8px', borderRadius: '30px', top: '1px', right: '0px' }} />
-                    )}
-                  </button>
-                  
-                  {/* 2. Go Premium button — removed, /premium accessible via direct link only */}
-
                   {/* 3. Country Selector - desktop only (xl+) - Figma: 147x38px, border-radius 5px */}
                   <div className="hidden xl:block relative dropdown-container" ref={countryDropdownRef}>
                     <button 
@@ -1164,26 +1140,39 @@ export default function RadioHeader({
                   {/* 4. Vertical Divider */}
                   <div className="hidden xl:block w-[2px] h-[33px] bg-[#222222] rounded-sm" />
 
+                  {/* Account notifications — grouped with the profile, after search */}
+                  <button
+                    ref={notificationButtonDesktopRef}
+                    onClick={toggleNotificationDropdown}
+                    className="hidden xl:flex relative items-center justify-center"
+                    style={{ width: '24px', height: '24px' }}
+                    aria-label="Notifications"
+                    aria-haspopup="dialog"
+                    aria-expanded={isNotificationDropdownOpen}
+                    data-testid="button-notifications-desktop"
+                  >
+                    <img src={notificationIcon} alt="Notifications" style={{ width: '24px', height: '24px' }} />
+                    {unreadCount > 0 && (
+                      <span className="absolute bg-[#FF4199]" style={{ width: '8px', height: '8px', borderRadius: '30px', top: '1px', right: '0px' }} />
+                    )}
+                  </button>
+
                   {/* 5. User Section - Username + Avatar - Desktop only (xl+) */}
                   <Link 
                     href={getLocalizedUrl("/profile/favorites")}
-                    className="hidden xl:flex items-center hover:opacity-80 transition-opacity cursor-pointer"
+                    className="hidden xl:flex min-w-0 items-center gap-4 hover:opacity-80 transition-opacity cursor-pointer"
+                    data-testid="link-desktop-profile"
+                    aria-label={getUserDisplayName(user)}
                     title={getUserDisplayName(user)}
                   >
-                    {/* Display name - shown fully per global standards (Gmail, LinkedIn, Slack) - shows on xl+ (1280px+) */}
+                    {/* Figma followers: 25×5 px accent below the left edge of the name. */}
                     {user && (
-                      <p className="font-ubuntu font-bold text-[15px] text-white pr-4 overflow-hidden">
-                        {getUserDisplayName(user)}
-                      </p>
+                      <span className="relative flex h-[45px] min-w-0 items-center font-ubuntu text-[15px] font-bold text-white">
+                        <span className="max-w-[180px] truncate">{getUserDisplayName(user)}</span>
+                        <span aria-hidden="true" className="absolute bottom-0 left-0 h-[5px] w-[25px] bg-[#FF4199]" />
+                      </span>
                     )}
-                    {/* Avatar - 45x45px rounded-full per Figma */}
-                    <div className="flex items-center justify-center flex-shrink-0 overflow-hidden bg-[#FF4199]" style={{ width: '45px', height: '45px', borderRadius: '50px' }}>
-                      {user?.avatar && !avatarError ? (
-                        <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
-                      ) : (
-                        <User className="w-5 h-5 text-white" />
-                      )}
-                    </div>
+                    <PublicProfileAvatar profile={user ?? {}} name={getUserDisplayName(user)} className="size-[45px]" size={45} />
                   </Link>
                 </>
               ) : (
@@ -1284,9 +1273,9 @@ export default function RadioHeader({
       {isSearchOpen && showSearch && !isMobileMenuOpen && (
         <Suspense fallback={null}>
           <QuickSearchDialog title={quickSearchCopy.title} hint={quickSearchCopy.hint}
-            closeLabel={quickSearchCopy.close} onClose={closeSearch} inputRef={searchInputRef}
-            returnFocusRef={searchReturnFocusRef} stationName={currentStation?.name} playing={isPlaying}>
-              <div className="quick-search-input-wrap">
+            onClose={closeSearch} inputRef={searchInputRef}
+            returnFocusRef={searchReturnFocusRef}>
+              <div className="home-search-input-row">
                 <input
                   ref={searchInputRef}
                   data-testid="input-quick-search"
@@ -1305,19 +1294,28 @@ export default function RadioHeader({
                   aria-controls="header-search-results"
                   aria-activedescendant={!searchLoading ? activeSearchId ?? undefined : undefined}
                   aria-autocomplete="list"
-                  className="quick-search-input"
+                  className="home-search-input"
                 />
-                <div className="absolute end-4 top-1/2 transform -translate-y-1/2 pointer-events-none" aria-hidden="true">
-                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
+                <img className="home-search-icon" src="/icons/home-search/search-normal.svg" width="24" height="24" alt="" />
+                <button type="button" onClick={closeSearch} aria-label={quickSearchCopy.close} className="home-search-close">
+                  <img src="/icons/home-search/close-circle.svg" width="24" height="24" alt="" />
+                </button>
+                <img className="home-search-divider" src="/icons/home-search/divider.svg" alt="" />
               </div>
 
               {/* Search Results */}
               {searchQuery.trim().length >= 2 && (
-                <div
-                  className="quick-search-results"
+                <>
+                  <p className="home-search-count" aria-live="polite" aria-atomic="true">
+                    {searchLoading ? t('general_searching', 'Searching...') : [
+                      `${visibleStations.length} ${visibleStations.length === 1 ? t('station_found', 'station found') : t('stations_found', 'stations found')}`,
+                      ...(matchingGenres.length ? [`${matchingGenres.length} ${t('search_section_genres', 'Genres')}`] : []),
+                      ...(matchingCountries.length ? [`${matchingCountries.length} ${t('search_section_countries', 'Countries')}`] : []),
+                    ].join(' · ')}
+                  </p>
+                <ScrollArea
+                  type="auto"
+                  className="home-search-results quick-search-results"
                   id="header-search-results"
                   role="listbox"
                   aria-label={quickSearchCopy.title}
@@ -1329,10 +1327,10 @@ export default function RadioHeader({
                       <span className="ml-2 text-gray-300">{t('general_searching', 'Searching...')}</span>
                     </div>
                   ) : hasAnyResults ? (
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                       {matchingGenres.length > 0 && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 px-1 text-xs uppercase tracking-wider text-gray-400">
+                        <div className="min-w-0">
+                          <div className="quick-search-section-label">
                             <Music size={14} className="text-[#FF4199]" />
                             <span>{t('search_section_genres', 'Genres')}</span>
                           </div>
@@ -1352,18 +1350,18 @@ export default function RadioHeader({
                                 setIsSearchOpen(false);
                                 setSearchQuery("");
                               }}
-                              className={`flex items-center p-3 hover:bg-[#2F2F2F] rounded-lg cursor-pointer transition-colors ${isActive ? searchFocusRingClass : ''}`}
+                              className="home-search-option"
                               data-testid={`header-search-genre-${g.slug}`}
                             >
-                              <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mr-3 flex-shrink-0">
+                              <div className="size-[38px] rounded-[6px] bg-white/10 flex items-center justify-center flex-shrink-0">
                                 <Music size={16} className="text-[#FF4199]" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="text-white font-medium truncate capitalize">
-                                  <HighlightMatch text={g.name} query={debouncedSearchQuery} />
+                                <div className="home-search-station-name capitalize">
+                                  {g.name}
                                 </div>
                                 {typeof g.stationCount === 'number' && (
-                                  <div className="text-gray-400 text-sm">
+                                  <div className="text-xs text-white/80">
                                     {g.stationCount.toLocaleString()} {t('stations', 'stations')}
                                   </div>
                                 )}
@@ -1375,8 +1373,8 @@ export default function RadioHeader({
                       )}
 
                       {matchingCountries.length > 0 && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 px-1 text-xs uppercase tracking-wider text-gray-400">
+                        <div className="min-w-0">
+                          <div className="quick-search-section-label">
                             <Globe size={14} className="text-[#FF4199]" />
                             <span>{t('search_section_countries', 'Countries')}</span>
                           </div>
@@ -1396,18 +1394,18 @@ export default function RadioHeader({
                                 setIsSearchOpen(false);
                                 setSearchQuery("");
                               }}
-                              className={`flex items-center p-3 hover:bg-[#2F2F2F] rounded-lg cursor-pointer transition-colors ${isActive ? searchFocusRingClass : ''}`}
+                              className="home-search-option"
                               data-testid={`header-search-country-${countrySlug(c.canonical)}`}
                             >
-                              <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mr-3 flex-shrink-0">
+                              <div className="size-[38px] rounded-[6px] bg-white/10 flex items-center justify-center flex-shrink-0">
                                 <Globe size={16} className="text-[#FF4199]" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="text-white font-medium truncate">
-                                  <HighlightMatch text={c.displayName} query={debouncedSearchQuery} />
+                                <div className="home-search-station-name">
+                                  {c.displayName}
                                 </div>
                                 {typeof c.stationCount === 'number' && (
-                                  <div className="text-gray-400 text-sm">
+                                  <div className="text-xs text-white/80">
                                     {c.stationCount.toLocaleString()} {t('stations', 'stations')}
                                   </div>
                                 )}
@@ -1419,9 +1417,9 @@ export default function RadioHeader({
                       )}
 
                       {filteredStations.length > 0 && (
-                        <div className="space-y-1">
+                        <div className="min-w-0">
                           {(matchingGenres.length > 0 || matchingCountries.length > 0) && (
-                            <div className="flex items-center gap-2 px-1 text-xs uppercase tracking-wider text-gray-400">
+                            <div className="quick-search-section-label">
                               <span>{t('search_section_stations', 'Stations')}</span>
                             </div>
                           )}
@@ -1437,7 +1435,7 @@ export default function RadioHeader({
                           role="option"
                           aria-selected={isActive}
                           onMouseEnter={() => setActiveSearchById(id)}
-                          className={`flex items-center p-3 hover:bg-[#2F2F2F] rounded-lg cursor-pointer transition-colors ${isActive ? searchFocusRingClass : ''}`}
+                          className="home-search-option"
                           onClick={() => {
                             playStation(station);
                             setIsSearchOpen(false);
@@ -1447,23 +1445,27 @@ export default function RadioHeader({
                             setLocation(stationUrl);
                           }}
                         >
-                          <StationLogo station={station} size="md" className="rounded-xl me-3 flex-shrink-0" />
+                          <div className="relative size-[38px] flex-shrink-0">
+                            <StationLogo station={station} size="md" sizes="38px" className="w-[38px] h-[38px] rounded-[6px]" />
+                            {station.countryCode && (
+                              <img loading="lazy" src={`https://flagcdn.com/w80/${station.countryCode.toLowerCase()}.webp`}
+                                width="16" height="16" alt="" className="absolute -bottom-1 -right-1 size-4 rounded-full border border-white/30" />
+                            )}
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-white font-medium truncate">
-                              <HighlightMatch text={station.name} query={debouncedSearchQuery} />
+                            <div className="home-search-station-name">
+                              {station.name}
                             </div>
-                            <div className="text-gray-400 text-sm truncate">
-                              <HighlightMatch text={getLocalizedCountryDisplayName(station.country || '', currentLanguage)} query={debouncedSearchQuery} />
+                            <div className="text-xs text-white/80 truncate">
+                              {getLocalizedCountryDisplayName(station.country || '', currentLanguage)}
                             </div>
                           </div>
                           
                           {/* Station Votes */}
                           {station.votes !== undefined && (
-                            <div className="flex items-center space-x-1 text-xs ml-2">
-                              <svg className="w-3 h-3 fill-current text-[#FF4199]" viewBox="0 0 24 24">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                              </svg>
-                              <span className="text-[#FF4199]">{station.votes || 0}</span>
+                            <div className="flex items-center gap-1 text-xs text-white/70 flex-shrink-0 ms-2">
+                              <ThumbsUp className="size-3" aria-hidden="true" />
+                              <span>{formatSearchVoteCount(station.votes || 0)}</span>
                             </div>
                           )}
                         </div>
@@ -1479,31 +1481,16 @@ export default function RadioHeader({
                         : t('search_no_results', 'No stations, genres or countries match your search.')}
                     </div>
                   )}
-                </div>
+                </ScrollArea>
+                </>
               )}
 
               {searchQuery.trim().length < 2 && (
                 <div className="quick-search-empty">
-                  <div className="quick-search-empty-icon" aria-hidden="true"><Music size={25} strokeWidth={1.3} /></div>
                   <p>{t('search_min_chars_hint', 'Type at least 2 characters to start searching.')}</p>
                 </div>
               )}
 
-              <div className="quick-search-hints">
-                <span className="inline-flex items-center gap-1.5 me-auto" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd></span>
-                <span className="inline-flex items-center gap-1.5">
-                  <kbd className="font-ubuntu inline-flex items-center px-1.5 py-0.5 font-semibold text-gray-300 bg-[#0E0E0E] border border-[#FF4199]/40 rounded">
-                    {t('search_kbd_enter', 'Enter')}
-                  </kbd>
-                  <span>{quickSearchCopy.selectHint}</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <kbd className="font-ubuntu inline-flex items-center px-1.5 py-0.5 font-semibold text-gray-300 bg-[#0E0E0E] border border-[#FF4199]/40 rounded">
-                    {t('search_kbd_esc', 'Esc')}
-                  </kbd>
-                  <span>{quickSearchCopy.dismissHint}</span>
-                </span>
-              </div>
           </QuickSearchDialog>
         </Suspense>
       )}

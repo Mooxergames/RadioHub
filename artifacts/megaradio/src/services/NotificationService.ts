@@ -1,3 +1,4 @@
+import { getLocalizedPath } from '@/utils/slugs';
 import { useNotifications } from "@/hooks/useNotifications";
 
 // Notification service that provides pre-configured notifications for common use cases
@@ -66,7 +67,7 @@ export class NotificationService {
       actions: [
         {
           label: 'Go to Dashboard',
-          onClick: () => { window.location.href = '/profile'; }
+          onClick: () => { window.location.href = getLocalizedPath('/profile/settings'); }
         }
       ]
     });
@@ -192,7 +193,7 @@ export class NotificationService {
       actions: [
         {
           label: 'View Profile',
-          onClick: () => { window.location.href = '/profile'; }
+          onClick: () => { window.location.href = getLocalizedPath('/profile/settings'); }
         }
       ]
     });

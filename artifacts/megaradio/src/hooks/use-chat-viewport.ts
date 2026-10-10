@@ -28,7 +28,9 @@ export function useChatViewport() {
         const bottom = viewport ? viewport.height + viewport.offsetTop : window.innerHeight;
         const playerBounds = player?.getBoundingClientRect();
         const playerTop = playerBounds && playerBounds.height > 0 ? playerBounds.top : undefined;
-        node.style.maxHeight = `${availableChatHeight(node.getBoundingClientRect().top, bottom, playerTop)}px`;
+        const height = availableChatHeight(node.getBoundingClientRect().top, bottom, playerTop);
+        node.style.maxHeight = `${height}px`;
+        node.dataset.compact = String(height < 480);
       });
     };
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
