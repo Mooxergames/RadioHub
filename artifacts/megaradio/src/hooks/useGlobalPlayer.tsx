@@ -2,13 +2,14 @@ import { createContext, useContext, useState, useRef, useEffect, ReactNode } fro
 import type { StationWithCountry as Station } from '@workspace/db-shared/schema';
 import { toast } from '@/hooks/use-toast';
 import { createMetadataClient } from '@/services/metadata-client';
-import { trackStationPlay, trackListeningTime, trackStationFavorite } from '../lib/analytics';
+import { trackStationPlay, trackStationFavorite } from '../lib/analytics';
 import { logger } from '@/lib/logger';
 import { getStreamProxyUrl, resolveStreamUrl } from '@/lib/utils';
 import { addRecentlyPlayed } from '@/utils/recently-played';
 import { adjacentAvailableStation, availableStations, isExplicitlyFailedStation } from '@/utils/station-availability';
 import { usePlaybackSpaceShortcut } from './usePlaybackSpaceShortcut';
 import { useLoginPlayback } from './useLoginPlayback';
+import { useListeningHistory } from './useListeningHistory';
 import { apiRequest } from '@/lib/queryClient';
 
 import type { GlobalPlayerState } from './useGlobalPlayer.shell';
@@ -22,6 +23,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const listeningHistory = useListeningHistory(audioElement);
   const [volume, setVolumeState] = useState(0.7);
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -755,6 +757,10 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
 
       const audio = audioRef.current;
       
+      listeningHistory.selectStation({ _id: station._id, name: station.name,
+        country: typeof station.country === 'string' ? station.country : undefined,
+        genre: typeof station.genre === 'string' ? station.genre : undefined });
+
       // Clean up any existing HLS
       if (hlsRef.current) {
         hlsRef.current.destroy();
@@ -1055,6 +1061,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
 
   // RADIOLISE STYLE: Radio pause = kill station completely  
   const pause = () => {
+    listeningHistory.suspend();
     logger.log('⏸️ Radio pause - KILLING STATION (live radio doesn\'t pause)');
     logger.log('🔍 Manual pause called from:', new Error().stack?.split('\n')[2]);
     
@@ -1097,35 +1104,11 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
 
   usePlaybackSpaceShortcut({ enabled: !!currentStation, isPlaying, pause: pauseStation, resume: resumeStation });
   
-  // Record listening time before stopping
-  const recordListeningTime = async () => {
-    if (!currentStation || globalListeningTime < 5) return; // Only record if listened >5 seconds
-    
-    try {
-      await fetch('/api/listening/record', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          stationId: currentStation._id,
-          stationName: currentStation.name,
-          listenDuration: globalListeningTime,
-          country: currentStation.country,
-          genre: currentStation.genre
-        })
-      });
-      logger.log('📊 Listening time recorded:', globalListeningTime, 'seconds');
-    } catch (error) {
-      logger.log('⚠️ Failed to record listening time:', error);
-    }
-  };
-
   const stop = () => {
     logger.log('⏹️ Manual stop (simple) - USER INITIATED');
     logger.log('🔍 Manual stop called from:', new Error().stack?.split('\n')[2]);
     
-    // Record listening time before stopping
-    recordListeningTime();
+    listeningHistory.selectStation(null);
     
     // BACKGROUND AUDIO PREVENTION: Release all resources on stop
     releaseWakeLock();

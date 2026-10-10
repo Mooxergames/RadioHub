@@ -51,3 +51,5 @@ Thumbs.db
 # SEO audit secrets (never commit)
 secrets/
 .env.audit
+.env.local
+.env.*.local

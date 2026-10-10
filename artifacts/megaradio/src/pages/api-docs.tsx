@@ -2952,8 +2952,8 @@ const MESSAGING_ENDPOINTS: Endpoint[] = [
     bodyParams: [
       { name: "toUserId", type: "string", required: true, description: "Recipient's user ID" },
       { name: "content", type: "string", required: true, description: "Message text (max 2000 characters)" },
-      { name: "messageType", type: "string", default: "text", description: "Message type: 'text', 'image', or 'emoji'" },
-      { name: "imageUrl", type: "string", description: "Image URL (only used when messageType is 'image'). Upload via /api/messages/upload-image first." },
+      { name: "messageType", type: "string", default: "text", description: "Message type: 'text', 'image', 'emoji', or 'gif'" },
+      { name: "imageUrl", type: "string", description: "For images, use the /uploads/chat/ URL returned by /api/messages/upload-image. For GIFs, use klipy:<slug> with the unmodified KLIPY result slug; clients resolve it through KLIPY Items. Arbitrary remote image URLs are rejected." },
     ],
     notes: [
       "Requires authentication (Bearer token or session).",

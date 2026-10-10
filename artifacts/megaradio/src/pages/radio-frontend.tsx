@@ -26,16 +26,7 @@ import { MapPin, ChevronLeft, ChevronRight, ThumbsUp, Heart } from "lucide-react
 import { ScrollArea } from '@/components/ui/scroll-area';
 import './home-search.css';
 
-// Format vote count to K/M format (9.3K, 1.2M, etc.)
-const formatVoteCount = (count: number): string => {
-  if (count >= 1000000) {
-    return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-  }
-  if (count >= 1000) {
-    return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-  }
-  return count.toString();
-};
+import { formatSearchVoteCount as formatVoteCount } from '@/lib/search-presentation';
 
 // Pure functions at module level — no deps on component state, never re-created
 const rankSearchResults = (stations: any[], query: string): any[] => {

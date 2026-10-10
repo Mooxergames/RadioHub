@@ -310,6 +310,11 @@ function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: 
         </ProtectedRoute>
       );
     }
+    if (pathToUse === '/profile/followers' || pathToUse === '/profile/following') {
+      return <ProtectedRoute><LazyProfileLayout>
+        <LazyRoutes.ProfileConnections direction={pathToUse === '/profile/followers' ? 'followers' : 'following'} />
+      </LazyProfileLayout></ProtectedRoute>;
+    }
     if (pathToUse === '/profile/notifications') {
       return (
         <ProtectedRoute>
@@ -330,16 +335,8 @@ function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: 
         </ProtectedRoute>
       );
     }
-    if (pathToUse === '/profile') {
-      return (
-        <ProtectedRoute>
-          <LazyProfileLayout>
-            <LazyRoutes.Profile />
-          </LazyProfileLayout>
-        </ProtectedRoute>
-      );
-    }
-    
+    if (pathToUse === '/profile' || pathToUse === '/profile/') return <LazyRoutes.ProfileRedirect />;
+
     if (pathToUse === '/tv') return <LazyRoutes.TvLogin />;
     if (pathToUse === '/activate/success') return <LazyRoutes.ActivateSuccessPage />;
     if (pathToUse === '/activate') return <LazyRoutes.ActivatePage />;
@@ -814,6 +811,8 @@ export const SeoMainRouter = React.memo(() => {
                         sub-routes like /<lang>/<translated-profile>/messages/<userId>.
                         If/when 'messages' gets a translation, the second pair
                         below covers the fully-translated form. */}
+                    <Route path={`/${langConfig.code}/${translations['profile']}/followers`} component={PlayerWrapper} />
+                    <Route path={`/${langConfig.code}/${translations['profile']}/following`} component={PlayerWrapper} />
                     <Route path={`/${langConfig.code}/${translations['profile']}/messages`} component={PlayerWrapper} />
                     <Route path={`/${langConfig.code}/${translations['profile']}/messages/:rest*`} component={PlayerWrapper} />
                     {translations['messages'] && (
@@ -865,6 +864,8 @@ export const SeoMainRouter = React.memo(() => {
           <Route path={`/${langConfig.code}/profile/discover`} component={PlayerWrapper} />
           <Route path={`/${langConfig.code}/profile/settings`} component={PlayerWrapper} />
           <Route path={`/${langConfig.code}/profile/notifications`} component={PlayerWrapper} />
+          <Route path={`/${langConfig.code}/profile/followers`} component={PlayerWrapper} />
+          <Route path={`/${langConfig.code}/profile/following`} component={PlayerWrapper} />
           <Route path={`/${langConfig.code}/profile/messages`} component={PlayerWrapper} />
           <Route path={`/${langConfig.code}/profile/messages/:rest*`} component={PlayerWrapper} />
           <Route path={`/${langConfig.code}/profile`} component={PlayerWrapper} />
@@ -1058,10 +1059,16 @@ export const SeoMainRouter = React.memo(() => {
             )}
 
             {/* Messages - English + Translated */}
+            <Route path={`/${countryCode}/profile/followers`} component={PlayerWrapper} />
+            <Route path={`/${countryCode}/profile/following`} component={PlayerWrapper} />
             <Route path={`/${countryCode}/profile/messages`} component={PlayerWrapper} />
             <Route path={`/${countryCode}/profile/messages/:rest*`} component={PlayerWrapper} />
             {translations['profile'] && (
-              <Route path={`/${countryCode}/${translations['profile']}/messages`} component={PlayerWrapper} />
+              <>
+                <Route path={`/${countryCode}/${translations['profile']}/followers`} component={PlayerWrapper} />
+                <Route path={`/${countryCode}/${translations['profile']}/following`} component={PlayerWrapper} />
+                <Route path={`/${countryCode}/${translations['profile']}/messages`} component={PlayerWrapper} />
+              </>
             )}
             {translations['messages'] && (
               <Route path={`/${countryCode}/profile/${translations['messages']}`} component={PlayerWrapper} />
@@ -1103,6 +1110,8 @@ export const SeoMainRouter = React.memo(() => {
       <Route path="/profile/favorites" component={PlayerWrapper} />
       <Route path="/profile/discover" component={PlayerWrapper} />
       <Route path="/profile/settings" component={PlayerWrapper} />
+      <Route path="/profile/followers" component={PlayerWrapper} />
+      <Route path="/profile/following" component={PlayerWrapper} />
       <Route path="/profile/notifications" component={PlayerWrapper} />
       <Route path="/profile/messages" component={PlayerWrapper} />
       <Route path="/profile/messages/:rest*" component={PlayerWrapper} />
@@ -1279,7 +1288,6 @@ function App() {
         import("@/pages/profile-discover"),
         import("@/pages/profile-settings"),
         import("@/pages/notifications-view"),
-        import("@/pages/profile"),
         import("@/pages/login"),
         import("@/pages/auth/login"),
         import("@/pages/auth/signup"),

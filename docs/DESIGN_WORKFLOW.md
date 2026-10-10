@@ -44,7 +44,7 @@ kanonik örneklerdir; dil önekleri ve çevrilmiş yollar `useSeoRouting` ile ç
 | Öneriler / trendler | `/recommendations`, `/trending` | `pages/recommendations.tsx`, `pages/TrendingStations.tsx` |
 | Giriş / kayıt | `/login`, `/signup` | `pages/login.tsx`, `pages/signup.tsx` |
 | Alternatif auth ekranları | `/auth/login`, `/auth/signup` | `pages/auth/login.tsx`, `pages/auth/signup.tsx` |
-| Profil | `/profile` | `pages/profile.tsx`, `components/layout/ProfileLayout.tsx` |
+| Profil | `/profile/settings` (eski `/profile` yönlendirilir) | `pages/profile-settings.tsx`, `components/layout/ProfileLayout.tsx` |
 | Favoriler / keşfet | `/profile/favorites`, `/profile/discover` | `pages/favorites.tsx`, `pages/profile-discover.tsx` |
 | Profil ayarları / bildirimler | `/profile/settings`, `/profile/notifications` | `pages/profile-settings.tsx`, `pages/notifications-view.tsx` |
 | Mesajlar | `/profile/messages` | `pages/messages.tsx` |
@@ -411,3 +411,309 @@ gerçek hesap işlemleri ve yayın oynatma bu tasarım kontrolünde denenmedi.
   ölçüleri, oynat/duraklat geçişi ve servis görselleri kontrol edildi.
 - Bu çalışma, önceki arama hover ve mobil klavye düzeltmeleriyle birlikte lokalde;
   henüz push/merge/deploy yapılmadı.
+
+### İstasyon ekranı — dikey yerleşim ve parlama düzeltmesi
+
+- Önceki arama ve oynatıcı ikonları PR #109 / `b4198ac5c` ile canlıya alındı.
+  Bu bölümdeki takip düzenlemeleri henüz yereldir.
+- Güncel Figma `1339:3468` ve `1339:3643`, MCP kotası nedeniyle açık dosyanın
+  Properties panelinden yeniden incelendi. Sayfa içindeki alan 1512×351 px;
+  logo/içerik grubu `1339:4388` 509×224 px, x=153/y=63.
+- `1339:3469` parlama elipsi 521×521 px, x=-64/y=-41, `#114751` %50,
+  layer blur 246.09. Repodaki özgün PNG zaten bu katmanın bulanıklığını ve
+  351 px sayfa kesimini içeren 704×351 px çıktıdır. PNG'ye elips ölçüleri ve
+  offset'leri ikinci kez uygulanıyordu. Varlık değiştirilmeden doğal oranına,
+  alanın x=0/y=0 başlangıcına döndürüldü; ışık kontrollerin altına da ulaşır.
+- Kullanıcı tercihiyle istasyon kontrol aralığı 20→12 px oldu; mini player
+  ve mobil kontrol aralığı değişmedi. Masaüstü alanı 351 px'e toparlandı;
+  mevcut 274 px reklam rezervasyonu ve reklam yükleme davranışı korundu.
+- İlk denemede bilgi etiketleri ve değerlendirme açıklamanın üstüne taşındı.
+  Kullanıcının sonraki geri bildirimiyle aşağıdaki düzeltmede eski sıra geri alındı.
+- 1030/1512 px masaüstü ve 375 px mobil önizleme kontrol edildi. Masaüstü
+  yüksekliği 351 px, kontrol aralığı 12 px; mobilde yatay taşma yok ve
+  oynat/durdur geçişi çalışıyor. Görseller `.local/design-checks/playing-layout-*`.
+- İlgili beş dosyada 89 test, frontend TypeScript ve üretim derlemesi geçti.
+  Önizleme örnek API verileri ve simüle oynatma kullanır; üretime dahil değildir:
+  `/tr/istasyon/metro-fm?station-preview=1` (22508 portu).
+
+
+### 10 Ekim 2026 — İstasyon bilgileri, içerik reklamı ve header
+
+- Kullanıcı isteğiyle bilgi alanı eski DOM/görsel sırasına döndü: istasyon
+  açıklaması → yıldızlar/inceleme → ülke, format, bitrate ve tür etiketleri.
+  Önceki kontrol aralığı, parlama ve 351 px çalma alanı düzenlemesi korundu.
+- Figma Web masaüstü followers `2035:9886`, menu `2035:10015`, kullanıcı
+  grubu `2035:10032` açık Figma dosyasında yeniden incelendi (MCP kotası dolu).
+  Kullanıcı adının sol altındaki vurgu 25×5 px, `#FF4199`; avatar 45×45 px.
+  Header bu vurguyu kullanır; fotoğrafsız/hatalı fotoğraflı kullanıcılar için
+  mevcut `PublicProfileAvatar` ortak bileşeni mobil ve masaüstüne bağlandı.
+- Followers referansında zil bulunmuyor. Uygulamadaki mevcut bildirimi koruyan
+  uyarlama: masaüstünde ülke → arama → ayırıcı → zil → kullanıcı adı/avatar.
+  Bildirim açma, Escape ile kapanma ve mobil profil menüsü doğrulandı.
+- İstasyon içerik reklamının desktop AdSense formatı `horizontal` yerine
+  `auto`: dar banner şekli zorlanmıyor. Yerleşim içerik konteynerinin tam
+  genişliğinde, metin/yaratıcı merkezli ve daralan ins otomatik yan boşluklu.
+  Google iframe boyutlarına müdahale edilmedi; premium, görünürlük ve tek
+  istek yaşam döngüsü korunuyor. Referans: Google AdSense yardım 9183460.
+- 1456 px tarayıcıda içerik reklamı x=152…1304 (1152 px), SDK'nın oluşturduğu
+  ins 1152×280 px olarak doğrulandı. Yerelde reklam kreatifi dolmadığından
+  gerçek kampanya görseli doğrulanmadı. Nihai kreatif boyutunu Google seçer.
+- 375 px mobilde yatay taşma yok; profil menüsü çalışıyor. Masaüstünde
+  bildirim paneli ekranda kalıyor. Görseller `.local/design-checks/` altında
+  `station-header-review-desktop.png`, `station-header-review-mobile.png`,
+  `station-content-ad-review-desktop.png`.
+- Frontend 140 dosya / 2032 test, TypeScript ve üretim build geçti.
+  Değişiklikler `codex/design` üzerinde yereldir; bu adımda deploy yapılmadı.
+
+### 10 Ekim 2026 — Gerçek verili, salt okunur yerel çalışma
+
+- Tasarım incelemelerinde yeni varsayılan adres:
+  `http://127.0.0.1:22509/tr/istasyon/metro-fm`. `station-preview=1` kullanılmaz.
+  Gerçek uygulama giriş noktası, footer ve oynatıcı dahil tam sayfa açılır.
+- `.local/live-readonly.config.mts` ve `.local/live-readonly-policy.mjs` yalnızca
+  bu bilgisayarda kullanılan, Git tarafından yok sayılan geliştirme dosyalarıdır.
+  Üretim uygulaması veya veritabanı bağlantısı değiştirilmedi.
+- Herkese açık istasyonlar, arama, çeviriler ve yayın bilgisi canlı HTTP API'sinden
+  okunur. İzin verilen GET/HEAD yolları dışındaki istekler yerelde engellenir;
+  çerez, yetkilendirme başlığı ve istek gövdesi canlıya aktarılmaz.
+- Önizleme ziyaretçi olarak çalışır. Favori, oy, yorum, profil değişikliği ve
+  dinleme geçmişi yazma istekleri canlıya ulaşmaz. Yerel sayfa analitiği ve gerçek
+  AdSense yüklemesi kapalıdır; reklam alanlarının yerleşimi korunur. Radyo yayını
+  ve parça bilgisi gerçektir; hesap gerektiren ekranlar bu modun kapsamı dışındadır.
+- Başlatma (Node 24 ve pnpm PATH üzerinde, repo kökünden):
+
+  ```sh
+  PORT=22509 BASE_PATH=/ pnpm --filter @workspace/megaradio exec vite --config ../../.local/live-readonly.config.mts --host 127.0.0.1
+  ```
+
+- Metro FM gerçek kaydı, KRAL FM araması, tam footer, gerçek yayının
+  oynatılıp durdurulması ve parça bilgisi doğrulandı. Yazma isteği 405 ile yerelde
+  reddedildi; izin listesi kontrolleri geçti. Görseller:
+  `.local/design-checks/live-readonly-station.png` ve `live-readonly-footer.png`.
+- Eski 22508 fixture ortamı özel durumların tasarım kontrolü için kalabilir;
+  günlük inceleme 22509 üzerinden yapılır. Bu geçiş için deploy yapılmadı.
+
+### 10 Ekim 2026 — Diğer sayfalarda Ctrl+K aramasının tasarım uyumu
+
+- Kullanıcı isteği: ana sayfa dışında sayfayı terk etmeden açılan arama penceresi,
+  daha önce onaylanan ana sayfa aramasıyla aynı görsel dili kullanır.
+- Figma MCP bağlam ve screenshot çağrıları kota nedeniyle sonuç vermedi.
+  Referans `591:4887` açık Figma dosyasında yeniden incelendi: 614×393 px,
+  20 px köşe, 2 px beyaz kenar ve %20 beyaz dolgu. Uygulamadaki kullanıcı
+  onaylı sayaç şeridi, ülke bilgisi ve beğeniler korunarak uyarlama yapıldı.
+- `QuickSearchDialog`, `home-search.css` stillerini ve mevcut yerel Figma
+  mercek/X/ayırıcı SVG'lerini paylaşır. Ayrı başlık, iç input kutusu,
+  klavye yardım şeridi ve tekrar eden çalan istasyon satırı kaldırıldı.
+  Erişilebilir diyalog adı/açıklaması, odak kilidi ve Escape ile odak dönüşü korunur.
+- Tür/ülke araması ve yerelleştirilmiş bağlantılar korunur. İstasyonlarda
+  beyaz Ubuntu metni, ülke bayrağı ve ortak K/M beğeni biçimi kullanılır.
+  API'nin döndürdüğü 20 sonuç da kaydırılabilir; Radix ScrollArea, üst/alt
+  16 px boşluk ve satır vurgusundan ayrılmış kaydırma alanını kullanır.
+- Mobil klavye görünür alanı mevcut viewport hook'u ile takip edilir.
+  1456 px masaüstünde panel 614 px; 375 px mobilde 343 px ve yan boşluklar
+  16 px. 375×360 kontrolünde çerçeve y=16…344 arasında kaldı ve End tuşuyla
+  20. sonuca erişildi. Bu kontrol fiziksel iOS klavye testi değildir;
+  viewport kayması ve dinleyici temizliği ayrıca davranış testiyle doğrulandı.
+- 63 arama/ülke testi, frontend TypeScript ve üretim build geçti. İlk tam
+  test çalışmasındaki jsdom ResizeObserver eksikliği ilgili testlerde giderildi;
+  başarısız iki test dosyası yeniden çalıştırılıp geçti.
+- Gerçek veriyle önizleme: `http://127.0.0.1:22509/tr/istasyon/kral-turk-fm`.
+  Görseller `.local/design-checks/quick-search-glass-{desktop,mobile,short-viewport}.png`.
+  Değişiklikler yereldir; deploy yapılmadı.
+
+### Arama penceresi — masaüstü dikey konum
+
+- Kullanıcının geri bildirimiyle masaüstü üst boşluğu %7'den görünür yüksekliğin
+  %20'sine alındı; 96–220 px arasında sınırlandırılır. Bu değer evrensel bir
+  standart iddiası değil, mevcut panel için seçilen yerleşimdir. İncelenen
+  örnekler: Tailwind'in resmi komut penceresi örneği
+  (`https://tailwindcss.com/blog/vanilla-js-support-for-tailwind-plus`) ve
+  Mantine Spotlight (`https://mantine.dev/x/spotlight/`).
+- 1456×853 ekranda üst kenar 59.7→170.6 px oldu; sonuçlar açılınca giriş
+  yeri değişmez. Sonuçlu panelin alt kenarı 597.6 px olarak doğrulandı.
+  Mobilde mevcut 16 px güvenli boşluk ve klavye takibi aynen korunur.
+- Üretim derlemesi geçti. Görsel:
+  `.local/design-checks/quick-search-position-desktop.png`. Henüz yayımlanmadı.
+
+### 10 Ekim 2026 — Favoriler genişlik denemesi geri alındı
+
+- Kullanıcı dar görünümü beğenmedi; Favoriler önceki tam genişlik düzenine döndü.
+  250 px sabit sol menü, 30 px dış boşluk, geniş ekranda üç sütun ve profil
+  mini player offset'i geri getirildi. Ortalanmış genişlik denemesi yayımlanmadı.
+- 22508'deki yerel test hesabında gerçek radyolarla görsel önizleme korunur;
+  bu liste kullanıcının kişisel favorileri değildir.
+
+### 10 Ekim 2026 — Profil ayarları Figma Web düzeni
+
+- Referanslar: Web/profile `2035:9624` (1512×1428), mobil profile `2129:7343`
+  (375×1244). MCP kotası nedeniyle açık Figma dosyası ve Properties paneli
+  kullanıldı. Oynatma kartı `2035:9625`: 587×415 px, 10 px radius, #151515.
+- Tam genişlik ve 250 px sol menü korundu. Sade Profil başlığının altında
+  breadcrumb, yuvarlak avatar/yatay kimlik kartı ve eşit iki ayar paneli var.
+  Otomatik oynatma checkbox, oynatma seçenekleri pembe radyo kontrolleri;
+  sağ kartta ülke, dil ve herkese açık profil ayarı bulunuyor.
+- Ad, e-posta, parola, bildirim ve mevcut abonelik kontrolleri aynı kart
+  diliyle aşağıda korunur. Avatar yükleme, taslak koruma, kaydet/iptal ve
+  anlık bildirim işlemleri mevcut sözleşmeleriyle çalışır.
+- Figma Frame 168 (`2035:9638`; dışa aktarılan SVG düğüm kimliği `2035:9649`)
+  özgün vektörü `public/icons/profile/listening-activity.svg` olarak alındı.
+  Masaüstü istatistik şeridi hesap API'sindeki dakika cinsinden dinleme süresi
+  ve favori sayısını gösterir. API'nin sağlamadığı değerler “—”; Figma'daki
+  örnek radyo/şarkı sayıları eklenmedi. Mobil referansta bu şerit görünmez.
+- Yeni metinler 14 dile eklendi. 375, 1030 ve 1512 px genişliklerde yatay
+  taşma yok. 1512 px'de kart başlangıcı x=280, sağ boşluk 30, iki panel
+  586×415 px; ek breadcrumb nedeniyle referanstan dikey fark bilinçli.
+- Profil testleri 39/39; frontend typecheck ve üretim derlemesi geçti.
+  Derlemede mevcut büyük chunk uyarıları sürüyor. Yerel önizleme
+  `http://127.0.0.1:22508/tr/profil/ayarlar`; bu değişiklik yayımlanmadı.
+- Görseller: `.local/design-checks/profile-settings-desktop.png`,
+  `profile-settings-mobile.png`, `profile-settings-mobile-details.png`.
+
+
+### Profil takip listeleri — 10 Ekim 2026
+
+- Figma dosyası tarayıcıda yeniden doğrulandı: Web followers `2035:9886`,
+  follows `2038:10444`; mobil follows `2131:10413` (katman adı followers).
+  MCP Starter kotası nedeniyle açık Figma dosyasının ölçüleri kullanıldı.
+- Profil ayarlarındaki sayaçlar `/profile/followers` ve `/profile/following`
+  sayfalarına gider. Yerelleştirilmiş yollar, tam genişlik profil kabuğu,
+  pembe aktif sekme, yuvarlak avatar ve masaüstü 130 px satırlar kullanılır.
+  Mobilde satırlar kompakt, eylem hedefleri en az 44 px'dir.
+- Kimlikler ve takipçi sayıları PostgreSQL ilişkilerinden gelir; isim/avatar
+  mevcut herkese açık profil yoluna bağlanır. Yeni GET
+  `/api/user-engagement/connections/:direction` yalnızca oturum sahibinin
+  listesini döndürür, sayfalanır ve `no-store` kullanır.
+- Takipçilerde Kaldır gelen ilişkiyi, takip edilenlerde Takibi bırak giden
+  ilişkiyi siler. Silme sonrası sayfalama başa alınır ve hesap sayaçları ile
+  açık profil önbellekleri yenilenir. Hata, boş liste ve hesap değişimi ayrıdır.
+- 22508 tasarım sunucusundaki örnek dinleyiciler yalnızca Git dışındaki
+  `.local/profile-preview.config.mts` içindedir. Canlı hesaplar değiştirilmedi.
+- Doğrulama: frontend tüm testleri (2043), ek yerelleştirilmiş rota ve liste
+  kontrolleri (365), backend takip rotası testleri (9), kütüphane/frontend/API
+  typecheck ve frontend build başarılı. 1512 px ve 375 px görsel kontrolü yapıldı.
+  Kanıtlar `.local/design-checks/profile-followers-desktop.png` ve
+  `profile-following-mobile.png`. Deploy yapılmadı.
+
+
+### Tek profil ekranı — 10 Ekim 2026
+
+- Esas profil `/profile/settings` (TR `/tr/profil/ayarlar`). Eski
+  `pages/profile.tsx` panosu kaldırıldı; yalnızca dil, sorgu ve hash korunarak
+  `replace` yönlendirmesi yapar. Profil kabuğu ve oynatıcı yeniden kurulmaz.
+- Profil breadcrumb'ı doğrudan bu adrese bağlanır. Esas profilde
+  `Ana Sayfa > Profil`, alt ekranlarda `Ana Sayfa > Profil > ...` gösterilir;
+  istemci ve SSR breadcrumb hedefleri aynıdır.
+- Takip/favori/dinleme özetleri mevcut yeni profilde zaten vardır. Eski
+  panonun mükerrer listeleri ve gerçek haftalık veriye dayanmayan sayaçları
+  taşınmadı. Şifre ekranı ve bildirimlerdeki eski profil bağlantıları düzeltildi.
+- Doğrulama: 399 frontend testi, 14 SSR breadcrumb testi, frontend typecheck
+  ve build başarılı. Masaüstünde eski adres ve breadcrumb tıklaması; mobilde
+  takip listesinden breadcrumb ile dönüş tarayıcıda doğrulandı.
+  Görseller: `.local/design-checks/single-profile-desktop.png` ve
+  `single-profile-mobile.png`. Değişiklikler lokalde, deploy yapılmadı.
+
+
+### Gerçek dinleme süresi — 10 Ekim 2026
+
+- `useGlobalPlayer` dinleme kaydını `useListeningHistory` üzerinden yürütür.
+  Süre `playing` sonrası medya saatinin ilerlemesinden hesaplanır; başlangıç
+  yüklemesi, duraklatma ve buffering sayılmaz. Her 30 saniyede, duraklatma,
+  istasyon değişimi, görünürlük kaybı ve `pagehide` sırasında tam saniyeler kaydedilir.
+- Gönderilmeyen kayıtlar localStorage'da kayıt başına ayrı anahtarla saklanır.
+  Ağ dönüşü/yeniden açılış aynı kimliği yeniden gönderir. Hesap kimliği hem
+  istemcide hem sunucuda denetlenir; geçmiş dinleme başka hesaba taşınmaz.
+  Cookie ve OAuth Bearer aynı yetkili taşıma katmanını kullanır.
+- `postgres-listening-store.ts` geçmiş ve toplam güncellemesini aynı transaction'da
+  yapar. Kullanıcı satır kilidi eşzamanlı cihazları, kullanıcı+kayıt hash'i tekrar
+  gönderimleri korur; istasyon birleştirme kilit sırası korunur.
+- Mevcut `users.source` içinde `listeningTotalSeconds` ve dakika sözleşmesini
+  sürdüren `totalListeningTime` saklanır. İlk kayıtta geçmiş `listen` satırlarının
+  toplamı ile eski dakika değerinden büyük olan başlangıç kabul edilir; iki eski
+  gösterim toplanmaz. Recommendation `play` olayları tekrar dinleme sayılmaz.
+  `/api/auth/me` ilk yeni kayıt öncesinde de mevcut gerçek geçmişten toplamı okur.
+  Başarılı yeni kayıt profil sorgu önbelleğini günceller; ekranda saat/dakika görünür.
+- Yayına çıkarken **önce API, ardından web** güncellenmeli. Bu iş yalnızca frontend
+  deploy'u ile tamamlanmaz. Şema migration'ı gerekmez. Eski mobil kayıt gövdeleri
+  desteklenir; yeni tekrar-gönderim güvencesi `recordId` kullanan istemciler içindir.
+- Doğrulama: tüm frontend testleri; dinleme, profil ve oynatıcı yaşam döngüsü
+  odak testleri; 28 API/PostgreSQL testi (10'u ayrı yerel PostgreSQL'de, sıfır skip);
+  libs/frontend/backend typecheck ve frontend build. Üretim veritabanına yazılmadı.
+  Test kayıtları `.local/listening-*-tests.log`; henüz deploy yapılmadı.
+- Gerçek cihazda iOS uygulamanın zorla kapatılması testi yapılmadı. Son 30 saniyenin
+  `pagehide` öncesi tarayıcı tarafından öldürülmesi gibi olay üretmeyen kapanışlar
+  garanti edilemez; periyodik kayıtlar ve kalıcı bekleyen kuyruk kaybı sınırlar.
+
+
+### Messages — 10 Ekim 2026
+
+- Güncel Figma Web `messages` frame’i `1339:5867` (1512×966) incelendi.
+  MCP okuma kotası dolu olduğundan açık Figma dosyasının Properties panelinden
+  ölçüler, renkler ve tipografi doğrulandı: sohbet sütunu 289 px / #1B1B1B;
+  içerik #0E0E0E; balon #3F3F3F, 10 px radius, Ubuntu Medium 14 px;
+  alt bant #272727 / 119 px, giriş #3A3A3A / 54 px ve 4 px radius.
+- `messages.tsx` ve sayfaya özel `messages.css`: nötr seçili satırlar, balonların
+  üst köşe kuyrukları, altta hizalanan kısa sohbetler, emoji ve kare Mega pembe
+  gönder düğmesi. Var olan Figma ikon ailesinden gönder simgesi tekrar kullanıldı.
+- Kişiler sekmesi, bağlantı/çevrim içi durumu, zaman ve okundu bilgisi, görsel
+  ekleme tasarım diline uyarlandı. API, WebSocket, hesap izolasyonu, eski mesaj
+  yükleme, IME, bildirim ve oynatıcıya göre yükseklik hesaplama mantığı korundu.
+- 1512×966 masaüstü, 390×844 mobil ve 390×420 daralan ekran kontrolü yapıldı.
+  Kişi arama, boş/dolu sohbet, geri dönüş, metin ve emoji gönderme yalnızca
+  `.local/profile-preview.config.mts` içindeki bellekte tutulan örnek sohbetlerle
+  doğrulandı; gerçek kullanıcılara mesaj gönderilmedi. Gerçek iOS klavyesi yerine
+  daraltılmış viewport ve mevcut visualViewport testleri kullanıldı.
+- 23 mesajlaşma/hesap izolasyonu/responsive testi, frontend typecheck ve build
+  başarılı. Görseller: `.local/design-checks/messages-desktop.png` ve
+  `messages-mobile.png`. Bu aşamada deploy yapılmadı.
+
+### Mesajlar: Emoji / GIF ve yerel görsel yükleme — 10 Ekim 2026
+
+- Emoji düğmesi içinde klavyeyle erişilebilir Emoji/GIF sekmeleri, gecikmeli
+  arama, sayfalama, tekrar deneme, gönderim önizlemesi ve iptal eklendi.
+  GIF seçimi tek başına mesaj göndermez. Nötr yüzeyler, Ubuntu ve Mega pembe
+  seçim çizgisi mevcut mesajlar tasarımıyla aynı. 18 dilde medya durum metinleri var.
+- KLIPY hesabı ve `MegaRadio-Web` anahtarı kullanıcı onayıyla oluşturuldu.
+  Monetization **OFF**, anahtar **TESTING** (100 API isteği/saat).
+  Anahtar yalnızca Git dışındaki `artifacts/megaradio/.env.local` dosyasında
+  `VITE_KLIPY_API_KEY` olarak bulunur. Bu, tarayıcıda kullanılması amaçlanan bir
+  uygulama anahtarıdır; hesap oturum anahtarı değildir.
+- [KLIPY entegrasyon şartları](https://docs.klipy.com/integration-requirements)
+  uyarınca API ve medya doğrudan istemciden gelir. Kaynak sırası ve medya URL’leri
+  korunur; dosyalar yeniden barındırılmaz. Arama alanında gereken `Search KLIPY`
+  atfı var. Oturum token’ı, hesap kimliği veya sohbet içeriği servise gönderilmez.
+- Veritabanındaki mevcut text alanları kullanılır; migration yok. `gif` mesajının
+  `imageUrl` alanı yalnızca `klipy:<slug>` kabul eder. Geçmiş açılınca Items API ile
+  güncel medya çözülür. Search slug’ındaki teslimat eki Items yanıtında kaldırılabilir;
+  istemci tek öğe çözümlemesini destekler, kaydedilen kimliği değiştirmez.
+- Yerel 22508 tasarım API’sinde eksik multipart yükleme yolu eklendi. PNG/JPEG/GIF/
+  WebP imzası ve 5 MB sınırı doğrulanır; görseller `.local/chat-images/` altında
+  saklanır. Test sohbetleri bellektedir, gerçek kişilere mesaj göndermez.
+  Gönderim başarısızsa görsel önizlemesi korunur; sohbet değişirse bekleyen yükleme
+  yeni sohbete gönderilmez. 22509 salt okunur gerçek veri sunucusu hâlâ yazma testi için değildir.
+- 390×844 mobil ve 390×420 daralmış viewport kontrol edildi. Klavye alanı küçülünce
+  açık seçici geçici olarak geçmişin yerini kullanır; arama ve gönder kontrolleri görünür kalır.
+  Gerçek iOS klavyesi bu ortamda test edilmedi.
+- Yayın sırasında backend GIF desteği ve frontend birlikte çıkarılmalı;
+  `VITE_KLIPY_API_KEY` frontend build ortamına eklenmeli. Genel kullanıma açmadan önce
+  [KLIPY Partner Panel](https://partner.klipy.com/api-keys) üzerinden üretim erişimi
+  başvurusu gerekir; üretim onayı bu çalışmada alınmadı. Deploy yapılmadı.
+- Doğrulama: 31 frontend ve 9 backend mesajlaşma testi, paylaşılan kütüphaneler/
+  frontend/backend typecheck ve frontend build başarılı. Gerçek KLIPY araması,
+  GIF gönderimi ve geçmişten tekrar çözümleme ile yerel dosya yükleme tarayıcıda
+  doğrulandı. Görseller: `.local/design-checks/messages-gif-{desktop,mobile}.png`.
+
+### Profil ve mesajlar yayın hazırlığı — 10 Ekim 2026
+
+- Önce geriye uyumlu API (dinleme toplamları, bağlantı listeleri, GIF mesaj
+  doğrulaması), ardından yeni web arayüzü yayınlanır. Şema değişikliği yoktur.
+- KLIPY üretim erişimi henüz onaylanmadığından test anahtarı yayına taşınmaz.
+  Anahtar tanımlanmamış derlemelerde GIF sekmesi gizlenir; emoji ve görsel
+  yükleme kullanılabilir. Yerel GIF testi mevcut `.env.local` ile devam eder.
+- 2.198 frontend testi ve tip kontrolleri başarılı; ek anahtarsız emoji kontrolü
+  dahil 7 GIF testi başarılı. Değişen API yollarındaki 378 test, dinleme toplamları
+  için yalnızca yerel PostgreSQL üzerinde eşzamanlı kayıt/tekrar/geri alma
+  senaryoları dahil geçti. SPA, API ve web sunucusu üretim derlemeleri başarılı.
+- Geniş API paketi: 2.815 geçti, 24 başarısız, 11 atlandı. Aynı 24 başarısız
+  durum `origin/main` kaynaklarının ayrı kopyasında yeniden üretildi; yeni
+  başarısızlık yok. Yerel genel test veritabanı `127.0.0.1:22512/radiohub_test`;
+  PostgreSQL `pg_trgm` uzantısı test şemalarından bağımsız public şemada kurulur.

@@ -56,6 +56,7 @@ export default function ProfileLayout({ children }: ProfileLayoutProps) {
       import("@/pages/favorites"),
       import("@/pages/profile-discover"),
       import("@/pages/profile-settings"),
+      import("@/pages/profile-connections"),
       import("@/pages/notifications-view"),
     ]);
 
@@ -116,7 +117,7 @@ export default function ProfileLayout({ children }: ProfileLayoutProps) {
                 <div className="text-base font-bold">{navLabel('user_menu_discover', 'discover')}</div>
               </NavLink>
 
-              <NavLink href={getLocalizedUrl("/profile/settings")} isActive={isActive(getLocalizedUrl("/profile/settings"))}>
+              <NavLink href={getLocalizedUrl("/profile/settings")} isActive={isActive(getLocalizedUrl("/profile/settings")) || ["/profile/followers", "/profile/following"].includes(englishPath.replace(/\/$/, ""))}>
                 <ProfileNavIcon name="profile" />
                 <div className="text-base font-bold">{navLabel('user_menu_profile', 'profile')}</div>
               </NavLink>

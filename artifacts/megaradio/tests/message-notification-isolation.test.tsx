@@ -44,6 +44,38 @@ beforeEach(() => {
 });
 afterEach(() => {cleanup();client.clear();vi.unstubAllGlobals();});
 
+it('uploads a selected image as multipart, retains it after failed send, and never uploads unsupported files', async () => {
+  fetchMock.mockImplementation(async (url:string) => url==='/api/messages/upload-image' ? json({imageUrl:'/uploads/chat/test.png'}) : url==='/api/messages/send' ? json({},500) : defaults(url));
+  const view=mount(<MessagesPage/>); fireEvent.click(await screen.findByText('Bob'));
+  await screen.findByPlaceholderText('Message Bob');
+  const picker=view.container.querySelector('input[type="file"]')!;
+  fireEvent.change(picker,{target:{files:[new File(['not an image'],'a.svg',{type:'image/svg+xml'})]}});
+  expect(await screen.findByRole('alert')).toHaveTextContent('JPG, PNG, GIF oder WebP');
+  expect(fetchMock.mock.calls.some(([url])=>url==='/api/messages/upload-image')).toBe(false);
+  fireEvent.change(picker,{target:{files:[new File(['test image'],'a.png',{type:'image/png'})]}});
+  await screen.findByAltText('Preview'); fireEvent.click(screen.getByRole('button',{name:'Send message'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('konnte nicht bestätigt werden');
+  const upload=fetchMock.mock.calls.find(([url])=>url==='/api/messages/upload-image')!;
+  expect(upload[1].body).toBeInstanceOf(FormData);
+  expect(upload[1].body.get('image').name).toBe('a.png');
+  const send=fetchMock.mock.calls.find(([url])=>url==='/api/messages/send')!;
+  expect(JSON.parse(send[1].body)).toMatchObject({toUserId:B,messageType:'image',imageUrl:'/uploads/chat/test.png'});
+  expect(screen.getByAltText('Preview')).toBeInTheDocument();
+});
+
+it('does not send an uploaded image into a conversation opened while upload was pending', async () => {
+  let finish!: (response:Response)=>void;
+  fetchMock.mockImplementation(async (url:string)=>url==='/api/messages/upload-image' ? new Promise<Response>(resolve=>{finish=resolve;}) : defaults(url));
+  const view=mount(<MessagesPage/>);fireEvent.click(await screen.findByText('Bob')); await screen.findByPlaceholderText('Message Bob');
+  fireEvent.change(view.container.querySelector('input[type="file"]')!,{target:{files:[new File(['test'],'a.png',{type:'image/png'})]}});
+  await screen.findByAltText('Preview'); fireEvent.click(screen.getByRole('button',{name:'Send message'}));
+  await waitFor(()=>expect(finish).toBeTypeOf('function'));
+  fireEvent.click(screen.getByText('Carol')); fireEvent.change(await screen.findByPlaceholderText('Message Carol'),{target:{value:'Carol draft'}});
+  await act(async()=>finish(json({imageUrl:'/uploads/chat/test.png'})));
+  expect(screen.getByPlaceholderText('Message Carol')).toHaveValue('Carol draft');
+  expect(fetchMock.mock.calls.some(([url])=>url==='/api/messages/send')).toBe(false);
+});
+
 it('captures recipient and prevents late send success from clearing the next conversation draft',async () => {
   let finish!: (response:Response) => void;
   fetchMock.mockImplementation(async (url:string,options?:RequestInit) => url==='/api/messages/send' ? new Promise<Response>(resolve=>{finish=resolve;}) : defaults(url));
@@ -66,7 +98,7 @@ it('failed sends are not automatically retried and keep the draft with a visible
   mount(<MessagesPage/>);fireEvent.click(await screen.findByText('Bob'));
   fireEvent.change(await screen.findByPlaceholderText('Message Bob'),{target:{value:'Keep this draft'}});
   act(()=>{fireEvent.click(screen.getByRole('button',{name:'Send message'}));fireEvent.click(screen.getByRole('button',{name:'Send message'}));});
-  expect(await screen.findByRole('alert')).toHaveTextContent('could not be confirmed');
+  expect(await screen.findByRole('alert')).toHaveTextContent('konnte nicht bestätigt werden');
   expect(fetchMock.mock.calls.filter(([url])=>url==='/api/messages/send')).toHaveLength(1);
   expect(screen.getByPlaceholderText('Message Bob')).toHaveValue('Keep this draft');
 });

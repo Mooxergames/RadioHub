@@ -27,8 +27,10 @@ it.each(labels)('%s account breadcrumb uses localized fallbacks and keeps transl
   expect(screen.getByRole('list')).toHaveClass('container');
   state.location = `/${language}/${route.profile || 'profile'}/${route.settings || 'settings'}`;
   view.rerender(<RouteBreadcrumbs />);
-  expect(screen.getByRole('link', { name: profile })).toHaveAttribute('href', `/${language}/${route.profile || 'profile'}`);
-  expect(screen.getByRole('link', { name: settings })).toHaveAttribute('href', state.location);
+  expect(screen.getByRole('link', { name: profile })).toHaveAttribute('href', state.location);
+  expect(screen.getByRole('link', { name: profile })).toHaveAttribute('aria-current', 'page');
+  expect(screen.queryByRole('link', { name: settings })).toBeNull();
+  expect(screen.getAllByRole('link')).toHaveLength(2);
   expect(screen.getByRole('navigation')).toHaveClass('lg:pl-[280px]');
   expect(screen.getByRole('list')).not.toHaveClass('container');
 });
@@ -38,4 +40,11 @@ it('respects current-locale account labels ahead of fallbacks', () => {
   render(<RouteBreadcrumbs />);
   expect(screen.getByRole('link', { name: 'Radio-Community' })).toBeInTheDocument();
   expect(screen.queryByText('Users')).not.toBeInTheDocument();
+});
+
+it.each(['favorites', 'discover', 'followers', 'following', 'messages'])('profile breadcrumb from %s links straight to the primary profile', child => {
+  state.location = `/tr/profil/${URL_TRANSLATIONS.tr[child] || child}`;
+  render(<RouteBreadcrumbs placement="content" />);
+  expect(screen.getByRole('link', { name: 'Profil', exact: true })).toHaveAttribute('href', '/tr/profil/ayarlar');
+  expect(screen.getAllByRole('link')).toHaveLength(3);
 });

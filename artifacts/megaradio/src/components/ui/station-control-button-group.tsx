@@ -73,7 +73,7 @@ export default function StationControlButtonGroup({ className, currentPageStatio
   const buttonSize = size === 'mobile' ? '33.46px' : '50px';
   const buttonRadius = size === 'mobile' ? '16.73px' : '25px';
   const iconScale = size === 'mobile' ? 0.67 : 1;
-  const gap = miniPlayer ? 'var(--mini-player-control-gap, 12px)' : size === 'mobile' ? '6px' : playingSection ? '20px' : '10px';
+  const gap = miniPlayer ? 'var(--mini-player-control-gap, 12px)' : size === 'mobile' ? '6px' : playingSection ? '12px' : '10px';
   const { 
     currentStation, 
     isPlaying, 

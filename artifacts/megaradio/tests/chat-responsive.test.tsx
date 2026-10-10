@@ -55,6 +55,9 @@ describe('chat viewport boundaries', () => {
     await waitFor(()=>expect(screen.getByTestId('viewport-chat')).toHaveStyle({maxHeight:'580px'}));
     act(()=>{viewport.height=400;viewport.dispatchEvent(new Event('resize'));});
     await waitFor(()=>expect(screen.getByTestId('viewport-chat')).toHaveStyle({maxHeight:'330px'}));
+    expect(screen.getByTestId('viewport-chat')).toHaveAttribute('data-compact','true');
+    act(()=>{viewport.height=800;viewport.dispatchEvent(new Event('resize'));});
+    await waitFor(()=>expect(screen.getByTestId('viewport-chat')).toHaveAttribute('data-compact','false'));
     const remove=vi.spyOn(viewport,'removeEventListener');view.unmount();
     expect(remove).toHaveBeenCalledWith('resize',expect.any(Function));
     expect(remove).toHaveBeenCalledWith('scroll',expect.any(Function));

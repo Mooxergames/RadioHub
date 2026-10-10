@@ -24,9 +24,10 @@ export const AustriaRadiosPage = lazy(() => import("@/pages/AustriaRadiosPage"))
 export const UserProfile = lazy(() => import("@/pages/users/profile"));
 export const UserProfilePage = lazy(() => import("@/pages/UserProfile"));
 export const UsersIndex = lazy(() => import("@/pages/users/index"));
-export const Profile = lazy(() => import("@/pages/profile"));
+export const ProfileRedirect = lazy(() => import("@/pages/profile"));
 export const Favorites = lazy(() => import("@/pages/favorites"));
 export const ProfileDiscover = lazy(() => import("@/pages/profile-discover"));
+export const ProfileConnections = lazy(() => import("@/pages/profile-connections"));
 export const ProfileSettings = lazy(() => import("@/pages/profile-settings"));
 export const NotificationSettings = lazy(() => import("@/pages/notifications"));
 export const NotificationsView = lazy(() => import("@/pages/notifications-view"));

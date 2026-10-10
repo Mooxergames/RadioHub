@@ -467,7 +467,7 @@ export default function StationDetails() {
               fed in via useBreadcrumbLastItemName(station?.name) above. */}
 
           {/* Radio Playing Section - Mobile First Responsive */}
-          <div className="relative bg-[#101010] md:bg-[#1D1D1D] py-4 overflow-hidden">
+          <div className="relative bg-[#101010] md:bg-[#1D1D1D] py-4 md:py-0 overflow-hidden">
             {/* Connection Failed Overlay - Figma: 1512x308, #00000080, blur(13px) */}
             {hasError && currentStation?._id === station._id && (
               <div 
@@ -565,13 +565,14 @@ export default function StationDetails() {
               </div>
             )}
             
-            {/* Background Gradient - Figma: 521x521, positioned behind station logo - Hidden on mobile/tablet */}
+            {/* The exported glow already includes the ellipse's blur and frame clipping.
+                Render its 704×351 canvas without reapplying the source ellipse's offsets. */}
             <div
               aria-hidden="true"
-              className="hidden md:block absolute pointer-events-none w-[521px] h-[521px]"
+              className="hidden md:block absolute pointer-events-none w-[704px] h-[351px]"
               style={{
-                top: '-41px',
-                left: '-64px',
+                top: 0,
+                left: 0,
                 opacity: 1,
                 backgroundImage: `url(${bgGradient})`,
                 backgroundSize: '100% 100%',
@@ -579,7 +580,7 @@ export default function StationDetails() {
               }}
             />
             <div className="container m-auto relative z-10">
-              <div className="items-center justify-between gap-4 py-2 md:py-10 sm:flex bg-[#151515] md:bg-transparent rounded">
+              <div className="items-center justify-between gap-4 py-2 md:py-[38.5px] md:min-h-[351px] md:flex bg-[#151515] md:bg-transparent rounded">
                 {/* Mobile: Full width, Desktop: flex to use available width */}
                 <div className="flex p-4 md:p-0 w-full max-w-full md:flex-1 md:h-[224px]">
                   {/* Station Image - Figma: Mobile 79x79, Desktop 224x224, border-radius 11.14px, border 2.24px */}
@@ -1166,12 +1167,12 @@ export default function StationDetails() {
                       ads={advertisements}
                       position="middle_section"
                       autoSwitchInterval={DIRECT_AD_ROTATION_MS}
-                      fallback={<AdSenseUnit adSlot={AD_SLOTS.stationContent} adFormat="horizontal" className="max-w-[1206px] mx-auto min-h-[90px]" />}
+                      fallback={<AdSenseUnit adSlot={AD_SLOTS.stationContent} adFormat="auto" className="w-full mx-auto min-h-[90px] text-center [&>ins]:mx-auto" />}
                     />
                   </Suspense>
                 ) : (
                   <Suspense fallback={null}>
-                    <AdSenseUnit adSlot={AD_SLOTS.stationContent} adFormat="horizontal" className="max-w-[1206px] mx-auto min-h-[90px]" />
+                    <AdSenseUnit adSlot={AD_SLOTS.stationContent} adFormat="auto" className="w-full mx-auto min-h-[90px] text-center [&>ins]:mx-auto" />
                   </Suspense>
                 )}
               </div>
