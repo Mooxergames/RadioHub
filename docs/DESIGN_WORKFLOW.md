@@ -713,3 +713,7 @@ gerçek hesap işlemleri ve yayın oynatma bu tasarım kontrolünde denenmedi.
   dahil 7 GIF testi başarılı. Değişen API yollarındaki 378 test, dinleme toplamları
   için yalnızca yerel PostgreSQL üzerinde eşzamanlı kayıt/tekrar/geri alma
   senaryoları dahil geçti. SPA, API ve web sunucusu üretim derlemeleri başarılı.
+- Geniş API paketi: 2.815 geçti, 24 başarısız, 11 atlandı. Aynı 24 başarısız
+  durum `origin/main` kaynaklarının ayrı kopyasında yeniden üretildi; yeni
+  başarısızlık yok. Yerel genel test veritabanı `127.0.0.1:22512/radiohub_test`;
+  PostgreSQL `pg_trgm` uzantısı test şemalarından bağımsız public şemada kurulur.
