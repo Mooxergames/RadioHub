@@ -18,10 +18,9 @@ import { SeoHead } from "@/components/SeoHead";
 import { useBreadcrumbLastItemName } from "@/components/RouteBreadcrumbs";
 import { getStationUrl } from "@/utils/slugs";
 import StationControlButtonGroup from "@/components/ui/station-control-button-group";
+import MusicServiceIcon from "@/components/ui/music-service-icon";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { StationStreamAvailability } from '@/components/StationStreamAvailability';
-import youtubeIcon from "@assets/youtube-logo.png";
-import spotifyIcon from "@assets/spotify-logo.png";
-import deezerIcon from "@assets/deezer.png";
 import shareIcon from "@assets/sharebutton.png";
 import bgGradient from "@assets/bg-gradient.lossless.png";
 import nosignalIcon from "@assets/nosignal.png";
@@ -128,6 +127,7 @@ interface Station {
 }
 
 export default function StationDetails() {
+  const isMobile = useIsMobile();
   // Use useSeoRouting to get cleanPath which handles ALL translated URLs automatically
   const { cleanPath, getLocalizedUrl, navigateWithLanguage, currentLanguage } = useSeoRouting();
   const [, setLocation] = useLocation();
@@ -684,7 +684,7 @@ export default function StationDetails() {
                             className="hover:opacity-80 transition-opacity flex-shrink-0"
                             title={t('button_search_youtube', 'Search on YouTube')}
                           >
-                            <img src={youtubeIcon} alt="YouTube" style={{ width: 26, height: 26 }} />
+                            <MusicServiceIcon service="youtube" />
                           </button>
                           
                           {/* Spotify Button - 26x26 */}
@@ -696,7 +696,7 @@ export default function StationDetails() {
                             className="hover:opacity-80 transition-opacity flex-shrink-0"
                             title={t('button_search_spotify', 'Search on Spotify')}
                           >
-                            <img src={spotifyIcon} alt="Spotify" style={{ width: 26, height: 26 }} />
+                            <MusicServiceIcon service="spotify" />
                           </button>
                           
                           {/* Deezer Button - 26x26 */}
@@ -708,7 +708,7 @@ export default function StationDetails() {
                             className="hover:opacity-80 transition-opacity flex-shrink-0"
                             title={t('button_search_deezer', 'Search on Deezer')}
                           >
-                            <img src={deezerIcon} alt="Deezer" style={{ width: 26, height: 26 }} />
+                            <MusicServiceIcon service="deezer" />
                           </button>
                         </>
                       )}
@@ -726,7 +726,7 @@ export default function StationDetails() {
 
                     {/* Station Control Buttons - extra margin on mobile */}
                     <div className="mt-4 md:mt-0">
-                      <StationControlButtonGroup currentPageStation={station} labels={controlLabels} />
+                      <StationControlButtonGroup currentPageStation={station} labels={controlLabels} appearance="playing-section" size={isMobile ? 'mobile' : 'default'} />
                       <StationStreamAvailability station={station} language={language} />
                     </div>
                   </div>
@@ -752,7 +752,7 @@ export default function StationDetails() {
                           className="hover:opacity-80 transition-opacity flex-shrink-0"
                           title={t('button_search_youtube', 'Search on YouTube')}
                         >
-                          <img src={youtubeIcon} alt="YouTube" style={{ width: 26, height: 26 }} />
+                          <MusicServiceIcon service="youtube" />
                         </button>
                         
                         {/* Mobile Spotify Button - 26x26 */}
@@ -764,7 +764,7 @@ export default function StationDetails() {
                           className="hover:opacity-80 transition-opacity flex-shrink-0"
                           title={t('button_search_spotify', 'Search on Spotify')}
                         >
-                          <img src={spotifyIcon} alt="Spotify" style={{ width: 26, height: 26 }} />
+                          <MusicServiceIcon service="spotify" />
                         </button>
                         
                         {/* Mobile Deezer Button - 26x26 */}
@@ -776,7 +776,7 @@ export default function StationDetails() {
                           className="hover:opacity-80 transition-opacity flex-shrink-0"
                           title={t('button_search_deezer', 'Search on Deezer')}
                         >
-                          <img src={deezerIcon} alt="Deezer" style={{ width: 26, height: 26 }} />
+                          <MusicServiceIcon service="deezer" />
                         </button>
                       </>
                     )}

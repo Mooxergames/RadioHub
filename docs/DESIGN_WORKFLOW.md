@@ -356,3 +356,58 @@ gerçek hesap işlemleri ve yayın oynatma bu tasarım kontrolünde denenmedi.
   72 px satır tam görünür. Masaüstü ve 375 px mobilde, listenin başında ve
   sonunda eşit 16 px boşluk ölçüldü; 29 arama testi ve build tekrar geçti.
   Son görseller: `search-insets-desktop.png`, `search-insets-mobile.png`.
+
+### Yayın sonrası — satır vurgusunun kaydırma alanına taşması
+
+- Önceki arama, kayıt banner'ı ve footer düzeltmeleri PR #108 ile yayımlandı.
+- Son kullanıcı yorumundaki taşma için kaydırma çubuğunun 10 px genişliği ve
+  sağdaki 10 px boşluğu, satır viewport'unun dışında bırakıldı. Satırın sağ
+  padding'i aynı miktarda azaltılarak beğeni sayılarının hizası korundu.
+- 1431 px masaüstü ve 375 px mobilde vurgulu satırın sağ kenarı kaydırma
+  çubuğunun sol kenarında bitiyor; çubuğun arkasına veya sağına taşmıyor.
+  Üst/alt 16 px boşluk, uzun adların kısaltılması ve son satıra klavyeyle
+  erişim korundu. İlgili 29 arama testi ve production build başarılı.
+- Bu son düzeltme yereldir; görseller `search-hover-gutter-desktop.png` ve
+  `search-hover-gutter-mobile.png` dosyalarında (`.local/design-checks/`).
+
+### Mobil klavye — arama çerçevesinin üstten kesilmesi
+
+- Kullanıcının iPhone ekran görüntülerinde klavye açıkken panelin üst kenarı
+  görünür alan dışında kalıyordu. Açık arama artık `visualViewport.offsetTop`
+  ve `height` değişikliklerini izler; mobil üst konum ve maksimum panel
+  yüksekliği bu alanı ve güvenli ekran boşluklarını kullanır.
+- Giriş/sayaç satırları sabit kalırken sonuç listesi kalan yüksekliğe küçülür.
+  Header'dan mobil arama açılırken hero'ya ayrıca `scrollIntoView` uygulanmaz.
+  Dinleyiciler arama kapanınca veya bileşen kaldırılınca temizlenir.
+- Klavye açılış/kapanış ve kayma olaylarının simülasyonunda metin/odak korundu;
+  31 arama testi, frontend TypeScript ve production build başarılı.
+- Tarayıcıda 375×360 alanda panel y=16–344, 375×812 alanda y=16–427;
+  kısa listede son sonuca klavyeyle erişim ve masaüstü düzeni doğrulandı.
+  Gerçek iPhone klavyesi bu ortamda çalıştırılmadı. Görseller:
+  `search-keyboard-short-viewport.png`, `search-keyboard-full-viewport.png`.
+- Önceki satır vurgusu düzeltmesiyle birlikte yerelde hazır; henüz yayımlanmadı.
+
+
+### İstasyon oynatma ikonları — yerel çalışma
+
+- Figma Web `playing-section` referansları: `1339:3468` (istasyon sayfası),
+  `1339:3643` (ayrı bileşen). 50 px yuvarlak düğmeler, 30 px önceki/sonraki/pause
+  ikonları ve 20 px masaüstü aralığı doğrulandı.
+- Figma MCP okuma kotası dolu olduğu için açık Figma dosyası native UI üzerinden
+  incelendi; SVG'ler Export üzerinden alındı. `1339:3654` pause çıktısının path'leri
+  mevcut mini-player SVG'siyle aynı. Play için Web `2390:8935` (adı
+  `vuesax/bold/next`, görünür şekli yuvarlatılmış play üçgeni) 26 px orijinal SVG
+  kullanıldı; `public/icons/playing-section/play.svg` değiştirilmeden kaydedildi.
+- `1339:3671` Deezer grubu (Figma katman adı `spotify-logo`) 26 px; işaret
+  16 × 10.45 px, x=5/y=7. YouTube/Spotify/Deezer için mevcut Figma vektörleri
+  ortak `MusicServiceIcon` üzerinden istasyon sayfası ve mini oynatıcıda kullanılıyor.
+- İstasyon sayfası `playing-section` görünümünü kullanır; oynat/duraklat/önceki/sonraki
+  ve kalp SVG'leri yuvarlatılmış Figma ailesiyle tutarlıdır. Mobilde mevcut küçük
+  kontrol boyutu kullanılarak 375 px ekranın sağında düğmelerin kesilmesi giderildi.
+- Yerel gerçek sayfa önizlemesi: `/tr/istasyon/metro-fm?station-preview=1`;
+  sadece `.local` fixture'ı, simüle oynatma ve sahte API verisi. Üretime dahil olmaz.
+- Oynatma/oy verme/yerelleştirme davranış testleri dahil frontend 140 dosya /
+  2032 test geçti; TypeScript kontrolü ve üretim derlemesi geçti. Masaüstü ve 375 px mobilde ikonların
+  ölçüleri, oynat/duraklat geçişi ve servis görselleri kontrol edildi.
+- Bu çalışma, önceki arama hover ve mobil klavye düzeltmeleriyle birlikte lokalde;
+  henüz push/merge/deploy yapılmadı.

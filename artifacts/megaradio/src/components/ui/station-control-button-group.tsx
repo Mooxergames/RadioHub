@@ -60,18 +60,20 @@ interface StationControlButtonGroupProps {
   currentPageStation?: any; // Station from the current detail page
   size?: 'default' | 'mobile'; // Figma: default=50px, mobile=33.46px
   labels?: StationControlLabels;
-  appearance?: 'default' | 'mini-player';
+  appearance?: 'default' | 'mini-player' | 'playing-section';
 }
 
 export default function StationControlButtonGroup({ className, currentPageStation, size = 'default', labels = getStationControlLabels(), appearance = 'default' }: StationControlButtonGroupProps) {
   const miniPlayer = appearance === 'mini-player';
+  const playingSection = appearance === 'playing-section';
+  const useFigmaIcons = miniPlayer || playingSection;
   const iconSuffix = size === 'mobile' ? '-mobile' : '';
   const miniIcon = (name: string) => <img src={`/icons/mini-player/${name}${iconSuffix}.svg`} alt="" aria-hidden="true" />;
   // Size configurations based on Figma
   const buttonSize = size === 'mobile' ? '33.46px' : '50px';
   const buttonRadius = size === 'mobile' ? '16.73px' : '25px';
   const iconScale = size === 'mobile' ? 0.67 : 1;
-  const gap = miniPlayer ? 'var(--mini-player-control-gap, 12px)' : size === 'mobile' ? '6px' : '10px';
+  const gap = miniPlayer ? 'var(--mini-player-control-gap, 12px)' : size === 'mobile' ? '6px' : playingSection ? '20px' : '10px';
   const { 
     currentStation, 
     isPlaying, 
@@ -130,7 +132,7 @@ export default function StationControlButtonGroup({ className, currentPageStatio
         title={labels.previous}
         data-testid="button-previous-station"
       >
-        {miniPlayer ? miniIcon('previous') : <div style={{ transform: `scale(${iconScale})` }}><PreviousIcon /></div>}
+        {useFigmaIcons ? miniIcon('previous') : <div style={{ transform: `scale(${iconScale})` }}><PreviousIcon /></div>}
       </button>
 
       {/* Play/Stop Button */}
@@ -143,7 +145,7 @@ export default function StationControlButtonGroup({ className, currentPageStatio
         title={isDisplayStationPlaying ? labels.stop : labels.play}
         data-testid="button-play-stop"
       >
-        {miniPlayer && isDisplayStationPlaying ? miniIcon('pause') : <div style={{ transform: `scale(${iconScale})` }}>{isDisplayStationPlaying ? <PauseIcon /> : <PlayIcon />}</div>}
+        {useFigmaIcons && isDisplayStationPlaying ? miniIcon('pause') : <div style={{ transform: `scale(${iconScale})` }}>{isDisplayStationPlaying ? <PauseIcon /> : playingSection ? <img src="/icons/playing-section/play.svg" alt="" aria-hidden="true" /> : <PlayIcon />}</div>}
       </button>
 
       {/* Next Station Button */}
@@ -155,7 +157,7 @@ export default function StationControlButtonGroup({ className, currentPageStatio
         title={labels.next}
         data-testid="button-next-station"
       >
-        {miniPlayer ? miniIcon('next') : <div style={{ transform: `scale(${iconScale})` }}><NextIcon /></div>}
+        {useFigmaIcons ? miniIcon('next') : <div style={{ transform: `scale(${iconScale})` }}><NextIcon /></div>}
       </button>
 
       {/* Vote Button */}
@@ -170,11 +172,11 @@ export default function StationControlButtonGroup({ className, currentPageStatio
       <FavoriteButton 
         stationId={displayStation._id} 
         className={size === 'mobile' ? 'w-[33.46px] h-[33.46px] rounded-[16.73px]' : 'w-[50px] h-[50px] rounded-[40.28px]'}
-        customIcon={miniPlayer ? `/icons/mini-player/heart${iconSuffix}.svg` : favIcon}
-        appearance={appearance}
+        customIcon={useFigmaIcons ? `/icons/mini-player/heart${iconSuffix}.svg` : favIcon}
+        appearance={useFigmaIcons ? 'mini-player' : 'default'}
         size={size}
-        iconSizeOverride={miniPlayer ? undefined : size === 'mobile' ? '28px' : '40px'}
-        borderWidth={size === 'mobile' ? (miniPlayer ? '1.338px' : '1.5px') : '2px'}
+        iconSizeOverride={useFigmaIcons ? undefined : size === 'mobile' ? '28px' : '40px'}
+        borderWidth={size === 'mobile' ? (useFigmaIcons ? '1.338px' : '1.5px') : '2px'}
       />
     </div>
   );

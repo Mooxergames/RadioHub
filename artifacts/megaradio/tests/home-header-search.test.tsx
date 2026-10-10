@@ -97,6 +97,66 @@ it('keeps a direct hero click collapsed until typing two characters', async () =
   await waitFor(() => expect(within(results()).getByRole('option', { name: /Jazz One/ })).toBeInTheDocument());
 });
 
+it('follows keyboard resize and viewport panning without losing the search text or focus', async () => {
+  const viewport = Object.assign(new EventTarget(), { height: 360, offsetTop: 52 });
+  vi.stubGlobal('visualViewport', viewport);
+  vi.stubGlobal('innerWidth', 375);
+  const user = userEvent.setup();
+  mount();
+  await user.click(heroInput());
+  await user.type(heroInput(), 'jazz');
+  const anchor = heroInput().closest('.home-search-anchor') as HTMLElement;
+  expect(anchor.style.getPropertyValue('--home-search-viewport-top')).toBe('52px');
+  expect(anchor.style.getPropertyValue('--home-search-viewport-height')).toBe('360px');
+
+  act(() => {
+    viewport.height = 300;
+    viewport.dispatchEvent(new Event('resize'));
+    viewport.offsetTop = 87;
+    viewport.dispatchEvent(new Event('scroll'));
+  });
+  await waitFor(() => expect(anchor.style.getPropertyValue('--home-search-viewport-top')).toBe('87px'));
+  expect(anchor.style.getPropertyValue('--home-search-viewport-height')).toBe('300px');
+  expect(heroInput()).toHaveFocus();
+  expect(heroInput()).toHaveValue('jazz');
+
+  act(() => {
+    viewport.height = 780;
+    viewport.offsetTop = 0;
+    viewport.dispatchEvent(new Event('resize'));
+  });
+  await waitFor(() => expect(anchor.style.getPropertyValue('--home-search-viewport-top')).toBe('0px'));
+  expect(anchor.style.getPropertyValue('--home-search-viewport-height')).toBe('780px');
+  expect(heroInput()).toHaveAttribute('aria-expanded', 'true');
+  expect(heroInput()).toHaveValue('jazz');
+  expect(state.play).not.toHaveBeenCalled();
+});
+
+it('opens mobile search without scrolling the hero and releases viewport tracking when closed or unmounted', async () => {
+  const viewport = Object.assign(new EventTarget(), { height: 360, offsetTop: 40 });
+  const removeListener = vi.spyOn(viewport, 'removeEventListener');
+  vi.stubGlobal('visualViewport', viewport);
+  vi.stubGlobal('innerWidth', 375);
+  const user = userEvent.setup();
+  const view = mount();
+  const scrollInput = vi.spyOn(heroInput(), 'scrollIntoView');
+  await user.click(trigger());
+  expect(scrollInput).not.toHaveBeenCalled();
+  const anchor = heroInput().closest('.home-search-anchor') as HTMLElement;
+  expect(anchor.style.getPropertyValue('--home-search-viewport-top')).toBe('40px');
+  await user.keyboard('{Escape}');
+  expect(anchor.style.getPropertyValue('--home-search-viewport-top')).toBe('');
+  expect(anchor.style.getPropertyValue('--home-search-viewport-height')).toBe('');
+  expect(removeListener).toHaveBeenCalledWith('resize', expect.any(Function));
+  expect(removeListener).toHaveBeenCalledWith('scroll', expect.any(Function));
+  expect(trigger()).toHaveFocus();
+  removeListener.mockClear();
+  await user.click(trigger());
+  view.unmount();
+  expect(removeListener).toHaveBeenCalledWith('resize', expect.any(Function));
+  expect(removeListener).toHaveBeenCalledWith('scroll', expect.any(Function));
+});
+
 it.each(['mobile', 'desktop', 'Ctrl+K', 'Cmd+K', '/'])('opens the existing hero with popular results via %s, ready to type without interrupting playback', async method => {
   const user = userEvent.setup();
   mount();

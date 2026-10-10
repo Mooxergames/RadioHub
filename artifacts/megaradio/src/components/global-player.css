@@ -49,8 +49,6 @@
 .mini-player-track-row { display: flex; align-items: center; gap: 12px; min-width: 0; height: 26px; }
 .mini-player-track { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 300; line-height: 16px; }
 .mini-player .mini-player-meta { flex-shrink: 0; gap: 9px; }
-.mini-player-deezer { display: block; position: relative; width: 26px; height: 26px; }
-.mini-player-deezer > img:last-child { position: absolute; left: 5px; top: 7px; }
 .mini-player-controls { display: flex; align-items: center; gap: 16px; }
 .mini-player-controls button { flex-shrink: 0; }
 .mini-player-favorite img { transform: translateY(1.17px); }

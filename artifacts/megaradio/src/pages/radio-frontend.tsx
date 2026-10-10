@@ -4,6 +4,7 @@ import { homeStationPageOptions, selectPopularHomeStations } from '@/lib/home-st
 import { OPEN_HOME_SEARCH, type HomeSearchOpenEvent } from '@/lib/home-search';
 import { stationQueryFreshness } from '@/lib/station-query-policy';
 import { useAvailableStationSnapshots } from '@/hooks/useAvailableStationSnapshots';
+import { useHomeSearchViewport } from '@/hooks/use-home-search-viewport';
 import { fetchStationCardList } from '@/lib/station-card-list-request';
 import { Link } from "wouter";
 import StationCard from "@/components/ui/station-card";
@@ -304,6 +305,7 @@ export default function RadioFrontend({
   const heroSearchReturnFocusRef = useRef<HTMLElement | null>(null);
   const hasSearchTerm = searchQuery.trim().length >= 2;
   const isHeroSearchOpen = showSearchSuggestions || hasSearchTerm;
+  const heroSearchAnchorRef = useHomeSearchViewport(isHeroSearchOpen);
 
   const closeHeroSearch = useCallback((restoreFocus = true) => {
     setShowSearchSuggestions(false);
@@ -324,7 +326,7 @@ export default function RadioFrontend({
       heroSearchReturnFocusRef.current = (event as HomeSearchOpenEvent).detail.returnFocusTo;
       setShowSearchSuggestions(true);
       const bounds = input.getBoundingClientRect();
-      if (bounds.top < 120 || bounds.bottom > window.innerHeight) {
+      if (window.innerWidth >= 640 && (bounds.top < 120 || bounds.bottom > window.innerHeight)) {
         input.scrollIntoView({ block: 'center', behavior: 'instant' });
       }
       input.focus({ preventScroll: true });
@@ -953,6 +955,7 @@ export default function RadioFrontend({
 
           {/* Shared hero/header search, styled from Figma's open search component. */}
           <div
+            ref={heroSearchAnchorRef}
             className={`home-search-anchor ${isHeroSearchOpen ? 'home-search-anchor--open' : ''}`}
             onBlur={(event) => {
               if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) closeHeroSearch(false);

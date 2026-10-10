@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); client.clear(); });
 const missing = (_key: string, fallback: string) => fallback;
-const wrap = (labels: ReturnType<typeof getStationControlLabels>, appearance: 'default' | 'mini-player' = 'default') =>
+const wrap = (labels: ReturnType<typeof getStationControlLabels>, appearance: 'default' | 'mini-player' | 'playing-section' = 'default') =>
   <QueryClientProvider client={client}><StationControlButtonGroup currentPageStation={station} labels={labels} appearance={appearance} /></QueryClientProvider>;
 
 it.each(ACTIVE_SITEMAP_LANGUAGES)('%s controls and image text have same-language fallbacks without adding translation observers', language => {
@@ -48,7 +48,7 @@ it.each(ACTIVE_SITEMAP_LANGUAGES)('%s controls and image text have same-language
   expect(alt).not.toContain('Listen ');
 });
 
-it.each(['default', 'mini-player'] as const)('%s retains Turkish labels and play/previous/next/vote operations', async appearance => {
+it.each(['default', 'mini-player', 'playing-section'] as const)('%s retains Turkish labels and play/previous/next/vote operations', async appearance => {
   const dictionary: Record<string, string> = { player_play_station: 'İstasyonu Çal', player_stop: 'Durdur',
     previous: 'Önceki', next: 'İleri', button_share_station: 'İstasyonu Paylaş', general_close: 'Kapat' };
   const labels = getStationControlLabels('tr', dictionary);
