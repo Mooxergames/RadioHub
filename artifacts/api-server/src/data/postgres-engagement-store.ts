@@ -396,18 +396,18 @@ export async function pgFollowPage(
   const filterColumn = direction === "followers" ? "f.following_id" : "f.follower_id";
   const [rows, count] = await Promise.all([
     pool().query(
-      `SELECT u.id,u.username,u.full_name,u.avatar,u.source,f.created_at,
+      `SELECT u.id,u.slug,u.username,u.full_name,u.avatar,u.source,f.created_at,
          (SELECT count(*)::int FROM user_follows x WHERE x.following_id=u.id) followers_count,
          (SELECT count(*)::int FROM user_follows x WHERE x.follower_id=u.id) following_count
        FROM user_follows f JOIN users u ON u.id=${targetColumn}
-       WHERE ${filterColumn}=$1 ORDER BY f.created_at DESC LIMIT $2 OFFSET $3`,
+       WHERE ${filterColumn}=$1 ORDER BY f.created_at DESC,u.id ASC LIMIT $2 OFFSET $3`,
       [userId, limit, offset],
     ),
     pool().query<{ count: string }>(`SELECT count(*)::text count FROM user_follows f WHERE ${filterColumn}=$1`, [userId]),
   ]);
   const entries = rows.rows.map((row) => ({
     user: {
-      _id: row.id, fullName: row.full_name, username: row.username, avatar: row.avatar,
+      _id: row.id, slug: row.slug, fullName: row.full_name, username: row.username, avatar: row.avatar,
       location: row.source?.location, followersCount: row.followers_count,
       followingCount: row.following_count,
     },

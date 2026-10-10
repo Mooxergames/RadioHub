@@ -1,6 +1,6 @@
 import express from 'express';
 import { engagementStore, UserEngagementService } from '../services/user-engagement-service';
-import { pgResolveUserId, pgPublicProfileCacheIdentity } from '../data/postgres-engagement-store';
+import { pgResolveUserId, pgPublicProfileCacheIdentity, pgFollowPage } from '../data/postgres-engagement-store';
 import { publicStationCache as CacheManager } from '../public-station-cache';
 import { publicStationResponseCache } from '../middleware/public-station-cache';
 import { findActiveAuthToken } from '../data/auth-token-store';
@@ -223,6 +223,37 @@ async function resolveCurrentUserId(req: any): Promise<string | null> {
 async function resolveTargetUserId(param: string): Promise<string | null> {
     return pgResolveUserId(param);
 }
+// Account-only relationship lists, always read fresh after a removal.
+router.get('/connections/:direction', async (req, res) => {
+    res.set({ 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store', 'Cloudflare-CDN-Cache-Control': 'no-store' });
+    try {
+        const currentUserId = await resolveCurrentUserId(req);
+        if (!currentUserId) return void res.status(401).json({ error: 'Authentication required' });
+        const direction = req.params.direction;
+        const page = req.query.page === undefined ? 1 : Number(req.query.page);
+        const limit = req.query.limit === undefined ? 20 : Number(req.query.limit);
+        if ((direction !== 'followers' && direction !== 'following')
+            || !Number.isSafeInteger(page) || page < 1 || page > 1000000
+            || !Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+            return void res.status(400).json({ error: 'Invalid connection list parameters' });
+        res.json(await pgFollowPage(currentUserId, direction, page, limit));
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+// Remove only an incoming relationship to the authenticated account.
+router.post('/remove-follower/:userId', async (req, res) => {
+    try {
+        const currentUserId = await resolveCurrentUserId(req);
+        if (!currentUserId) return void res.status(401).json({ error: 'Authentication required' });
+        const targetUserId = await resolveTargetUserId(req.params.userId);
+        if (!targetUserId) return void res.status(404).json({ error: 'User not found' });
+        if (targetUserId === currentUserId) return void res.status(400).json({ error: 'Cannot remove yourself' });
+        res.json(await userEngagementService.unfollowUser(targetUserId, currentUserId));
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 // Follow a user
 router.post('/follow/:userId', async (req, res) => {
     try {

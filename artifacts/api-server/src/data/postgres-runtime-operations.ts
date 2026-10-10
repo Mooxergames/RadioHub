@@ -1,6 +1,5 @@
 import { randomBytes } from 'node:crypto';
 import { getPostgresPool, getPostgresCoordinationPool } from '../postgres-runtime';
-import { lockStationIdentity } from './station-identity-store';
 
 export async function pgTrackVisitor(ipAddress: string, userAgent?: string): Promise<void> {
   await getPostgresPool().query(`INSERT INTO visitor_sessions(id,ip_address,user_agent) VALUES ($1,$2,$3)
@@ -13,22 +12,7 @@ export async function pgPruneVisitors(): Promise<number> {
   return result.rowCount || 0;
 }
 
-export async function pgRecordListening(input: { userId: string; stationId: string; stationName?: string; listenDuration: number; country?: string; genre?: string }): Promise<void> {
-  if (!Number.isFinite(input.listenDuration) || input.listenDuration <= 0 || input.listenDuration > 2147483647) throw new Error('Invalid listen duration');
-  const client = await getPostgresPool().connect();
-  try {
-    await client.query('BEGIN');
-    // Keep historical unknown IDs accepted, but an old merged ID must point
-    // at its survivor. Hold its key before user/FK writes so a concurrent merge
-    // cannot move history and then leave this insert behind on the deleted ID.
-    const stationId = await lockStationIdentity(input.stationId, client, 'KEY SHARE') ?? input.stationId;
-    await client.query(`INSERT INTO listening_history(id,user_id,session_id,station_id,station_name,listen_duration,country,genre,interaction_type,listened_at)
-      VALUES ($1,$2,$2,$3,$4,$5,$6,$7,'listen',now())`,
-      [randomBytes(12).toString('hex'),input.userId,stationId,input.stationName || 'Unknown',Math.max(1,Math.round(input.listenDuration)),input.country || 'Unknown',input.genre || 'Unknown']);
-    await client.query('COMMIT');
-  } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
-  finally { client.release(); }
-}
+export { pgRecordListening } from './postgres-listening-store';
 
 export async function pgGetAppState(key: string): Promise<Record<string, any> | null> {
   return (await getPostgresPool().query('SELECT value FROM runtime_app_state WHERE key=$1',[key])).rows[0]?.value || null;

@@ -82,6 +82,23 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
     }
   });
 }
+for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+  test(`${language}: profile breadcrumbs link to the single settings screen and omit the duplicate settings crumb`, () => {
+    const routes = URL_TRANSLATIONS[language] || {};
+    const expected = `/${language}/${routes.profile || 'profile'}/${routes.settings || 'settings'}`;
+    const overrides = new Map(Object.entries(routes).map(([key, value]) => [`${language}:${key}`, value]));
+    for (const mapping of [overrides, undefined]) {
+      const label = (_key: string, fallback: string) => fallback;
+      const profile = (renderer as any).computeBreadcrumbItems(language, '/profile/settings', mapping, undefined, label);
+      assert.deepEqual(profile, [{ name: 'Home', path: `/${language}` }, { name: 'Profile', path: expected }]);
+      for (const child of ['favorites', 'followers', 'following']) {
+        const items = (renderer as any).computeBreadcrumbItems(language, `/profile/${child}`, mapping, undefined, label);
+        assert.equal(items.length, 3);
+        assert.equal(items[1].path, expected);
+      }
+    }
+  });
+}
 const url = '/en/station/recovery-fm';
 beforeEach(() => {
   pageCache.clear(); databaseFails = false; qualificationFails = false;

@@ -1,3 +1,4 @@
+import { registerListeningRoutes } from './routes/listening-routes';
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
@@ -5,7 +6,7 @@ import crypto from 'crypto';
 import { getPostgresPool, getPostgresHealth } from './postgres-runtime';
 import { pgCatalog } from './data/postgres-catalog-store';
 import { pgCountryCounts, pgDiscoverableGenres, pgGenres } from './data/postgres-taxonomy-store';
-import { pgPruneVisitors, pgRecordListening } from './data/postgres-runtime-operations';
+import { pgPruneVisitors } from './data/postgres-runtime-operations';
 import { pgTrackQualifiedVisitor, pgPruneQualifiedVisitors } from './data/postgres-visitor-metrics';
 import { createUniqueVisitorTrackingMiddleware } from './middleware/unique-visitor-tracking';
 import { registerVisitorMetricsRoutes } from './routes/visitor-metrics-routes';
@@ -635,21 +636,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   // The previous /stations → /radios route here caused a redirect chain
   // (/stations → /radios → /en/radios) that hurt Google crawl efficiency.
 
-  // === LISTENING RECORD (not in any module file) ===
-  app.post('/api/listening/record', requireAuth, async (req, res) => {
-    try {
-      const { stationId, stationName, listenDuration, country, genre } = req.body;
-      const userId = (req.session as any)?.user?.userId;
-      if (!userId || typeof stationId !== 'string' || !stationId || typeof listenDuration !== 'number' || !Number.isFinite(listenDuration) || listenDuration <= 0 || listenDuration > 2147483647) {
-        return void res.status(400).json({ error: 'Missing required fields' });
-      }
-      await pgRecordListening({ userId: String(userId),stationId,stationName,listenDuration,country,genre });
-      res.json({ success: true, totalTime: listenDuration });
-    } catch (error: any) {
-      logger.error(`Error recording listening session: ${error.message}`);
-      res.status(500).json({ error: 'Failed to record listening session' });
-    }
-  });
+  registerListeningRoutes(app);
 
   // === INDEXNOW ROUTES ===
   app.use('/api/admin/indexnow', requireAdmin, indexnowMonitoringRouter);

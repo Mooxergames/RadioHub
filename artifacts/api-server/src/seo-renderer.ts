@@ -2093,6 +2093,7 @@ export class SeoRenderer {
 
     for (let i = 0; i < pathSegments.length; i++) {
       const segment = pathSegments[i];
+      if (pathSegments[0] === 'profile' && pathSegments.length === 2 && segment === 'settings') continue;
       const isLastSegment = i === pathSegments.length - 1;
       const isStationDetailSlug = isLastSegment && (cleanPath.includes('/station/') || cleanPath.includes('/stations/'));
       const segForUrl = isStationDetailSlug ? segment : translateSeg(segment);
@@ -2104,7 +2105,12 @@ export class SeoRenderer {
       } else if (segment !== 'stations' && segment !== 'station') {
         const translationKey = `nav_${segment}`;
         const displayName = getLocalizedText(translationKey, segment.replace(/-/g, ' ').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
-        items.push({ name: displayName, path: `/${language}${currentPath}` });
+        // Match the client: profile links always target the single settings screen.
+        const profileSegment = urlTranslations?.get(`${language}:profile`) || URL_TRANSLATIONS[language]?.profile || 'profile';
+        const settingsSegment = urlTranslations?.get(`${language}:settings`) || URL_TRANSLATIONS[language]?.settings || 'settings';
+        const path = i === 0 && segment === 'profile'
+          ? `/${language}/${profileSegment}/${settingsSegment}` : `/${language}${currentPath}`;
+        items.push({ name: displayName, path });
       }
     }
 

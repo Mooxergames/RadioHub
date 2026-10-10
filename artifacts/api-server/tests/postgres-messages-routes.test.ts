@@ -209,6 +209,28 @@ test('presence lookup never enumerates non-contact users', async () => {
   assert.equal(response.status, 200); assert.deepEqual((await response.json() as any).status, {});
 });
 
+test('GIF messages persist only provider references and emit the GIF type to both participants', async () => {
+  sent.length = 0;
+  const response = await fetch(`${baseUrl}/api/messages/send`, {method:'POST',headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({toUserId:partnerId,content:'GIF',messageType:'gif',imageUrl:'klipy:radio-123'})});
+  assert.equal(response.status, 200); await response.json();
+  for (const {payload} of sent.filter(item => item.payload.type === 'chat:message')) {
+    assert.equal(payload.message.messageType, 'gif'); assert.equal(payload.message.imageUrl,'klipy:radio-123');
+  }
+  for (const imageUrl of ['https://tracker.example/image.gif','data:image/gif;base64,AA','klipy:../private','klipy:x?y=1','klipy:'+'x'.repeat(201)]) {
+    const rejected = await fetch(`${baseUrl}/api/messages/send`, {method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({toUserId:partnerId,content:'GIF',messageType:'gif',imageUrl})});
+    assert.equal(rejected.status,400); await rejected.json();
+  }
+  assert.equal(sent.filter(item => item.payload.type === 'chat:message').length,2);
+  follows = false;
+  try {
+    const forbidden = await fetch(`${baseUrl}/api/messages/send`, {method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({toUserId:partnerId,content:'GIF',messageType:'gif',imageUrl:'klipy:radio-123'})});
+    assert.equal(forbidden.status,403); await forbidden.json();
+  } finally { follows = true; }
+});
+
 test("PostgreSQL presence broadcasts include subsequent contact pages", async () => {
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(followPageCalls.filter(args => args[2] === 2).length, 2);

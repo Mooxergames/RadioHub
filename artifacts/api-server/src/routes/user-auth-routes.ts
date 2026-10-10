@@ -1,3 +1,4 @@
+import { pgListeningTotalMinutes } from '../data/postgres-listening-store';
 import type { Express } from "express";
 import { profileFieldsSchema, authProfileSchema, notificationSettingsSchema } from '@workspace/api-zod';
 import { getPostgresPool } from '../postgres-runtime';
@@ -1391,7 +1392,7 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
                 followersCount: actualFollowersCount,
                 followingCount: actualFollowingCount,
                 favoriteStationsCount: user.favoriteStationsCount,
-                totalListeningTime: user.totalListeningTime,
+                totalListeningTime: await pgListeningTotalMinutes(userId),
                 lastLoginAt: user.lastLoginAt,
                 createdAt: user.createdAt,
                 following: following
