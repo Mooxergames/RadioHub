@@ -24,6 +24,9 @@ const findUser = async (id: string) => { if (databaseFails) throw new Error('pri
 const cache = { get: async () => null, set: async () => {}, del: async (key: string) => { invalidations.push(key); }, clearByPattern: async (key: string) => { invalidations.push(key); } };
 mock.module('../src/cache', { defaultExport: cache, namedExports: { CacheKeys: { userSocial: (email: string) => `social:${email}` } } });
 mock.module('../src/postgres-runtime', { namedExports: { getPostgresPool: () => { throw new Error('No real DB access allowed'); } } });
+mock.module('../src/data/postgres-listening-store', { namedExports: {
+  pgListeningTotalMinutes: async (id: string) => (await findUser(id))?.totalListeningTime ?? 0,
+} });
 mock.module('../src/utils/logger', { namedExports: { logger: { log() {}, error() {}, warn() {} } } });
 mock.module('../src/auth/auth-event-logger', { namedExports: { logAuthEvent: async () => {} } });
 mock.module('../src/data/postgres-api-access-store', { namedExports: { pgListAuthEvents: async () => [] } });
@@ -131,6 +134,15 @@ test('auth/me returns503 for DB outage,403 inactive and preserves healthy anonym
   assert.equal((await request('/api/auth/me', 'GET', undefined, null, { authorization: 'Bearer fixture-token-long-enough' })).status, 503);
   databaseFails = false; users.get(ownerId).status = 'suspended'; assert.equal((await request('/api/auth/me')).status, 403);
   const anonymous = await request('/api/auth/me', 'GET', undefined, null); assert.equal(anonymous.status, 200); assert.equal((await anonymous.json()).authenticated, false);
+});
+test('auth/me exposes the recorded total in minutes for the authenticated account', async () => {
+  users.get(ownerId).totalListeningTime = 91.5;
+  users.get(otherId).totalListeningTime = 3;
+  const body = await (await request('/api/auth/me')).json();
+  assert.equal(body.authenticated, true);
+  assert.equal(body.user.totalListeningTime, 91.5);
+  const other = await (await request('/api/auth/me', 'GET', undefined, otherId)).json();
+  assert.equal(other.user.totalListeningTime, 3);
 });
 test('notification settings GET/PATCH/PUT require auth, boolean allowlist and preserve unrelated settings', async () => {
   assert.equal((await request('/api/user/notification-settings', 'GET', undefined, null)).status, 401);

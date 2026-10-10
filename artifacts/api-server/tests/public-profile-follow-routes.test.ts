@@ -26,6 +26,11 @@ mock.module('../src/postgres-runtime', { namedExports: {
   getPostgresPool: () => { throw new Error('No real database access allowed'); },
 } });
 mock.module('../src/data/postgres-engagement-store', { namedExports: {
+  pgFollowPage: async (id: string, direction: string, page: number, limit: number) => {
+    const rows = [...relationships].filter(pair => direction === 'followers' ? pair.endsWith(`:${id}`) : pair.startsWith(`${id}:`))
+      .map(pair => ({ user: { _id: pair.split(':')[direction === 'followers' ? 0 : 1] } }));
+    return { [direction]: rows.slice((page - 1) * limit, page * limit), pagination: { page, limit, total: rows.length, pages: Math.ceil(rows.length / limit) } };
+  },
   pgResolveUserId: async (value: string) => aliases.get(value) ?? null,
   pgPublicProfileCacheIdentity: async (value: string) => {
     const id = aliases.get(value);
@@ -224,4 +229,48 @@ test('full profile reports the visible favorites total consistently with subsequ
   assert.equal(next.total, full.total);
   const cached = await (await fetch(`${base}/profile/viewer/full`, { headers: bearer })).json();
   assert.equal(cached.total, 21);
+});
+
+
+test('connections are authenticated, account-scoped, paginated and never publicly cached', async () => {
+  relationships.add('target:viewer'); relationships.add('other:viewer'); relationships.add('viewer:target');
+  assert.equal((await fetch(`${base}/connections/followers`)).status, 401);
+  for (const headers of [bearer, { 'x-fixture-session': 'direct' }]) {
+    const response = await fetch(`${base}/connections/followers?page=2&limit=1&userId=other`, { headers });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('cdn-cache-control'), 'no-store');
+    const result = await response.json();
+    assert.deepEqual(result.followers.map((x: any) => x.user._id), ['other']);
+    assert.deepEqual(result.pagination, { page: 2, limit: 1, total: 2, pages: 2 });
+  }
+  const result = await (await fetch(`${base}/connections/following`, { headers: bearer })).json();
+  assert.deepEqual(result.following.map((x: any) => x.user._id), ['target']);
+  for (const suffix of ['unknown', 'followers?page=-1', 'followers?page=1.2', 'followers?limit=101', 'followers?limit=bad']) {
+    assert.equal((await fetch(`${base}/connections/${suffix}`, { headers: bearer })).status, 400);
+  }
+});
+
+test('removing a follower deletes only their incoming edge and refreshes both users counts', async () => {
+  for (const pair of ['target:viewer', 'viewer:target', 'target:other']) relationships.add(pair);
+  await getProfile('viewer'); await getProfile('target');
+  const response = await fetch(`${base}/remove-follower/target-slug`, { method: 'POST', headers: bearer });
+  assert.equal(response.status, 200);
+  assert.deepEqual([...relationships].sort(), ['target:other', 'viewer:target']);
+  assert.equal((await getProfile('viewer')).followersCount, 0);
+  assert.equal((await getProfile('target')).followingCount, 1);
+  const result = await (await fetch(`${base}/connections/followers`, { headers: bearer })).json();
+  assert.deepEqual(result.followers, []);
+  assert.equal((await fetch(`${base}/remove-follower/target`, { method: 'POST', headers: bearer })).status, 200);
+});
+
+test('failed, unauthenticated and invalid follower removals preserve every relationship', async () => {
+  relationships.add('target:viewer');
+  assert.equal((await fetch(`${base}/remove-follower/target`, { method: 'POST' })).status, 401);
+  assert.equal((await fetch(`${base}/remove-follower/missing`, { method: 'POST', headers: bearer })).status, 404);
+  assert.equal((await fetch(`${base}/remove-follower/viewer-slug`, { method: 'POST', headers: bearer })).status, 400);
+  writeFails = true;
+  assert.equal((await fetch(`${base}/remove-follower/target`, { method: 'POST', headers: bearer })).status, 500);
+  assert.deepEqual([...relationships], ['target:viewer']);
+  assert.deepEqual(cleared, []);
 });

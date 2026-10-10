@@ -304,12 +304,15 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             if (!targetUser || (targetUser.status && targetUser.status !== 'active')) {
                 return void res.status(404).json({ error: "User not found" });
             }
-            const validType = ['text', 'image', 'emoji'].includes(messageType) ? messageType : 'text';
+            const validType = ['text', 'image', 'emoji', 'gif'].includes(messageType) ? messageType : 'text';
             if (validType === 'image' && (typeof imageUrl !== 'string' || !/^\/uploads\/chat\/[a-z0-9_-]+\.(?:jpe?g|png|gif|webp)$/i.test(imageUrl)))
                 return void res.status(400).json({ error: 'Invalid uploaded image URL' });
+            // GIFs store a KLIPY reference, never arbitrary external media URLs.
+            if (validType === 'gif' && (typeof imageUrl !== 'string' || !/^klipy:[a-zA-Z0-9_-]{1,200}$/.test(imageUrl)))
+                return void res.status(400).json({ error: 'Invalid GIF reference' });
             const messageInput = {
                 fromUserId, toUserId: targetId.toString(), content: content.trim(),
-                messageType: validType, imageUrl: validType === 'image' && imageUrl ? imageUrl : undefined,
+                messageType: validType, imageUrl: (validType === 'image' || validType === 'gif') && imageUrl ? imageUrl : undefined,
             };
             let message: any;
             {
