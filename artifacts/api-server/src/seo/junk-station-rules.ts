@@ -7,7 +7,8 @@
  *      and accented Latin characters instead of stripping them.
  *   2. isJunkStation(station) — detect "thin / low-value" station records
  *      that should never enter Google or Bing's index (test feeds, codec
- *      suffix names, song titles posing as stations, accidental duplicates).
+ *      signals and empty identities). Duplicate identity needs catalog evidence;
+ *      a format label or music genre alone is not a content-quality verdict.
  *   3. getEligibleLanguages(station) — determine which UI languages are an
  *      "appropriate language match" for a given station so the sitemap and
  *      hreflang only emit those variants and the others get noindex.
@@ -75,39 +76,6 @@ const JUNK_SLUG_SUBSTRINGS = [
   'white-noise',
   'sweep-tone',
   'silence-stream',
-];
-
-/**
- * Suffix tokens that almost always indicate the station record is not actually
- * a distinct station — it's a codec/format/bitrate variant, a song name, or a
- * collision-counter duplicate created by the old slug generator.
- */
-const JUNK_SLUG_SUFFIXES = [
-  '-mp3',
-  '-mp3-1',
-  '-mp3-2',
-  '-aac',
-  '-aac-1',
-  '-aac-plus',
-  '-aacp',
-  '-dab',
-  '-dab-plus',
-  '-flac',
-  '-ogg',
-  '-opus',
-  '-128',
-  '-192',
-  '-256',
-  '-320',
-];
-
-/** Regex hints that the "name" is a song/program rather than a station. */
-const SONG_LIKE_NAME_PATTERNS: RegExp[] = [
-  /\bremix\b/i,
-  /\bphonk\b/i,
-  /\bnon[\s-]?stop\s+music\b/i,
-  /\bonly\s+\w+\s+(mp3|aac)\b/i,   // "Only Mozart MP3"
-  /\bmore\s+bounce\s+to\s+the\s+ounce\b/i,
 ];
 
 export interface JunkDecision {
@@ -195,21 +163,13 @@ export function evaluateJunkStation(station: {
   // marks a record junk when an actual sibling with the canonical base slug
   // exists in the database.
 
-  for (const suffix of JUNK_SLUG_SUFFIXES) {
-    if (slug.endsWith(suffix)) {
-      return { isJunk: true, reason: `codec-suffix:${suffix}` };
-    }
-  }
+  // MP3/AAC/DAB describe delivery, and Remix/Phonk describe programming.
+  // Neither proves a duplicate or a fake station. Catalog identity checks
+  // handle actual siblings; existing stored exclusions need explicit review.
 
   for (const sub of JUNK_SLUG_SUBSTRINGS) {
     if (slug.includes(sub) || lowerName.includes(sub.replace(/-/g, ' '))) {
       return { isJunk: true, reason: `test-feed:${sub}` };
-    }
-  }
-
-  for (const re of SONG_LIKE_NAME_PATTERNS) {
-    if (re.test(lowerName)) {
-      return { isJunk: true, reason: `song-or-program-name:${re.source}` };
     }
   }
 

@@ -1161,12 +1161,12 @@ test('/sitemap-stations-en-1.xml returns parser-valid XML with stations in manif
 });
 
 test('/sitemap-stations-en-1.xml drops noIndex / junk stations defensively at serve time', async () => {
-  // Flip s1 to noIndex and s2 to a junk codec suffix slug. The route must
+  // Flip s1 to noIndex and s2 to an actual test feed. The route must
   // re-run getIndexableLanguagesForStation at serve time and exclude both,
   // even though the manifest still references them.
   const original: FakeStationDoc[] = FAKE_STATION_DOCS.map((s) => ({ ...s }));
   FAKE_STATION_DOCS[0].noIndex = true;
-  FAKE_STATION_DOCS[1].slug = 'station-two-mp3';
+  FAKE_STATION_DOCS[1].slug = 'station-two-test-stream';
   try {
     // Bypass the cache hit from the previous test by invalidating the store.
     fakeCacheStore.clear();
@@ -1177,7 +1177,7 @@ test('/sitemap-stations-en-1.xml drops noIndex / junk stations defensively at se
     assert.doesNotMatch(body, /<urlset/);
     assert.ok(
       !body.includes('station-one') && !body.includes('station-two'),
-      'noIndex + codec-suffix stations must be filtered at serve time',
+      'stored noindex + test-feed stations must be filtered at serve time',
     );
   } finally {
     // Restore + clear cache so subsequent tests see clean state.

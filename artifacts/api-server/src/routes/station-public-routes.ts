@@ -111,9 +111,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
 
       if (!station.slug) {
         const newSlug = await generateUniqueSlug(station.name, 'station', station._id.toString());
-        // Re-evaluate junk now that we know the persisted slug — codec-suffix
-        // rules (incl. collision suffixes like `-mp3-1`) only fire once the
-        // slug is finalised, so flag noIndex at the same write.
+        // Re-evaluate actual test-feed rules against the persisted slug.
         const update: { slug: string; noIndex?: true } = { slug: newSlug };
         const verdict = evaluateJunkStation({
           name: station.name,

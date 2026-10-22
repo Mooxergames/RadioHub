@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Download } from 'lucide-react';
 
 interface RecoveryCandidate {
   id: string; slug: string; name: string; country: string; countryCode: string;
@@ -68,6 +69,10 @@ export function StationNoindexRecovery() {
         Bu işlem yayını yeniden başlatmaz, gizli radyoları listelerde görünür yapmaz.</p>
       <Button variant="outline" onClick={() => { apply.reset(); scan.mutate(); }} disabled={busy}>
         {scan.isPending ? 'Adaylar inceleniyor…' : 'Onarım adaylarını incele'}
+      </Button>
+      <Button variant="outline" asChild disabled={busy}>
+        <a href="/api/admin/seo-noindex-recovery/review.csv" download="station-noindex-record-review.csv" aria-disabled={busy}
+          onClick={event => { if (busy) event.preventDefault(); }}><Download className="mr-2 h-4 w-4" />Tüm noindex kayıtlarını indir</a>
       </Button>
       {scan.isError && <p role="alert" className="text-sm text-rose-700">Aday taraması tamamlanamadı. Hiçbir kayıt değiştirilmedi; yeniden deneyin.</p>}
       {apply.isError && <p role="alert" className="text-sm text-rose-700">Onarım doğrulanamadı. Otomatik yeniden deneme yapılmaz; yeni taramayla güncel durumu kontrol edin.</p>}

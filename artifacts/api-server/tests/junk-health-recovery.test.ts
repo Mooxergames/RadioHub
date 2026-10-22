@@ -52,11 +52,17 @@ for (const [label, change] of [
   ['unknown historical flag', { automaticNoIndex: undefined }],
   ['manual flag', { manualEditFields: { noIndex: true } }],
   ['redirect duplicate', { redirectToSlug: 'nrj-original' }],
-  ['codec variant', { slug: 'nrj-oriental-aac' }],
   ['test stream', { slug: 'nrj-test-stream' }],
 ] as const) test(`recovery preserves ${label}`, () => {
   const row = { ...ownedHealthy(), ...change };
   assert.deepEqual(automaticNoIndexPatch(row, evaluateJunkStation(row)), {});
+});
+
+test('format labels do not block owned health-policy retirement or invent stream recovery', () => {
+  const row = { ...ownedHealthy(), slug: 'nrj-oriental-aac', lastCheckOk: false };
+  const patch = automaticNoIndexPatch(row, evaluateJunkStation(row));
+  assert.equal(patch.noIndex, false);
+  assert.equal(patch.lastCheckOk, undefined);
 });
 
 for (const [label, change] of [

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
-import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, recoveryEndpoint, type RecoveryStation } from '../src/seo/legacy-noindex-recovery';
+import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, recoveryEndpoint, recoveryReviewCsv, type RecoveryStation } from '../src/seo/legacy-noindex-recovery';
 import { LegacyNoindexRecoveryStore } from '../src/data/postgres-legacy-noindex-recovery';
 
 const now = Date.parse('2026-09-17T12:00:00Z');
@@ -39,7 +39,8 @@ test('recovery requires provider identity and complete unique content, never jus
     [{ automaticNoIndex: { ...owned, reason: 'stream-dead-30d' } }, 'other-provenance'],
     [{ automaticNoIndex: { ...owned, active: false } }, 'other-provenance'],
     [{ slug: '' }, 'missing-slug'], [{ slug: '-123' }, 'numeric-slug'],
-    [{ slug: 'example-mp3' }, 'junk:codec-suffix:-mp3'], [{ name: '' }, 'junk:empty-name'],
+    [{ name: 'Keyword '.repeat(30) }, 'ambiguous-long-identity'],
+    [{ slug: 'example-test-stream' }, 'junk:test-feed:test-stream'], [{ name: '' }, 'junk:empty-name'],
     [{ stationuuid: 'synthetic-legacy-id' }, 'missing-provider-uuid'],
     [{ stationuuid: '00000000-0000-0000-0000-000000000000' }, 'missing-provider-uuid'],
     [{ country: '' }, 'missing-country-identity'], [{ countryCode: null }, 'missing-country-identity'],
@@ -51,6 +52,34 @@ test('recovery requires provider identity and complete unique content, never jus
     [{ completeLanguageCount: 13 }, 'incomplete-descriptions'],
   ];
   for (const [patch, expected] of cases) assert.equal(assess(station(patch)).reason, expected, JSON.stringify(patch));
+});
+
+test('retired format/genre rules require the same complete unique identity checks and explicit apply', () => {
+  for (const reason of ['codec-suffix:-mp3', 'song-or-program-name:\\bremix\\b']) {
+    const row = station({ name: 'Remix Radio MP3', slug: 'remix-radio-mp3', automaticNoIndex: { ...owned, reason } });
+    assert.equal(assess(row).candidate?.evidence.provenance, 'owned-retired-name-heuristic');
+    assert.equal(assess({ ...row, completeLanguageCount: 13 }).reason, 'incomplete-descriptions');
+    assert.equal(assess({ ...row, manualEditFields: { noIndex: true } }).reason, 'manual-protection');
+    assert.equal(assess({ ...row, name: 'Radio Test Stream', slug: 'radio-test-stream' }).reason, 'junk:test-feed:test-stream');
+    assert.equal(assess(row, [station({ id: 'peer', name: row.name, slug: 'remix-radio' })]).reason, 'plausible-identity-peer');
+    for (const provenance of [{ ...owned, reason, owner: 'other' }, { ...owned, reason, active: false }, { ...owned, reason, version: 2 }]) {
+      assert.equal(assess({ ...row, automaticNoIndex: provenance }).reason, 'other-provenance');
+    }
+  }
+});
+
+test('record review distinguishes historical provenance, guards, truncated hints and verified targets without writes', () => {
+  const row = station({ name: '=Example Radio', completeLanguageCount: 0 });
+  const index = createRecoveryIdentityIndex();
+  index.add(row);
+  index.add(station({ id: 'target', name: row.name, slug: 'canonical', noIndex: false }));
+  const before = structuredClone(row), csv = recoveryReviewCsv(row, index, now);
+  assert.match(csv, /"'=Example Radio"/);
+  assert.match(csv, /"incomplete-descriptions"/);
+  assert.match(csv, /"target","canonical","false","canonical"/);
+  assert.deepEqual(row, before);
+  for (let n = 0; n < 20; n++) index.add(station({ id: `peer-${n}`, name: row.name, slug: `variant-${n}` }));
+  assert.match(recoveryReviewCsv(row, index, now), /"11","true"/);
 });
 
 test('complete localized articles never qualify an exact color-bar test signal for noindex recovery', () => {
@@ -105,6 +134,10 @@ test('whole-catalog identity peers include indexed rows, redirects, punctuation 
     peer({ name: 'Other Brand', slug: 'example-radio-mp3' }),
     peer({ name: 'Other Brand', slugAliases: ['example-radio'] }),
     peer({ name: 'Other Brand', stationuuid: row.stationuuid.toUpperCase() })]) assert.equal(assess(row, [other]).reason, 'plausible-identity-peer');
+  for (const slug of ['example-radio-mp3-192', 'example-radio-aac-plus-1', 'example-radio-mp3']) {
+    assert.equal(assess(station({ name: 'Other Brand MP3', slug }), [peer({ name: 'Other Brand', slug: 'example--radio' })]).reason,
+      'plausible-identity-peer', 'stacked formats and separator spelling stay in the identity review');
+  }
 });
 
 test('stream identity retains actual path/query/protocol, rejects credentials and normalizes URL syntax', () => {
@@ -284,6 +317,21 @@ test('candidate cap bounds server snapshots and only returned candidates can be 
   const f = fixture(rows), report = await f.store.preview();
   assert.equal(report.totalCandidates, 105); assert.equal(report.candidates.length, 100);
   await assert.rejects(f.store.apply({ previewId: report.previewId, stationIds: ['s-104'] }), { code: 'RECOVERY_INVALID' });
+});
+
+test('record export covers every excluded row beyond the selectable candidate cap and aborts backpressure safely', async () => {
+  const rows = Array.from({ length: 105 }, (_, i) => station({ id: `s-${i}`, name: `Brand ${i}`, slug: `brand${i}`, url: `https://stream${i}.example.invalid` }));
+  const f = fixture(rows), csv: string[] = [];
+  const result = await f.store.preview({ onReviewRow: async row => { csv.push(row); } });
+  assert.equal(result.totalNoIndex, 105); assert.equal(csv.length, 105);
+  assert.match(csv.at(-1)!, /"s-104"/);
+  assert.ok(!f.queries.some(query => query.startsWith('UPDATE')));
+  const controller = new AbortController();
+  await assert.rejects(f.store.preview({ signal: controller.signal, onReviewRow: async (_row, signal) => {
+    const wait = new Promise<void>((_resolve, reject) => signal!.addEventListener('abort', () => reject(signal!.reason), { once: true }));
+    controller.abort(); await wait;
+  } }), { code: 'RECOVERY_INTERRUPTED' });
+  assert.equal(f.clients.at(-1).discarded, true);
 });
 
 test('an acknowledged COMMIT stays successful when the socket emits an error alongside its result', async () => {

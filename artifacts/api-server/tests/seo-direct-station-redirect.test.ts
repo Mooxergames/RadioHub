@@ -74,7 +74,7 @@ for (const [reason, targetSlug, patch] of [
   ['unset indexability', 'canonical-fm', { noIndex: undefined }],
   ['null indexability', 'canonical-fm', { noIndex: null }],
   ['missing stream', 'canonical-fm', { url: '' }],
-  ['codec duplicate', 'canonical-fm-aac', {}],
+  ['stored codec duplicate', 'canonical-fm-aac', { noIndex: true }],
   ['test feed', 'canonical-test-stream', {}],
   ['numeric slug', '12345', {}],
   ['negative numeric slug', '-12345', {}],
@@ -97,6 +97,14 @@ for (const [reason, targetSlug, patch] of [
     assert.equal(pageCache.size, 0);
   });
 }
+
+test('an indexable canonical may carry a format label without becoming a rejected redirect target', async () => {
+  fixtures.set('slug:duplicate-fm', { ...base, redirectToSlug: 'canonical-fm-aac' });
+  fixtures.set('slug:canonical-fm-aac', { ...destination, slug: 'canonical-fm-aac' });
+  const result = await renderer.renderStaticPage(sourceUrl, 'https://themegaradio.com');
+  assert.equal(result.pageData.redirectTo, '/en/station/canonical-fm-aac');
+  assert.equal(result.pageData.stationIsJunk, undefined);
+});
 
 test('a self-redirect cannot fall through into another redirect to the same URL', async () => {
   fixtures.set('slug:duplicate-fm', { ...base, noIndex: false, redirectToSlug: base.slug });

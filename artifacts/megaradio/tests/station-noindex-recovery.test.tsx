@@ -24,6 +24,7 @@ describe('explicit legacy noindex recovery', () => {
   it('does not scan on mount or preselect candidates after a read-only preview', async () => {
     vi.mocked(apiRequest).mockResolvedValue(new Response(JSON.stringify(preview())));
     show(); expect(apiRequest).not.toHaveBeenCalled(); await scan();
+    expect(screen.getByRole('link', { name: 'Tüm noindex kayıtlarını indir' })).toHaveAttribute('href', '/api/admin/seo-noindex-recovery/review.csv');
     expect(apiRequest).toHaveBeenCalledWith('POST', '/api/admin/seo-noindex-recovery/preview', { body: {} });
     expect(screen.getAllByRole('checkbox').every(checkbox => !(checkbox as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole('button', { name: 'Seçilen 0 radyoyu onar' })).toBeDisabled();

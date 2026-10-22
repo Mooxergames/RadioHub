@@ -1,6 +1,6 @@
 import { evaluateJunkStation, frequencyClusterKey, frequencyPrefixBaseSlug, isNumericOnlySlug, slugifyStationName } from './junk-station-rules';
-import { AUDIT_LANGUAGES } from './station-indexability-audit';
-import { assessDuplicateGroup } from '../utils/station-duplicate-policy';
+import { AUDIT_LANGUAGES, auditCsvCell } from './station-indexability-audit';
+import { assessDuplicateGroup, assessDuplicateRedirect } from '../utils/station-duplicate-policy';
 
 export const RECOVERY_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 export const RECOVERY_CANDIDATE_LIMIT = 100;
@@ -21,7 +21,7 @@ export interface RecoveryStation extends RecoveryIdentity {
 export interface RecoveryCandidate {
   id: string; slug: string; name: string; country: string; countryCode: string;
   lastCheckOkTime: string | null; completeLanguageCount: number;
-  evidence: { provenance: 'legacy-unknown' | 'owned-duplicate'; providerUuidPresent: true;
+  evidence: { provenance: 'legacy-unknown' | 'owned-duplicate' | 'owned-retired-name-heuristic'; providerUuidPresent: true;
     providerLastCheckOk: boolean | null; recentProviderSuccess: boolean; identityPeers: number;
     recoveryBasis: 'complete-unique-information-page' | 'canonical-of-excluded-duplicates';
     excludedDuplicateIds?: string[] };
@@ -55,6 +55,7 @@ export function createRecoveryIdentityIndex() {
     if (!slug) return keys;
     const canonical = frequencyClusterKey(slug);
     if (!canonical) return keys;
+    keys.add(slug.trim().toLowerCase());
     keys.add(canonical);
     const base = frequencyPrefixBaseSlug(canonical);
     if (base) keys.add(base);
@@ -64,7 +65,17 @@ export function createRecoveryIdentityIndex() {
       keys.add(key.replace(/-(?:mp3|aac|aacp|flac|ogg|opus|dab|128|192|256|320)(?:-\d+)?$/, ''));
       keys.add(key.replace(/-\d+$/, ''));
     }
-    return keys;
+    // A separator difference or stacked delivery suffix must not make a
+    // format variant look unique after retiring the old name heuristic.
+    for (const key of [...keys]) {
+      let base = key;
+      for (let n = 0; n < 4; n++) {
+        const next = base.replace(/-(?:mp3|aac|aacp|flac|ogg|opus|dab|plus|\d{2,3}(?:kbps)?|[1-9]|10)$/, '');
+        if (next === base) break;
+        keys.add(next); base = next;
+      }
+    }
+    return new Set([...keys].map(normalized).filter(Boolean));
   };
   const plausibleCountry = (peer: Peer, country: string, code: string) =>
     !peer.country || !peer.code || peer.country === country || peer.code === code;
@@ -123,6 +134,9 @@ export function createRecoveryIdentityIndex() {
     hasPeer(station: RecoveryStation): boolean {
       return peerIds(station, 1).size > 0;
     },
+    reviewPeers(station: RecoveryStation): RecoveryIdentity[] {
+      return [...peerIds(station)].sort().map(id => identities.get(id)!);
+    },
     cityEvidenceIds(): string[] {
       const ids = new Set<string>();
       for (const identity of identities.values()) {
@@ -178,11 +192,14 @@ export function assessLegacyNoindexRecovery(station: RecoveryStation, index: Rec
   if (station.redirectToSlug) return reject('redirect');
   if (!station.sourceIsObject || !station.journalIsObject) return reject('ambiguous-metadata');
   const provenance = station.automaticNoIndex as Record<string, unknown> | null;
-  const ownedDuplicate = provenance?.owner === 'radiohub-junk-policy' && provenance.version === 1 &&
-    provenance.active === true && typeof provenance.reason === 'string' && provenance.reason.startsWith('duplicate-of:') &&
+  const owned = provenance?.owner === 'radiohub-junk-policy' && provenance.version === 1 && provenance.active === true;
+  const ownedDuplicate = owned && typeof provenance.reason === 'string' && provenance.reason.startsWith('duplicate-of:') &&
     provenance.reason.length > 'duplicate-of:'.length;
-  if (provenance != null && !ownedDuplicate) return reject('other-provenance');
+  const retiredNameHeuristic = owned && typeof provenance.reason === 'string' &&
+    (provenance.reason.startsWith('codec-suffix:') || provenance.reason.startsWith('song-or-program-name:'));
+  if (provenance != null && !ownedDuplicate && !retiredNameHeuristic) return reject('other-provenance');
   if (!text(station.slug)) return reject('missing-slug');
+  if (station.name.length > 160 || station.slug.length > 180) return reject('ambiguous-long-identity');
   if (isNumericOnlySlug(station.slug)) return reject('numeric-slug');
   const junk = evaluateJunkStation({ name: station.name, slug: station.slug, url: station.url });
   if (junk.isJunk) return reject(`junk:${junk.reason}`);
@@ -206,10 +223,32 @@ export function assessLegacyNoindexRecovery(station: RecoveryStation, index: Rec
   return { reason: 'eligible', ...(peers.length ? { peerEvidence: peers } : {}), candidate: {
     id: station.id, slug: station.slug, name: station.name, country: station.country, countryCode: station.countryCode!,
     lastCheckOkTime: knownSuccessfulAt === null ? null : new Date(knownSuccessfulAt).toISOString(), completeLanguageCount: station.completeLanguageCount,
-    evidence: { provenance: ownedDuplicate ? 'owned-duplicate' : 'legacy-unknown', providerUuidPresent: true,
+    evidence: { provenance: ownedDuplicate ? 'owned-duplicate' : retiredNameHeuristic ? 'owned-retired-name-heuristic' : 'legacy-unknown', providerUuidPresent: true,
       providerLastCheckOk: typeof station.lastCheckOk === 'boolean' ? station.lastCheckOk : null,
       recentProviderSuccess, identityPeers: peers.length,
       recoveryBasis: peers.length ? 'canonical-of-excluded-duplicates' : 'complete-unique-information-page',
       ...(peers.length ? { excludedDuplicateIds: peers.map(peer => peer.id) } : {}) },
   } };
+}
+
+export const RECOVERY_REVIEW_CSV_HEADER = 'station_id,name,slug,country,country_code,url,noindex,recorded_owner,recorded_reason,manual_protection_fields,complete_languages,recovery_guard,repair_basis,plausible_peer_count_at_least,peer_list_truncated,peer_ids,peer_slugs,peer_noindex,exact_name_primary_stream_indexable_target_slugs\r\n';
+
+/** A first failing guard is not the historical reason for a legacy flag.
+ * Peer hints stay explicitly separate from exact name/primary-stream evidence. */
+export function recoveryReviewCsv(station: RecoveryStation, index: RecoveryIdentityIndex, now: number): string {
+  const decision = assessLegacyNoindexRecovery(station, index, now);
+  const peers = index.reviewPeers(station);
+  const provenance = station.automaticNoIndex as Record<string, unknown> | null;
+  const manual = station.manualEditFields;
+  const targets = peers.filter(peer => peer.noIndex === false && !peer.redirectToSlug && peer.slug &&
+    !isNumericOnlySlug(peer.slug) && !evaluateJunkStation({ name: peer.name, slug: peer.slug, url: peer.url }).isJunk &&
+    assessDuplicateRedirect(station, peer).eligible);
+  return [station.id, station.name, station.slug, station.country, station.countryCode,
+    station.slug ? `https://themegaradio.com/en/station/${encodeURIComponent(station.slug)}` : '',
+    station.noIndex, provenance?.owner, provenance?.reason,
+    manual && typeof manual === 'object' && !Array.isArray(manual) ? Object.keys(manual).sort().join('|') : 'ambiguous',
+    station.completeLanguageCount, decision.reason, decision.candidate?.evidence.recoveryBasis,
+    peers.length, peers.length >= 11, peers.map(peer => peer.id).join('|'), peers.map(peer => peer.slug || '').join('|'),
+    peers.map(peer => peer.noIndex === true ? 'true' : peer.noIndex === false ? 'false' : 'unknown').join('|'),
+    targets.map(peer => peer.slug).join('|')].map(auditCsvCell).join(',') + '\r\n';
 }

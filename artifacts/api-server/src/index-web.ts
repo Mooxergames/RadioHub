@@ -1115,8 +1115,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         }
 
         const stationNotFound = !!seoData.pageData?.notFound;
-        // Architect P0: junk station URLs (test feeds, codec-suffix slugs,
-        // song-name slugs, frequency-prefix duplicates, or DB records with
+        // Architect P0: excluded station URLs (test feeds, verified duplicates, or DB records with
         // noIndex:true) must return 410 Gone — NOT 200/noindex and NOT 301.
         // This is the catalog's exclusion policy, not a guarantee that Google
         // will remove the URL immediately or stop recrawling it.

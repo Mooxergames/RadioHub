@@ -547,12 +547,16 @@ test('unknown legacy offline noindex keeps rich localized200 data without reinde
     assert.ok(!body.includes('id="station-stream-unavailable"'), 'an unverified source flag is not a confirmed outage');
   }
   for (const extra of [{ manualEditFields: { noIndex: true } }, { manualEditFields: { noIndex: false } },
-    { slug: 'radio-test-stream' }, { slug: 'radio-aac' }, { slug: '-1234' }]) {
+    { slug: 'radio-test-stream' }, { slug: '-1234' }]) {
     pageCache.clear(); stationOverrides = { ...stationOverrides, manualEditFields: undefined, slug: 'recovery-fm', ...extra };
     const page = await renderer.renderStaticPage(`/en/station/${stationOverrides.slug}`, 'https://themegaradio.com');
     assert.equal(page.pageData.stationIsJunk, true);
     assert.equal(page.seoTags.noIndex, true);
   }
+  pageCache.clear(); stationOverrides = { ...stationOverrides, manualEditFields: undefined, slug: 'radio-aac' };
+  const formatPage = await renderer.renderStaticPage('/en/station/radio-aac', 'https://themegaradio.com');
+  assert.equal(formatPage.pageData.stationIsJunk, false);
+  assert.equal(formatPage.seoTags.noIndex, true, 'the stored legacy flag still requires explicit review');
   pageCache.clear(); stationOverrides = { lastCheckOk: false, redirectToSlug: 'original-fm' };
   exactLookupFixtures = new Map([
     ['slug:recovery-fm', { ...station, ...stationOverrides, noIndex }],
