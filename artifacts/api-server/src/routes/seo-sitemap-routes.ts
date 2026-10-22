@@ -1767,9 +1767,9 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       };
 
       emitEntry(`${baseUrl}/sitemap-blog.xml`, BLOG_UPDATED);
-      const pilotProfiles = await loadPilotProfiles(qualifiedLanguages);
-      for (const country of new Set(pilotProfiles.map(profile => profile.countryCode.toLowerCase()))) {
-        emitEntry(`${baseUrl}/sitemap-pilot-en-${country}.xml`);
+      // Pilot station reads must not add a failure to the main index.
+      if (qualifiedLanguages.includes('en')) {
+        for (const country of ['at', 'tr']) emitEntry(`${baseUrl}/sitemap-pilot-en-${country}.xml`);
       }
 
       // 1. Main sitemaps (one per qualified lang, only if manifest exists)
@@ -1915,10 +1915,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       };
 
       if (lang === 'en') {
-        const pilotProfiles = await loadPilotProfiles(state.languages);
-        for (const country of new Set(pilotProfiles.map(profile => profile.countryCode.toLowerCase()))) {
-          emitLangEntry(`${baseUrl}/sitemap-pilot-en-${country}.xml`);
-        }
+        for (const country of ['at', 'tr']) emitLangEntry(`${baseUrl}/sitemap-pilot-en-${country}.xml`);
       }
 
       // 1. Main pages (homepage, genres, regions, countries)

@@ -20,8 +20,9 @@ Tek bir 301 veya genel robots engeli bulunmadi. Uc ayri konu var:
    tanitim metinleri ve cok sayida dil varyanti bir kalite/oncelik hipotezi;
    Search Console bunun kesin algoritmik nedenini aciklamiyor.
 
-Bu duzeltme, Google'in dizine ekleyeceginin garantisi degildir. Kod yerelde
-hazir; bu incelemede commit, push, merge veya uretim yayini yapilmadi.
+Bu duzeltme, Google'in dizine ekleyeceginin garantisi degildir. Ilk incelemenin
+sonunda kod yereldeydi. Kullanicinin sonraki yayin onayi, pilot uygulamasi ve
+guncel yayin durumu `2026-10-22-pilot-release.md` dosyasinda izlenir.
 
 ## 1. Dususun Gercek Zaman Cizelgesi
 
@@ -181,8 +182,13 @@ Onerilen deney, butun dilleri kapatmak degil:
    degisimini olc; bu sure bir indeksleme vaadi degil, deney penceresidir.
 6. Anlamli ilerleme yoksa ayni sablonu yuz binlerce sayfaya genisletme.
 
-Pilot bu incelemede uretimde etkinlestirilmedi; genel dil/ulke politikasi
-degistirilmedi ve toplu isler durdurulmadi.
+Ilk incelemede pilot uretimde etkinlestirilmedi. Sonraki takip calismasinda
+20 mevcut kayit icin kaynakli Ingilizce metin ve ayri olcum sitemap'leri
+hazirlandi. Genel dil/ulke politikasi degistirilmedi; toplu isler durdurulmadi.
+
+Takip incelemesi, yanlis resmi site baglantisinin katalog verisinden degil,
+SSR'nin `homepage` yerine ses yayini `url` alanini secmesinden kaynaklandigini
+gosterdi. Bu kod hatasi da testli olarak duzeltildi.
 
 ## 7. Uygulanan Kod Duzeltmesi
 

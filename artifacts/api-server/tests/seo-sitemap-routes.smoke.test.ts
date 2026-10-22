@@ -537,7 +537,7 @@ test('operational station timestamps do not advertise content freshness or chang
       for (const entry of parsed.urlset.url) assert.equal(entry.lastmod, undefined);
     } else {
       for (const entry of parsed.sitemapindex.sitemap) {
-        if (/\/sitemap-(stations|main)-/.test(entry.loc)) assert.equal(entry.lastmod, undefined);
+        if (/\/sitemap-(stations|main|pilot)-/.test(entry.loc)) assert.equal(entry.lastmod, undefined);
         else assert.ok(entry.lastmod, 'other child content dates remain present');
       }
     }
@@ -611,6 +611,9 @@ test('English pilot sitemaps expose only live eligible exact identities and rema
     assert.equal(unavailable.headers.get('cache-control'), 'no-store');
     stationBatchReadFails = true;
     assert.equal((await fetch(`${baseUrl}/sitemap-pilot-en-tr.xml`)).status, 503);
+    for (const path of ['/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml']) {
+      assert.equal((await fetch(baseUrl + path)).status, 200, 'optional pilot reads cannot break the main sitemap indexes');
+    }
   } finally { sitemapReadRows = FAKE_STATION_DOCS; stationBatchReadFails = false; }
 });
 
@@ -651,7 +654,7 @@ test('rolling manifest hashes retain every locale and incomplete builds are retr
     assert.equal(rolling.status, 200);
     const body = await rolling.text();
     const parsed = assertValidXml(body, 'rolling cohort index') as any;
-    assert.equal(parsed.sitemapindex.sitemap.length, QUALIFIED_LANGS.length * 3 + 1);
+    assert.equal(parsed.sitemapindex.sitemap.length, QUALIFIED_LANGS.length * 3 + 3);
     assert.ok(body.includes('/sitemap-blog.xml'), 'the independently translated editorial sitemap is discoverable');
     for (const lang of QUALIFIED_LANGS) {
       assert.ok(body.includes(`/sitemap-stations-${lang}-1.xml`), `${lang} remains discoverable during the swap`);
