@@ -1,5 +1,6 @@
-import { evaluateJunkStation, frequencyClusterKey, frequencyPrefixBaseSlug, isNumericOnlySlug } from './junk-station-rules';
+import { evaluateJunkStation, frequencyClusterKey, frequencyPrefixBaseSlug, isNumericOnlySlug, slugifyStationName } from './junk-station-rules';
 import { AUDIT_LANGUAGES } from './station-indexability-audit';
+import { assessDuplicateGroup } from '../utils/station-duplicate-policy';
 
 export const RECOVERY_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 export const RECOVERY_CANDIDATE_LIMIT = 100;
@@ -8,6 +9,8 @@ export interface RecoveryIdentity {
   url: string; urlResolved: string | null;
   stationuuid?: string;
   slugAliases?: string[];
+  city?: string | null; state?: string | null;
+  noIndex?: boolean; redirectToSlug?: string | null; manualEditFields?: unknown;
 }
 export interface RecoveryStation extends RecoveryIdentity {
   stationuuid: string; noIndex: boolean; redirectToSlug: string | null;
@@ -19,8 +22,9 @@ export interface RecoveryCandidate {
   id: string; slug: string; name: string; country: string; countryCode: string;
   lastCheckOkTime: string | null; completeLanguageCount: number;
   evidence: { provenance: 'legacy-unknown' | 'owned-duplicate'; providerUuidPresent: true;
-    providerLastCheckOk: boolean | null; recentProviderSuccess: boolean; identityPeers: 0;
-    recoveryBasis: 'complete-unique-information-page' };
+    providerLastCheckOk: boolean | null; recentProviderSuccess: boolean; identityPeers: number;
+    recoveryBasis: 'complete-unique-information-page' | 'canonical-of-excluded-duplicates';
+    excludedDuplicateIds?: string[] };
 }
 
 /** Deliberately broader than the automatic-merge identity test: punctuation,
@@ -39,6 +43,7 @@ export function recoveryEndpoint(value: unknown): string | null {
 }
 
 export function createRecoveryIdentityIndex() {
+  const identities = new Map<string, RecoveryIdentity>();
   type Peer = { id: string; country: string; code: string };
   const names = new Map<string, Array<{ id: string; country: string; code: string }>>();
   const endpoints = new Map<string, Set<string>>();
@@ -63,11 +68,35 @@ export function createRecoveryIdentityIndex() {
   };
   const plausibleCountry = (peer: Peer, country: string, code: string) =>
     !peer.country || !peer.code || peer.country === country || peer.code === code;
+  const peerIds = (station: RecoveryIdentity & { automaticNoIndex?: unknown }, limit = 11) => {
+    const ids = new Set<string>();
+    const add = (id: string) => { if (id !== station.id) ids.add(id); return ids.size >= limit; };
+    const country = normalized(station.country), code = normalized(station.countryCode);
+    for (const peer of names.get(normalized(station.name)) || []) {
+      if (plausibleCountry(peer, country, code) && add(peer.id)) return ids;
+    }
+    for (const id of uuids.get(station.stationuuid?.toLowerCase() || '') || []) if (add(id)) return ids;
+    for (const key of familyKeys(station.slug)) {
+      for (const peer of slugFamilies.get(key) || []) if (plausibleCountry(peer, country, code) && add(peer.id)) return ids;
+    }
+    for (const value of [station.url, station.urlResolved]) {
+      const endpoint = recoveryEndpoint(value);
+      if (endpoint) for (const id of endpoints.get(endpoint) || []) if (add(id)) return ids;
+    }
+    const provenance = station.automaticNoIndex as { reason?: string } | null;
+    const target = typeof provenance?.reason === 'string' && provenance.reason.startsWith('duplicate-of:')
+      ? provenance.reason.slice('duplicate-of:'.length) : null;
+    for (const slug of [station.slug, ...(station.slugAliases || []), target]) {
+      if (slug) for (const id of slugs.get(slug) || []) if (add(id)) return ids;
+    }
+    return ids;
+  };
   let total = 0;
   return {
     get total() { return total; },
     add(station: RecoveryIdentity) {
       total++;
+      identities.set(station.id, station);
       const peer = { id: station.id, country: normalized(station.country), code: normalized(station.countryCode) };
       const name = normalized(station.name);
       if (name) {
@@ -92,24 +121,45 @@ export function createRecoveryIdentityIndex() {
       }
     },
     hasPeer(station: RecoveryStation): boolean {
-      const country = normalized(station.country), code = normalized(station.countryCode);
-      if (names.get(normalized(station.name))?.some(peer => peer.id !== station.id &&
-        plausibleCountry(peer, country, code))) return true;
-      if ([...(uuids.get(station.stationuuid.toLowerCase()) || [])].some(id => id !== station.id)) return true;
-      for (const key of familyKeys(station.slug)) {
-        if (slugFamilies.get(key)?.some(peer => peer.id !== station.id && plausibleCountry(peer, country, code))) return true;
+      return peerIds(station, 1).size > 0;
+    },
+    cityEvidenceIds(): string[] {
+      const ids = new Set<string>();
+      for (const identity of identities.values()) {
+        if (identity.noIndex !== true) continue;
+        const peers = this.excludedCanonicalPeers(identity as RecoveryStation);
+        if (peers) for (const row of [identity, ...peers]) ids.add(row.id);
       }
-      for (const value of [station.url, station.urlResolved]) {
-        const endpoint = recoveryEndpoint(value);
-        if (endpoint && [...(endpoints.get(endpoint) || [])].some(id => id !== station.id)) return true;
+      return [...ids];
+    },
+    setCityEvidence(id: string, city: string | null) {
+      const identity = identities.get(id);
+      if (identity) identity.city = city;
+    },
+    excludedCanonicalPeers(station: RecoveryStation): RecoveryIdentity[] | null {
+      if (station.slug !== slugifyStationName(station.name)) return null;
+      if (!station.manualEditFields || typeof station.manualEditFields !== 'object' || Array.isArray(station.manualEditFields)) return null;
+      if (['name', 'country', 'countryCode', 'city', 'state'].some(key => Object.hasOwn(station.manualEditFields as object, key))) return null;
+      const ids = peerIds(station);
+      if (!ids.size || ids.size > 10) return null;
+      const peers = [...ids].sort().map(id => identities.get(id)!);
+      const group = new Set([station.id, ...ids]);
+      const slugsSeen = new Set([station.slug]);
+      for (const peer of peers) {
+        const suffix = peer.slug?.slice(station.slug.length + 1);
+        const manual = peer.manualEditFields;
+        if (peer.noIndex !== true || peer.redirectToSlug || !peer.slug?.startsWith(`${station.slug}-`) ||
+            !/^(?:[1-9]|10)$/.test(suffix || '') || slugsSeen.has(peer.slug) ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(peer.stationuuid || '') ||
+            !manual || typeof manual !== 'object' || Array.isArray(manual) ||
+            ['noIndex', 'slug', 'redirectToSlug', 'name', 'country', 'countryCode', 'city', 'state', 'url', 'urlResolved']
+              .some(key => Object.hasOwn(manual, key))) return null;
+        slugsSeen.add(peer.slug);
+        // A duplicate's own aliases/endpoints must not hide a third identity
+        // outside this closed group, including already indexable stations.
+        if ([...peerIds(peer)].some(id => !group.has(id))) return null;
       }
-      // A recorded historical duplicate target that still exists needs human
-      // identity review even if its current endpoint/name has changed.
-      const provenance = station.automaticNoIndex as { reason?: string } | null;
-      const target = typeof provenance?.reason === 'string' && provenance.reason.startsWith('duplicate-of:')
-        ? provenance.reason.slice('duplicate-of:'.length) : null;
-      return Boolean((station.slug && [...(slugs.get(station.slug) || [])].some(id => id !== station.id)) ||
-        (target && [...(slugs.get(target) || [])].some(id => id !== station.id)));
+      return assessDuplicateGroup([station, ...peers]).eligible ? peers : null;
     },
   };
 }
@@ -119,7 +169,7 @@ export type RecoveryIdentityIndex = ReturnType<typeof createRecoveryIdentityInde
  * information and identity must pass every guard. Stream availability is
  * recorded as evidence; it does not determine this information page's SEO. */
 export function assessLegacyNoindexRecovery(station: RecoveryStation, index: RecoveryIdentityIndex, now: number):
-  { reason: string; candidate?: RecoveryCandidate } {
+  { reason: string; candidate?: RecoveryCandidate; peerEvidence?: RecoveryIdentity[] } {
   const reject = (reason: string) => ({ reason });
   if (station.noIndex !== true) return reject('not-noindex');
   const manual = station.manualEditFields;
@@ -151,12 +201,15 @@ export function assessLegacyNoindexRecovery(station: RecoveryStation, index: Rec
   const recentProviderSuccess = station.lastCheckOk === true && knownSuccessfulAt !== null &&
     [checkedAt, knownSuccessfulAt].every(value => Number.isFinite(value) && value <= now && value >= now - RECOVERY_MAX_AGE_MS);
   if (station.completeLanguageCount !== AUDIT_LANGUAGES.length) return reject('incomplete-descriptions');
-  if (index.hasPeer(station)) return reject('plausible-identity-peer');
-  return { reason: 'eligible', candidate: {
+  const peers = index.hasPeer(station) ? index.excludedCanonicalPeers(station) : [];
+  if (!peers) return reject('plausible-identity-peer');
+  return { reason: 'eligible', ...(peers.length ? { peerEvidence: peers } : {}), candidate: {
     id: station.id, slug: station.slug, name: station.name, country: station.country, countryCode: station.countryCode!,
     lastCheckOkTime: knownSuccessfulAt === null ? null : new Date(knownSuccessfulAt).toISOString(), completeLanguageCount: station.completeLanguageCount,
     evidence: { provenance: ownedDuplicate ? 'owned-duplicate' : 'legacy-unknown', providerUuidPresent: true,
       providerLastCheckOk: typeof station.lastCheckOk === 'boolean' ? station.lastCheckOk : null,
-      recentProviderSuccess, identityPeers: 0, recoveryBasis: 'complete-unique-information-page' },
+      recentProviderSuccess, identityPeers: peers.length,
+      recoveryBasis: peers.length ? 'canonical-of-excluded-duplicates' : 'complete-unique-information-page',
+      ...(peers.length ? { excludedDuplicateIds: peers.map(peer => peer.id) } : {}) },
   } };
 }

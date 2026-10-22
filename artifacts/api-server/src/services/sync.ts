@@ -11,6 +11,7 @@ import { fetchWithMirrorFallback, RadioBrowserRequestCancelledError } from './ra
 export { fetchWithMirrorFallback } from './radio-browser-request';
 import {
   evaluateJunkStation,
+  getIndexableLanguagesForStation,
   slugifyStationName,
   frequencyPrefixBaseSlug,
   automaticNoIndexPatch,
@@ -507,7 +508,7 @@ export class SyncService {
         let siblingLookupFailed = false;
         if (baseSlugSet.size > 0) {
           try {
-            const found = await pgCatalog().find({ slug: { $in: Array.from(baseSlugSet) } }, { fields: ['slug', ...DUPLICATE_POLICY_FIELDS] });
+            const found = await pgCatalog().find({ slug: { $in: Array.from(baseSlugSet) } }, { fields: ['slug', 'noIndex', 'redirectToSlug', ...DUPLICATE_POLICY_FIELDS] });
             existingBaseStations = new Map(found.map((s: any) => [s.slug, s]));
           } catch (err) {
             siblingLookupFailed = true;
@@ -529,7 +530,7 @@ export class SyncService {
           merged.slug ||= slugifyStationName(merged.name || '');
           const candidateBase = freqCandidates.get(apiStation.stationuuid);
           const sibling = candidateBase ? existingBaseStations.get(candidateBase) : undefined;
-          const verdict = sibling && sibling._id !== merged._id && assessDuplicateGroup([merged, sibling]).eligible
+          const verdict = sibling && sibling._id !== merged._id && getIndexableLanguagesForStation(sibling).includes('en') && assessDuplicateGroup([merged, sibling]).eligible
             ? { isJunk: true, reason: `duplicate-of:${candidateBase}` }
             : evaluateJunkStation(merged);
           const policyPatch = automaticNoIndexPatch(merged, verdict);

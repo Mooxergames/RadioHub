@@ -4,7 +4,7 @@ import { getPostgresPool } from '../postgres-runtime';
 import { descriptionTextSql } from './station-description-sql';
 import { AUDIT_LANGUAGES } from '../seo/station-indexability-audit';
 import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, RECOVERY_CANDIDATE_LIMIT,
-  type RecoveryCandidate, type RecoveryStation } from '../seo/legacy-noindex-recovery';
+  type RecoveryCandidate, type RecoveryStation, type RecoveryIdentity } from '../seo/legacy-noindex-recovery';
 
 const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const MAX_SNAPSHOTS = 8;
@@ -13,9 +13,9 @@ export const RECOVERY_APPLY_DEADLINE_MS = 5000;
 export const RECOVERY_PREVIEW_DEADLINE_MS = 60_000;
 const RECEIPT_DEADLINE_MS = 2000;
 const CACHE_RESPONSE_DEADLINE_MS = 1000;
-const identityProjection = `s.id,s.name,s.slug,s.slug_aliases AS "slugAliases",s.country,s.country_code AS "countryCode",s.url,s.url_resolved AS "urlResolved",s.station_uuid AS stationuuid`;
-const stationProjection = `${identityProjection},s.no_index AS "noIndex",
-  s.redirect_to_slug AS "redirectToSlug",s.manual_edit_fields AS "manualEditFields",
+const identityProjection = `s.id,s.name,s.slug,s.slug_aliases AS "slugAliases",s.country,s.country_code AS "countryCode",s.state,s.url,s.url_resolved AS "urlResolved",s.station_uuid AS stationuuid,
+  s.no_index AS "noIndex",s.redirect_to_slug AS "redirectToSlug",s.manual_edit_fields AS "manualEditFields"`;
+const stationProjection = `${identityProjection},s.source->>'city' AS city,
   s.source->'automaticNoIndex' AS "automaticNoIndex",s.last_check_ok AS "lastCheckOk",
   s.last_check_time AS "lastCheckTime",s.source->'lastCheckOkTime' AS "lastCheckOkTime",s.xmin::text AS "rowVersion",
   (jsonb_typeof(s.source)='object') AS "sourceIsObject",
@@ -25,7 +25,8 @@ const stationProjection = `${identityProjection},s.no_index AS "noIndex",
       AND ${descriptionTextSql("d.value->'full'")} AND ${descriptionTextSql("d.value->'meta'")}) AS "completeLanguageCount"`;
 
 const failure = (code: string, message: string) => Object.assign(new Error(message), { code });
-const fingerprint = (station: RecoveryStation) => createHash('sha256').update(JSON.stringify(station)).digest('hex');
+const fingerprint = (station: RecoveryStation, peers?: RecoveryIdentity[]) =>
+  createHash('sha256').update(JSON.stringify({ station, peers })).digest('hex');
 type RecoveryPool = Pick<pg.Pool, 'connect'>;
 type RecoveryQuery = (sql: string, parameters?: any[]) => Promise<pg.QueryResult>;
 type Snapshot = { expiresAt: number; fingerprints: Map<string, string> };
@@ -116,15 +117,22 @@ async function readIdentityIndex(query: RecoveryQuery, singleQuery = false) {
     // This contains only identity fields, never article text or source JSON.
     const rows = await query(`SELECT ${identityProjection} FROM stations s`);
     for (const station of rows.rows) index.add(station);
-    return index;
+  } else {
+    await query(`DECLARE noindex_recovery_identity NO SCROLL CURSOR FOR SELECT ${identityProjection} FROM stations s ORDER BY s.id`);
+    while (true) {
+      const batch = await query(`FETCH FORWARD ${BATCH_SIZE} FROM noindex_recovery_identity`);
+      if (!batch.rows.length) break;
+      for (const station of batch.rows) index.add(station);
+    }
+    await query('CLOSE noindex_recovery_identity');
   }
-  await query(`DECLARE noindex_recovery_identity NO SCROLL CURSOR FOR SELECT ${identityProjection} FROM stations s ORDER BY s.id`);
-  while (true) {
-    const batch = await query(`FETCH FORWARD ${BATCH_SIZE} FROM noindex_recovery_identity`);
-    if (!batch.rows.length) break;
-    for (const station of batch.rows) index.add(station);
+  // City is retained in source JSON, not a native station column. Read it
+  // only for plausible closed groups instead of decompressing 66k articles.
+  const ids = index.cityEvidenceIds();
+  if (ids.length) {
+    const cities = await query(`SELECT s.id,s.source->>'city' AS city FROM stations s WHERE s.id=ANY($1::text[])`, [ids]);
+    for (const city of cities.rows) index.setCityEvidence(city.id, city.city);
   }
-  await query('CLOSE noindex_recovery_identity');
   return index;
 }
 
@@ -155,7 +163,7 @@ export class LegacyNoindexRecoveryStore {
           result.totalCandidates++;
           if (result.candidates.length < RECOVERY_CANDIDATE_LIMIT) {
             result.candidates.push(decision.candidate);
-            snapshot.fingerprints.set(station.id, fingerprint(station));
+            snapshot.fingerprints.set(station.id, fingerprint(station, decision.peerEvidence));
           }
         }
       }
@@ -192,7 +200,7 @@ export class LegacyNoindexRecoveryStore {
       const candidates: RecoveryCandidate[] = [];
       for (const station of selected.rows as RecoveryStation[]) {
         const decision = assessLegacyNoindexRecovery(station, index, now);
-        if (!decision.candidate || fingerprint(station) !== snapshot.fingerprints.get(station.id)) {
+        if (!decision.candidate || fingerprint(station, decision.peerEvidence) !== snapshot.fingerprints.get(station.id)) {
           throw failure('RECOVERY_STALE', 'Station evidence or identity peers changed; run preview again');
         }
         candidates.push(decision.candidate);
