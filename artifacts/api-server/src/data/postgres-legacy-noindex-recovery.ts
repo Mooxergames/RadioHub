@@ -33,6 +33,7 @@ type Snapshot = { expiresAt: number; fingerprints: Map<string, string> };
 export interface RecoveryPreview {
   previewId: string; createdAt: string; expiresAt: string; totalScanned: number; totalNoIndex: number;
   totalCandidates: number; candidateLimit: number; reasonCounts: Record<string, number>; candidates: RecoveryCandidate[];
+  nextCursor?: string;
 }
 
 /** Both paths are bounded and have checked-out-client error listeners. Apply
@@ -143,7 +144,10 @@ export class LegacyNoindexRecoveryStore {
   constructor(private readonly pool: () => RecoveryPool = getPostgresPool,
     private readonly invalidate: (slugs: string[]) => Promise<boolean> = invalidateRecoveryCaches) {}
 
-  async preview(options: { signal?: AbortSignal; onReviewRow?: (csv: string, signal?: AbortSignal) => Promise<void> } = {}): Promise<RecoveryPreview> {
+  async preview(options: { signal?: AbortSignal; afterId?: string; onReviewRow?: (csv: string, signal?: AbortSignal) => Promise<void> } = {}): Promise<RecoveryPreview> {
+    if (options.afterId !== undefined && (typeof options.afterId !== 'string' || !options.afterId || options.afterId.length > 200)) {
+      throw failure('RECOVERY_INVALID', 'Invalid review cursor');
+    }
     const snapshot: Snapshot = { expiresAt: Date.now() + SNAPSHOT_TTL_MS, fingerprints: new Map() };
     const report = await withTransaction(this.pool(), false, options.signal, async (query, now, signal) => {
       // The full catalog identity scan includes indexed rows and redirects;
@@ -164,10 +168,11 @@ export class LegacyNoindexRecoveryStore {
           result.reasonCounts[decision.reason] = (result.reasonCounts[decision.reason] || 0) + 1;
           if (!decision.candidate) continue;
           result.totalCandidates++;
+          if (options.afterId && station.id <= options.afterId) continue;
           if (result.candidates.length < RECOVERY_CANDIDATE_LIMIT) {
             result.candidates.push(decision.candidate);
             snapshot.fingerprints.set(station.id, fingerprint(station, decision.peerEvidence));
-          }
+          } else result.nextCursor = result.candidates[result.candidates.length - 1].id;
         }
       }
       return result;

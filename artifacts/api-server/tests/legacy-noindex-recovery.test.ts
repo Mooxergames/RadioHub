@@ -319,6 +319,20 @@ test('candidate cap bounds server snapshots and only returned candidates can be 
   await assert.rejects(f.store.apply({ previewId: report.previewId, stationIds: ['s-104'] }), { code: 'RECOVERY_INVALID' });
 });
 
+test('review cursor reaches later candidates without clearing skipped exclusions or bypassing explicit selection', async () => {
+  const rows = Array.from({ length: 105 }, (_, i) => station({ id: `item-${String(i).padStart(3, '0')}`,
+    name: `Brand ${i}`, slug: `brand${i}`, url: `https://stream${i}.example.invalid` }));
+  const f = fixture(rows), first = await f.store.preview();
+  assert.equal(first.nextCursor, 'item-099');
+  const next = await f.store.preview({ afterId: first.nextCursor });
+  assert.equal(next.totalCandidates, 105); assert.equal(next.totalNoIndex, 105);
+  assert.deepEqual(next.candidates.map(row => row.id), rows.slice(100).map(row => row.id));
+  assert.equal(next.nextCursor, undefined);
+  await assert.rejects(f.store.apply({ previewId: next.previewId, stationIds: ['item-000'] }), { code: 'RECOVERY_INVALID' });
+  assert.ok(!f.queries.some(query => query.startsWith('UPDATE')));
+  await assert.rejects(f.store.preview({ afterId: '' }), { code: 'RECOVERY_INVALID' });
+});
+
 test('record export covers every excluded row beyond the selectable candidate cap and aborts backpressure safely', async () => {
   const rows = Array.from({ length: 105 }, (_, i) => station({ id: `s-${i}`, name: `Brand ${i}`, slug: `brand${i}`, url: `https://stream${i}.example.invalid` }));
   const f = fixture(rows), csv: string[] = [];

@@ -53,6 +53,12 @@ possibly spreadsheet-escaped names or slugs. English page URLs are exported
 explicitly. A public metadata subset is not a substitute for the authenticated
 whole-catalog endpoint/alias/manual check.
 
+Candidate pages use a stable station-ID cursor and fresh reviewed snapshots.
+Reviewers can defer a translation/identity case and still reach later eligible
+records without clearing its flag. Paging cannot authorize IDs outside the
+current preview. CSV downloads use the app's authenticated transport and reject
+truncated bodies instead of saving a misleading partial report.
+
 ## Limits
 
 This does not assert that all remaining noindex flags are correct, that all

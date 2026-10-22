@@ -52,6 +52,7 @@ test('admin authentication and strict explicit selection precede every scan or m
   assert.equal((await request('preview', {}, false)).status, 401);
   assert.equal((await request('apply', { previewId, stationIds: ['station-a'] }, false)).status, 401);
   for (const [action, body] of [['preview', { automatic: true }], ['preview?country=DE', {}], ['apply', {}],
+    ['preview', { afterId: '' }], ['preview', { afterId: ['station-a'] }],
     ['apply', { previewId, stationIds: [] }], ['apply', { previewId, stationIds: ['station-a', 'station-a'] }],
     ['apply', { previewId, stationIds: ['station-a'], noIndex: false }],
     ['apply', { previewId, stationIds: Array.from({ length: 101 }, (_, i) => String(i)) }]]) {
@@ -64,6 +65,7 @@ test('preview is uncached and never applies; explicit selected IDs return restor
   const preview = await request('preview'); assert.equal(preview.status, 200);
   assert.equal(preview.headers.get('cache-control'), 'private, no-store');
   assert.equal((await preview.json()).totalCandidates, 1); assert.equal(applyCalls, 0);
+  assert.equal((await request('preview', { afterId: 'station-a' })).status, 200);
   const applied = await request('apply', { previewId, stationIds: ['station-a'] });
   assert.equal(applied.status, 200); assert.equal((await applied.json()).restored, 1);
 });

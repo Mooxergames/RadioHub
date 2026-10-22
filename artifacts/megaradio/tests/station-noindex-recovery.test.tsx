@@ -29,6 +29,16 @@ describe('explicit legacy noindex recovery', () => {
     expect(screen.getAllByRole('checkbox').every(checkbox => !(checkbox as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole('button', { name: 'Seçilen 0 radyoyu onar' })).toBeDisabled();
   });
+  it('can page past deferred candidates while discarding the old selection and never applying automatically', async () => {
+    vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify({ ...preview(2), nextCursor: 'id-1' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...preview(1), previewId: 'preview-2' })));
+    show(); await scan();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Radio 0 onarım için seç' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sonraki adaylar' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenLastCalledWith('POST', '/api/admin/seo-noindex-recovery/preview', { body: { afterId: 'id-1' } }));
+    expect(await screen.findByRole('checkbox', { name: 'Radio 0 onarım için seç' })).not.toBeChecked();
+    expect(apiRequest).toHaveBeenCalledTimes(2);
+  });
   it('downloads every record through authenticated transport without starting a repair or selecting candidates', async () => {
     const NativeURL = URL;
     const createObjectURL = vi.fn(() => 'blob:test-review');

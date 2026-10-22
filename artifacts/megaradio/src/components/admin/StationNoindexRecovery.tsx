@@ -18,6 +18,7 @@ interface RecoveryPreview {
   previewId: string; createdAt: string; expiresAt: string; totalScanned: number;
   totalNoIndex: number; totalCandidates: number; reasonCounts: Record<string, number>;
   candidates: RecoveryCandidate[]; candidateLimit: number;
+  nextCursor?: string;
 }
 interface RecoveryResult { restored: number; restoredIds: string[]; skipped: number; skippedReasons: unknown[] }
 const BATCH_LIMIT = 100;
@@ -35,8 +36,8 @@ export function StationNoindexRecovery() {
   const [expired, setExpired] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<RecoveryResult | null>(null);
-  const scan = useMutation<RecoveryPreview, Error>({
-    mutationFn: async () => (await apiRequest('POST', '/api/admin/seo-noindex-recovery/preview', { body: {} })).json(),
+  const scan = useMutation<RecoveryPreview, Error, string | undefined>({
+    mutationFn: async afterId => (await apiRequest('POST', '/api/admin/seo-noindex-recovery/preview', { body: afterId ? { afterId } : {} })).json(),
     onMutate: () => { setSelected([]); setPreview(null); setResult(null); },
     onSuccess: data => { setPreview(data); setExpired(Date.parse(data.expiresAt) <= Date.now()); },
   });
@@ -77,7 +78,7 @@ export function StationNoindexRecovery() {
         Sağlayıcı kontrolünün sonucu bilgi olarak gösterilir; güncel başarılı kontrol adaylık koşulu değildir.
         Manuel kararlar, yönlendirmeler ve belirsiz kayıtlar korunur.
         Bu işlem yayını yeniden başlatmaz, gizli radyoları listelerde görünür yapmaz.</p>
-      <Button variant="outline" onClick={() => { apply.reset(); scan.mutate(); }} disabled={busy}>
+      <Button variant="outline" onClick={() => { apply.reset(); scan.mutate(undefined); }} disabled={busy}>
         {scan.isPending ? 'Adaylar inceleniyor…' : 'Onarım adaylarını incele'}
       </Button>
       <Button variant="outline" onClick={() => download.mutate()} disabled={busy}>
@@ -97,6 +98,7 @@ export function StationNoindexRecovery() {
           <span>Onarım koşullarını sağlayan: <strong>{preview.totalCandidates.toLocaleString()}</strong></span>
           <span>Gösterilen: <strong>{preview.candidates.length}</strong></span>
         </div>
+        {preview.nextCursor && <Button variant="outline" size="sm" disabled={busy} onClick={() => { apply.reset(); scan.mutate(preview.nextCursor); }}>Sonraki adaylar</Button>}
         <details className="text-sm"><summary className="cursor-pointer">Aday olmayan kayıtların nedenleri</summary>
           <dl className="mt-2 grid gap-1 sm:grid-cols-2">{Object.entries(preview.reasonCounts).map(([reason, count]) =>
             <div key={reason} className="flex justify-between gap-3 pr-4"><dt>{reason}</dt><dd>{count.toLocaleString()}</dd></div>)}</dl>

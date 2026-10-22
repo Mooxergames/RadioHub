@@ -45,8 +45,9 @@ export function registerAdminLegacyNoindexRecoveryRoutes(app: Express, requireAd
     app.post(`/api/admin/seo-noindex-recovery/${action}`, requireAdmin, json, async (req, res) => {
       res.set('Cache-Control', 'private, no-store');
       const body = req.body ?? {};
-      const allowed = action === 'apply' ? ['previewId', 'stationIds'] : [];
+      const allowed = action === 'apply' ? ['previewId', 'stationIds'] : ['afterId'];
       if (Object.keys(req.query).length || !validObject(body) || Object.keys(body).some(key => !allowed.includes(key)) ||
+          (action === 'preview' && body.afterId !== undefined && (typeof body.afterId !== 'string' || !body.afterId || body.afterId.length > 200)) ||
           (action === 'apply' && (typeof body.previewId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.previewId) ||
             !Array.isArray(body.stationIds) || body.stationIds.length < 1 || body.stationIds.length > 100 ||
             body.stationIds.some(id => typeof id !== 'string' || !id || id.length > 200) ||
@@ -58,7 +59,7 @@ export function registerAdminLegacyNoindexRecoveryRoutes(app: Express, requireAd
       res.on('close', disconnected);
       try {
         const result = action === 'preview'
-          ? await dependencies.pgPreviewLegacyNoindexRecovery({ signal: controller.signal })
+          ? await dependencies.pgPreviewLegacyNoindexRecovery({ signal: controller.signal, ...(body.afterId ? { afterId: body.afterId as string } : {}) })
           : await dependencies.pgApplyLegacyNoindexRecovery({ previewId: body.previewId as string,
             stationIds: body.stationIds as string[], signal: controller.signal,
             actor: String((req.user as any)?._id || (req.user as any)?.id || 'authenticated-admin') });
