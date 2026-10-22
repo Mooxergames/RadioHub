@@ -229,6 +229,15 @@ paketleme/launcher testi basarili. CI'a ayri bir is olarak API/web/proxy/
 operator Dockerfile'larinin gercek image build'leri eklendi; yalnizca
 workspace uzerindeki bundle testleri artik yeterli yayin kapisi degil.
 
+PR113'un ilk kosumu `39810620936`, daha once gecen SEO kilit testinde
+bir kurulum yarisi buldu. `pg_terminate_backend(pid)` yalnizca sinyalin
+gonderildigini bildiriyor; istemci hata olayi da eski backend'in advisory
+kilidini tamamen biraktigini kanitlamiyor. Test artik
+`pg_terminate_backend(pid,5000)` sonucunun gercek kapanisi dogrulamasini
+istiyor. Eski yazarin reddedilmesi ve yeni snapshot'in korunmasi
+assert'leri korunuyor; production kilit kodu degistirilmedi. Kaynak:
+[PostgreSQL17 sinyal fonksiyonlari](https://www.postgresql.org/docs/17/functions-admin.html#FUNCTIONS-ADMIN-SIGNAL).
+
 Pilotun iki olcum sitemap'i korunacak. Diger diller ve mevcut iyi adresler
 topluca kapatilmayacak. Yayin sonrasi gercek sayfalar, yeni301/404, tum
 pilot makaleleri ve Google mobil olusturmasi tekrar kontrol edilmeli.

@@ -29,7 +29,9 @@ describe('Sitemap job ownership survives small pools and fails closed on session
     await assert.rejects(seo.withSeoJobLock('terminated',async lock=>{
       const pid=(await lock.client.query('SELECT pg_backend_pid() pid')).rows[0].pid;
       const lost=new Promise<void>(resolve=>lock.client.once('error',()=>resolve()));
-      await fixture.pool.query('SELECT pg_terminate_backend($1)',[pid]);await lost;
+      // The client error can arrive before backend exit releases its advisory lock.
+      assert.equal((await fixture.pool.query('SELECT pg_terminate_backend($1,5000) terminated',[pid])).rows[0].terminated,true);
+      await lost;
       // A second connection can own the same lock after PostgreSQL releases it.
       const successor=await fixture.pool.connect();
       try{
@@ -50,7 +52,8 @@ describe('Sitemap job ownership survives small pools and fails closed on session
     submit=async()=>{
       const pid=(await ownedClient.query('SELECT pg_backend_pid() pid')).rows[0].pid;
       const lost=new Promise<void>(resolve=>ownedClient.once('error',()=>resolve()));
-      await fixture.pool.query('SELECT pg_terminate_backend($1)',[pid]);await lost;
+      assert.equal((await fixture.pool.query('SELECT pg_terminate_backend($1,5000) terminated',[pid])).rows[0].terminated,true);
+      await lost;
       await seo.pgSaveUrlSnapshot('main','en',0,['https://example.invalid/successor']);
     };
     try{
