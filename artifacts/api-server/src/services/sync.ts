@@ -398,7 +398,7 @@ export class SyncService {
       }
 
       // Get existing station UUIDs (and the fields needed to auto-flag junk
-      // on update — slug for codec-suffix matching, noIndex to detect
+      // on update: slug for test-feed matching, noIndex to detect
       // transitions so we don't double-count already-flagged stations).
       const batchUuids = nonBlacklistedBatch.map(s => s.stationuuid);
       const existingStations = await pgCatalog().find({ stationuuid: { $in: batchUuids } });
@@ -452,7 +452,7 @@ export class SyncService {
         let batchAutoFlagged = 0;
         const convertedNewStations = newStations.map(station => {
           const doc = this.convertStation(station);
-          // Use the slug we'd generate downstream so codec-suffix rules apply
+          // Use the slug we'd generate downstream so test-feed rules apply
           // even though `slug` isn't persisted by `convertStation` itself.
           const probeSlug = slugifyStationName(doc.name || '');
           const verdict = evaluateJunkStation({

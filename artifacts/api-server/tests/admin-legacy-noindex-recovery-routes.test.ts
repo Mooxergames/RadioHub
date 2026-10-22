@@ -9,9 +9,10 @@ const previewId = '00000000-0000-4000-8000-000000000001';
 before(async () => {
   const app = express();
   registerAdminLegacyNoindexRecoveryRoutes(app, (req, res, next) => req.get('x-admin') === 'yes' ? next() : void res.status(401).end(), {
-    pgPreviewLegacyNoindexRecovery: async () => {
+    pgPreviewLegacyNoindexRecovery: async options => {
       previewCalls++;
       if (failure) throw Object.assign(new Error('private database details'), { code: failure });
+      if (options?.onReviewRow) await options.onReviewRow('"station-a","Example Radio"\r\n', options.signal);
       return { previewId, candidates: [{ id: 'station-a' }], totalCandidates: 1 } as any;
     },
     pgApplyLegacyNoindexRecovery: async input => {
@@ -24,6 +25,24 @@ before(async () => {
   server = await new Promise(resolve => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
   base = `http://127.0.0.1:${(server.address() as any).port}/api/admin/seo-noindex-recovery/`;
 });
+
+test('complete record export is authenticated, private, read-only and rejects unexpected filters', async () => {
+  assert.equal((await fetch(base + 'review.csv')).status, 401);
+  assert.equal((await fetch(base + 'review.csv?limit=1', { headers: { 'x-admin': 'yes' } })).status, 400);
+  assert.equal(previewCalls, 0);
+  const response = await fetch(base + 'review.csv', { headers: { 'x-admin': 'yes' } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.match(response.headers.get('content-disposition') || '', /station-noindex-record-review.csv/);
+  const csv = await response.text();
+  assert.match(csv, /^station_id,name,slug,/);
+  assert.match(csv, /"station-a","Example Radio"/);
+  assert.equal(applyCalls, 0);
+  failure = 'XX000';
+  const unavailable = await fetch(base + 'review.csv', { headers: { 'x-admin': 'yes' } });
+  assert.equal(unavailable.status, 503);
+  assert.doesNotMatch(await unavailable.text(), /private database/);
+});
 beforeEach(() => { previewCalls = 0; applyCalls = 0; failure = null; });
 after(async () => { server?.closeAllConnections(); if (server) await new Promise<void>(resolve => server.close(() => resolve())); });
 const request = (action: string, body: any = {}, admin = true) => fetch(base + action, { method: 'POST',
@@ -33,6 +52,7 @@ test('admin authentication and strict explicit selection precede every scan or m
   assert.equal((await request('preview', {}, false)).status, 401);
   assert.equal((await request('apply', { previewId, stationIds: ['station-a'] }, false)).status, 401);
   for (const [action, body] of [['preview', { automatic: true }], ['preview?country=DE', {}], ['apply', {}],
+    ['preview', { afterId: '' }], ['preview', { afterId: ['station-a'] }],
     ['apply', { previewId, stationIds: [] }], ['apply', { previewId, stationIds: ['station-a', 'station-a'] }],
     ['apply', { previewId, stationIds: ['station-a'], noIndex: false }],
     ['apply', { previewId, stationIds: Array.from({ length: 101 }, (_, i) => String(i)) }]]) {
@@ -45,6 +65,7 @@ test('preview is uncached and never applies; explicit selected IDs return restor
   const preview = await request('preview'); assert.equal(preview.status, 200);
   assert.equal(preview.headers.get('cache-control'), 'private, no-store');
   assert.equal((await preview.json()).totalCandidates, 1); assert.equal(applyCalls, 0);
+  assert.equal((await request('preview', { afterId: 'station-a' })).status, 200);
   const applied = await request('apply', { previewId, stationIds: ['station-a'] });
   assert.equal(applied.status, 200); assert.equal((await applied.json()).restored, 1);
 });

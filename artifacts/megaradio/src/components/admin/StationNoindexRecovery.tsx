@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Download } from 'lucide-react';
 
 interface RecoveryCandidate {
   id: string; slug: string; name: string; country: string; countryCode: string;
@@ -17,6 +18,7 @@ interface RecoveryPreview {
   previewId: string; createdAt: string; expiresAt: string; totalScanned: number;
   totalNoIndex: number; totalCandidates: number; reasonCounts: Record<string, number>;
   candidates: RecoveryCandidate[]; candidateLimit: number;
+  nextCursor?: string;
 }
 interface RecoveryResult { restored: number; restoredIds: string[]; skipped: number; skippedReasons: unknown[] }
 const BATCH_LIMIT = 100;
@@ -28,13 +30,15 @@ function formatSuccessfulCheck(value: string | null) {
 
 /** Explicit, reversible repair only. Opening this screen never starts a scan or a write. */
 export function StationNoindexRecovery() {
+  const downloadRequest = useRef<AbortController | null>(null);
+  const downloadUrls = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [preview, setPreview] = useState<RecoveryPreview | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [expired, setExpired] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<RecoveryResult | null>(null);
-  const scan = useMutation<RecoveryPreview, Error>({
-    mutationFn: async () => (await apiRequest('POST', '/api/admin/seo-noindex-recovery/preview', { body: {} })).json(),
+  const scan = useMutation<RecoveryPreview, Error, string | undefined>({
+    mutationFn: async afterId => (await apiRequest('POST', '/api/admin/seo-noindex-recovery/preview', { body: afterId ? { afterId } : {} })).json(),
     onMutate: () => { setSelected([]); setPreview(null); setResult(null); },
     onSuccess: data => { setPreview(data); setExpired(Date.parse(data.expiresAt) <= Date.now()); },
   });
@@ -48,6 +52,23 @@ export function StationNoindexRecovery() {
     onSuccess: data => { setResult(data); setSelected([]); setExpired(true); },
     onError: () => { setExpired(true); setSelected([]); },
   });
+  const download = useMutation({ mutationFn: async () => {
+    downloadRequest.current = new AbortController();
+    const response = await apiRequest('GET', '/api/admin/seo-noindex-recovery/review.csv', { signal: downloadRequest.current.signal });
+    const blob = await response.blob();
+    downloadRequest.current.signal.throwIfAborted();
+    const url = URL.createObjectURL(blob);
+    downloadUrls.current.set(url, setTimeout(() => {
+      downloadUrls.current.delete(url); URL.revokeObjectURL(url);
+    }, 1000));
+    const link = document.createElement('a'); link.href = url; link.download = 'station-noindex-record-review.csv';
+    document.body.appendChild(link); link.click(); link.remove();
+  } });
+  useEffect(() => () => {
+    downloadRequest.current?.abort();
+    for (const [url, timer] of downloadUrls.current) { clearTimeout(timer); URL.revokeObjectURL(url); }
+    downloadUrls.current.clear();
+  }, []);
   useEffect(() => {
     setConfirming(false);
   }, [selected, preview, expired]);
@@ -56,7 +77,7 @@ export function StationNoindexRecovery() {
     const timeout = setTimeout(() => { setExpired(true); setSelected([]); }, Math.max(0, Date.parse(preview.expiresAt) - Date.now()));
     return () => clearTimeout(timeout);
   }, [preview]);
-  const busy = scan.isPending || apply.isPending;
+  const busy = scan.isPending || apply.isPending || download.isPending;
   return <Card className="border-l-4 border-l-amber-500 bg-white">
     <CardHeader><CardTitle className="text-base">Eski noindex işaretlerini kontrollü onar</CardTitle></CardHeader>
     <CardContent className="space-y-4">
@@ -66,9 +87,13 @@ export function StationNoindexRecovery() {
         Sağlayıcı kontrolünün sonucu bilgi olarak gösterilir; güncel başarılı kontrol adaylık koşulu değildir.
         Manuel kararlar, yönlendirmeler ve belirsiz kayıtlar korunur.
         Bu işlem yayını yeniden başlatmaz, gizli radyoları listelerde görünür yapmaz.</p>
-      <Button variant="outline" onClick={() => { apply.reset(); scan.mutate(); }} disabled={busy}>
+      <Button variant="outline" onClick={() => { apply.reset(); scan.mutate(undefined); }} disabled={busy}>
         {scan.isPending ? 'Adaylar inceleniyor…' : 'Onarım adaylarını incele'}
       </Button>
+      <Button variant="outline" onClick={() => download.mutate()} disabled={busy}>
+        <Download className="mr-2 h-4 w-4" />{download.isPending ? 'CSV hazırlanıyor…' : 'Tüm noindex kayıtlarını indir'}
+      </Button>
+      {download.isError && <p role="alert" className="text-sm text-rose-700">Kayıt raporu indirilemedi. Hiçbir kayıt değiştirilmedi; yeniden deneyin.</p>}
       {scan.isError && <p role="alert" className="text-sm text-rose-700">Aday taraması tamamlanamadı. Hiçbir kayıt değiştirilmedi; yeniden deneyin.</p>}
       {apply.isError && <p role="alert" className="text-sm text-rose-700">Onarım doğrulanamadı. Otomatik yeniden deneme yapılmaz; yeni taramayla güncel durumu kontrol edin.</p>}
       {result && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
@@ -82,6 +107,7 @@ export function StationNoindexRecovery() {
           <span>Onarım koşullarını sağlayan: <strong>{preview.totalCandidates.toLocaleString()}</strong></span>
           <span>Gösterilen: <strong>{preview.candidates.length}</strong></span>
         </div>
+        {preview.nextCursor && <Button variant="outline" size="sm" disabled={busy} onClick={() => { apply.reset(); scan.mutate(preview.nextCursor); }}>Sonraki adaylar</Button>}
         <details className="text-sm"><summary className="cursor-pointer">Aday olmayan kayıtların nedenleri</summary>
           <dl className="mt-2 grid gap-1 sm:grid-cols-2">{Object.entries(preview.reasonCounts).map(([reason, count]) =>
             <div key={reason} className="flex justify-between gap-3 pr-4"><dt>{reason}</dt><dd>{count.toLocaleString()}</dd></div>)}</dl>

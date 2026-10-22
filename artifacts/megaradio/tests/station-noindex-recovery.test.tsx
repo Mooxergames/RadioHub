@@ -18,15 +18,49 @@ function show() {
   return render(<QueryClientProvider client={client}><StationNoindexRecovery /></QueryClientProvider>);
 }
 async function scan() { fireEvent.click(screen.getByRole('button', { name: 'Onarım adaylarını incele' })); await screen.findByRole('checkbox', { name: 'Radio 0 onarım için seç' }); }
-afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); vi.restoreAllMocks(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); vi.restoreAllMocks(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe('explicit legacy noindex recovery', () => {
   it('does not scan on mount or preselect candidates after a read-only preview', async () => {
     vi.mocked(apiRequest).mockResolvedValue(new Response(JSON.stringify(preview())));
     show(); expect(apiRequest).not.toHaveBeenCalled(); await scan();
+    expect(screen.getByRole('button', { name: 'Tüm noindex kayıtlarını indir' })).toBeEnabled();
     expect(apiRequest).toHaveBeenCalledWith('POST', '/api/admin/seo-noindex-recovery/preview', { body: {} });
     expect(screen.getAllByRole('checkbox').every(checkbox => !(checkbox as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole('button', { name: 'Seçilen 0 radyoyu onar' })).toBeDisabled();
+  });
+  it('can page past deferred candidates while discarding the old selection and never applying automatically', async () => {
+    vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify({ ...preview(2), nextCursor: 'id-1' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...preview(1), previewId: 'preview-2' })));
+    show(); await scan();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Radio 0 onarım için seç' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sonraki adaylar' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenLastCalledWith('POST', '/api/admin/seo-noindex-recovery/preview', { body: { afterId: 'id-1' } }));
+    expect(await screen.findByRole('checkbox', { name: 'Radio 0 onarım için seç' })).not.toBeChecked();
+    expect(apiRequest).toHaveBeenCalledTimes(2);
+  });
+  it('downloads every record through authenticated transport without starting a repair or selecting candidates', async () => {
+    const NativeURL = URL;
+    const createObjectURL = vi.fn(() => 'blob:test-review');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', class extends NativeURL { static createObjectURL = createObjectURL; static revokeObjectURL = revokeObjectURL; });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.mocked(apiRequest).mockResolvedValue(new Response('station_id,name\r\n"id-a","Radio A"\r\n', { headers: { 'Content-Type': 'text/csv' } }));
+    const view = show(); fireEvent.click(screen.getByRole('button', { name: 'Tüm noindex kayıtlarını indir' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith('GET', '/api/admin/seo-noindex-recovery/review.csv', { signal: expect.any(AbortSignal) }));
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    view.unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:test-review');
+  });
+  it('does not save a failed or truncated record export or retry it automatically', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.mocked(apiRequest).mockResolvedValue({ blob: () => Promise.reject(new Error('download interrupted')) } as Response);
+    show(); fireEvent.click(screen.getByRole('button', { name: 'Tüm noindex kayıtlarını indir' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Kayıt raporu indirilemedi');
+    expect(click).not.toHaveBeenCalled(); expect(apiRequest).toHaveBeenCalledTimes(1);
   });
   it('caps selection at 100 even for an oversized preview and never applies after cancelled confirmation', async () => {
     vi.mocked(apiRequest).mockResolvedValue(new Response(JSON.stringify(preview(101))));

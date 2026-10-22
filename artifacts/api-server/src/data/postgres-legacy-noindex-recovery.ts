@@ -3,7 +3,7 @@ import type pg from 'pg';
 import { getPostgresPool } from '../postgres-runtime';
 import { descriptionTextSql } from './station-description-sql';
 import { AUDIT_LANGUAGES } from '../seo/station-indexability-audit';
-import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, RECOVERY_CANDIDATE_LIMIT,
+import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, recoveryReviewCsv, RECOVERY_CANDIDATE_LIMIT,
   type RecoveryCandidate, type RecoveryStation, type RecoveryIdentity } from '../seo/legacy-noindex-recovery';
 
 const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
@@ -33,24 +33,27 @@ type Snapshot = { expiresAt: number; fingerprints: Map<string, string> };
 export interface RecoveryPreview {
   previewId: string; createdAt: string; expiresAt: string; totalScanned: number; totalNoIndex: number;
   totalCandidates: number; candidateLimit: number; reasonCounts: Record<string, number>; candidates: RecoveryCandidate[];
+  nextCursor?: string;
 }
 
 /** Both paths are bounded and have checked-out-client error listeners. Apply
  * has a hard five-second connection deadline, including rollback on timeout;
  * it never holds the catalog writer lock through an HTTP response. */
 async function withTransaction<T>(pool: RecoveryPool, write: boolean, signal: AbortSignal | undefined,
-  work: (query: RecoveryQuery, now: number) => Promise<T>, coordinate = true): Promise<T> {
+  work: (query: RecoveryQuery, now: number, signal: AbortSignal) => Promise<T>, coordinate = true): Promise<T> {
   signal?.throwIfAborted();
   const client = await pool.connect();
   let released = false, discarded = false, connectionLost = false, committed = false, interrupted: Error | undefined;
+  const interruptedSignal = new AbortController();
   const release = (discard: boolean) => { if (!released) { released = true; discarded = discard; client.release(discard); } };
   const abort = () => {
     interrupted ||= failure('RECOVERY_INTERRUPTED', 'Recovery operation interrupted');
+    interruptedSignal.abort(interrupted);
     // Destroying a checked-out client terminates any active query and rolls
     // back its transaction, bounding the writer lock independently of SQL.
     release(true);
   };
-  const lost = () => { connectionLost = true; interrupted ||= failure('RECOVERY_UNAVAILABLE', 'Recovery connection lost'); };
+  const lost = () => { connectionLost = true; interrupted ||= failure('RECOVERY_UNAVAILABLE', 'Recovery connection lost'); interruptedSignal.abort(interrupted); };
   client.on('error', lost); client.on('end', lost);
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) abort();
@@ -85,7 +88,7 @@ async function withTransaction<T>(pool: RecoveryPool, write: boolean, signal: Ab
       if (!lock.rows[0]?.acquired) throw failure('RECOVERY_BUSY', 'Another recovery operation is running');
     }
     const timestamp = await query('SELECT transaction_timestamp() AS at');
-    const result = await work(query, new Date(timestamp.rows[0].at).getTime());
+    const result = await work(query, new Date(timestamp.rows[0].at).getTime(), interruptedSignal.signal);
     await query('COMMIT');
     committed = true;
     return result;
@@ -141,9 +144,12 @@ export class LegacyNoindexRecoveryStore {
   constructor(private readonly pool: () => RecoveryPool = getPostgresPool,
     private readonly invalidate: (slugs: string[]) => Promise<boolean> = invalidateRecoveryCaches) {}
 
-  async preview(options: { signal?: AbortSignal } = {}): Promise<RecoveryPreview> {
+  async preview(options: { signal?: AbortSignal; afterId?: string; onReviewRow?: (csv: string, signal?: AbortSignal) => Promise<void> } = {}): Promise<RecoveryPreview> {
+    if (options.afterId !== undefined && (typeof options.afterId !== 'string' || !options.afterId || options.afterId.length > 200)) {
+      throw failure('RECOVERY_INVALID', 'Invalid review cursor');
+    }
     const snapshot: Snapshot = { expiresAt: Date.now() + SNAPSHOT_TTL_MS, fingerprints: new Map() };
-    const report = await withTransaction(this.pool(), false, options.signal, async (query, now) => {
+    const report = await withTransaction(this.pool(), false, options.signal, async (query, now, signal) => {
       // The full catalog identity scan includes indexed rows and redirects;
       // limiting it to noindex rows would miss real duplicate peers.
       const index = await readIdentityIndex(query);
@@ -157,14 +163,16 @@ export class LegacyNoindexRecoveryStore {
         if (!batch.rows.length) break;
         for (const station of batch.rows as RecoveryStation[]) {
           result.totalNoIndex++;
+          if (options.onReviewRow) await options.onReviewRow(recoveryReviewCsv(station, index, now), signal);
           const decision = assessLegacyNoindexRecovery(station, index, now);
           result.reasonCounts[decision.reason] = (result.reasonCounts[decision.reason] || 0) + 1;
           if (!decision.candidate) continue;
           result.totalCandidates++;
+          if (options.afterId && station.id <= options.afterId) continue;
           if (result.candidates.length < RECOVERY_CANDIDATE_LIMIT) {
             result.candidates.push(decision.candidate);
             snapshot.fingerprints.set(station.id, fingerprint(station, decision.peerEvidence));
-          }
+          } else result.nextCursor = result.candidates[result.candidates.length - 1].id;
         }
       }
       return result;
@@ -207,7 +215,11 @@ export class LegacyNoindexRecoveryStore {
       }
       mutationSubmitted = true;
       const result = await query(`UPDATE stations s SET no_index=false,
-        source=s.source || jsonb_build_object('noIndex',false),
+        source=s.source || jsonb_build_object('noIndex',false) || CASE
+          WHEN evidence.value->'evidence'->>'provenance'='owned-retired-name-heuristic' THEN
+            jsonb_build_object('automaticNoIndex',(s.source->'automaticNoIndex') || jsonb_build_object(
+              'active',false,'retiredAt',$3::text,'retiredReason','explicit-verified-information-page-recovery'))
+          ELSE '{}'::jsonb END,
         no_index_recovery_journal=COALESCE(s.no_index_recovery_journal,'{}'::jsonb) || jsonb_build_object($2::text,jsonb_build_object(
             'version',1,'action','explicit-selected-legacy-noindex-recovery','recoveredAt',$3::text,'actor',$4::text,
             'before',jsonb_build_object('noIndex',s.no_index,'sourceNoIndexPresent',s.source ? 'noIndex',
@@ -276,5 +288,5 @@ async function invalidateRecoveryCaches(slugs: string[]): Promise<boolean> {
 }
 
 const store = new LegacyNoindexRecoveryStore();
-export const pgPreviewLegacyNoindexRecovery = (options: { signal?: AbortSignal } = {}) => store.preview(options);
+export const pgPreviewLegacyNoindexRecovery = (options: Parameters<LegacyNoindexRecoveryStore['preview']>[0] = {}) => store.preview(options);
 export const pgApplyLegacyNoindexRecovery = (input: Parameters<LegacyNoindexRecoveryStore['apply']>[0]) => store.apply(input);

@@ -59,3 +59,33 @@ test('native recovery restores only a closed group canonical and fences peer cha
       assert.equal((await store.preview()).totalCandidates, 0, 'an already indexable sibling remains authoritative');
     } finally { await fixture.close(); }
   });
+
+test('native explicit format-heuristic recovery retires only owned provenance and preserves private before state',
+  { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
+    const fixture = await createNativePostgresFixture('noindex_format');
+    try {
+      const automaticNoIndex = { owner: 'radiohub-junk-policy', version: 1, active: true,
+        reason: 'codec-suffix:-flac', markedAt: '2026-04-01T00:00:00Z', retainedEvidence: { original: true } };
+      await fixture.insert('stations', { _id: 'format', stationuuid: randomUUID(), name: 'Unique Classical FLAC',
+        slug: 'unique-classical-flac', country: 'Turkey', countryCode: 'TR', url: 'https://example.invalid/flac',
+        noIndex: true, manualEditFields: {}, lastCheckOk: false, isListVisible: false,
+        descriptions: Object.fromEntries(AUDIT_LANGUAGES.map(language => [language, { full: 'Retained original article', meta: 'Retained summary' }])),
+        source: { noIndex: true, automaticNoIndex, preserved: { value: true } } });
+      const store = new LegacyNoindexRecoveryStore(() => fixture.pool, async () => true);
+      const preview = await store.preview();
+      assert.equal(preview.totalCandidates, 1);
+      assert.equal(preview.candidates[0].evidence.provenance, 'owned-retired-name-heuristic');
+      const before = (await fixture.pool.query('SELECT * FROM stations')).rows[0];
+      await store.apply({ previewId: preview.previewId, stationIds: ['format'] });
+      const after = (await fixture.pool.query('SELECT * FROM stations')).rows[0];
+      assert.equal(after.no_index, false);
+      assert.equal(after.source.automaticNoIndex.active, false);
+      assert.deepEqual(after.source.automaticNoIndex.retainedEvidence, automaticNoIndex.retainedEvidence);
+      assert.equal(after.source.automaticNoIndex.retiredReason, 'explicit-verified-information-page-recovery');
+      assert.deepEqual(after.no_index_recovery_journal[preview.previewId].before.automaticNoIndex, automaticNoIndex);
+      assert.deepEqual(after.source.preserved, { value: true });
+      for (const key of Object.keys(before).filter(key => !['no_index', 'source', 'updated_at', 'no_index_recovery_journal'].includes(key))) {
+        assert.deepEqual(after[key], before[key], key);
+      }
+    } finally { await fixture.close(); }
+  });
