@@ -18,6 +18,8 @@ COPY artifacts/api-server ./artifacts/api-server
 # Legacy deploy resolves workspace patches against every package manifest.
 # Keep the frontend patch owner visible even though only the proxy is installed.
 COPY artifacts/megaradio/package.json ./artifacts/megaradio/
+COPY artifacts/mockup-sandbox/package.json ./artifacts/mockup-sandbox/
+COPY artifacts/megaradio-investor-deck/package.json ./artifacts/megaradio-investor-deck/
 COPY lib ./lib
 COPY scripts ./scripts
 

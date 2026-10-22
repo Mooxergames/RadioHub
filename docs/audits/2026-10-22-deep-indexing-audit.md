@@ -208,6 +208,36 @@ ile hatayi kanitladi, duzeltilmis kodda normal sonuc ve tamamlanmis no-op
 icicin `[true,true]` istiyor. Gercek gecici PostgreSQL uzerinde23 ceviri
 testi, sifir atlama/hata ve API tip kontrolu basarili.
 
+Son kaynak `9d0c8cd6d` icin GitHub kosumu `39806696473` tum adimlari
+gecti:614 veritabani testi (612 basarili/2 mevcut kosullu atlama), tam
+API2.897 (2.888 basarili/9 mevcut kosullu atlama), arayuz2.259, tum tip
+kontrolleri/derlemeler, paketli operator ve gercek API/web acilisi.
+PR112 `9df5f8c2f` olarak birlestirildi; main kosumu `39807965593` de gecti.
+
+Railway'nin bugunku genel kuyruk gecikmesinden sonra gercek Docker build'i
+daha once kontrol edilmeyen bir eksigi buldu: `.dockerignore` iki yardimci
+uygulamayi tamamen disliyor, Dockerfile manifest katmani da bunlari
+kopyalamiyor. Yeni pnpm'in strict frozen install'i, lockfile'daki
+`megaradio-investor-deck` importer'i eksik oldugu icin kurulumu durdurdu.
+Eski calisan surum yerinde kaldi; yeni kod canlida basarili diye sunulmadi.
+
+Duzeltme: dort Dockerfile'a iki eksik manifest eklendi. Docker ignore
+kurali yalnizca bu iki `package.json` dosyasini aciyor; yardimci uygulama
+kaynaklari hala disli. Lockfile degistirilmedi, frozen kurali kapatilmadi.
+Dort regresyon testi eski kodda hatayi yakaliyor; duzeltmeden sonra8
+paketleme/launcher testi basarili. CI'a ayri bir is olarak API/web/proxy/
+operator Dockerfile'larinin gercek image build'leri eklendi; yalnizca
+workspace uzerindeki bundle testleri artik yeterli yayin kapisi degil.
+
+PR113'un ilk kosumu `39810620936`, daha once gecen SEO kilit testinde
+bir kurulum yarisi buldu. `pg_terminate_backend(pid)` yalnizca sinyalin
+gonderildigini bildiriyor; istemci hata olayi da eski backend'in advisory
+kilidini tamamen biraktigini kanitlamiyor. Test artik
+`pg_terminate_backend(pid,5000)` sonucunun gercek kapanisi dogrulamasini
+istiyor. Eski yazarin reddedilmesi ve yeni snapshot'in korunmasi
+assert'leri korunuyor; production kilit kodu degistirilmedi. Kaynak:
+[PostgreSQL17 sinyal fonksiyonlari](https://www.postgresql.org/docs/17/functions-admin.html#FUNCTIONS-ADMIN-SIGNAL).
+
 Pilotun iki olcum sitemap'i korunacak. Diger diller ve mevcut iyi adresler
 topluca kapatilmayacak. Yayin sonrasi gercek sayfalar, yeni301/404, tum
 pilot makaleleri ve Google mobil olusturmasi tekrar kontrol edilmeli.

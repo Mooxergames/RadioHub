@@ -6,6 +6,15 @@ on:
     branches: [main]
 
 jobs:
+  production-images:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the exact production Dockerfiles with frozen installs
+        run: |
+          for service in api web proxy migration; do
+            docker build --file "Dockerfile.$service" --tag "radiohub-$service:ci" .
+          done
   postgres-migration:
     # Keep Mongo 8's real integration tests on kernel 6.8 until SERVER-121912
     # is resolved for the newer kernels in the rolling runner images.

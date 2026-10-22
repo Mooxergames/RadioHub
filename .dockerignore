@@ -20,5 +20,8 @@ __pycache__
 .breakpoints
 generated-icon.png
 .migration-backup
-artifacts/mockup-sandbox
-artifacts/megaradio-investor-deck
+# Frozen installs need every workspace manifest, but not these applications' sources.
+artifacts/mockup-sandbox/*
+!artifacts/mockup-sandbox/package.json
+artifacts/megaradio-investor-deck/*
+!artifacts/megaradio-investor-deck/package.json
