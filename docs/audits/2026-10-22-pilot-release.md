@@ -82,7 +82,27 @@ were not selected for indexing. A successful fetch is not an indexing decision.
 - Shared-library, frontend and API TypeScript checks passed.
 - Frontend: 146 test files, 2,228 tests passed.
 - Backend: 151 focused tests across 10 relevant files passed, including 20 real
-  SSR/detail-API delivery tests. This is not a claim that every backend test ran.
+  SSR/detail-API delivery tests.
+- The wider API suite was also run on the candidate and unchanged main under
+  the same Node24 environment, without a configured test database. Candidate:
+  2,466 tests, 2,341 passed, 95 failed, 6 cancelled, 24 skipped. Main: 2,410 tests,
+  2,284 passed, 96 failed, 6 cancelled, 24 skipped. No new failing test labels
+  were observed. These runs are not green and do not replace database-backed CI.
+- GitHub's database-backed migration run failed: 604 tests, 581 passed,
+  21 failed, 2 skipped. Its failing test/suite labels match the previous main
+  run exactly. Migration application, idempotency and integration verification
+  passed before that step. Failures include concurrent-index validation,
+  migration/import contracts, runtime-state identity, profile fixtures and the
+  existing SQL sitemap integration test. No existing safety check was disabled.
+- Follow-up: PostgreSQL17.11 was started on loopback in a temporary directory,
+  with an empty dedicated test database and no production connection. The SQL
+  sitemap failure was a stale fixture: it created only English manifests while
+  14 languages were qualified. Complete snapshots (empty for other locales)
+  now satisfy the existing completeness gate; production behavior is unchanged.
+  All 12 native sitemap/SSR/diagnostic tests pass locally, including a new test
+  covering both 10-record pilot cohorts,304, and exclusion immediately after
+  native visibility/noindex writes. This fixes one old test, not the other20
+  migration failures; CI must still be rerun for the updated head.
 - Production frontend and web-server bundles passed; API bundle checked before
   publication as well. Existing large frontend-chunk warnings remain.
 - Diff whitespace checks passed.
@@ -90,9 +110,18 @@ were not selected for indexing. A successful fetch is not an indexing decision.
 ## Release Status
 
 - User saved the tested implementation as `305f5f09c` on `codex/design`.
-- Final pilot/main-index failure isolation and these release notes are a follow-up.
-- Push, pull request, merge, deployment and public post-release verification are
-  pending at this checkpoint. No live-success claim is made by local checks.
+- Final pilot/main-index failure isolation is in `dfddf25ed`.
+- Both commits were pushed to `visiongoat/RadioHub` using the owner's signed-in
+  GitHub Desktop session. The owner's original remote remains `origin`; the
+  separate fork is retained as `fork`.
+- Open review: https://github.com/visiongoat/RadioHub/pull/112
+- Candidate CI: https://github.com/visiongoat/RadioHub/actions/runs/39794683912
+- Prior main CI: https://github.com/visiongoat/RadioHub/actions/runs/38090036544
+- Merge, deployment and public post-release verification have not happened.
+  The original authorization was conditional on passing checks. The general
+  database check remains red, so release is held pending repair or the user's
+  explicit acceptance of those pre-existing failures. No live-success claim is
+  made by the passing scoped checks.
 
 After release, verify 20 public pages, both cohort XML files, conditional304,
 the main/English indexes, a full station sitemap's removed false dates, and the
