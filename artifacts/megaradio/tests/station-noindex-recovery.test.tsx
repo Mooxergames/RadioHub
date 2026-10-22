@@ -18,16 +18,36 @@ function show() {
   return render(<QueryClientProvider client={client}><StationNoindexRecovery /></QueryClientProvider>);
 }
 async function scan() { fireEvent.click(screen.getByRole('button', { name: 'Onarım adaylarını incele' })); await screen.findByRole('checkbox', { name: 'Radio 0 onarım için seç' }); }
-afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); vi.restoreAllMocks(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); vi.restoreAllMocks(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe('explicit legacy noindex recovery', () => {
   it('does not scan on mount or preselect candidates after a read-only preview', async () => {
     vi.mocked(apiRequest).mockResolvedValue(new Response(JSON.stringify(preview())));
     show(); expect(apiRequest).not.toHaveBeenCalled(); await scan();
-    expect(screen.getByRole('link', { name: 'Tüm noindex kayıtlarını indir' })).toHaveAttribute('href', '/api/admin/seo-noindex-recovery/review.csv');
+    expect(screen.getByRole('button', { name: 'Tüm noindex kayıtlarını indir' })).toBeEnabled();
     expect(apiRequest).toHaveBeenCalledWith('POST', '/api/admin/seo-noindex-recovery/preview', { body: {} });
     expect(screen.getAllByRole('checkbox').every(checkbox => !(checkbox as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole('button', { name: 'Seçilen 0 radyoyu onar' })).toBeDisabled();
+  });
+  it('downloads every record through authenticated transport without starting a repair or selecting candidates', async () => {
+    const NativeURL = URL;
+    const createObjectURL = vi.fn(() => 'blob:test-review');
+    vi.stubGlobal('URL', class extends NativeURL { static createObjectURL = createObjectURL; static revokeObjectURL = vi.fn(); });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.mocked(apiRequest).mockResolvedValue(new Response('station_id,name\r\n"id-a","Radio A"\r\n', { headers: { 'Content-Type': 'text/csv' } }));
+    show(); fireEvent.click(screen.getByRole('button', { name: 'Tüm noindex kayıtlarını indir' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith('GET', '/api/admin/seo-noindex-recovery/review.csv', { signal: expect.any(AbortSignal) }));
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+  it('does not save a failed or truncated record export or retry it automatically', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.mocked(apiRequest).mockResolvedValue({ blob: () => Promise.reject(new Error('download interrupted')) } as Response);
+    show(); fireEvent.click(screen.getByRole('button', { name: 'Tüm noindex kayıtlarını indir' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Kayıt raporu indirilemedi');
+    expect(click).not.toHaveBeenCalled(); expect(apiRequest).toHaveBeenCalledTimes(1);
   });
   it('caps selection at 100 even for an oversized preview and never applies after cancelled confirmation', async () => {
     vi.mocked(apiRequest).mockResolvedValue(new Response(JSON.stringify(preview(101))));

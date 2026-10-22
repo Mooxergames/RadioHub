@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ function formatSuccessfulCheck(value: string | null) {
 
 /** Explicit, reversible repair only. Opening this screen never starts a scan or a write. */
 export function StationNoindexRecovery() {
+  const downloadRequest = useRef<AbortController | null>(null);
   const [preview, setPreview] = useState<RecoveryPreview | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [expired, setExpired] = useState(false);
@@ -49,6 +50,15 @@ export function StationNoindexRecovery() {
     onSuccess: data => { setResult(data); setSelected([]); setExpired(true); },
     onError: () => { setExpired(true); setSelected([]); },
   });
+  const download = useMutation({ mutationFn: async () => {
+    downloadRequest.current = new AbortController();
+    const response = await apiRequest('GET', '/api/admin/seo-noindex-recovery/review.csv', { signal: downloadRequest.current.signal });
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a'); link.href = url; link.download = 'station-noindex-record-review.csv';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } });
+  useEffect(() => () => downloadRequest.current?.abort(), []);
   useEffect(() => {
     setConfirming(false);
   }, [selected, preview, expired]);
@@ -57,7 +67,7 @@ export function StationNoindexRecovery() {
     const timeout = setTimeout(() => { setExpired(true); setSelected([]); }, Math.max(0, Date.parse(preview.expiresAt) - Date.now()));
     return () => clearTimeout(timeout);
   }, [preview]);
-  const busy = scan.isPending || apply.isPending;
+  const busy = scan.isPending || apply.isPending || download.isPending;
   return <Card className="border-l-4 border-l-amber-500 bg-white">
     <CardHeader><CardTitle className="text-base">Eski noindex işaretlerini kontrollü onar</CardTitle></CardHeader>
     <CardContent className="space-y-4">
@@ -70,10 +80,10 @@ export function StationNoindexRecovery() {
       <Button variant="outline" onClick={() => { apply.reset(); scan.mutate(); }} disabled={busy}>
         {scan.isPending ? 'Adaylar inceleniyor…' : 'Onarım adaylarını incele'}
       </Button>
-      <Button variant="outline" asChild disabled={busy}>
-        <a href="/api/admin/seo-noindex-recovery/review.csv" download="station-noindex-record-review.csv" aria-disabled={busy}
-          onClick={event => { if (busy) event.preventDefault(); }}><Download className="mr-2 h-4 w-4" />Tüm noindex kayıtlarını indir</a>
+      <Button variant="outline" onClick={() => download.mutate()} disabled={busy}>
+        <Download className="mr-2 h-4 w-4" />{download.isPending ? 'CSV hazırlanıyor…' : 'Tüm noindex kayıtlarını indir'}
       </Button>
+      {download.isError && <p role="alert" className="text-sm text-rose-700">Kayıt raporu indirilemedi. Hiçbir kayıt değiştirilmedi; yeniden deneyin.</p>}
       {scan.isError && <p role="alert" className="text-sm text-rose-700">Aday taraması tamamlanamadı. Hiçbir kayıt değiştirilmedi; yeniden deneyin.</p>}
       {apply.isError && <p role="alert" className="text-sm text-rose-700">Onarım doğrulanamadı. Otomatik yeniden deneme yapılmaz; yeni taramayla güncel durumu kontrol edin.</p>}
       {result && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">

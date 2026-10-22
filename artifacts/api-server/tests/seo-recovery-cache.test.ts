@@ -44,26 +44,29 @@ test('negative data lasts at most60s, evicts stale HTML and prevents new cached 
   }
 });
 
-test('station-dependent page and HTML caches share the earliest datasource deadline without TTL renewal', async () => {
+test('station-dependent page and HTML caches share the earliest datasource deadline without TTL renewal', async t => {
+  let now = Date.now();
+  t.mock.method(Date, 'now', () => now);
   const cache = performanceCache as any;
   for (const pageType of ['home', 'station', 'stations', 'genres', 'regions']) {
     const url = `/en/cache-health-${pageType}`;
     const pageKey = `page:${SEO_CACHE_NAMESPACE}:${url}`;
     const htmlKey = `seo:${SEO_CACHE_NAMESPACE}:bot:${url}`;
-    const deadline = Date.now() + 5000;
+    const deadline = now + 5000;
     await withPublicStationDeadline(async () => {
       limitPublicStationDeadline(deadline); // upstream 60s pool is already55s old
       performanceCache.setPageData(url, { pageData: { pageType } });
     });
     const expires = cache.pageDataCache.getTtl(pageKey);
-    assert.ok(expires <= deadline && expires > deadline - 100);
+    assert.equal(expires, deadline);
+    now += 1000;
     performanceCache.setSeoHtml(url, '<main>retained</main>');
     assert.ok(cache.seoHtmlCache.getTtl(htmlKey) <= expires);
     await withPublicStationDeadline(async () => {
       assert.ok(performanceCache.getPageData(url));
       assert.ok(getPublicStationDeadline() <= expires);
     });
-    cache.pageDataCache.ttl(pageKey, -1); cache.seoHtmlCache.ttl(htmlKey, -1);
+    now = deadline + 1;
     assert.equal(performanceCache.getPageData(url), null);
     assert.equal(performanceCache.getSeoHtml(url), null);
   }
