@@ -195,6 +195,7 @@ const DOMAIN = 'https://themegaradio.com';
 test('SSR H1 emits special characters as text exactly once, including already literal entity text', async () => {
   const { buildGenreSeo } = await import('@workspace/seo-shared/genre-seo-templates');
   const { generateLocalizedStationTitle } = await import('@workspace/seo-shared/seo-config');
+  const { getHomeHeroCopy } = await import('@workspace/seo-shared/home-hero-copy');
   const renderer = new SeoRenderer();
   const maliciousName = `Radio "Jazz" & O'Neil <img src=x onerror=alert(1)>`;
   const missingName = { name: '', country: 'Country & "Region"' };
@@ -206,7 +207,8 @@ test('SSR H1 emits special characters as text exactly once, including already li
     { pageType: 'station', stationData: missingName, expected: lastDash > 0 ? fallbackTitle.slice(0, lastDash) : fallbackTitle },
     { pageType: 'genres', additionalData: { genreName: 'Rock & Roll' }, expected: buildGenreSeo('Rock & Roll', 'en', {}).h1 },
     { pageType: 'regions', additionalData: { regionName: 'R&B <Region>' }, translations: { seo_radio_stations: 'Radio & "Shows"' }, expected: 'R&B <Region> Radio & "Shows"' },
-    { pageType: 'home', translations: { hero_worlds_best_radio: 'Radio & "Music"' }, expected: 'Radio & "Music"' },
+    // The shared hero owns this H1; obsolete DB copy must not override it.
+    { pageType: 'home', translations: { hero_worlds_best_radio: 'Radio & "Music"' }, expected: getHomeHeroCopy('en').headline },
   ];
   for (const fixture of fixtures) {
     const html = renderer.generateHtmlBody({ language: 'en', translations: {}, ...fixture,

@@ -15,7 +15,7 @@ async function inspectIndex(client, spec) {
     i.indpred IS NULL AS no_predicate,opc.opcname AS operator_class
     FROM pg_class c JOIN pg_index i ON i.indexrelid=c.oid
     JOIN pg_am am ON am.oid=c.relam JOIN pg_opclass opc ON opc.oid=i.indclass[0]
-    WHERE c.oid=to_regclass($1)`, [spec.name, spec.table]);
+    WHERE c.relname=$1 AND c.relnamespace=(SELECT relnamespace FROM pg_class WHERE oid=$2::regclass)`, [spec.name, spec.table]);
   const row = result.rows[0];
   if (!row) return null;
   if (!row.correct_table || row.method !== 'gin' || row.unique || row.keys !== 1 || !row.no_predicate

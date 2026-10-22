@@ -114,7 +114,7 @@ for (const pathname of ['/admin', '/admin-login', '/admin/stations', '/admin/rad
     const executableScripts = [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/gi)].map(match => match[0]).join('\n');
     assert.doesNotMatch(executableScripts, /partytown|clarity\.ms/);
     assert.doesNotMatch(html, /<link[^>]+(?:hero-bg|header-logo)/);
-    assert.match(html, /<link[^>]+ubuntu-400\.woff2/);
+    assert.match(html, /<link[^>]+ubuntu-400-latin\.woff2/);
     assert.match(html, /<script type="module" src="\/src\/main\.tsx"/);
     assert.match(executableScripts, /cast_sender\.js/); // shared player remains functional
   });
