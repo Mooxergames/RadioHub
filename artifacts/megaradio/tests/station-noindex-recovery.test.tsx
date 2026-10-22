@@ -78,6 +78,16 @@ describe('explicit legacy noindex recovery', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('1 radyonun noindex işareti kaldırıldı');
     expect(screen.getByRole('checkbox', { name: 'Radio 0 onarım için seç' })).toBeDisabled();
   });
+  it('distinguishes the canonical of excluded duplicates without selecting or changing its peers', async () => {
+    const data = preview(1);
+    Object.assign(data.candidates[0].evidence, { recoveryBasis: 'canonical-of-excluded-duplicates', identityPeers: 2 });
+    vi.mocked(apiRequest).mockResolvedValue(new Response(JSON.stringify(data)));
+    show(); await scan();
+    expect(screen.getByText('Asıl bilgi sayfası; 2 kopya kapalı kalır')).toBeVisible();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
   it('does not automatically retry an ambiguous write and invalidates the stale preview', async () => {
     vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify(preview()))).mockRejectedValueOnce(new Error('409 RECOVERY_STALE'));
     show(); await scan();

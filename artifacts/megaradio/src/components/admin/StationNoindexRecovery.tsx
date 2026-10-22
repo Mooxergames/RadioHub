@@ -9,7 +9,8 @@ interface RecoveryCandidate {
   lastCheckOkTime: string | null; completeLanguageCount: number;
   evidence: {
     provenance: string; providerUuidPresent: boolean; recentProviderSuccess: boolean;
-    providerLastCheckOk: boolean | null; recoveryBasis: 'complete-unique-information-page'; identityPeers: number;
+    providerLastCheckOk: boolean | null;
+    recoveryBasis: 'complete-unique-information-page' | 'canonical-of-excluded-duplicates'; identityPeers: number;
   };
 }
 interface RecoveryPreview {
@@ -61,6 +62,7 @@ export function StationNoindexRecovery() {
     <CardContent className="space-y-4">
       <p className="max-w-3xl text-sm text-slate-600">Önce adayları inceleyin, sonra en fazla {BATCH_LIMIT} radyoyu seçin.
         Yayın çevrimdışı olsa da 14 dilde zengin ve eksiksiz içerik sunan, kimlik kopyası şüphesi bulunmayan benzersiz bilgi sayfaları arama motorlarında indekslenebilir.
+        Tüm kopyaları kapalı olan doğrulanmış gruplarda yalnızca asıl sayfa onarılır; kopyaların noindex kararı korunur.
         Sağlayıcı kontrolünün sonucu bilgi olarak gösterilir; güncel başarılı kontrol adaylık koşulu değildir.
         Manuel kararlar, yönlendirmeler ve belirsiz kayıtlar korunur.
         Bu işlem yayını yeniden başlatmaz, gizli radyoları listelerde görünür yapmaz.</p>
@@ -107,7 +109,8 @@ export function StationNoindexRecovery() {
                   <div className="text-xs text-slate-500">{row.evidence.recentProviderSuccess ? 'Yakın tarihli başarı kaydı var' : 'Yakın tarihli başarı kaydı yok'}</div>
                 </td>
                 <td className="p-3 whitespace-nowrap">{formatSuccessfulCheck(row.lastCheckOkTime)}</td>
-                <td className="p-3"><div className="whitespace-nowrap">{row.completeLanguageCount}/14 dil</div><div className="text-xs text-slate-500">Tam ve benzersiz bilgi sayfası</div></td>
+                <td className="p-3"><div className="whitespace-nowrap">{row.completeLanguageCount}/14 dil</div><div className="text-xs text-slate-500">{row.evidence.recoveryBasis === 'canonical-of-excluded-duplicates'
+                  ? `Asıl bilgi sayfası; ${row.evidence.identityPeers} kopya kapalı kalır` : 'Tam ve benzersiz bilgi sayfası'}</div></td>
               </tr>)}</tbody>
             </table>
           </div>

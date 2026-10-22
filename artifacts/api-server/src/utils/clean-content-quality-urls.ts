@@ -27,6 +27,7 @@ import {
   slugifyStationName,
   evaluateJunkStation,
   getEligibleLanguages,
+  getIndexableLanguagesForStation,
   frequencyPrefixBaseSlug,
   automaticNoIndexPatch,
   automaticNoIndexExpectedFilter,
@@ -185,7 +186,8 @@ export async function runJunkCleanup(
           slug: baseSlug,
           _id: { $ne: station._id },
         });
-        if (sibling && assessDuplicateGroup([station, sibling]).eligible) dupeOfBase = baseSlug;
+        if (sibling && getIndexableLanguagesForStation(sibling).includes('en') &&
+            assessDuplicateGroup([station, sibling]).eligible) dupeOfBase = baseSlug;
       }
     }
 
@@ -199,7 +201,8 @@ export async function runJunkCleanup(
           slug: freqBase,
           _id: { $ne: station._id },
         });
-        if (sibling && assessDuplicateGroup([station, sibling]).eligible) dupeOfBase = freqBase;
+        if (sibling && getIndexableLanguagesForStation(sibling).includes('en') &&
+            assessDuplicateGroup([station, sibling]).eligible) dupeOfBase = freqBase;
       }
     }
 

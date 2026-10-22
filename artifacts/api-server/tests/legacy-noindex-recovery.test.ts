@@ -115,6 +115,33 @@ test('stream identity retains actual path/query/protocol, rejects credentials an
   for (const input of ['', 'http:stream.example.invalid', 'ftp://stream.example.invalid', 'https://user:secret@stream.example.invalid']) assert.equal(recoveryEndpoint(input), null);
 });
 
+test('only the complete unsuffixed canonical can recover when a closed exact-identity group is entirely noindex', () => {
+  const primary = station();
+  const duplicate = station({ id: 'duplicate', slug: 'example-radio-1', completeLanguageCount: 0,
+    url: 'https://new.example.invalid/live', urlResolved: primary.url,
+    automaticNoIndex: { ...owned, reason: 'duplicate-of:example-radio' } });
+  const result = assess(primary, [duplicate]);
+  assert.equal(result.reason, 'eligible');
+  assert.equal(result.candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.equal(result.candidate?.evidence.identityPeers, 1);
+  assert.deepEqual(result.candidate?.evidence.excludedDuplicateIds, ['duplicate']);
+  assert.deepEqual(result.peerEvidence, [duplicate]);
+  assert.equal(assess({ ...duplicate, completeLanguageCount: 14 }, [primary]).reason, 'plausible-identity-peer');
+  for (const patch of [{ noIndex: false }, { redirectToSlug: 'elsewhere' }, { manualEditFields: { noIndex: true } },
+    { manualEditFields: [] }, { manualEditFields: { url: true } }, { name: 'Example-Radio' },
+    { countryCode: 'AT' }, { state: 'Vienna' }, { stationuuid: 'unknown' },
+    { slug: 'example-radio-11' }, { slug: 'different-slug' },
+    { url: 'https://other.invalid/live', urlResolved: null }]) {
+    assert.equal(assess(station({ state: 'Berlin' }), [{ ...duplicate, ...patch }]).reason,
+      'plausible-identity-peer', JSON.stringify(patch));
+  }
+  const outsider = station({ id: 'outsider', name: 'Other Brand', slug: 'outside', noIndex: false,
+    url: duplicate.url, countryCode: 'AT', country: 'Austria' });
+  assert.equal(assess(primary, [duplicate, outsider]).reason, 'plausible-identity-peer', 'the peer closure includes the duplicate secondary endpoint');
+  assert.equal(assess(primary, [duplicate, { ...outsider, url: 'https://outside.invalid', slugAliases: ['example-radio-1'] }]).reason,
+    'plausible-identity-peer', 'alias ownership conflicts remain protected');
+});
+
 function fixture(initial = [station()], invalidate: (slugs: string[]) => Promise<boolean> = async () => true) {
   let rows = initial, identitiesFetched = false, candidatesFetched = false;
   const queries: string[] = [], values: any[][] = [], clients: any[] = [];
@@ -202,6 +229,28 @@ test('stale flags, metadata/content version, deleted row and newly inserted inde
     await assert.rejects(f.store.apply({ previewId: preview.previewId, stationIds: ['station-a'] }), { code: 'RECOVERY_STALE' });
     assert.equal(f.queries.at(-1), 'ROLLBACK'); assert.ok(!f.queries.some(sql => sql.startsWith('UPDATE')));
   }
+});
+
+test('canonical recovery rechecks peer metadata and membership, journals evidence and never updates the duplicates', async () => {
+  const primary = station(), duplicate = station({ id: 'duplicate', slug: 'example-radio-1', completeLanguageCount: 0 });
+  for (const next of [[primary, { ...duplicate, noIndex: false }],
+    [primary, { ...duplicate, manualEditFields: { noIndex: true } }],
+    [primary, { ...duplicate, state: 'Berlin' }],
+    [primary, duplicate, station({ id: 'second', slug: 'example-radio-2' })]]) {
+    const f = fixture([primary, duplicate]), preview = await f.store.preview();
+    assert.equal(preview.totalCandidates, 1);
+    f.setRows(next);
+    await assert.rejects(f.store.apply({ previewId: preview.previewId, stationIds: [primary.id] }), { code: 'RECOVERY_STALE' });
+    assert.ok(!f.queries.some(sql => sql.startsWith('UPDATE')));
+  }
+  const f = fixture([primary, duplicate]), preview = await f.store.preview();
+  const result = await f.store.apply({ previewId: preview.previewId, stationIds: [primary.id] });
+  assert.equal(result.restored, 1);
+  const update = f.queries.findIndex(sql => sql.startsWith('UPDATE'));
+  assert.deepEqual(f.values[update][0], [primary.id]);
+  const evidence = JSON.parse(f.values[update][4]);
+  assert.equal(evidence[0].evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.deepEqual(evidence[0].evidence.excludedDuplicateIds, [duplicate.id]);
 });
 
 test('unreviewed IDs, empty/duplicate/oversize selections are rejected before obtaining any write connection', async () => {

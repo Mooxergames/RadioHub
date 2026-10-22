@@ -160,3 +160,20 @@ test('cleanup still excludes verified collision-counter duplicates', async () =>
   reset([current, sibling]); await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
   assert.equal(updates.find(write => write.filter._id === current._id)?.update.$set.noIndex, true);
 });
+
+test('cleanup and sync never exclude a duplicate in favor of a blocked canonical', async () => {
+  for (const protection of [{ noIndex: true }, { redirectToSlug: 'elsewhere' }, { slug: '123' },
+    { name: 'Radio Test Stream', slug: 'radio-test-stream' }]) {
+    const sibling = row({ _id: 'station-b', stationuuid: 'uuid-b', country: 'Germany', countryCode: 'DE', ...protection });
+    for (const prefix of ['', '1046-']) {
+      const current = row({ name: sibling.name, slug: prefix ? `${prefix}${sibling.slug}` : `${sibling.slug}-1`, country: 'Germany', countryCode: 'DE' });
+      reset([current, sibling]);
+      await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+      assert.ok(!updates.some(write => write.update.$set.automaticNoIndex?.reason?.startsWith('duplicate-of:')));
+      if (prefix) {
+        reset([current, sibling]); await sync(incoming());
+        assert.ok(!updates.some(write => write.update.$set.automaticNoIndex?.reason?.startsWith('duplicate-of:')));
+      }
+    }
+  }
+});
