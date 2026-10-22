@@ -102,7 +102,8 @@ were not selected for indexing. A successful fetch is not an indexing decision.
   All 12 native sitemap/SSR/diagnostic tests pass locally, including a new test
   covering both 10-record pilot cohorts,304, and exclusion immediately after
   native visibility/noindex writes. This fixes one old test, not the other20
-  migration failures; CI must still be rerun for the updated head.
+  migration failures at that checkpoint. The subsequent deep investigation
+  repaired the remaining blockers without skipping them; see the new report.
 - Production frontend and web-server bundles passed; API bundle checked before
   publication as well. Existing large frontend-chunk warnings remain.
 - Diff whitespace checks passed.
@@ -117,11 +118,17 @@ were not selected for indexing. A successful fetch is not an indexing decision.
 - Open review: https://github.com/visiongoat/RadioHub/pull/112
 - Candidate CI: https://github.com/visiongoat/RadioHub/actions/runs/39794683912
 - Prior main CI: https://github.com/visiongoat/RadioHub/actions/runs/38090036544
-- Merge, deployment and public post-release verification have not happened.
-  The original authorization was conditional on passing checks. The general
-  database check remains red, so release is held pending repair or the user's
-  explicit acceptance of those pre-existing failures. No live-success claim is
-  made by the passing scoped checks.
+- The first release was held because the general database check was red.
+  The user then explicitly requested the remaining problems be repaired.
+  Those blockers were repaired instead of waived. The follow-up full API run
+  passes2,885 tests with0 failures and11 skipped in the isolated local database,
+  including the final all-country canonical hardening. The fresh GitHub gate
+  remains a separate publication requirement.
+- Deep follow-up: `2026-10-22-deep-indexing-audit.md`, including178 live HTTP
+  probes, actual Google mobile rendering, frontend content-loss regressions,
+  wrong-continent copies, unknown-route404s and factual template generation.
+- Merge, deployment and public post-release verification have not yet happened
+  at this checkpoint. Local success alone is not a live-success claim.
 
 After release, verify 20 public pages, both cohort XML files, conditional304,
 the main/English indexes, a full station sitemap's removed false dates, and the

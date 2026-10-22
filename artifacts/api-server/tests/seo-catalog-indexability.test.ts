@@ -7,6 +7,8 @@ import { buildCommunityPageSeo } from '@workspace/seo-shared/community-page-seo-
 import { buildLocalizedUrl, validateRegionRouteShape } from '../src/seo/url-helpers';
 import { parseSeoCatalogPage, seoCatalogPageLinks } from '../src/seo/catalog-pagination';
 import { sendSeoNotFound } from '../src/seo/send-seo-not-found';
+import { canonicalRegionPath } from '../src/seo/region-route-existence';
+import { COUNTRY_TO_REGION_SLUG, countrySlug } from '@workspace/seo-shared/country-regions';
 
 const pageCache = new Map<string, any>();
 let readFails = false, cacheReady = true, reads = 0, totalPages = 2;
@@ -148,7 +150,7 @@ test('catalogue outage is retryable503 evidence, never inferred absence or a cac
 });
 
 test('invalid geography and extra genre suffixes are 404 without making empty country grids evidence', async () => {
-  for (const path of ['/en/regions/europe/not-a-real-country', '/en/regions/europe/germany/not-a-real-city', '/en/genres/rock/extra']) {
+  for (const path of ['/en/regions/europe/not-a-real-country', '/en/regions/europe/constructor', '/en/regions/europe/germany/not-a-real-city', '/en/genres/rock/extra']) {
     const page = await renderer.renderStaticPage(path, 'https://themegaradio.com');
     assert.equal(page.pageData.httpNotFound, true, path);
     assert.equal(page.seoTags.noIndex, true);
@@ -167,6 +169,29 @@ test('invalid geography and extra genre suffixes are 404 without making empty co
 test('supported city/listing route shapes remain valid but appended extra segments are rejected', () => {
   for (const path of ['/regions/europe/germany', '/regions/europe/germany/berlin', '/regions/europe/germany/berlin/stations', '/regions/europe/germany/stations', '/regions/europe/germany/cities', '/country/germany', '/country/germany/berlin/stations']) assert.equal(validateRegionRouteShape(path).ok, true, path);
   for (const path of ['/regions/europe/germany/berlin/garbage', '/regions/europe/germany/berlin/stations/garbage', '/country/germany/berlin/garbage']) assert.equal(validateRegionRouteShape(path).ok, false, path);
+});
+
+test('wrong-continent country copies redirect to the same geography without reading station grids', async () => {
+  for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+    for (const suffix of ['', '/stations', '/cities', '/berlin', '/berlin/stations']) {
+      const path = buildLocalizedUrl('/regions/asia/germany' + suffix, language, undefined, new Map());
+      const page = await renderer.renderStaticPage(path, 'https://themegaradio.com');
+      assert.equal(page.pageData.redirectTo, buildLocalizedUrl('/regions/europe/germany' + suffix, language, undefined, new Map()), path);
+    }
+  }
+  assert.equal(reads, 0);
+  const invalid = await renderer.renderStaticPage('/en/regions/asia/germany/not-a-real-city', 'https://themegaradio.com');
+  assert.equal(invalid.pageData.httpNotFound, true);
+  assert.equal(invalid.pageData.redirectTo, undefined);
+});
+
+test('every reference country keeps its existing valid continent URL', () => {
+  for (const [country, region] of Object.entries(COUNTRY_TO_REGION_SLUG)) {
+    const canonical = `/regions/${region}/${countrySlug(country)}`;
+    assert.equal(canonicalRegionPath(canonical), null, canonical);
+    const wrongRegion = region === 'asia' ? 'europe' : 'asia';
+    assert.equal(canonicalRegionPath(`/regions/${wrongRegion}/${countrySlug(country)}`), canonical);
+  }
 });
 
 test('new404 HTTP response preserves body and HEAD semantics, cannot enter the legacy410 branch', async () => {

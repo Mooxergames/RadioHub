@@ -12,7 +12,7 @@ import { pgLocalization } from './data/postgres-localization-store';
 import { getHomeGenreNavigation } from './services/home-genre-navigation';
 import { AZ_INDEX_KEYS, azDisplayLabel, azSlugBounds, matchAzIndexPath } from './seo/az-station-index';
 import { isMissingSeoCatalogPage, isSeoCatalogPath, parseSeoCatalogPage, seoCatalogPageLinks } from './seo/catalog-pagination';
-import { regionRouteExistence } from './seo/region-route-existence';
+import { regionRouteExistence, canonicalRegionPath } from './seo/region-route-existence';
 import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from './seo/verified-legacy-station-alias';
 import { withPilotEditorial } from './seo/indexing-pilot';
 
@@ -998,6 +998,12 @@ export class SeoRenderer {
       const routeShape = validateRegionRouteShape(cleanPath);
       const existence = routeShape.ok && (routeShape.family === 'regions' ? pathParts.length > 3 : pathParts.length > 2)
         ? regionRouteExistence(cleanPath, await import('./seo/slug-existence')) : 'known';
+      const canonicalGeography = routeShape.ok && existence === 'known' ? canonicalRegionPath(cleanPath) : null;
+      if (canonicalGeography) {
+        return { language, cleanPath, seoTags: {}, translations: {}, pageData: {
+          redirectTo: buildLocalizedUrl(canonicalGeography, actualLanguage, countryCode, urlTranslations),
+        } };
+      }
 
       if (pathParts.length > 2) {
         additionalData.region = pathParts[2];
