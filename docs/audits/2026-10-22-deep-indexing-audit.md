@@ -176,6 +176,17 @@ Ortak kutuphane, API, frontend ve importer dahil tum workspace tip kontrolu
 basarili. Frontend, web ve API uretim derlemeleri basarili; mevcut buyuk
 frontend chunk uyarilari devam ediyor.
 
+GitHub kosumu `39802406685`, kodu cekmeden once Mongo8 konteynerini
+baslatamadi. Gunlukte calisan image `ubuntu-24.04 / 20261018.339.1`;
+Mongo kendi kernel6.19+ uyumsuzluk kontroluyle durdu. Bu uygulama testi
+hatasiyla veya indeksleme sebebiyle karistirilmamali. Gecici olarak
+`ubuntu-22.04` (resmi image belgesinde kernel6.8) secildi. Mongo/PostgreSQL
+surumleri, gercek aktarim testleri ve yayin kapisi korunuyor; test atlama
+veya Mongo'nun korumasini kapatma yok. Yeni kernel destegi dogrulaninca
+runner guncellenmeli. Kaynaklar:
+[MongoDB SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912),
+[GitHub runner image](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2204-Readme.md).
+
 Pilotun iki olcum sitemap'i korunacak. Diger diller ve mevcut iyi adresler
 topluca kapatilmayacak. Yayin sonrasi gercek sayfalar, yeni301/404, tum
 pilot makaleleri ve Google mobil olusturmasi tekrar kontrol edilmeli.

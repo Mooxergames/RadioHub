@@ -7,7 +7,9 @@ on:
 
 jobs:
   postgres-migration:
-    runs-on: ubuntu-latest
+    # Keep Mongo 8's real integration tests on kernel 6.8 until SERVER-121912
+    # is resolved for the newer kernels in the rolling runner images.
+    runs-on: ubuntu-22.04
     services:
       mongo:
         image: mongo:8.0
