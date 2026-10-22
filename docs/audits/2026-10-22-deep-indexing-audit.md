@@ -187,6 +187,17 @@ runner guncellenmeli. Kaynaklar:
 [MongoDB SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912),
 [GitHub runner image](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2204-Readme.md).
 
+Takip kosumu `39803518886` gercek Mongo/PostgreSQL aktarimi, tam API,
+arayuz, tip kontrolu ve tum sunucu derlemelerini gecti. Paketleme asamasinda
+`pnpm11.19.0 deploy --prod --legacy`, kaynak workspace durumunu degistirdi;
+sonraki build komutu gereksiz bir production-only install tetikleyip
+`esbuild` dahil gelistirme araclarini kaldirdi. Bu nedenle son acilis
+testleri henuz calismadi ve yayin bekletildi. CI ve dort Dockerfile,
+bu kaynak-workspace durum hatasinin duzeltilmis oldugu `pnpm11.28.1`
+surumune birlikte sabitlendi. Uygulama bagimliliklari ve lockfile
+yeniden uretilmedi. Kaynak: [pnpm11.28.0 duzeltmeleri](https://github.com/pnpm/pnpm/releases/tag/v11.28.0)
+(source workspace state, issue15352), [pnpm11.28.1](https://github.com/pnpm/pnpm/releases/tag/v11.28.1).
+
 Pilotun iki olcum sitemap'i korunacak. Diger diller ve mevcut iyi adresler
 topluca kapatilmayacak. Yayin sonrasi gercek sayfalar, yeni301/404, tum
 pilot makaleleri ve Google mobil olusturmasi tekrar kontrol edilmeli.
