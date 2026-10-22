@@ -42,15 +42,18 @@ describe('explicit legacy noindex recovery', () => {
   it('downloads every record through authenticated transport without starting a repair or selecting candidates', async () => {
     const NativeURL = URL;
     const createObjectURL = vi.fn(() => 'blob:test-review');
-    vi.stubGlobal('URL', class extends NativeURL { static createObjectURL = createObjectURL; static revokeObjectURL = vi.fn(); });
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', class extends NativeURL { static createObjectURL = createObjectURL; static revokeObjectURL = revokeObjectURL; });
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     vi.mocked(apiRequest).mockResolvedValue(new Response('station_id,name\r\n"id-a","Radio A"\r\n', { headers: { 'Content-Type': 'text/csv' } }));
-    show(); fireEvent.click(screen.getByRole('button', { name: 'Tüm noindex kayıtlarını indir' }));
+    const view = show(); fireEvent.click(screen.getByRole('button', { name: 'Tüm noindex kayıtlarını indir' }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith('GET', '/api/admin/seo-noindex-recovery/review.csv', { signal: expect.any(AbortSignal) }));
     await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(apiRequest).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    view.unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:test-review');
   });
   it('does not save a failed or truncated record export or retry it automatically', async () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});

@@ -134,7 +134,8 @@ test('whole-catalog identity peers include indexed rows, redirects, punctuation 
     peer({ name: 'Other Brand', slug: 'example-radio-mp3' }),
     peer({ name: 'Other Brand', slugAliases: ['example-radio'] }),
     peer({ name: 'Other Brand', stationuuid: row.stationuuid.toUpperCase() })]) assert.equal(assess(row, [other]).reason, 'plausible-identity-peer');
-  for (const slug of ['example-radio-mp3-192', 'example-radio-aac-plus-1', 'example-radio-mp3']) {
+  for (const slug of ['example-radio-mp3-192', 'example-radio-aac-plus-1', 'example-radio-mp3',
+    'example-radio-128kb-mp3', 'example-radio-128k-aac', 'example-radio-64kbs-aac', 'example-radio-320-kbps-mp3']) {
     assert.equal(assess(station({ name: 'Other Brand MP3', slug }), [peer({ name: 'Other Brand', slug: 'example--radio' })]).reason,
       'plausible-identity-peer', 'stacked formats and separator spelling stay in the identity review');
   }

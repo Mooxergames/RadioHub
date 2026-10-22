@@ -31,6 +31,7 @@ function formatSuccessfulCheck(value: string | null) {
 /** Explicit, reversible repair only. Opening this screen never starts a scan or a write. */
 export function StationNoindexRecovery() {
   const downloadRequest = useRef<AbortController | null>(null);
+  const downloadUrls = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [preview, setPreview] = useState<RecoveryPreview | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [expired, setExpired] = useState(false);
@@ -54,12 +55,20 @@ export function StationNoindexRecovery() {
   const download = useMutation({ mutationFn: async () => {
     downloadRequest.current = new AbortController();
     const response = await apiRequest('GET', '/api/admin/seo-noindex-recovery/review.csv', { signal: downloadRequest.current.signal });
-    const url = URL.createObjectURL(await response.blob());
+    const blob = await response.blob();
+    downloadRequest.current.signal.throwIfAborted();
+    const url = URL.createObjectURL(blob);
+    downloadUrls.current.set(url, setTimeout(() => {
+      downloadUrls.current.delete(url); URL.revokeObjectURL(url);
+    }, 1000));
     const link = document.createElement('a'); link.href = url; link.download = 'station-noindex-record-review.csv';
     document.body.appendChild(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   } });
-  useEffect(() => () => downloadRequest.current?.abort(), []);
+  useEffect(() => () => {
+    downloadRequest.current?.abort();
+    for (const [url, timer] of downloadUrls.current) { clearTimeout(timer); URL.revokeObjectURL(url); }
+    downloadUrls.current.clear();
+  }, []);
   useEffect(() => {
     setConfirming(false);
   }, [selected, preview, expired]);

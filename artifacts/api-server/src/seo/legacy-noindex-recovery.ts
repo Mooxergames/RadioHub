@@ -70,7 +70,7 @@ export function createRecoveryIdentityIndex() {
     for (const key of [...keys]) {
       let base = key;
       for (let n = 0; n < 4; n++) {
-        const next = base.replace(/-(?:mp3|aac|aacp|flac|ogg|opus|dab|plus|\d{2,3}(?:kbps)?|[1-9]|10)$/, '');
+        const next = base.replace(/-(?:mp3|aac|aacp|flac|ogg|opus|dab|plus|kbps|kbs|kb|kbit|kbits|\d{2,3}(?:k(?:b(?:p?s)?)?)?|[1-9]|10)$/, '');
         if (next === base) break;
         keys.add(next); base = next;
       }
