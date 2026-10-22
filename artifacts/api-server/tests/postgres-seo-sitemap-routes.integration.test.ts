@@ -76,12 +76,19 @@ describe('PostgreSQL public sitemap and playback diagnostics',{skip:!connectionS
     }
     const index=await fetch(`${base}/sitemap-index.xml`);assert.equal(index.status,200);const indexXml=await index.text();
     assert.match(indexXml,/sitemap-stations-en-1\.xml/);assert.match(indexXml,/sitemap-genres-en\.xml/);
+    assert.equal(index.headers.get('last-modified'),null);
+    assert.doesNotMatch(indexXml,/<loc>[^<]*sitemap-genres-en\.xml<\/loc>\s*<lastmod>/);
     const stations=await fetch(`${base}/sitemap-stations-en-1.xml`);assert.equal(stations.status,200);assert.match(stations.headers.get('content-type')||'',/xml/);
     const xml=await stations.text();assert.match(xml,/berlin-music/);assert.match(xml,/Berlin &amp; Music/);assert.match(xml,/hreflang="en"/);
     const etag=stations.headers.get('etag');assert.ok(etag);
     assert.equal((await fetch(`${base}/sitemap-stations-en-1.xml`,{headers:{'If-None-Match':etag!}})).status,304);
     assert.equal((await fetch(`${base}/sitemap-stations-en-2.xml`)).status,410);
-    const genres=await fetch(`${base}/sitemap-genres-en.xml`);assert.equal(genres.status,200);assert.match(await genres.text(),/pop/);
+    const genres=await fetch(`${base}/sitemap-genres-en.xml`);assert.equal(genres.status,200);
+    const genreXml=await genres.text();assert.match(genreXml,/pop/);assert.doesNotMatch(genreXml,/<lastmod>/);
+    assert.equal(genres.headers.get('last-modified'),null);
+    const genreEtag=genres.headers.get('etag');assert.ok(genreEtag);
+    await pool.query("UPDATE genres SET station_count=station_count+1,updated_at=now()+interval '1 day' WHERE id=$1",[genreId]);
+    assert.equal((await fetch(`${base}/sitemap-genres-en.xml`,{headers:{'If-None-Match':genreEtag!}})).status,304);
     const main=await fetch(`${base}/sitemap-main-en.xml`);assert.equal(main.status,200);assert.match(await main.text(),/germany/);
     const legacyIndex=await fetch(`${base}/sitemap-en.xml`);assert.equal(legacyIndex.status,200);assert.match(await legacyIndex.text(),/sitemap-stations-en-1/);
     const stats=await fetch(`${base}/api/admin/sitemap/manifest-stats`,{headers:{'x-offline-admin':'allowed'}});assert.equal(stats.status,200);
