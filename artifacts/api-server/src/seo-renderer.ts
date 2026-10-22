@@ -14,6 +14,7 @@ import { AZ_INDEX_KEYS, azDisplayLabel, azSlugBounds, matchAzIndexPath } from '.
 import { isMissingSeoCatalogPage, isSeoCatalogPath, parseSeoCatalogPage, seoCatalogPageLinks } from './seo/catalog-pagination';
 import { regionRouteExistence } from './seo/region-route-existence';
 import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from './seo/verified-legacy-station-alias';
+import { withPilotEditorial } from './seo/indexing-pilot';
 
 // The renderer only needs this small subset of the normalized catalog shape.
 interface LeanStationCard {
@@ -620,6 +621,8 @@ export class SeoRenderer {
               pageData: { redirectTo: canonicalPath },
             };
           }
+
+          if (stationData) stationData = withPilotEditorial(stationData);
 
           // If station truly doesn't exist, mark notFound and synthesize minimal data so SSR
           // can still render a 404 body (avoids 500). Caller (index-web.ts) maps this to HTTP 404,
@@ -2596,16 +2599,14 @@ export class SeoRenderer {
                   ${stationData.tags ? `
                   <p><strong>${this.escapeHtml(getLocalizedText('genres', 'Genres'))}:</strong> ${stationData.tags.split(',').slice(0, 6).map((tag: string) => this.escapeHtml(tag.trim())).join(', ')}</p>
                   ` : ''}
-                  ${stationData.url ? (() => {
-                    // 2026-05-12 Semrush audit: this `<a>` rendered the
-                    // raw stream URL (e.g. `https://icecast.walmradio.com:8443/otr`)
-                    // as both the href AND the visible text, which Semrush
-                    // (and Google) classify as "naked URL = no anchor
-                    // text" — 114 hits across all language × station
-                    // permutations. The fix uses a descriptive label
-                    // ("Official Website of <station name>") that tells
-                    // crawlers what the linked page is about while still
-                    // exposing the URL for transparency.
+                  ${(() => {
+                    let homepage: URL;
+                    try {
+                      homepage = new URL(stationData.homepage);
+                      if (!['http:', 'https:'].includes(homepage.protocol) || homepage.username || homepage.password) return '';
+                    } catch { return ''; }
+                    // A stream is not the station's official website. Missing
+                    // homepages must not silently fall back to the audio URL.
                     const websiteLabel = this.escapeHtml(
                       getStationPageCopy(language, translations).website,
                     );
@@ -2614,8 +2615,8 @@ export class SeoRenderer {
                       ? `${websiteLabel} — ${stationName}`
                       : websiteLabel;
                     return `
-                  <p><strong>${websiteLabel}:</strong> <a href="${this.escapeHtml(stationData.url)}" target="_blank" rel="noopener noreferrer nofollow">${anchorText}</a></p>`;
-                  })() : ''}
+                  <p><strong>${websiteLabel}:</strong> <a href="${this.escapeHtml(homepage.href)}" target="_blank" rel="noopener noreferrer nofollow">${anchorText}</a></p>`;
+                  })()}
                 </section>
                 
                 ${(() => {

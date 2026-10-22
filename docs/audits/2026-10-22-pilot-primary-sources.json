@@ -1,0 +1,32 @@
+[
+  {
+    "slug": "antenne-steiermark",
+    "error": "fetch failed"
+  },
+  {
+    "slug": "antenne-karnten",
+    "url": "https://www.antenne.at/kaernten",
+    "status": 404,
+    "title": "404 Not Found",
+    "text": "404 Not Found nginx"
+  },
+  {
+    "slug": "pal-station",
+    "error": "fetch failed"
+  },
+  {
+    "slug": "radyo-seymen",
+    "url": "https://radyoseymen.com.tr/",
+    "status": 200,
+    "title": "Anasayfa – Radyo Seymen",
+    "text": "Türkiye'yi oynatan radyo frekansı! Türkiye'yi oynatan radyo frekansı! Radyo Seymen ile Ankara havalarının coşkusunu her yere taşıyoruz. 2010’dan beri, ritmin ve eğlencenin tek adresi. CANLI DİNLE Frekansları görüntüle Sosyal medyada bizi takip edin top Ara Paid Search Marketing Search Engine Optimization Email Marketing Conversion Rate Optimization Social Media Marketing Google Shopping Influencer Marketing Amazon Shopping Explore all solutions"
+  },
+  {
+    "slug": "orf-radio-niederosterreich-hq",
+    "url": "https://noe.orf.at/player",
+    "status": 200,
+    "title": "ORF-Radio",
+    "description": "Das digitale Radioangebot des ORF. Alle öffentlich rechtlichen Radiosender Österreichs auf einer Plattform. Live und 7 Tage lang im Stream on Demand.",
+    "text": "Für diese Anwendung muss JavaScript in Ihrem Browser aktiviert sein!Wie Sie JavaScript wieder aktivieren können erfahren Sie auf enable-javascript.com."
+  }
+]

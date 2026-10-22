@@ -1,0 +1,563 @@
+{
+  "checkedAt": "2026-10-22T13:41:59.636Z",
+  "rows": [
+    {
+      "id": "68a8c478bd66579311ab1795",
+      "slug": "kronehit",
+      "name": "Kronehit",
+      "countryCode": "AT",
+      "country": "Austria",
+      "url": "http://onair.krone.at/kronehit.mp3",
+      "urlResolved": "http://onair.krone.at/kronehit.mp3",
+      "homepage": "https://www.kronehit.at/",
+      "lastCheckOk": true,
+      "noIndex": false,
+      "isListVisible": true,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/kronehit",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 200,
+        "url": "http://onair.krone.at/kronehit.mp3",
+        "contentType": "audio/mpeg",
+        "bytes": 13258
+      }
+    },
+    {
+      "id": "68a8c483bd66579311ab300e",
+      "slug": "orf-radio-wien",
+      "name": "ORF Radio Wien",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "https://wien.orf.at/player",
+      "url": "http://orf-live.ors-shoutcast.at/wie-q1a",
+      "urlResolved": "http://orf-live.ors-shoutcast.at/wie-q1a",
+      "language": "german",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 128,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-radio-wien",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "http://orf-live.ors-shoutcast.at/wie-q1a",
+        "contentType": "audio/mpeg",
+        "bytes": 8192
+      }
+    },
+    {
+      "id": "68a8c470bd66579311ab01ef",
+      "slug": "fm4-orf",
+      "name": "FM4 | ORF",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "https://fm4.orf.at/",
+      "url": "https://orf-live.ors-shoutcast.at/fm4-q1a",
+      "urlResolved": "https://orf-live.ors-shoutcast.at/fm4-q1a",
+      "language": "english,german",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 128,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/fm4-orf",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "https://orf-live.ors-shoutcast.at/fm4-q1a",
+        "contentType": "audio/mpeg",
+        "bytes": 3651
+      }
+    },
+    {
+      "id": "68a8c483bd66579311ab2ffe",
+      "slug": "orf-hitradio-o3-hq",
+      "name": "ORF Hitradio Ö3 | HQ",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "http://oe3.orf.at/",
+      "url": "https://orf-live.ors-shoutcast.at/oe3-q2a",
+      "urlResolved": "https://orf-live.ors-shoutcast.at/oe3-q2a",
+      "language": null,
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 192,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-hitradio-o3-hq",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "https://orf-live.ors-shoutcast.at/oe3-q2a",
+        "contentType": "audio/mpeg",
+        "bytes": 3651
+      }
+    },
+    {
+      "id": "68a8c461bd66579311aada5e",
+      "slug": "antenne-steiermark",
+      "name": "Antenne Steiermark",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "http://www.antenne.at/",
+      "url": "http://live.antenne.at/as",
+      "urlResolved": "http://live.antenne.at/as",
+      "language": "german",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 128,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/antenne-steiermark",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 200,
+        "url": "http://live.antenne.at/as",
+        "contentType": "audio/mpeg",
+        "bytes": 13720
+      }
+    },
+    {
+      "id": "68a8c493bd66579311ab5872",
+      "slug": "radio-u1-tirol",
+      "name": "Radio U1 Tirol",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "https://www.u1-radio.at/",
+      "url": "https://live.u1-radio.at/",
+      "urlResolved": "https://live.u1-radio.at/",
+      "language": "german",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 192,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/radio-u1-tirol",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 200,
+        "url": "https://u1-tirol.stream28.radiohost.de/u1-tirol-live_mp3-192?upd-meta&upd-scheme=https&_art=dD0xNzkyNjc2ODExJmQ9MGE2NGFmNjAxYzQ4YjZkODU3MTI",
+        "contentType": "audio/mpeg",
+        "bytes": 4096
+      }
+    },
+    {
+      "id": "68a8c482bd66579311ab2e38",
+      "slug": "o1-orf-hq",
+      "name": "Ö1 | ORF | HQ",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "https://oe1.orf.at/",
+      "url": "http://orf-live.ors-shoutcast.at/oe1-q2a",
+      "urlResolved": "http://orf-live.ors-shoutcast.at/oe1-q2a",
+      "language": "german",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 192,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/o1-orf-hq",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "http://orf-live.ors-shoutcast.at/oe1-q2a",
+        "contentType": "audio/mpeg",
+        "bytes": 8192
+      }
+    },
+    {
+      "id": "68a8c493bd66579311ab59f1",
+      "slug": "radio-vorarlberg",
+      "name": "Radio Vorarlberg",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "https://vorarlberg.orf.at/player/",
+      "url": "https://orf-live.ors-shoutcast.at/vbg-q1a",
+      "urlResolved": "https://orf-live.ors-shoutcast.at/vbg-q1a",
+      "language": "german",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 128,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/radio-vorarlberg",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "https://orf-live.ors-shoutcast.at/vbg-q1a",
+        "contentType": "audio/mpeg",
+        "bytes": 3651
+      }
+    },
+    {
+      "id": "68a8c483bd66579311ab3015",
+      "slug": "orf-tirol-hq",
+      "name": "ORF Tirol HQ",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "https://tirol.orf.at/player/",
+      "url": "http://orf-live.ors-shoutcast.at/tir-q2a",
+      "urlResolved": "http://orf-live.ors-shoutcast.at/tir-q2a",
+      "language": "german",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 192,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-tirol-hq",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "http://orf-live.ors-shoutcast.at/tir-q2a",
+        "contentType": "audio/mpeg",
+        "bytes": 4999
+      }
+    },
+    {
+      "id": "68a8c461bd66579311aada27",
+      "slug": "antenne-karnten",
+      "name": "Antenne Kärnten",
+      "country": "Austria",
+      "countryCode": "AT",
+      "homepage": "https://www.antenne.at/kaernten",
+      "url": "http://live.antenne.at/ak",
+      "urlResolved": "http://live.antenne.at/ak",
+      "language": "german",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 128,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/antenne-karnten",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 200,
+        "url": "http://live.antenne.at/ak",
+        "contentType": "audio/mpeg",
+        "bytes": 6228
+      }
+    },
+    {
+      "id": "68a8c478bd66579311ab175d",
+      "slug": "kral-fm",
+      "name": "KRAL FM",
+      "countryCode": "TR",
+      "country": "Türkiye",
+      "url": "https://dygedge2.radyotvonline.net/kralfm/playlist.m3u8?listenerid=29d0a6a85b59cea2ca801b70d2a3ebaf&awparams=companionAds%3Atrue",
+      "urlResolved": "https://dygedge2.radyotvonline.net/kralfm/playlist.m3u8?listenerid=29d0a6a85b59cea2ca801b70d2a3ebaf&awparams=companionAds%3Atrue",
+      "homepage": "https://www.kralmuzik.com.tr/radyo/kral-fm#",
+      "lastCheckOk": true,
+      "noIndex": false,
+      "isListVisible": true,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/kral-fm",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "https://dygedge2.radyotvonline.net/kralfm/playlist.m3u8?listenerid=29d0a6a85b59cea2ca801b70d2a3ebaf&awparams=companionAds%3Atrue",
+        "contentType": "application/vnd.apple.mpegurl",
+        "bytes": 284,
+        "playlist": "#EXTM3U\r\n#EXT-X-STREAM-INF:BANDWIDTH=128000,CODECS=\"mp4a.40.2\"\r\nhttps://dygedge2.radyotvonline.net:4"
+      }
+    },
+    {
+      "id": "68a8c4a1bd66579311ab7b7b",
+      "slug": "virgin-radio-turkiye",
+      "name": "Virgin Radio Türkiye",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "http://www.virginradioturkiye.com/",
+      "url": "http://provisioning.streamtheworld.com/pls/VIRGIN_RADIO.pls",
+      "urlResolved": "http://28933.live.streamtheworld.com/VIRGIN_RADIO_SC",
+      "language": "turkish",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 64,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/virgin-radio-turkiye",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "http://28933.live.streamtheworld.com/VIRGIN_RADIO_SC",
+        "contentType": "audio/mpeg",
+        "bytes": 8192
+      }
+    },
+    {
+      "id": "68a8c47fbd66579311ab2576",
+      "slug": "metro-fm",
+      "name": "Metro FM",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "https://metrofm.com.tr/",
+      "url": "http://provisioning.streamtheworld.com/pls/METRO_FMAAC.pls",
+      "urlResolved": "http://29334.live.streamtheworld.com:3690/METRO_FMAAC_SC",
+      "language": null,
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 64,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/metro-fm",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "http://29334.live.streamtheworld.com:3690/METRO_FMAAC_SC",
+        "contentType": "audio/aacp",
+        "bytes": 8192
+      }
+    },
+    {
+      "id": "68a8c485bd66579311ab34bd",
+      "slug": "power-pop",
+      "name": "Power POP",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "https://www.powerapp.com.tr/powerpop/",
+      "url": "https://listen.powerapp.com.tr/powerpop/128/chunks.m3u8",
+      "urlResolved": "https://listen.powerapp.com.tr/powerpop/128/chunks.m3u8",
+      "language": "en",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 0,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/power-pop",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "https://listen.powerapp.com.tr/powerpop/128/chunks.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "bytes": 348,
+        "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:2556\n#EXTINF:5.99,\nl_9330568_"
+      }
+    },
+    {
+      "id": "6a07919fbef34beb9148c9d7",
+      "slug": "ntv-radyo",
+      "name": "NTV Radyo",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "http://www.ntvradyo.com.tr/Home",
+      "url": "http://46.20.3.207/listen.pls",
+      "urlResolved": "http://46.20.3.207/listen.pls",
+      "language": "turkish",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 63,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/ntv-radyo",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 200,
+        "url": "http://46.20.3.207/listen.pls",
+        "contentType": "audio/aacp",
+        "bytes": 437
+      }
+    },
+    {
+      "id": "68a8c45fbd66579311aad6ea",
+      "slug": "alem-fm",
+      "name": "Alem FM",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "https://www.alemfm.com/",
+      "url": "http://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8",
+      "urlResolved": "http://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8",
+      "language": null,
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 128,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/alem-fm",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "http://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "bytes": 105,
+        "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=128334,CODECS=\"mp4a.40.2\"\nchunklist_w942441062."
+      }
+    },
+    {
+      "id": "68a8c45ebd66579311aad2f2",
+      "slug": "a-haber",
+      "name": "a HABER",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "https://www.ahaber.com.tr/",
+      "url": "https://trkvz-radyolar.ercdn.net/ahaberradyo/playlist.m3u8",
+      "urlResolved": "https://trkvz-radyolar.ercdn.net/ahaberradyo/playlist.m3u8",
+      "language": null,
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 64,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/a-haber",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 206,
+        "url": "https://trkvz-radyolar.ercdn.net/ahaberradyo/playlist.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "bytes": 93,
+        "playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=64321,CODECS=\"mp4a.40.2\"\nchunklist.m3u8\n"
+      }
+    },
+    {
+      "id": "68a8c495bd66579311ab5da4",
+      "slug": "radyo-fenomen",
+      "name": "Radyo Fenomen",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "https://www.radyofenomen.com/",
+      "url": "https://live.radyofenomen.com/fenomen/128/icecast.audio",
+      "urlResolved": "https://live.radyofenomen.com/fenomen/128/icecast.audio",
+      "language": "turkish",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 56,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/radyo-fenomen",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 200,
+        "url": "https://live.radyofenomen.com/fenomen/128/icecast.audio",
+        "contentType": "audio/aacp",
+        "bytes": 16384
+      }
+    },
+    {
+      "id": "6a0791c9bef34beb9148d375",
+      "slug": "radyo-seymen",
+      "name": "Radyo Seymen",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "https://www.radyoseymen.com.tr/",
+      "url": "https://yayin.radyoseymen.com.tr:1070/stream",
+      "urlResolved": "https://yayin.radyoseymen.com.tr:1070/stream",
+      "language": "en",
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 128,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/radyo-seymen",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 200,
+        "url": "https://yayin.radyoseymen.com.tr:1070/stream",
+        "contentType": "audio/aacp",
+        "bytes": 321
+      }
+    },
+    {
+      "id": "68a8c483bd66579311ab311f",
+      "slug": "pal-station",
+      "name": "Pal station",
+      "country": "Türkiye",
+      "countryCode": "TR",
+      "homepage": "https://palstation106.com/",
+      "url": "http://shoutcast.radyogrup.com:1020/",
+      "urlResolved": "http://shoutcast.radyogrup.com:1020/",
+      "language": null,
+      "noIndex": false,
+      "lastCheckOk": true,
+      "isListVisible": true,
+      "bitrate": 128,
+      "redirectToSlug": null,
+      "manualEditFields": {},
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/pal-station",
+        "robots": "index, follow"
+      },
+      "stream": {
+        "status": 200,
+        "url": "http://shoutcast.radyogrup.com:1020/",
+        "contentType": "audio/aacp",
+        "bytes": 1348
+      }
+    }
+  ]
+}

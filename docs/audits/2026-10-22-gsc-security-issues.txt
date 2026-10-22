@@ -1,0 +1,11 @@
+help_outline
+Yardım
+manage_accounts
+Kullanıcı ayarları
+	
+notifications
+İletiler
+13
+Güvenlik sorunları
+check_circle
+Hiçbir sorun algılanmadı
