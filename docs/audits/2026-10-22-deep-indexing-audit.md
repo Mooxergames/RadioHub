@@ -198,6 +198,16 @@ surumune birlikte sabitlendi. Uygulama bagimliliklari ve lockfile
 yeniden uretilmedi. Kaynak: [pnpm11.28.0 duzeltmeleri](https://github.com/pnpm/pnpm/releases/tag/v11.28.0)
 (source workspace state, issue15352), [pnpm11.28.1](https://github.com/pnpm/pnpm/releases/tag/v11.28.1).
 
+Yeni kosum `39805579460`, onceki kosumda gecen bir ceviri testinde aralikli
+hatayi ortaya cikardi: yonetici HTTP yaniti, PostgreSQL lider kilidinin
+asenkron birakilmasindan once gonderiliyordu. Hemen sonraki istek409
+alabiliyordu. Bu indeks seciminin nedeni olarak sunulmuyor. Yanit artik
+liderlik kapsami bittikten sonra gonderiliyor; mevcut kilit/CAS/rollback
+korumalari korunuyor. Eklenen deterministik test eski kodda `[false,false]`
+ile hatayi kanitladi, duzeltilmis kodda normal sonuc ve tamamlanmis no-op
+icicin `[true,true]` istiyor. Gercek gecici PostgreSQL uzerinde23 ceviri
+testi, sifir atlama/hata ve API tip kontrolu basarili.
+
 Pilotun iki olcum sitemap'i korunacak. Diger diller ve mevcut iyi adresler
 topluca kapatilmayacak. Yayin sonrasi gercek sayfalar, yeni301/404, tum
 pilot makaleleri ve Google mobil olusturmasi tekrar kontrol edilmeli.
