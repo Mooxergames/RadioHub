@@ -1,7 +1,7 @@
 import type pg from 'pg';
 import { getPostgresPool } from '../postgres-runtime';
 import { descriptionTextSql } from './station-description-sql';
-import { createStationAudit, type AuditStation, type StationAuditDecision } from '../seo/station-indexability-audit';
+import { AUDIT_LANGUAGES, createStationAudit, type AuditStation, type StationAuditDecision } from '../seo/station-indexability-audit';
 
 export const INDEXABILITY_AUDIT_BATCH_SIZE = 500;
 type AuditOptions = {
@@ -46,18 +46,25 @@ export async function pgAuditStationIndexability(options: AuditOptions, pool: Pi
     }
     const full = descriptionTextSql("d.value->'full'");
     const meta = descriptionTextSql("d.value->'meta'");
+    // Trigger-maintained masks avoid expanding every retained article. Missing
+    // summary rows still use the original presence check in this snapshot.
+    const summaryDescriptions = AUDIT_LANGUAGES.map((language, index) => {
+      const bit = 1 << index;
+      return `'${language}',jsonb_build_object('full',CASE WHEN (summary.full_mask & ${bit})<>0 THEN 'x' ELSE '' END,
+        'meta',CASE WHEN (summary.meta_mask & ${bit})<>0 THEN 'x' ELSE '' END)`;
+    }).join(',');
     await client.query(`DECLARE station_indexability_audit NO SCROLL CURSOR FOR
       SELECT s.id AS _id,s.name,s.slug,CASE WHEN s.url IS NOT NULL AND s.url<>'' THEN 'present' ELSE '' END AS url,
         s.country_code AS "countryCode",s.language_codes AS "languageCodes",s.no_index AS "noIndex",
         s.redirect_to_slug AS "redirectToSlug",s.last_check_ok AS "lastCheckOk",
         jsonb_build_object('noIndex',s.manual_edit_fields->'noIndex') AS "manualEditFields",
-        jsonb_build_object('owner',s.source->'automaticNoIndex'->'owner','version',s.source->'automaticNoIndex'->'version',
-          'active',s.source->'automaticNoIndex'->'active','reason',s.source->'automaticNoIndex'->'reason') AS "automaticNoIndex",
-        COALESCE((SELECT jsonb_object_agg(d.key,jsonb_build_object('full',CASE WHEN ${full} THEN 'x' ELSE '' END,
+        s.source->'automaticNoIndex' AS "automaticNoIndex",
+        CASE WHEN summary.station_id IS NOT NULL THEN jsonb_build_object(${summaryDescriptions})
+        ELSE COALESCE((SELECT jsonb_object_agg(d.key,jsonb_build_object('full',CASE WHEN ${full} THEN 'x' ELSE '' END,
           'meta',CASE WHEN ${meta} THEN 'x' ELSE '' END))
           FROM jsonb_each(CASE WHEN jsonb_typeof(s.descriptions)='object' THEN s.descriptions ELSE '{}'::jsonb END) d
-          WHERE d.key ~ '^[a-zA-Z]{2,3}$'),'{}'::jsonb) AS descriptions
-      FROM stations s ORDER BY s.id`);
+          WHERE d.key ~ '^[a-zA-Z]{2,3}$'),'{}'::jsonb) END AS descriptions
+      FROM stations s LEFT JOIN station_description_summary summary ON summary.station_id=s.id ORDER BY s.id`);
     while (true) {
       interrupted.signal.throwIfAborted();
       const batch = await client.query(`FETCH FORWARD ${INDEXABILITY_AUDIT_BATCH_SIZE} FROM station_indexability_audit`);
