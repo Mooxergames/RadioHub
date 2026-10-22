@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import { inspectInitialCaptureResume } from "./initial-capture-resume";
+import { schemaSeedPredicate } from "./schema-runtime-state";
 
 type Environment = NodeJS.ProcessEnv;
 type Connection = Pick<pg.PoolClient, "query" | "release"> & Partial<Pick<pg.PoolClient, "on" | "off">>;
@@ -191,7 +192,9 @@ export async function isPristineDestination(client: Connection): Promise<boolean
   for (const { name } of tables.rows) {
     // Identifiers come only from the PostgreSQL catalog; quote even unusual names.
     const identifier = '"' + name.replace(/"/g, '""') + '"';
-    if ((await client.query(`SELECT 1 FROM ${identifier} LIMIT 1`)).rows.length) return false;
+    const seed = schemaSeedPredicate(name);
+    const predicate = seed ? ` WHERE (${seed}) IS NOT TRUE` : "";
+    if ((await client.query(`SELECT 1 FROM ${identifier}${predicate} LIMIT 1`)).rows.length) return false;
   }
   return true;
 }

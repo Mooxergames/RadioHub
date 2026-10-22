@@ -216,6 +216,27 @@ function extractLocalBusinessSchema(head: string): any {
 
 const DOMAIN = 'https://themegaradio.com';
 
+test('official station links use the homepage, never the audio stream, across locales', () => {
+  const renderer = new SeoRenderer();
+  for (const language of ['en', 'de', 'tr', 'ar']) {
+    const stationData = { _id: 'website-test', slug: 'website-test', name: 'Website FM', url: 'https://stream.example.test/live.mp3', homepage: 'https://radio.example.test/?a=1&b=2' };
+    const render = (homepage: any) => renderer.generateHtmlBody({
+      pageType: 'station', language, translations: {}, seoTags: {},
+      stationData: { ...stationData, homepage }, additionalData: {},
+    });
+    const body = render(stationData.homepage);
+    assert.ok(body.includes('href="https://radio.example.test/?a=1&amp;b=2"'));
+    assert.ok(!body.includes('href="https://stream.example.test/live.mp3"'));
+    for (const bad of [undefined, '', '/relative', 'javascript:alert(1)', 'data:text/html,x', 'https://user:password@radio.example.test']) {
+      const invalid = render(bad);
+      assert.ok(!invalid.includes('href="https://stream.example.test/live.mp3"'));
+      assert.ok(!invalid.includes('href="javascript:'));
+      assert.ok(!invalid.includes('href="data:'));
+      assert.ok(!invalid.includes('user:password@'));
+    }
+  }
+});
+
 // ===========================================================================
 // 0. Source-scan guard: catch new RadioStation JSON-LD emissions outside
 //    the known per-station block. Mirrors the FAQPage/BreadcrumbList scans.

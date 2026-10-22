@@ -6,6 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import pg from 'pg';
 import { applyPostgresMigrations } from '../scripts/apply-postgres-migrations.mjs';
+import { applyConcurrentIndexMigration, parseConcurrentIndexMigration } from '../scripts/postgres-concurrent-index.mjs';
 
 test('two real startup replicas serialize a concurrent index and safely resume a missing checksum',
   { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
@@ -37,5 +38,37 @@ test('two real startup replicas serialize a concurrent index and safely resume a
       await admin.query('DROP SCHEMA IF EXISTS ' + schema + ' CASCADE'); await admin.end();
       assert.ok(directory.startsWith(path.join(os.tmpdir(), 'radiohub-concurrent-index-')));
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+test('index inspection ignores a fallback schema but rejects a wrong table in its own schema',
+  { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
+    const schema = 'concurrent_index_' + randomBytes(6).toString('hex');
+    const shadow = schema + '_shadow';
+    const admin = new pg.Pool({ connectionString: process.env.PG_TEST_DATABASE_URL, ssl: false, max: 1 });
+    const pool = new pg.Pool({ connectionString: process.env.PG_TEST_DATABASE_URL, ssl: false, max: 1,
+      options: `-c search_path=${schema},${shadow},public` });
+    try {
+      await admin.query(`CREATE SCHEMA ${schema}; CREATE SCHEMA ${shadow}`);
+      await pool.query(`CREATE TABLE stations(id text,source jsonb);
+        CREATE TABLE ${shadow}.stations(id text,source jsonb);
+        CREATE INDEX stations_source_genre_trgm_idx ON ${shadow}.stations USING gin ((lower(source->>'genre')) gin_trgm_ops)`);
+      const spec = parseConcurrentIndexMigration(await readFile(new URL('../../../lib/db/migrations/0027_station_source_genre_search.sql', import.meta.url), 'utf8'))!;
+      const shadowDefinition = (await pool.query(`SELECT pg_get_indexdef('${shadow}.stations_source_genre_trgm_idx'::regclass) AS definition`)).rows[0].definition;
+      const client = await pool.connect();
+      try { await applyConcurrentIndexMigration(client, spec); } finally { client.release(); }
+      assert.equal((await pool.query(`SELECT pg_get_indexdef('${shadow}.stations_source_genre_trgm_idx'::regclass) AS definition`)).rows[0].definition, shadowDefinition);
+      assert.equal((await pool.query(`SELECT indrelid='${schema}.stations'::regclass AS correct_table FROM pg_index
+        WHERE indexrelid='${schema}.stations_source_genre_trgm_idx'::regclass`)).rows[0].correct_table, true);
+      await pool.query(`DROP INDEX ${schema}.stations_source_genre_trgm_idx; CREATE TABLE other_stations(source jsonb);
+        CREATE INDEX stations_source_genre_trgm_idx ON other_stations USING gin ((lower(source->>'genre')) gin_trgm_ops)`);
+      const wrong = await pool.connect();
+      try { await assert.rejects(applyConcurrentIndexMigration(wrong, spec), /unexpected definition/); } finally { wrong.release(); }
+      assert.equal((await pool.query(`SELECT indrelid='${schema}.other_stations'::regclass AS unchanged FROM pg_index
+        WHERE indexrelid='${schema}.stations_source_genre_trgm_idx'::regclass`)).rows[0].unchanged, true);
+    } finally {
+      await pool.end();
+      await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE; DROP SCHEMA IF EXISTS ${shadow} CASCADE`);
+      await admin.end();
     }
   });

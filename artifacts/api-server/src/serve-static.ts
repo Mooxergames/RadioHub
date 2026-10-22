@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 import type { ServerResponse } from 'node:http';
+import { isKnownSpaShellRoute } from './seo/spa-shell-route';
 
 // HTML contains the current deployment's hashed asset URLs. Caches may retain
 // it for conditional requests, but must validate before reuse after a deploy.
@@ -80,7 +81,11 @@ export function serveStatic(app: Express, distPath = path.resolve(import.meta.di
     }).type('text/plain').send('Sitemap not found');
   });
 
-  app.use("/*splat", (_req, res) => {
+  app.use("/*splat", (req, res) => {
+    if (res.statusCode < 400 && !isKnownSpaShellRoute(req.originalUrl)) {
+      res.removeHeader('Expires');
+      res.status(404).set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, follow' });
+    }
     revalidateSuccessfulHtml(res);
     res.sendFile(path.resolve(distPath, "index.html"));
   });

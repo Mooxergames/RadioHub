@@ -60,7 +60,9 @@ const TRACKED_PAGES: Array<{
   // same DB query batch.
   { page: "search", file: "pages/search.tsx" },
   { page: "radio-frontend", file: "pages/radio-frontend.tsx" },
-  { page: "users", file: "pages/users/index.tsx" },
+  // The directory now uses reviewed locale-copy helpers rather than literal
+  // t() calls. Keep scanning future literal keys and verify that delegation.
+  { page: "users", file: "pages/users/index.tsx", expectKeys: false },
   { page: "stations-filters", file: "components/stations/filters.tsx" },
   { page: "radio-header", file: "components/layout/radio-header.tsx" },
   // api-docs.tsx currently has no `t("...")` calls and doesn't import
@@ -116,6 +118,12 @@ describe("Per-language SPA-page DB translation coverage", () => {
         `translation store. Update TRACKED_PAGES in this test to match:\n` +
         empty.map((e) => `  - page="${e.page}" file=${e.file}`).join("\n"),
     );
+  });
+
+  it('users directory retains its current localized-copy sources', () => {
+    const source = readFileSync(resolve(MEGARADIO_SRC, 'pages/users/index.tsx'), 'utf8');
+    assert.match(source, /usersDirectoryCopy\(language\)/);
+    assert.match(source, /communityLabels\(language,\s*localeTranslations\)/);
   });
 
   let fixture: NativePostgresFixture;

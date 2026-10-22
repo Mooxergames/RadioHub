@@ -23,6 +23,7 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import type { AddressInfo, Server } from 'node:net';
 import type { Server as HttpServer } from 'node:http';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
+import { INDEXING_PILOT } from '../src/seo/indexing-pilot';
 
 /**
  * Task #194: assert XML well-formedness in addition to regex smoke
@@ -258,12 +259,14 @@ const actualSeo=await import('../src/data/postgres-seo-indexing-store');
 let sitemapReadRows: any[] = FAKE_STATION_DOCS;
 const sitemapReadBatches: string[][] = [];
 let manifestReadFails = false;
+let stationBatchReadFails = false;
 mock.module(new URL('../src/data/postgres-seo-indexing-store.ts',import.meta.url).href,{
   namedExports:{...actualSeo,pgActiveManifests:async()=>{
     if (manifestReadFails) throw new Error('temporary PostgreSQL manifest read failure');
     return FAKE_INDEX_MANIFESTS;
   },pgSeoGenres:async()=>FAKE_GENRE_DOCS,pgTopIndexableTags:async()=>[],
     pgSitemapStationBatch: async (ids: string[]) => {
+      if (stationBatchReadFails) throw new Error('temporary station read failure');
       sitemapReadBatches.push([...ids]);
       return sitemapReadRows.filter(row => ids.includes(row._id)).reverse();
     },
@@ -518,14 +521,110 @@ test('sitemap manifest database errors cannot be cached as successful empty inde
   assert.equal((await fetch(`${baseUrl}/sitemap-index.xml`)).status, 200);
 });
 
-test('index validators follow lastmod changes even when manifest membership and version stay fixed', async () => {
+test('operational station timestamps do not advertise content freshness or change XML validators', async () => {
+  fakeCacheStore.clear();
+  const paths = ['/sitemap-stations-en-1.xml', '/sitemap-main-en.xml', '/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml'];
+  const original = [];
+  for (const pathname of paths) {
+    const response = await fetch(baseUrl + pathname);
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    const parsed = assertValidXml(body, pathname) as any;
+    if (parsed.urlset) {
+      assert.equal(response.headers.get('last-modified'), null);
+      if (pathname.includes('/sitemap-stations-')) assert.equal(parsed.urlset.url.length, 2, 'all eligible station URLs remain discoverable');
+      else assert.ok(parsed.urlset.url.length > 15, 'main discovery URLs remain present');
+      for (const entry of parsed.urlset.url) assert.equal(entry.lastmod, undefined);
+    } else {
+      for (const entry of parsed.sitemapindex.sitemap) {
+        if (/\/sitemap-(stations|main|pilot)-/.test(entry.loc)) assert.equal(entry.lastmod, undefined);
+        else assert.ok(entry.lastmod, 'other child content dates remain present');
+      }
+    }
+    original.push({ pathname, body, etag: response.headers.get('etag')!, lastModified: response.headers.get('last-modified') });
+  }
+  const manifest = FAKE_INDEX_MANIFESTS.find(row => row.type === 'stations' && row.language === 'en')!;
+  const mainManifest = FAKE_INDEX_MANIFESTS.find(row => row.type === 'main' && row.language === 'en')!;
+  const previous = manifest.chunks[0].maxUpdatedAt;
+  const previousMain = mainManifest.chunks[0].maxUpdatedAt;
+  const advanced = new Date('2030-02-01T00:00:00Z');
+  manifest.chunks[0].maxUpdatedAt = advanced;
+  mainManifest.chunks[0].maxUpdatedAt = advanced;
+  sitemapReadRows = FAKE_STATION_DOCS.map(station => ({ ...station, updatedAt: advanced }));
+  builderOverrides.getActiveStationChunk = async () => ({ stationIds: ['s1', 's2'], maxUpdatedAt: advanced, qualifiedLanguagesHash: TEST_HASH, version: 'v1-test' });
+  builderOverrides.getActiveManifest = async (type, language) => ({ ...buildFakeManifest(type, language), maxUpdatedAt: advanced });
+  try {
+    // Leave old cache entries in place: the new operational date invalidates
+    // them, but a regenerated unchanged body must still return the same ETag.
+    for (const snapshot of original) {
+      const conditional = await fetch(baseUrl + snapshot.pathname, { headers: { 'If-None-Match': snapshot.etag } });
+      assert.equal(conditional.status, 304);
+      assert.equal(await conditional.text(), '');
+      const response = await fetch(baseUrl + snapshot.pathname);
+      assert.equal(response.status, 200);
+      assert.equal(await response.text(), snapshot.body);
+      assert.equal(response.headers.get('etag'), snapshot.etag);
+      assert.equal(response.headers.get('last-modified'), snapshot.lastModified);
+    }
+  } finally {
+    manifest.chunks[0].maxUpdatedAt = previous;
+    mainManifest.chunks[0].maxUpdatedAt = previousMain;
+    sitemapReadRows = FAKE_STATION_DOCS;
+    builderOverrides.getActiveStationChunk = null;
+    builderOverrides.getActiveManifest = null;
+    fakeCacheStore.clear();
+  }
+});
+
+test('English pilot sitemaps expose only live eligible exact identities and remain independently measurable', async () => {
+  sitemapReadRows = INDEXING_PILOT.map(profile => ({
+    ...FAKE_STATION_DOCS[0], _id: profile.id, slug: profile.slug,
+    countryCode: profile.countryCode, noIndex: false,
+  }));
+  try {
+    for (const country of ['at', 'tr']) {
+      const response = await fetch(`${baseUrl}/sitemap-pilot-en-${country}.xml`);
+      assert.equal(response.status, 200);
+      const xml = await response.text();
+      const parsed = assertValidXml(xml, `pilot ${country}`) as any;
+      assert.deepEqual(parsed.urlset.url.map((row: any) => new URL(row.loc).pathname),
+        INDEXING_PILOT.filter(profile => profile.countryCode.toLowerCase() === country).map(profile => `/en/station/${profile.slug}`));
+      assert.doesNotMatch(xml, /<lastmod>/);
+      assert.equal((await fetch(`${baseUrl}/sitemap-pilot-en-${country}.xml`, { headers: { 'If-None-Match': response.headers.get('etag')! } })).status, 304);
+    }
+    for (const path of ['/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml']) {
+      const body = await (await fetch(baseUrl + path)).text();
+      assert.ok(body.includes('/sitemap-pilot-en-at.xml'));
+      assert.ok(body.includes('/sitemap-pilot-en-tr.xml'));
+      assert.ok(body.includes('/sitemap-stations-en-1.xml'), 'the full catalogue is retained');
+    }
+    assert.equal((await fetch(`${baseUrl}/sitemap-pilot-en-us.xml`)).status, 410);
+    const before = await fetch(`${baseUrl}/sitemap-pilot-en-at.xml`);
+    const excluded = INDEXING_PILOT.find(profile => profile.countryCode === 'AT')!;
+    sitemapReadRows = sitemapReadRows.map(row => row._id === excluded.id ? { ...row, noIndex: true } : row);
+    const changed = await fetch(`${baseUrl}/sitemap-pilot-en-at.xml`, { headers: { 'If-None-Match': before.headers.get('etag')! } });
+    assert.equal(changed.status, 200);
+    assert.equal(countLocs(await changed.text()), 9);
+    sitemapReadRows = [];
+    const unavailable = await fetch(`${baseUrl}/sitemap-pilot-en-at.xml`, { headers: { 'If-None-Match': before.headers.get('etag')! } });
+    assert.equal(unavailable.status, 503);
+    assert.equal(unavailable.headers.get('cache-control'), 'no-store');
+    stationBatchReadFails = true;
+    assert.equal((await fetch(`${baseUrl}/sitemap-pilot-en-tr.xml`)).status, 503);
+    for (const path of ['/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml']) {
+      assert.equal((await fetch(baseUrl + path)).status, 200, 'optional pilot reads cannot break the main sitemap indexes');
+    }
+  } finally { sitemapReadRows = FAKE_STATION_DOCS; stationBatchReadFails = false; }
+});
+
+test('index validators follow genre lastmod changes even when manifest membership and version stay fixed', async () => {
   const paths = ['/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml'];
   const original = await Promise.all(paths.map(async pathname => {
     const response = await fetch(baseUrl + pathname);
     assert.equal(response.status, 200);
     return { pathname, etag: response.headers.get('etag')!, body: await response.text() };
   }));
-  const manifest = FAKE_INDEX_MANIFESTS.find(row => row.type === 'main' && row.language === 'en')!;
+  const manifest = FAKE_INDEX_MANIFESTS.find(row => row.type === 'genres' && row.language === 'en')!;
   const previous = manifest.chunks[0].maxUpdatedAt;
   const advanced = new Date('2026-02-01T00:00:00Z');
   manifest.chunks[0].maxUpdatedAt = advanced;
@@ -555,7 +654,7 @@ test('rolling manifest hashes retain every locale and incomplete builds are retr
     assert.equal(rolling.status, 200);
     const body = await rolling.text();
     const parsed = assertValidXml(body, 'rolling cohort index') as any;
-    assert.equal(parsed.sitemapindex.sitemap.length, QUALIFIED_LANGS.length * 3 + 1);
+    assert.equal(parsed.sitemapindex.sitemap.length, QUALIFIED_LANGS.length * 3 + 3);
     assert.ok(body.includes('/sitemap-blog.xml'), 'the independently translated editorial sitemap is discoverable');
     for (const lang of QUALIFIED_LANGS) {
       assert.ok(body.includes(`/sitemap-stations-${lang}-1.xml`), `${lang} remains discoverable during the swap`);
@@ -585,7 +684,7 @@ test('date-only validators cannot hide removed URLs in an index or a station lea
     const newIndex = await fetch(`${baseUrl}/sitemap-index.xml`, { headers: { 'If-Modified-Since': index.headers.get('last-modified')! } });
     assert.equal(newIndex.status, 200);
     assert.doesNotMatch(await newIndex.text(), /sitemap-stations-en-1\.xml/);
-    const newStation = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-Modified-Since': station.headers.get('last-modified')! } });
+    const newStation = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-Modified-Since': 'Sat, 01 Feb 2031 00:00:00 GMT' } });
     assert.equal(newStation.status, 200);
     assert.equal(countLocs(await newStation.text()), 1);
     assert.notEqual(newStation.headers.get('etag'), station.headers.get('etag'));

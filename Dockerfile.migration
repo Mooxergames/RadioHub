@@ -4,7 +4,7 @@ FROM node:24-slim AS build
 WORKDIR /app
 RUN apt-get update && apt-get install -y python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare pnpm@11.19.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.28.1 --activate
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY patches ./patches

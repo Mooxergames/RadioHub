@@ -1,6 +1,7 @@
 import type pg from "pg";
 import type { Db } from "mongodb";
 import { BSON, bsonSafe, checksum, jsonSafe } from "./legacy-document-codec";
+import { schemaSeedPredicate } from "./schema-runtime-state";
 
 type Client = Pick<pg.PoolClient, "query">;
 export interface CapturedDocument {
@@ -59,7 +60,9 @@ export async function inspectInitialCaptureResume(client: Client, expectedSource
     WHERE n.nspname=current_schema() AND c.relkind IN ('r','p') AND c.relname <> ALL($1::text[])
     ORDER BY c.relname`, [CONTROL_TABLES]);
   for (const table of tables.rows) {
-    if ((await client.query(`SELECT 1 FROM ${quoteIdentifier(table.schema_name)}.${quoteIdentifier(table.name)} LIMIT 1`)).rows.length) return null;
+    const seed = schemaSeedPredicate(table.name);
+    const predicate = seed ? ` WHERE (${seed}) IS NOT TRUE` : "";
+    if ((await client.query(`SELECT 1 FROM ${quoteIdentifier(table.schema_name)}.${quoteIdentifier(table.name)}${predicate} LIMIT 1`)).rows.length) return null;
   }
   return { runId: run.id };
 }

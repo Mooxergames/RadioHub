@@ -4,6 +4,7 @@ import { normalizeCountryFilter, resolveToDbName } from '../utils/normalize-coun
 import { publicStationCache as CacheManager } from '../public-station-cache';
 import { publicStationResponseCache } from '../middleware/public-station-cache';
 import { logger } from '../utils/logger';
+import { withPilotEditorial } from '../seo/indexing-pilot';
 
 
 
@@ -107,7 +108,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
     try {
       const { identifier } = req.params;
 
-      const cacheKey = `station:detail:visibility-v2:${identifier}`;
+      const cacheKey = `station:detail:editorial-v1:${identifier}`;
       const cached = await CacheManager.get(cacheKey);
       if (cached) return void res.json(cached);
 
@@ -142,13 +143,13 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
         station.slug = newSlug;
       }
 
-      const result = stripPlaceholders(station);
+      const result = withPilotEditorial(stripPlaceholders(station));
       await CacheManager.set(cacheKey, result, { ttl: 60 });
       res.json(result);
     } catch (error: any) {
       logger.error(`❌ /api/station/:identifier failed: code=${error?.code || 'unknown'} msg=${error?.message || error}`);
       let stale: any = null;
-      try { stale = await CacheManager.get(`station:detail:visibility-v2:${req.params.identifier}`); } catch {}
+      try { stale = await CacheManager.get(`station:detail:editorial-v1:${req.params.identifier}`); } catch {}
       res.set('Cache-Control', 'no-store');
       if (stale != null) { res.set('X-Data-Stale', 'true'); return void res.json(stale); }
       res.status(503).json({ error: 'Station data is temporarily unavailable' });

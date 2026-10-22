@@ -14,23 +14,8 @@ import { mountWithInitialHomeHandover } from './lib/initial-home-handover';
 // /me fetch would race with the token-session POST.
 initOAuthTokenExchange();
 
-// DEPLOY-STALENESS SELF-HEAL (2026-07-04): after every deploy the hashed
-// /assets chunk names change; any tab holding pre-deploy HTML (browser cache,
-// edge cache between deploy and purge, or simply a long-lived open tab) will
-// request chunk URLs that no longer exist, receive the SPA shell as
-// text/html, and crash with "Failed to fetch dynamically imported module" --
-// a blank page (the exact global-player outage of 2026-07-04). Vite emits
-// `vite:preloadError` for every failed dynamic-import; one hard reload picks
-// up the fresh HTML with current chunk names. The sessionStorage guard
-// prevents a reload loop when the failure is something other than staleness.
-window.addEventListener('vite:preloadError', (event) => {
-  const KEY = 'chunk_reload_at';
-  const last = Number(sessionStorage.getItem(KEY) || 0);
-  if (Date.now() - last < 30_000) return; // just tried -- let the error surface
-  sessionStorage.setItem(KEY, String(Date.now()));
-  event.preventDefault(); // we handle it; suppress the unhandled rejection
-  window.location.reload();
-});
+// Asset-load recovery lives in index.html so it also runs when this module's
+// static dependencies fail before any of main.tsx can execute.
 
 const VITE_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 if (VITE_API_BASE) {
@@ -137,7 +122,7 @@ void mountWithInitialHomeHandover({
   production: import.meta.env.PROD,
   preload: preloadInitialHomeComponents,
   mount: () => { createRoot(rootElement).render(<App />); },
-  // Failed chunks already trigger the existing Vite staleness recovery above.
+  // Failed chunks trigger the early asset-load recovery in the HTML document.
   // For other failures keep the readable SSR page and expose the actual error.
   onError: error => { console.error('[Initial home bootstrap]', error); },
 });

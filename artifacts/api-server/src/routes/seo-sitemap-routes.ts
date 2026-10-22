@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { mobileAppLinkPaths } from '../seo/mobile-app-links';
 import crypto from 'crypto';
 import { buildBlogSitemap } from '../seo/blog-sitemap';
+import { INDEXING_PILOT, matchingPilotProfile, type IndexingPilotProfile } from '../seo/indexing-pilot';
 import { BLOG_UPDATED } from '@workspace/seo-shared/blog-manifest';
 import { pgReportStationDebugLog, pgListStationDebugLogs } from '../data/postgres-station-debug-store';
 import { pgActiveManifests, pgSeoGenres, pgTouchSitemapStations, pgSitemapStationDiagnostics, pgSitemapStationBatch, SITEMAP_STATION_READ_BATCH_SIZE } from '../data/postgres-seo-indexing-store';
@@ -236,7 +237,7 @@ function setLastModifiedHeader(res: any, date?: Date | null): void {
 // reads them back via extractTopCountriesFromChunk() so:
 //   - cache invalidation is deterministic (manifest content-version changes
 //     when the country leaderboard shifts → ETag flips automatically),
-//   - <lastmod>/Last-Modified bump on station updates within those countries,
+//   - operational station updates invalidate the cache without inventing dates,
 //   - admins can force-refresh via POST /api/admin/sitemap/rebuild.
 
 export async function registerSeoSitemapRoutes(app: Express, deps: any, options?: { apiOnly?: boolean }) {
@@ -1280,18 +1281,13 @@ Sitemap: ${baseUrl}/sitemap-blog.xml`;
         ? extractTopCountriesFromChunk(manifest.chunks[0].stationIds)
         : [];
 
-      // FRESHNESS BUG FIX (2026-05-09): include manifest.maxUpdatedAt in
-      // the cache key. Otherwise URL set stays identical → version is stable
-      // → cache key is stable → stale XML body (with stale per-URL <lastmod>
-      // values from when the manifest was first cached) is served forever.
-      // Including maxUpdatedAt means: when manifest-builder bumps the
-      // chunk's maxUpdatedAt (every 6h tick), the cache key rotates and
-      // the next request regenerates XML from fresh Mongo data.
-      const cacheKey = `sitemap:main:xml-v2:${lang}:${state.hash}:${manifest.version}:${manifest.maxUpdatedAt instanceof Date ? manifest.maxUpdatedAt.getTime() : 0}`;
-      if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl, manifest.maxUpdatedAt)) return;
+      // The main manifest aggregates operational station timestamps, not
+      // page content revisions. Keep invalidation, but do not publish dates.
+      const cacheKey = `sitemap:main:xml-v3:${lang}:${state.hash}:${manifest.version}:${manifest.maxUpdatedAt instanceof Date ? manifest.maxUpdatedAt.getTime() : 0}`;
+      if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
       const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
       if (cached) {
-        return sendSitemapXml(req, res, cached, childCacheControl, manifest.maxUpdatedAt);
+        return sendSitemapXml(req, res, cached, childCacheControl);
       }
 
       const baseUrl = getBaseUrl(req);
@@ -1316,12 +1312,6 @@ Sitemap: ${baseUrl}/sitemap-blog.xml`;
       parts.push(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">`);
 
-      // S20 FIX (2026-05-08): emit <lastmod> on main pages too. Without it
-      // Google falls back to its own crawl heuristics and recrawls homepage
-      // weekly instead of when content actually changes. Use the manifest's
-      // maxUpdatedAt — flips when stations/genres/countries shift, which is
-      // exactly when home/genres/regions have new content.
-      const mainLastmod = manifest.maxUpdatedAt ? formatLastmod(new Date(manifest.maxUpdatedAt as any)) : '';
       for (const page of mainPages) {
         const localizedPath = buildLocalizedUrl(page, lang, undefined, urlTranslations);
         const fullUrl = `${baseUrl}${localizedPath}`;
@@ -1330,8 +1320,7 @@ Sitemap: ${baseUrl}/sitemap-blog.xml`;
 
         parts.push(`
   <url>
-    <loc>${escapeXml(fullUrl)}</loc>${mainLastmod ? `
-    <lastmod>${mainLastmod}</lastmod>` : ''}
+    <loc>${escapeXml(fullUrl)}</loc>
     <changefreq>${changefreq}</changefreq>
     <priority>${priority}</priority>`);
 
@@ -1355,8 +1344,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
         const fullUrl = `${baseUrl}${localizedPath}`;
         parts.push(`
   <url>
-    <loc>${escapeXml(fullUrl)}</loc>${mainLastmod ? `
-    <lastmod>${mainLastmod}</lastmod>` : ''}
+    <loc>${escapeXml(fullUrl)}</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>`);
         for (const altLang of qualifiedLanguages) {
@@ -1376,7 +1364,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
 
       const sitemap = cacheSitemapXml(xml);
       await storeSitemapXml(cacheKey, sitemap);
-      sendSitemapXml(req, res, sitemap, childCacheControl, manifest.maxUpdatedAt);
+      sendSitemapXml(req, res, sitemap, childCacheControl);
 
       logger.log(`✅ sitemap-main-${lang}.xml (${mainPages.length + topCountries.length} URLs) ${Date.now() - startTime}ms`);
     } catch (error) {
@@ -1389,6 +1377,33 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       res.setHeader('Retry-After', '120');
       res.setHeader('Cache-Control', 'no-store');
       res.status(503).send('Sitemap temporarily unavailable — retry shortly');
+    }
+  });
+
+  async function loadPilotProfiles(qualifiedLanguages: string[], countryCode?: string): Promise<IndexingPilotProfile[]> {
+    if (!qualifiedLanguages.includes('en')) return [];
+    const profiles = INDEXING_PILOT.filter(profile => !countryCode || profile.countryCode === countryCode);
+    const rows = await pgSitemapStationBatch(profiles.map(profile => profile.id));
+    const { getIndexableLanguagesForStation } = await import('../seo/junk-station-rules');
+    const eligible = new Set(rows.filter(station => matchingPilotProfile(station)
+      && getIndexableLanguagesForStation(station, qualifiedLanguages).includes('en')).map(station => String(station._id)));
+    return profiles.filter(profile => eligible.has(profile.id));
+  }
+
+  // Separate measurement cohorts, not replacements for the existing catalogue.
+  app.get('/sitemap-pilot-en-:country.xml', async (req, res) => {
+    const countryCode = String(req.params.country).toUpperCase();
+    if (!['AT', 'TR'].includes(countryCode)) return sendSitemapGone(res, SITEMAP_CONFIG.indexCacheTtlSeconds);
+    try {
+      const state = await getQualifiedLanguagesState();
+      const profiles = await loadPilotProfiles(state.languages, countryCode);
+      if (profiles.length === 0) return send503EmptySitemapIndex(res);
+      const baseUrl = getBaseUrl(req);
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${profiles.map(profile => `\n  <url><loc>${escapeXml(`${baseUrl}/en/station/${profile.slug}`)}</loc></url>`).join('')}\n</urlset>`;
+      sendSitemapXml(req, res, cacheSitemapXml(xml), 'public, max-age=300, s-maxage=300');
+    } catch (error) {
+      logger.error('Indexing pilot sitemap unavailable:', error);
+      send503EmptySitemapIndex(res);
     }
   });
 
@@ -1437,16 +1452,14 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
         return void res.status(503).send('Manifest building — retry shortly');
       }
 
-      // FRESHNESS BUG FIX (2026-05-09): see /sitemap-main route for the full
-      // explanation. tl;dr — including chunkInfo.maxUpdatedAt invalidates the
-      // cached XML body whenever manifest-builder bumps the chunk's freshness
-      // timestamp, so per-URL <lastmod> values reflect current Station.updatedAt
-      // values from Mongo instead of being frozen at first-cache time.
-      const cacheKey = `sitemap:stations:xml-v2:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
-      if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl, chunkInfo.maxUpdatedAt)) return;
+      // Keep operational writes as cache invalidators, not public content dates.
+      // Station.updatedAt also changes on health checks; there is no separate
+      // editorial timestamp yet. v3 excludes previously cached false lastmods.
+      const cacheKey = `sitemap:stations:xml-v3:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
+      if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
       const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
       if (cached) {
-        return sendSitemapXml(req, res, cached, childCacheControl, chunkInfo.maxUpdatedAt);
+        return sendSitemapXml(req, res, cached, childCacheControl);
       }
 
       const baseUrl = getBaseUrl(req);
@@ -1477,14 +1490,9 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
         const stationPath = `/station/${station.slug}`;
         const localizedPath = buildLocalizedUrl(stationPath, lang, undefined, urlTranslations);
         const fullUrl = `${baseUrl}${localizedPath}`;
-        const stationLastMod = station.updatedAt
-          ? formatLastmod(new Date(station.updatedAt))
-          : '';
-
         parts.push(`
   <url>
-    <loc>${escapeXml(fullUrl)}</loc>${stationLastMod ? `
-    <lastmod>${stationLastMod}</lastmod>` : ''}
+    <loc>${escapeXml(fullUrl)}</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>`);
 
@@ -1527,7 +1535,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
 
       const sitemap = cacheSitemapXml(xml);
       await storeSitemapXml(cacheKey, sitemap);
-      sendSitemapXml(req, res, sitemap, childCacheControl, chunkInfo.maxUpdatedAt);
+      sendSitemapXml(req, res, sitemap, childCacheControl);
 
       logger.log(`✅ sitemap-stations-${lang}-${chunk}.xml (${stationCount}/${chunkInfo.stationIds.length}) ${Date.now() - startTime}ms`);
     } catch (error) {
@@ -1759,12 +1767,16 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       };
 
       emitEntry(`${baseUrl}/sitemap-blog.xml`, BLOG_UPDATED);
+      // Pilot station reads must not add a failure to the main index.
+      if (qualifiedLanguages.includes('en')) {
+        for (const country of ['at', 'tr']) emitEntry(`${baseUrl}/sitemap-pilot-en-${country}.xml`);
+      }
 
       // 1. Main sitemaps (one per qualified lang, only if manifest exists)
       for (const lang of qualifiedLanguages) {
         const m = manifestByKey.get(`main:${lang}`);
         if (!m || m.chunkCount === 0) continue;
-        emitEntry(`${baseUrl}/sitemap-main-${lang}.xml`, formatLastmod(m.maxUpdatedAt));
+        emitEntry(`${baseUrl}/sitemap-main-${lang}.xml`);
       }
 
       // 2. Genres sitemaps
@@ -1803,16 +1815,14 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
             );
             continue;
           }
-          const chunkLastmod = formatLastmod(chunk.maxUpdatedAt);
-          if (chunk.maxUpdatedAt instanceof Date && (!indexMaxLastmod || chunk.maxUpdatedAt > indexMaxLastmod)) {
-            indexMaxLastmod = chunk.maxUpdatedAt;
-          }
-          emitEntry(`${baseUrl}/sitemap-stations-${lang}-${chunk.chunk}.xml`, chunkLastmod);
+          // Station chunks have no trustworthy content-update date either.
+          emitEntry(`${baseUrl}/sitemap-stations-${lang}-${chunk.chunk}.xml`);
           totalChildSitemaps++;
         }
       }
-      // Sweep main+genres maxUpdatedAt into index Last-Modified.
+      // Only genre/editorial dates are independent of station health writes.
       for (const m of manifestByKey.values() as any) {
+        if (m.type !== 'genres') continue;
         if (m?.maxUpdatedAt instanceof Date && (!indexMaxLastmod || m.maxUpdatedAt > indexMaxLastmod)) {
           indexMaxLastmod = m.maxUpdatedAt;
         }
@@ -1904,10 +1914,14 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
   </sitemap>`);
       };
 
+      if (lang === 'en') {
+        for (const country of ['at', 'tr']) emitLangEntry(`${baseUrl}/sitemap-pilot-en-${country}.xml`);
+      }
+
       // 1. Main pages (homepage, genres, regions, countries)
       const mainM = byType.get('main');
       if (mainM && mainM.chunkCount > 0) {
-        emitLangEntry(`${baseUrl}/sitemap-main-${lang}.xml`, formatLastmod(mainM.maxUpdatedAt));
+        emitLangEntry(`${baseUrl}/sitemap-main-${lang}.xml`);
       }
 
       // 2. Genre pages
@@ -1928,7 +1942,6 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
           ) continue;
           emitLangEntry(
             `${baseUrl}/sitemap-stations-${lang}-${chunk.chunk}.xml`,
-            formatLastmod(chunk.maxUpdatedAt),
           );
         }
       }

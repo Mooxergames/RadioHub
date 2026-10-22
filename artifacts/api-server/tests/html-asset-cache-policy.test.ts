@@ -29,7 +29,7 @@ before(async () => {
       res.set('Expires', new Date(Date.now() + 31536000 * 1000).toUTCString());
     }
     if (req.path === '/temporary-failure') markSeoTemporarilyUnavailable(res);
-    if (req.path === '/private-shell') res.set('Cache-Control', 'no-store');
+    if (req.path === '/profile') res.set('Cache-Control', 'no-store');
     next();
   });
   app.get('/sitemap-index.xml', (_req, res) => res.type('application/xml').send('<sitemapindex/>'));
@@ -125,9 +125,27 @@ test('temporary failure status and strict no-store policies survive SPA fallback
   assert.equal(failure.status, 503);
   assert.equal(failure.headers.get('cache-control'), 'no-store');
   assert.equal(failure.headers.get('retry-after'), '60');
-  const privateShell = await fetch(baseUrl + '/private-shell');
+  const privateShell = await fetch(baseUrl + '/profile');
   assert.equal(privateShell.status, 200);
   assert.equal(privateShell.headers.get('cache-control'), 'no-store');
+});
+
+test('invented page families are real uncached404s for browsers, crawlers and HEAD', async () => {
+  for (const pathname of ['/en/not-a-real-page', '/not-a-real-page', '/tr/boyle-bir-sayfa-yok']) {
+    for (const method of ['GET', 'HEAD']) {
+      const response = await fetch(baseUrl + pathname, { method, headers: { 'User-Agent': method === 'HEAD' ? 'Googlebot' : 'Mozilla/5.0' } });
+      assert.equal(response.status, 404, `${method} ${pathname}`);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(response.headers.get('x-robots-tag'), 'noindex, follow');
+      if (method === 'HEAD') assert.equal(await response.text(), '');
+    }
+  }
+});
+
+test('translated profile, auth, TV and developer flows retain their SPA responses', async () => {
+  for (const pathname of ['/tr/profil/mesajlar/example', '/de/profil/einstellungen', '/auth/callback', '/activate/ABCD', '/premium/success', '/api-docs/stations', '/api-user', '/cast-receiver']) {
+    assert.equal((await fetch(baseUrl + pathname)).status, 200, pathname);
+  }
 });
 
 test('both production SSR response branches use the same HTML policy', async () => {

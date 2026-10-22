@@ -89,15 +89,9 @@ function makeContentVersion(args: {
   qualifiedLanguagesHash: string;
   chunks: Array<{ chunk: number; urlCount: number; stationIds?: any[]; maxUpdatedAt?: Date | null }>;
 }): string {
-  // Webmaster #2 HIGH-1a fix (2026-04-30): version hash MUST NOT include
-  // maxUpdatedAt. Mongoose timestamps auto-bump Station.updatedAt on every
-  // save (including uptime probes setting lastCheckOk), which would tick the
-  // version every time a station was probed → ETag invalidation → Cloudflare
-  // cache stampede → defeats the entire stampede-protection purpose of this
-  // refactor. The URL SET (stationIds) is the cache-relevant content. The
-  // <lastmod> XML element is a freshness *signal* surfaced via the
-  // Last-Modified HTTP header, which clients revalidate independently with
-  // If-Modified-Since. So: ETag tracks URL set; Last-Modified tracks freshness.
+  // PostgreSQL writes also advance updatedAt for operational health checks.
+  // Keep that out of the membership version. Routes hash the full XML for
+  // HTTP ETags and omit untrustworthy station lastmod/Last-Modified dates.
   const sig = args.chunks
     .slice()
     .sort((a, b) => a.chunk - b.chunk)
@@ -324,8 +318,8 @@ export function extractTopCountriesFromChunk(
  * Used by the main-manifest builder so:
  *   - The country set is part of the manifest's content version → ETag flips when
  *     it changes (deterministic invalidation).
- *   - maxUpdatedAt feeds <lastmod>/Last-Modified, so listings reflect the latest
- *     station change inside any of the top countries (not just an arbitrary clock).
+ *   - maxUpdatedAt invalidates the main XML cache; operational station dates
+ *     are not published as content lastmod/Last-Modified values.
  */
 export async function getTopCountryDbNames(limit: number = TOP_COUNTRIES_LIMIT): Promise<string[]> {
   // Single source of truth for "top N countries by indexable station count".

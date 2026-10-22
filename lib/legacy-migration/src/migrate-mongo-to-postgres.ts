@@ -8,6 +8,7 @@ import { iapAuditEventId, iapAuditProvider } from "../../../artifacts/api-server
 import { createMigrationLifecycle, lockedMigrationDatabase, MigrationLifecycleError, type MigrationDatabase, type MigrationLifecycle } from "./migration-lifecycle";
 import { migrationBatchLimits, shouldFlushMigrationBatch, type MigrationBatchLimits } from "./migration-batching";
 import { inspectInitialCaptureResume, validateCapturedSource } from "./initial-capture-resume";
+import { SCHEMA_RUNTIME_STATE_KEYS, SCHEMA_RUNTIME_STATE_PREDICATE } from "./schema-runtime-state";
 import { assertNoQuarantineReplay, quarantineUserDevice, userDeviceOwner, verifyQuarantinedUserDevice,
   verifyUserDeviceQuarantine } from "./user-device-quarantine";
 export { bsonSafe, checksum, jsonSafe } from "./legacy-document-codec";
@@ -1378,13 +1379,23 @@ export async function verifyNativeDomains(postgres: MigrationDatabase): Promise<
     const identity = mappings[0].identity || { columns: ["id"], legacy: ["d.document_id"] };
     const expectedIdentity = identity.legacy.join(","), actualIdentity = identity.columns.map(identifier).join(",");
     const sourcePredicate = table === "user_devices" ? " AND EXISTS(SELECT 1 FROM users WHERE id=d.payload->>'userId')" : "";
-    const difference = await postgres.query(`
+    // These exact PostgreSQL-owned identities coexist with the captured source.
+    // Do not exempt arbitrary app state or mask a source-backed content mismatch.
+    const schemaState = table === "runtime_app_state";
+    const expected = `SELECT ${expectedIdentity} FROM legacy_documents d WHERE collection_name=ANY($1::text[])${sourcePredicate}`
+      + (schemaState ? " UNION SELECT unnest($2::text[])" : "");
+    const difference = await postgres.query(`WITH expected AS (${expected})
       SELECT count(*)::int count FROM (
-        (SELECT ${expectedIdentity} FROM legacy_documents d WHERE collection_name=ANY($1::text[])${sourcePredicate} EXCEPT SELECT ${actualIdentity} FROM ${identifier(table)})
+        (SELECT * FROM expected EXCEPT SELECT ${actualIdentity} FROM ${identifier(table)})
         UNION ALL
-        (SELECT ${actualIdentity} FROM ${identifier(table)} EXCEPT SELECT ${expectedIdentity} FROM legacy_documents d WHERE collection_name=ANY($1::text[])${sourcePredicate})
-      ) difference`, [collections]);
+        (SELECT ${actualIdentity} FROM ${identifier(table)} EXCEPT SELECT * FROM expected)
+      ) difference`, schemaState ? [collections, SCHEMA_RUNTIME_STATE_KEYS] : [collections]);
     if (difference.rows[0].count) throw new Error("Native normalized identity mismatch: " + table);
+    if (schemaState && (await postgres.query(`SELECT 1 FROM runtime_app_state WHERE key=ANY($1::text[])
+      AND NOT EXISTS (SELECT 1 FROM legacy_documents d WHERE d.collection_name='app_state' AND d.document_id=key)
+      AND NOT ${SCHEMA_RUNTIME_STATE_PREDICATE} LIMIT 1`, [SCHEMA_RUNTIME_STATE_KEYS])).rowCount) {
+      throw new Error("Native normalized content mismatch: runtime_app_state schema seed");
+    }
   }
   for (const mapping of nativeMappings) {
     await forEachLegacyBatch(postgres, mapping.collection, async (documents, client) => {
@@ -1418,10 +1429,11 @@ export async function pruneNativeDomains(client: Pick<pg.PoolClient, "query">): 
     const mappings = nativeMappings.filter(mapping => mapping.table === table);
     const collections = mappings.map(mapping => mapping.collection);
     const identity = mappings[0].identity || { columns: ["id"], legacy: ["d.document_id"] };
+    const preserveSeeds = table === "runtime_app_state" ? ` AND NOT ${SCHEMA_RUNTIME_STATE_PREDICATE}` : "";
     await client.query(`DELETE FROM ${identifier(table)} t WHERE NOT EXISTS (
       SELECT 1 FROM legacy_documents d WHERE d.collection_name=ANY($1::text[]) AND ${identity.columns
         .map((column, index) => identity.legacy[index] + "=t." + identifier(column)).join(" AND ")}
-    )`, [collections]);
+    )${preserveSeeds}`, [collections]);
   }
 }
 
