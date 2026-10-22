@@ -120,14 +120,7 @@ APPLE_EXPECTED_BUNDLE_IDS=com.megaradio.app,com.megaradio.app.tvos
 
 ---
 
-## Test user cleanup
+## Account remediation
 
-Historical MongoDB-only operation: the fake premium granted to
-`testuser2026@megaradio.test` during the exploit window could be cleared with
-the archived command below. Do not use it after PostgreSQL cutover.
-
-```bash
-mongosh "$MONGODB_URI" lib/legacy-migration/archive/cleanup-test-user-2026.js
-```
-
-Script is idempotent and prints before/after.
+Use the authenticated PostgreSQL-backed administration flow for account
+remediation. Retired database cleanup scripts are no longer distributed.

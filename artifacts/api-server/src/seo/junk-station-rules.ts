@@ -306,30 +306,6 @@ export function frequencyClusterKey(slug?: string | null): string | null {
   return s || null;
 }
 
-// -----------------------------------------------------------------------------
-// 3. Eligible languages per station
-// -----------------------------------------------------------------------------
-
-/**
- * Major-diaspora / lingua-franca languages that are reasonable for any
- * station regardless of country. English is always included.
- */
-// AI Translation Languages — STATION-LEVEL META (admin/stations.tsx):
-// 14 dilde her radyonun meta title + meta description + full description için
-// AI çevirisi var ve Mongo `descriptions[lang]` alanları dolu. Bu 14 dil
-// "universal" — yani station'ın countryCode'una bakılmaksızın bu dillerin
-// hepsinde indexable.
-//
-// ÖNEMLİ AYRIM: Bu liste yalnızca per-station indexability'yi belirler.
-// **Sitemap-index'te kaç dil yayınlanacağı** ayrı bir karardır:
-//   `qualified-languages.ts` → `computeFromTranslations()` → tüm 57 enabled
-//   SEO_LANGUAGES içinden UI çeviri (REQUIRED_*_SEO_KEYS) tam olan dilleri
-//   seçer. Yani UI tarafı 25 dilde tam ise sitemap 25 dilde yayın yapar; bu
-//   14 ile karıştırılmamalı.
-//
-// Bu liste DEĞİŞİRSE: kullanıcının admin paneldeki "AI Translation Languages"
-// listesi ile sync tutulmalı. Önceki ('en' tek dil) sürüm 13 yeni dilde
-// stationların sitemap'ten düşmesine yol açıyordu.
 const UNIVERSAL_LANGUAGES = [
   'en', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'ar',
   'zh', 'tr', 'ja', 'ko', 'hi', 'he',

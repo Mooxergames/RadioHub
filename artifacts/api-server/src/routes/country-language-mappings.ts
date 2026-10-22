@@ -19,8 +19,6 @@ async function refreshMappingCache(): Promise<void> {
 const CLEAR_OVERRIDES_AUDIT_LIST_LIMIT = 50;
 const CLEAR_OVERRIDES_AUDIT_MAX_PAGE_LIMIT = 100;
 
-// Mongo treats unescaped regex metacharacters as operators. Strip them so
-// admin-provided filter strings are matched literally (case-insensitive).
 
 
 const VALID_AUDIT_ACTIONS: ReadonlyArray<CountryLanguageMappingAuditAction> = [

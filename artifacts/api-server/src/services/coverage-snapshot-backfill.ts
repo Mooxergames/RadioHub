@@ -78,14 +78,6 @@ export interface RunCoverageBackfillResult {
   cancelled?: boolean;
 }
 
-/**
- * Walks the last `days` UTC days and upserts a per-country synthetic
- * snapshot for any (country, day) pair that doesn't already have a real
- * cron-written row. Assumes the caller has already connected to MongoDB
- * — does NOT call mongoose.connect/disconnect itself, so it can be
- * invoked from the API server runtime without disturbing the shared
- * connection.
- */
 export async function runCoverageBackfill(
   opts: RunCoverageBackfillOptions,
 ): Promise<RunCoverageBackfillResult> {

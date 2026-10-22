@@ -20,23 +20,10 @@ test('API and web images use the guarded launcher and both package schema assets
   }
   assert.match(manifest.scripts.start, /scripts\/start-postgres\.mjs dist\/index\.mjs/);
 });
-
 test('runtime rechecks initialization under the data-import lock before first authority write', () => {
   const source = read('artifacts/api-server/src/data/postgres-migration-safety.ts');
   const lock = source.indexOf("await client.query(\"SELECT pg_advisory_xact_lock(hashtext('radiohub-data-migration'))\")");
   const gate = source.indexOf('await assertPostgresInitializationReady(client, environment)');
   const write = source.indexOf('INSERT INTO database_write_authority');
   assert.ok(lock >= 0 && gate > lock && write > gate, 'cutover check must be inside its serialization lock');
-});
-
-test('one-time Railway job has a separate image, no HTTP check, and no successful-run restart loop', () => {
-  const config = JSON.parse(read('railway.migration.json'));
-  assert.equal(config.build.dockerfilePath, 'Dockerfile.migration');
-  assert.equal(config.deploy.startCommand, 'node dist/bootstrap.mjs');
-  assert.equal(config.deploy.healthcheckPath, null);
-  assert.equal(config.deploy.restartPolicyType, 'ON_FAILURE');
-  assert.ok(config.deploy.restartPolicyMaxRetries <= 10);
-  const docker = read('Dockerfile.migration');
-  assert.match(docker, /@workspace\/legacy-migration deploy --prod --legacy \/deploy/);
-  assert.doesNotMatch(docker, /COPY.*\.env|ENV MONGODB_URI|ENV MIGRATION_.*=true/);
 });

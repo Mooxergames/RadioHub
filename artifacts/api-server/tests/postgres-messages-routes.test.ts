@@ -30,13 +30,6 @@ let requestedLimit: number;
 let follows = true;
 let hasHistory = false;
 
-const mongoMustNotRun = new Proxy({}, {
-  get(_target, key) { throw new Error(`MongoDB call in PostgreSQL chat mode: ${String(key)}`); },
-});
-mock.module("@workspace/legacy-migration/mongo-schemas", {
-  namedExports: { DirectMessage: mongoMustNotRun, User: mongoMustNotRun,
-    UserFollow: mongoMustNotRun, UserNotification: mongoMustNotRun },
-});
 mock.module("express-rate-limit", {
   namedExports: { ipKeyGenerator, rateLimit: () => (_req: any, _res: any, next: () => void) => next() },
 });

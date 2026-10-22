@@ -177,10 +177,6 @@ export class CacheManager {
   // one upstream call. Prevents cache stampedes during precompute warmup or
   // when a hot key TTLs out under traffic.
   private static inflight = new Map<string, Promise<any>>();
-  // INCIDENT 2026-05-15 v10.2 round 5 — count consecutive SWR
-  // background-refresh failures per envelope key so a silently-stuck
-  // stale value (broken loader, persistent Mongo timeout) becomes
-  // visible via warn-level logs instead of being silently swallowed.
   private static swrRefreshFailures = new Map<string, number>();
   // INCIDENT 2026-05-16 v12 — per-key waiter telemetry. When the M10
   // cluster gets slow, a single-flight loader can be stuck for tens of
@@ -249,19 +245,6 @@ export class CacheManager {
     return p;
   }
 
-  // Stale-while-revalidate helper. Stores `{v, exp}` envelope under
-  // `<key>:swr`. Two TTLs:
-  //   freshTtl — under this age, value is returned immediately, no refresh.
-  //   staleTtl — between freshTtl and staleTtl, value is returned
-  //              immediately AND a background refresh is kicked off (
-  //              coalesced via the same inflight Map as singleflight).
-  // Past staleTtl: behaves like singleflight — block the caller until
-  // a fresh value is computed.
-  // Designed for the precomputed-stations / precomputed-genres /
-  // precomputed-cities path: 24h freshTtl + 7d staleTtl means an
-  // organic visitor never waits on a Mongo aggregate during normal
-  // ops, AND a brief Atlas hiccup just serves last-known-good while
-  // the cluster recovers — no 500, no empty payload.
   static async getOrSetSWR<T>(
     key: string,
     loader: () => Promise<T>,
@@ -284,24 +267,9 @@ export class CacheManager {
         const refresh = (async () => {
           try {
             const fresh = await loader();
-            // INCIDENT 2026-05-15 v10.2 round 6 — capture exp at WRITE
-            // time, not before loader execution. A slow loader
-            // (multi-second Mongo aggregate) was previously eating
-            // into the fresh window from the moment we entered the
-            // refresh closure, so a 1h fresh TTL with a 10s loader
-            // effectively had ~3590s freshness and could even be
-            // already-stale on write under really pathological
-            // latency. Using Date.now() here gives the configured
-            // freshTtl from the moment the fresh value lands.
             await CacheManager.set(envKey, { v: fresh, exp: Date.now() + freshTtl * 1000 }, { ttl: staleTtl });
             CacheManager.swrRefreshFailures.delete(envKey);
           } catch (err: any) {
-            // Keep stale; next caller will retry. INCIDENT 2026-05-15
-            // v10.2 round 5 — count consecutive refresh failures per
-            // key and warn-log every 5th so a silently-stuck stale
-            // value (e.g. broken loader, persistent Mongo timeout) is
-            // visible in the Railway tail without spamming on every
-            // request.
             const prev = CacheManager.swrRefreshFailures.get(envKey) || 0;
             const next = prev + 1;
             CacheManager.swrRefreshFailures.set(envKey, next);

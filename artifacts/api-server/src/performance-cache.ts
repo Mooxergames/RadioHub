@@ -447,10 +447,6 @@ export class PerformanceCache {
   async warmupCaches(): Promise<void> {
     if (this.warmupPromise) return this.warmupPromise;
     this.warmupPromise = trackOperation('warmup-translations', async () => {
-      // INCIDENT 2026-05-18 (pool exhaustion): loading all 57 langs at once
-      // competed with live user traffic for the 40-connection pool. Fix: batch
-      // 5 languages at a time with a 500ms yield between batches — max 5
-      // concurrent MongoDB connections used at any point, ~6s total warmup time.
       const priorityFirst = ['en', 'de', 'tr', 'fr', 'es', 'pt', 'it', 'nl', 'ru', 'ar'];
       // Remaining languages after the priority set
       const SEO_ALL = (await import('@workspace/seo-shared/seo-config'))

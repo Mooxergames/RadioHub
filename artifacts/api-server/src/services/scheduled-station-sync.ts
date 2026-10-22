@@ -7,36 +7,6 @@ import CacheManager from '../cache';
 import { performanceCache } from '../performance-cache';
 import { IndexNowService } from './indexnow';
 
-/**
- * Nightly Station Sync (added 2026-05-09)
- * ----------------------------------------
- * Every night at 03:00 Europe/Berlin we run an incremental sync against
- * Radio-Browser. This serves two purposes:
- *
- *   1. Catalog freshness — pulls in any new/changed stations the upstream
- *      catalog has registered in the last 24h (votes, clickCount, url,
- *      bitrate, lastCheckOk, etc.).
- *   2. SEO freshness (the user's actual ask 2026-05-09) — `SyncService`'s
- *      `getWhitelistedUpdateFields` already sets `update.updatedAt = new
- *      Date()` on every touched station, so each sync run naturally bumps
- *      the per-station timestamp. Combined with `timestamps: true` on the
- *      schema, the sitemap manifests' `chunks[].maxUpdatedAt` will move
- *      forward at least once per day → `<lastmod>` in
- *      `/sitemap-stations-{lang}-{n}.xml` stays current → Google keeps
- *      re-crawling instead of marking URLs as stale.
- *
- * After the sync we force a manifest rebuild so the new updatedAt values
- * propagate immediately, purge sitemap cache entries (so the next request
- * regenerates XML from fresh Mongo data), and fire IndexNow pings to push
- * Bing/Yandex toward a recrawl.
- *
- * Single-process gate via `ENABLE_NIGHTLY_SYNC_CRON=false` so secondary
- * replicas don't double-run the heavy fetch.
- *
- * Manual trigger lives at `POST /api/admin/sitemap/touch-stations`
- * (one-shot, no Radio-Browser fetch — just bumps every updatedAt to NOW).
- * The nightly cron is the slower, "real data" version.
- */
 class ScheduledStationSync {
   private isInitialized = false;
   private isRunning = false;

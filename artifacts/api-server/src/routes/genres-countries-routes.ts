@@ -510,9 +510,6 @@ export function registerGenresCountriesRoutes(app: Express, deps: any) {
       if (error?.name === 'ValidationError') {
         return void res.status(400).json({ error: error.message });
       }
-      // Task #210: Mongo duplicate-key fallback for the partial unique slug
-      // index. Covers the race window between the findOne check above and the
-      // findByIdAndUpdate below.
       if (error?.code === '23505') {
         return res.status(409).json({
           error: `Slug "${String(req.body?.slug || '')}" is already used by another genre.`,

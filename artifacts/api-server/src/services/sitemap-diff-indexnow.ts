@@ -495,10 +495,6 @@ export function mapGenreIdsToSlugs(
 type GenreIdLookup = string;
 interface GenreIdSlugDoc { _id: GenreIdLookup; slug?: string }
 
-/** Collect every Genre._id referenced by an active genres manifest while
- * PRESERVING the original BSON type (ObjectId vs legacy string slug). The
- * raw Mongo `$in` query only matches when the value's BSON type matches the
- * stored `_id` — stringifying ObjectIds breaks the match. */
 function collectManifestGenreIds(
   manifests: ReadonlyArray<{ chunks: ReadonlyArray<{ stationIds: ReadonlyArray<GenreIdLookup> }> }>,
 ): GenreIdLookup[] {
@@ -517,25 +513,13 @@ function collectManifestGenreIds(
   return out;
 }
 
-/** Resolve every Genre._id referenced by ANY active genres manifest into its
- * slug. Done once per run because all per-language genres manifests share the
- * same id set (URLs differ only in path localization). Returns a map keyed by
- * String(_id) for cheap lookups regardless of ObjectId vs legacy-string ids. */
 async function loadGenreSlugsForActiveManifest(): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const manifests = await pgActiveManifests('genres');
-  // Preserve BSON types — see collectManifestGenreIds JSDoc.
   const ids = collectManifestGenreIds(
     manifests as Array<{ chunks: Array<{ stationIds: GenreIdLookup[] }> }>,
   );
   if (ids.length === 0) return out;
-  // Genre._id is mixed (ObjectId for new docs, string slugs like 'genre-pop'
-  // for legacy seed data). Use the raw collection to bypass mongoose's strict
-  // ObjectId casting on the $in array (mirrors the live route at
-  // routes/seo-sitemap-routes.ts /sitemap-genres-:lang.xml).
-  // Genre.collection types `_id` as ObjectId, but the underlying collection
-  // accepts the mixed-shape array — cast the filter to satisfy the driver
-  // typings without losing the BSON types of the values themselves.
   const docs = await pgSeoGenres(ids);
   for (const d of docs) {
     const slug = d.slug;

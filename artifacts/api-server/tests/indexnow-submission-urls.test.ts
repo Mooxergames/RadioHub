@@ -1,47 +1,28 @@
-/**
- * Task #336 — guard the IndexNowSubmissionUrls schema. The collection is
- * what backs the admin "Show all URLs for this night" view, so a regression
- * in its shape (missing TTL, missing logId index, missing fields) would
- * silently break the audit trail or grow the collection unbounded.
- */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  IndexNowSubmissionUrls,
-  INDEXNOW_SUBMISSION_URLS_RETENTION_DAYS,
-} from '@workspace/legacy-migration/mongo-schemas';
+import { getTableConfig } from 'drizzle-orm/pg-core';
+import { indexNowSubmissionUrls } from '@workspace/db/schema';
+import { INDEXNOW_SUBMISSION_URLS_RETENTION_DAYS } from '../src/data/postgres-seo-indexing-store';
 
-test('IndexNowSubmissionUrls schema declares the fields we depend on', () => {
-  const paths = IndexNowSubmissionUrls.schema.paths;
-  for (const field of ['logId', 'timestamp', 'host', 'trigger', 'urls', 'urlCount', 'expiresAt']) {
-    assert.ok(paths[field], `expected schema path '${field}' to exist`);
+test('IndexNow URL audit uses the native PostgreSQL fields and log identity', () => {
+  const config = getTableConfig(indexNowSubmissionUrls);
+  assert.equal(config.name, 'indexnow_submission_urls');
+  const fields = new Map(config.columns.map(column => [column.name, column]));
+  for (const name of ['log_id', 'timestamp', 'host', 'trigger', 'urls', 'url_count', 'expires_at']) {
+    assert.ok(fields.get(name)?.notNull, name);
   }
-  assert.equal(paths.logId.instance, 'ObjectId');
-  assert.equal(paths.urls.instance, 'Array');
-  assert.equal(paths.urlCount.instance, 'Number');
-  assert.equal(paths.expiresAt.instance, 'Date');
+  assert.equal(fields.get('log_id')?.isUnique, true);
+  assert.equal(fields.get('log_id')?.dataType, 'string');
+  assert.equal(fields.get('urls')?.dataType, 'array');
+  assert.equal(config.foreignKeys.length, 1);
+  assert.equal(config.foreignKeys[0].onDelete, 'cascade');
 });
 
-test('IndexNowSubmissionUrls retention is bounded by a TTL index', () => {
-  const indexes = IndexNowSubmissionUrls.schema.indexes();
-  const ttl = indexes.find(([keys, opts]) =>
-    (keys as Record<string, unknown>).expiresAt === 1 &&
-    (opts as { expireAfterSeconds?: number } | undefined)?.expireAfterSeconds === 0,
-  );
-  assert.ok(ttl, 'expected a TTL index on { expiresAt: 1 } with expireAfterSeconds=0');
-
-  const uniqueLogId = indexes.find(([keys, opts]) =>
-    (keys as Record<string, unknown>).logId === 1 &&
-    (opts as { unique?: boolean } | undefined)?.unique === true,
-  );
-  assert.ok(uniqueLogId, 'expected a unique index on logId so each log row maps to one URL doc');
-});
-
-test('IndexNowSubmissionUrls retention window is at least 7 days', () => {
-  // Sanity guard so a future tweak doesn't accidentally drop retention to
-  // a value too short to cover a typical "last week" admin investigation.
-  assert.ok(
-    INDEXNOW_SUBMISSION_URLS_RETENTION_DAYS >= 7,
-    `retention should be >= 7 days, got ${INDEXNOW_SUBMISSION_URLS_RETENTION_DAYS}`,
-  );
+test('IndexNow URL expiry is indexed and its retention window is bounded', () => {
+  const config = getTableConfig(indexNowSubmissionUrls);
+  const expiry = config.indexes.find(index => index.config.name === 'indexnow_submission_urls_expiry');
+  assert.ok(expiry);
+  assert.equal((expiry.config.columns[0] as { name: string }).name, 'expires_at');
+  assert.ok(INDEXNOW_SUBMISSION_URLS_RETENTION_DAYS >= 7);
+  assert.ok(INDEXNOW_SUBMISSION_URLS_RETENTION_DAYS <= 90);
 });

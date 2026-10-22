@@ -1251,7 +1251,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   let isShuttingDown = false;
 
   const port = parseInt(process.env.PORT || '3000', 10);
-  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' }, () => {
+  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' && process.platform !== 'darwin' }, () => {
     logger.log(`🚀 FRONTEND-WEB: Listening on port ${port}`);
     logger.log(`🔗 Backend API URL: ${BACKEND_API_URL}`);
 
@@ -1376,10 +1376,6 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       await loadDatabaseCountryLanguageMappings();
       await loadDatabaseUrlTranslations();
 
-      // Task #158: load slug-existence sets used by the slug-shape-404
-      // middleware so non-bot visitors get a real 404 for unknown
-      // genre/station slugs (not just shape-invalid ones). Done after
-      // Mongo is connected; periodic refresh keeps the set fresh.
       try {
         const { loadSlugExistence, startSlugExistenceRefresh } = await import('./seo/slug-existence');
         await loadSlugExistence();

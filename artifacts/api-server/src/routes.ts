@@ -291,18 +291,6 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
         logger.log('✅ Cached discoverable genres');
       } catch {}
 
-      // 2026-05-15 INCIDENT: PrecomputedCitiesService.warmupCache() runs a
-      // heavy $facet/$switch aggregation per country sequentially for 19
-      // countries. At boot, when Atlas is already stressed by HTTP self-
-      // warmup + popular/community refresh, this hammer pushed the
-      // connection pool to exhaustion — every country errored with
-      // MongoNetworkTimeoutError or MaxTimeMSExpired (16+ failures in a
-      // row in the 2026-05-15 prod log), tripped the circuit breaker, and
-      // forced a container restart loop. The cities cache has a 7-day
-      // TTL and `getCitiesForCountry()` lazily computes on cache miss, so
-      // the first organic request to each country page populates it just
-      // fine. Skipping the boot warmup costs the very first visitor of
-      // each country one slower page load and protects the cluster.
       logger.log('⚡ SKIPPED: PrecomputedCities boot warmup — will populate on-demand per country (7-day TTL)');
 
       logger.log('🔥 Web cache warmup completed - translations, popular stations, community favorites, genres & cities cached!');
@@ -360,18 +348,6 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
     }
   }
 
-  // === HTTP SELF-WARMUP (INCIDENT 2026-05-14) ===
-  // The previous warmup wrote cache keys with the OLD shape
-  // (e.g. `popular_stations:Germany:all:20`) while the routes now read the
-  // v2 shape (`popular_stations:Germany:all:12:false:web:v2`). That key
-  // drift made every first user hit a Cache MISS and incurred 8-30s
-  // Mongo aggregates against the live cluster.
-  //
-  // Rather than chase every key shape from the warmup helpers, this
-  // self-warmup hits the *real* HTTP endpoints the browser hits, so the
-  // cache keys are guaranteed to match by construction. It runs after
-  // server startup and re-runs every 50 minutes (just under the 1h TTL)
-  // so users never face a cold cache.
   async function warmupViaHttp() {
     const PORT = process.env.PORT || '8080';
     const base = `http://127.0.0.1:${PORT}`;
@@ -503,8 +479,6 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   // visitor via CacheManager.getOrSetSingleFlight (single-flight
   // coalescing prevents stampedes). Off-peak cron refreshes still run.
   if (process.env.NODE_ENV !== 'development') {
-    // Lightweight Mongo health probe ONLY — one cheap indexed read so
-    // we know the cluster is reachable. No warmup work.
     setTimeout(async () => {
       try {
         const t0 = Date.now();
@@ -803,8 +777,6 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   registerAdminCoverageDropSettingsRoutes(app, deps);
   registerAdminMappingAuditDigestSettingsRoutes(app, deps);
   registerAdminGenreWhitelistRoutes(app, deps);
-  // Task #114: prime the merged whitelist snapshot from Mongo and refresh
-  // it periodically so admin overrides made on other replicas propagate.
   await refreshGenreWhitelistFromDb();
   startGenreWhitelistRefreshLoop();
   registerSilentPushRoutes(app, deps);

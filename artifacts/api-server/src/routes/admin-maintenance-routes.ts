@@ -89,9 +89,6 @@ async function runTagsBackfill(countryCode: string | null, limitMax: number) {
       tags: [],
     });
   } catch (err: any) {
-    // Non-fatal — we still run the in-memory job so admins aren't blocked
-    // if the audit row fails to persist (e.g. transient Mongo blip). The
-    // existing in-memory state surfaces progress in the meantime.
     logger.error(
       "[tags-backfill] failed to persist BackfillRun audit row:",
       err?.message || err,
@@ -559,11 +556,6 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
     },
   );
 
-  // Single BackfillRun document by id. Powers the deep-linkable
-  // /admin/seo-maintenance/runs/:id detail page so an admin can paste
-  // a link to a specific run without making the recipient scroll the
-  // history table. Returns 400 for malformed ObjectIds and 404 when
-  // the row doesn't exist (or has been pruned by retention).
   app.get(
     "/api/admin/maintenance/scheduled-backfill/runs/:id",
     requireAdmin,
@@ -588,14 +580,6 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
     },
   );
 
-  // Task #313: batch-resolve the live `logoAssets.status` for the
-  // sample stations surfaced on the run detail page. Without this,
-  // admins would have to click each sample link to figure out which
-  // enqueued stations actually ended up with a downloaded logo vs
-  // failed again. Accepts up to ~200 ObjectIds in the body to keep the
-  // single round-trip bounded; unknown / malformed ids are reported as
-  // `missing` so the UI can show a neutral badge instead of dropping
-  // them silently.
   app.post(
     "/api/admin/maintenance/stations/logo-status",
     requireAdmin,
@@ -648,10 +632,6 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
     },
   );
 
-  // Live status of the scheduled backfill plus the most recent
-  // BackfillRun row so the dashboard can render "running…" vs the last
-  // completed summary without the client having to know about Mongo
-  // shapes.
   app.get(
     "/api/admin/maintenance/scheduled-backfill/status",
     requireAdmin,
@@ -749,13 +729,6 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
     },
   );
 
-  // Task #264: drill-down for a single GenreSlugCleanupRun. When the
-  // alert fires the next question is always "which genres got hit?" —
-  // this endpoint joins the run's [startedAt, finishedAt] window
-  // against `Genre.cleanupDemotion.demotedAt` so the dashboard can
-  // expand the row inline without anyone having to hit Mongo. Mirrors
-  // the run's status: if the run is still `running`, we cap the
-  // window at "now" so the partial demotions show up live.
   app.get(
     "/api/admin/maintenance/genre-slug-cleanup/runs/:id/demotions",
     requireAdmin,

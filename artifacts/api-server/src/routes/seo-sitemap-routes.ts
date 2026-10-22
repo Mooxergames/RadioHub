@@ -619,18 +619,6 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
     }
   });
 
-  // ADMIN ONE-SHOT (2026-05-09): bump every Station's `updatedAt` to NOW so
-  // Google sees a fresh `<lastmod>` on every URL in /sitemap-stations-*.xml.
-  // Use case: the catalog was bulk-imported BEFORE Mongoose `timestamps:true`
-  // was enabled (~Feb 2025), so most stations carry a 2025 updatedAt that
-  // never moves unless an admin re-saves the doc. Even after enabling
-  // timestamps, those old rows stay frozen — Google then ignores the URL
-  // because <lastmod> looks ancient. This route writes a fresh updatedAt to
-  // every station in one bulk update, then forces a manifest rebuild so the
-  // new timestamps propagate into the manifests immediately. Vote/click/
-  // rating updates already use $inc which Mongoose's timestamps:true
-  // intercepts, so going forward updatedAt moves automatically — this is a
-  // ONE-TIME backfill for the legacy frozen rows.
   app.post("/api/admin/sitemap/touch-stations", requireAdmin, async (_req, res) => {
     const t0 = Date.now();
     try {
@@ -673,13 +661,6 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
       performanceCache.clearTranslations();
       performanceCache.clearUrlTranslations();
       performanceCache.clearCountryLanguageMappings();
-      // ARCHITECT FIX (2026-05-10): touch-stations only bumps station
-      // `updatedAt` timestamps — it does NOT change which LANGUAGES qualify
-      // for sitemap inclusion. Calling `resetLkg: true` here was wrong: it
-      // wiped the LKG document, then if the live recompute hit a transient
-      // miss (translation cache cold, Mongo Sort error, etc.) the manifest
-      // builder would abort with `qualified-languages unavailable`. We now
-      // just invalidate the in-memory cache and keep the LKG intact.
       try {
         await invalidateQualifiedLanguages();
       } catch (err: any) {
@@ -1369,11 +1350,6 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       logger.log(`✅ sitemap-main-${lang}.xml (${mainPages.length + topCountries.length} URLs) ${Date.now() - startTime}ms`);
     } catch (error) {
       logger.error(`❌ Error generating sitemap-main-${lang}.xml:`, error);
-      // Soft-fail (project rule: public reads must not hard-5xx). A transient
-      // Mongo/render error returns 503 + Retry-After so Googlebot retries and
-      // KEEPS the last good sitemap, instead of a hard 500 that GSC records as
-      // a sitemap error and that can drop already-indexed URLs (feeds the GSC
-      // "Server error (5xx)" bucket).
       res.setHeader('Retry-After', '120');
       res.setHeader('Cache-Control', 'no-store');
       res.status(503).send('Sitemap temporarily unavailable — retry shortly');
@@ -1540,11 +1516,6 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       logger.log(`✅ sitemap-stations-${lang}-${chunk}.xml (${stationCount}/${chunkInfo.stationIds.length}) ${Date.now() - startTime}ms`);
     } catch (error) {
       logger.error(`❌ Error generating sitemap-stations-${lang}-${chunk}.xml:`, error);
-      // Soft-fail (project rule: public reads must not hard-5xx). A transient
-      // Mongo/render error returns 503 + Retry-After so Googlebot retries and
-      // KEEPS the last good sitemap, instead of a hard 500 that GSC records as
-      // a sitemap error and that can drop already-indexed URLs (feeds the GSC
-      // "Server error (5xx)" bucket).
       res.setHeader('Retry-After', '120');
       res.setHeader('Cache-Control', 'no-store');
       res.status(503).send('Sitemap temporarily unavailable — retry shortly');
@@ -1589,11 +1560,6 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       const baseUrl = getBaseUrl(req);
       const { forwardMap: urlTranslations } = await ensureUrlTranslationsLoaded();
 
-      // Manifest stores genre _ids in chunks[0].stationIds (re-using the
-      // mongoose array — see sitemap-manifest-builder.buildGenreChunks).
-      // NOTE: Genre._id is mixed (ObjectId for new docs, string slugs like
-      // 'genre-pop' for legacy seed data). Use the raw native collection to
-      // bypass mongoose strict ObjectId casting on the $in array.
       const genreIds = manifest.chunks.flatMap((c) => c.stationIds);
       const genreDocs = genreIds.length > 0 ? await pgSeoGenres(genreIds) : [];
       const genreById = new Map<string, any>();
@@ -1653,11 +1619,6 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       logger.log(`✅ sitemap-genres-${lang}.xml (${genreCount}) ${Date.now() - startTime}ms`);
     } catch (error) {
       logger.error(`❌ Error generating sitemap-genres-${lang}.xml:`, error);
-      // Soft-fail (project rule: public reads must not hard-5xx). A transient
-      // Mongo/render error returns 503 + Retry-After so Googlebot retries and
-      // KEEPS the last good sitemap, instead of a hard 500 that GSC records as
-      // a sitemap error and that can drop already-indexed URLs (feeds the GSC
-      // "Server error (5xx)" bucket).
       res.setHeader('Retry-After', '120');
       res.setHeader('Cache-Control', 'no-store');
       res.status(503).send('Sitemap temporarily unavailable — retry shortly');
@@ -1955,11 +1916,6 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       logger.log(`✅ sitemap-${lang}.xml: main=${!!(mainM?.chunkCount > 0)} genres=${!!(genresM?.chunkCount > 0)} stationChunks=${stationsM?.chunks?.length ?? 0}`);
     } catch (error) {
       logger.error(`❌ Error generating sitemap-${lang}.xml:`, error);
-      // Soft-fail (project rule: public reads must not hard-5xx). A transient
-      // Mongo/render error returns 503 + Retry-After so Googlebot retries and
-      // KEEPS the last good sitemap, instead of a hard 500 that GSC records as
-      // a sitemap error and that can drop already-indexed URLs (feeds the GSC
-      // "Server error (5xx)" bucket).
       res.setHeader('Retry-After', '120');
       res.setHeader('Cache-Control', 'no-store');
       res.status(503).send('Sitemap temporarily unavailable — retry shortly');

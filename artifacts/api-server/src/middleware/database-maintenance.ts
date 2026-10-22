@@ -2,11 +2,6 @@ import type { NextFunction, Request, Response } from "express";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-/**
- * Freezes writes during the final Mongo -> PostgreSQL delta copy. Returning
- * 503 (rather than 4xx) makes Apple/Google/Stripe and well-behaved clients
- * retry after the cutover window instead of treating the write as accepted.
- */
 export function databaseMaintenanceMiddleware(
   req: Request,
   res: Response,

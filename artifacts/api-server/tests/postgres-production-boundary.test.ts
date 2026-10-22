@@ -40,6 +40,9 @@ test("production boundary rejects Mongo drivers, archived adapters and pnpm path
     "mongodb",
     "mongodb/lib/bson.js",
     "mongodb-client-encryption",
+    "bson",
+    "bson/lib/bson.mjs",
+    "@mongodb-js/saslprep",
     "connect-mongo",
     "@workspace/legacy-migration/mongo-schemas",
     "../db-mongo",
@@ -131,7 +134,7 @@ test("API manifest has no direct Mongo dependency even in development", () => {
     assert.deepEqual(
       forbidden,
       [],
-      group + " must keep Mongo tooling in the offline package",
+      group + " must not include retired database tooling",
     );
   }
 });

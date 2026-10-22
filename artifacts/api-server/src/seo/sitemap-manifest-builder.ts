@@ -1,27 +1,3 @@
-/**
- * SitemapManifest builder — deterministic, per-language, per-type sitemap
- * planner backed by Mongo.
- *
- * Replaces the old global Math.ceil(50000/1000)=50-chunks-per-language strategy
- * that emitted ~empty chunks for sparse languages (pa, so, hy, am, kn, sq, lt,
- * lv, az, tl, vi, et, sw, ko, ms, ur, ml, gu, ta, hi, bn, te, no, mr, sl, ...).
- *
- * Build flow:
- *   1. Acquire qualified-languages state (throws 503 if unavailable).
- *   2. Idempotency check — skip if active manifest with same hash + non-expired.
- *   3. Stream all non-noIndex stations once via cursor (bounded memory).
- *   4. For each station, call getIndexableLanguagesForStation() — push the
- *      station's _id into per-language buckets.
- *   5. Sort each bucket (votes DESC, _id ASC) and chunk by 1000.
- *   6. Compute maxUpdatedAt per chunk for <lastmod>.
- *   7. Write status='building' docs.
- *   8. Atomic swap: superseded ← old active; active ← building (per type/lang).
- *   9. TTL cleanup handles superseded/failed docs after 24h.
- *
- * Concurrency: at most one active build per process (in-memory lock). The
- * partialFilterExpression unique index on `building` enforces one in-flight
- * build per (type, language) across processes.
- */
 
 import crypto from 'crypto';
 import { pgCatalog } from '../data/postgres-catalog-store';
@@ -140,12 +116,6 @@ async function isManifestUpToDate(
   return count >= expected;
 }
 
-/**
- * Stream all non-junk stations and build per-language buckets of station _ids.
- * Returns { lang -> chunks[] }.
- *
- * Memory budget: ~43K stations × ~10 langs × 12-byte ObjectId ≈ 5MB worst case.
- */
 async function buildStationBuckets(qualifiedLanguages: string[]): Promise<{
   perLang: Map<string, ISitemapManifestChunk[]>;
   totalUrls: Map<string, number>;
@@ -284,9 +254,6 @@ const MAIN_STATIC_PAGES = ['', '/stations', '/genres', '/about', '/regions',
 
 const TOP_COUNTRIES_LIMIT = 30;
 
-/** Marker prefix used in chunk.stationIds to distinguish top-country region/country
- * pairs from station ObjectIds. The schema field is Mixed[] so strings are accepted.
- * Routes parse these out to render `/regions/<region>/<country>` URLs. */
 const TOP_COUNTRY_PREFIX = 'tc:';
 
 export function encodeTopCountryEntry(regionSlug: string, countrySlug: string): string {
@@ -504,15 +471,6 @@ export async function buildAllSitemapManifests(opts: { force?: boolean } = {}): 
       }
     }
 
-    // ZOMBIE CLEANUP (2026-05-09): retire any active SitemapManifest doc
-    // whose language is no longer in the qualified set. Symptom this fixes:
-    // an earlier deploy ran with 30+ qualified languages (pl, no, bg, lv, lt,
-    // vi, te, mr, pa, af, bs, ...). After the AI-translation list was cut to
-    // 14, those manifests stayed `status: 'active'` in Mongo and the
-    // sitemap-index route kept emitting them — Bing/Google fetched them and
-    // logged them as 0-URL or stale entries. Set them to 'retired' so the
-    // index handler's `language: { $in: qualifiedLanguages }` filter no longer
-    // surfaces them, and so getActiveManifest() can never return them.
     let retiredZombies = 0;
     try {
       retiredZombies = await pgRetireManifests(languages);
@@ -595,14 +553,6 @@ export async function getActiveStationChunk(language: string, chunk: number): Pr
   };
 }
 
-/**
- * One tick of the scheduled refresh loop, extracted so tests can exercise the
- * post-build IndexNow ping decision without a live MongoDB. Always resolves;
- * IndexNow failures are logged but never bubble out (Task #272 + #362).
- *
- * @param builder Optional override for the manifest builder (test seam).
- *                Defaults to the real `buildAllSitemapManifests`.
- */
 export async function runScheduledManifestRefreshTick(
   builder: () => ReturnType<typeof buildAllSitemapManifests> = buildAllSitemapManifests,
 ): Promise<void> {

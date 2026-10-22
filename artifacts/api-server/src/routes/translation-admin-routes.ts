@@ -1541,9 +1541,6 @@ ${keysText}`;
             res.status(500).json({ error: 'Failed to fetch user profile' });
         }
     });
-    // REMOVED: Conflicting route for favorites that only handled MongoDB IDs
-    // Using slug-capable route instead which is defined further below
-    // GET COMMUNITY FAVORITES - Most-favorited stations across all users (Public)
     app.get("/api/community-favorites", async (req, res) => {
         try {
             const { country } = req.query;
@@ -1923,7 +1920,6 @@ ${keysText}`;
                 if (!user.isPublicProfile) {
                     updateData.isPublicProfile = true;
                 }
-                // Generate slug if missing or if it's a MongoDB ID
                 if (!user.slug || /^[0-9a-fA-F]{24}$/.test(user.slug)) {
                     updateData.slug = await generateUserSlug(user, user._id);
                 }
