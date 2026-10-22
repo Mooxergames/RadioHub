@@ -1,11 +1,14 @@
 import React from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { getQueryFn } from '../src/lib/queryClient';
 import { ServerSeoHeadContext } from '../src/utils/ssr-seo-head';
 
-const state = vi.hoisted(() => ({ language: 'en', slug: 'fixture-radio' }));
+const state = vi.hoisted(() => ({
+  language: 'en', slug: 'fixture-radio', playStation: vi.fn(),
+  similar: [] as Record<string, unknown>[], country: [] as Record<string, unknown>[],
+}));
 vi.mock('@/hooks/useSeoRouting', () => ({ useSeoRouting: () => ({
   cleanPath: `/station/${state.slug}`, currentLanguage: state.language,
   getLocalizedUrl: (path: string) => `/${state.language}${path}`, navigateWithLanguage: vi.fn(),
@@ -20,12 +23,13 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => ({
   currentStation: null, isPlaying: false, stationMeta: null, hasError: false,
-  playStation: vi.fn(), pauseStation: vi.fn(), stopStation: vi.fn(),
+  playStation: state.playStation, pauseStation: vi.fn(), stopStation: vi.fn(),
 }) }));
 vi.mock('@/hooks/useStationRatings', () => ({ useStationRatings: () => ({ statsStatus: 'ready' }) }));
 vi.mock('@/hooks/useStationRelatedStations', async importOriginal => ({
   ...await importOriginal<typeof import('../src/hooks/useStationRelatedStations')>(),
-  useStationRelatedStations: () => ({ allSimilarStations: [], allCountryStations: [], countryStationsTotal: 0 }),
+  useStationRelatedStations: () => ({ allSimilarStations: state.similar,
+    allCountryStations: state.country, countryStationsTotal: state.country.length }),
 }));
 vi.mock('@/components/RouteBreadcrumbs', () => ({ useBreadcrumbLastItemName: vi.fn() }));
 vi.mock('@/components/star-rating', () => ({ StarRating: () => null }));
@@ -43,6 +47,7 @@ let fail: (error: Error) => void;
 
 beforeEach(() => {
   state.language = 'en'; state.slug = seed.slug;
+  state.similar = []; state.country = []; state.playStation.mockReset();
   window.history.replaceState({}, '', '/en/station/fixture-radio');
   document.head.innerHTML = `<title>Fixture Radio live</title>
     <link rel="canonical" data-managed="seo-head" href="https://themegaradio.com/en/station/fixture-radio">
@@ -77,6 +82,49 @@ function expectArticle() {
   expect(screen.getAllByText(article)).toHaveLength(1);
   expect(screen.queryByText('Station not found.')).not.toBeInTheDocument();
 }
+
+function mountRelated(language = 'en') {
+  state.language = language;
+  state.similar = [{ _id: 'related-id', slug: 'related-jazz', name: 'Related Jazz', country: 'Austria' }];
+  state.country = [{ _id: 'country-id', name: 'Country News', country: 'Austria' }];
+  bootstrap({ ...seed, country: 'Austria' }, language);
+  mount();
+}
+
+it.each(['en', 'de', 'tr'])('keeps both related sections crawlable with localized %s links', language => {
+  mountRelated(language);
+  expect(screen.getByRole('link', { name: /Related Jazz/ })).toHaveAttribute('href', `/${language}/station/related-jazz`);
+  expect(screen.getByRole('link', { name: /Country News/ })).toHaveAttribute('href', `/${language}/station/country-id`);
+  for (const name of [/Related Jazz/, /Country News/]) {
+    expect(screen.getByRole('link', { name }).querySelector('button')).toBeNull();
+  }
+  expect(state.playStation).not.toHaveBeenCalled();
+});
+
+it('preserves ordinary link activation and independent play controls', async () => {
+  mountRelated();
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: /Related Jazz/ })); });
+  expect(state.playStation).toHaveBeenCalledWith(state.similar[0]);
+  expect(window.location.pathname).toBe('/en/station/related-jazz');
+  const countryLink = screen.getByRole('link', { name: /Country News/ });
+  const countryPlay = countryLink.parentElement!.querySelector('button')!;
+  expect(countryPlay).not.toBeNull();
+  await act(async () => { fireEvent.click(countryPlay); });
+  expect(state.playStation).toHaveBeenLastCalledWith(state.country[0]);
+  expect(window.location.pathname).toBe('/en/station/country-id');
+});
+
+it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }])(
+  'does not hijack native modified link activation %j', modifiers => {
+    mountRelated();
+    const link = screen.getByRole('link', { name: /Related Jazz/ });
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...modifiers });
+    fireEvent(link, event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(state.playStation).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/en/station/fixture-radio');
+  },
+);
 
 it('keeps the matching SSR article and head while the complete API request is slow', () => {
   bootstrap(); const head = document.head.innerHTML; mount();

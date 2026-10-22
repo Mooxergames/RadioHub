@@ -1070,8 +1070,10 @@ export default function StationDetails() {
                           alt={getStationImageAlt(similarStation, language, t)}
                         />
                       </div>
-                      <button 
+                      <Link
+                        href={getLocalizedUrl(`/station/${similarStation.slug || similarStation._id}`)}
                         onClick={(e) => {
+                          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                           e.preventDefault();
                           e.stopPropagation();
                           handleStationCardPlay(similarStation);
@@ -1096,7 +1098,7 @@ export default function StationDetails() {
                             </div>
                           )}
                         </div>
-                      </button>
+                      </Link>
                       <div className="ml-auto flex items-center gap-2">
                         {/* Favorite Button - Mobile Only - Figma: 40x40, border 1.6px, transparent bg, icon 22.4px */}
                         <div className="md:hidden">
@@ -1213,8 +1215,10 @@ export default function StationDetails() {
                           alt={getStationImageAlt(countryStation, language, t)}
                         />
                       </div>
-                      <button 
+                      <Link
+                        href={getLocalizedUrl(`/station/${countryStation.slug || countryStation._id}`)}
                         onClick={(e) => {
+                          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                           e.preventDefault();
                           e.stopPropagation();
                           handleStationCardPlay(countryStation);
@@ -1239,7 +1243,7 @@ export default function StationDetails() {
                             </div>
                           )}
                         </div>
-                      </button>
+                      </Link>
                       <div className="ml-auto flex items-center gap-2">
                         {/* Favorite Button - Mobile Only - Figma: 40x40, border 1.6px, transparent bg, icon 22.4px */}
                         <div className="md:hidden">

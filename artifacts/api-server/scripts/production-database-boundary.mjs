@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const forbiddenPackage =
-  /^(?:mongoose|mongodb(?:[-/].*)?|connect-mongo|@workspace\/legacy-migration)$/;
+  /^(?:mongoose(?:\/.*)?|mongodb(?:[-/].*)?|bson(?:\/.*)?|@mongodb-js\/.*|connect-mongo|@workspace\/legacy-migration(?:\/.*)?)$/;
 const forbiddenFile =
   /(?:^|\/)(?:mongo-schemas|db-mongo|postgres-station-sync|station-change-stream-cdc|legacy-document-codec)(?:\.[cm]?[jt]s)?$/;
 
@@ -15,7 +15,7 @@ export function isLegacyDatabaseImport(value) {
     normalized
       .split("/")
       .some((part) =>
-        /^(?:mongoose|mongodb(?:-[a-z-]+)?|connect-mongo)(?:@|$)/.test(part),
+        /^(?:mongoose|mongodb(?:-[a-z-]+)?|bson|connect-mongo)(?:@|$)/.test(part),
       ) || /(?:^|\/)legacy-migration(?:\/|$)/.test(normalized)
   );
 }

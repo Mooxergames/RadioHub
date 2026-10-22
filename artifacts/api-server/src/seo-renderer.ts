@@ -114,14 +114,6 @@ const LOCALIZED_LISTEN_LIVE: Record<string, string> = {
   hy: 'Ունկնդրեք ուղիղ առցանց', so: 'Ku dhageyso Toos ah Online', bs: 'Slušajte Uživo Online',
 };
 
-// Concurrency raised 5 → 15 → 50 → 200 → 1000 → 2500: paired with MongoDB
-// pool 100, heap 10 GB and RSS warning 7 GB on a 24 GB Railway replica to
-// absorb the largest Googlebot waves without ever returning
-// SEO_RENDER_OVERLOADED. The event-loop-lag guard below (800ms threshold)
-// is the real safety net — if the box is truly overloaded it rejects
-// automatically regardless of slot count, so a high slot ceiling is safe.
-// Timeout raised 5s → 10s: 57-language hreflang tables push borderline pages
-// over 5s during cold cache; a 10s budget keeps Googlebot from giving up.
 const SEO_RENDER_MAX_CONCURRENT = 2500;
 const SEO_RENDER_TIMEOUT_MS = 10_000;
 let seoRenderActive = 0;
@@ -859,12 +851,6 @@ export class SeoRenderer {
           }
         } catch (error: any) {
           if (error?.name === 'AbortError' || signal?.aborted) throw error;
-          // The top-stations grid uses a live (unindexed) $regex on `tags` —
-          // the 2026-05-14 pile-up pattern. Under load it can hit its 4s
-          // maxTimeMS and throw here BEFORE `popularStations` is assigned.
-          // Record that the fetch FAILED (vs genuinely returning few stations)
-          // so the genre thin-gate below does not silently de-index a curated
-          // whitelisted genre on a transient Mongo slowdown.
           if (additionalData.popularStations === undefined) {
             additionalData.popularStationsFetchFailed = true;
           }
@@ -1121,11 +1107,6 @@ export class SeoRenderer {
               // a tags+country only projection, capped at maxTimeMS
               // 3500, no impact on the popularStations grid above.
               const countryName = additionalData.regionName as string;
-              // INCIDENT 2026-05-14: SSR region cross-link Station.find
-              // disabled — same pile-up root cause as the genres branch
-              // above. Falls back to the (already-loaded) indexable
-              // stations slice which keeps cross-links non-empty without
-              // a fresh Mongo round-trip.
               const genreSample: Array<{ tags?: any }> = countryName
                 ? (indexableStations as any[])
                 : [];
@@ -1402,10 +1383,6 @@ export class SeoRenderer {
     //      whole template on Google's low-quality list.
     if (pageType === 'genres' && additionalData?.genreSlug) {
       const popularStations = (additionalData?.popularStations as any[] | undefined) || [];
-      // If the top-stations fetch FAILED (transient Mongo timeout), an empty
-      // grid is not evidence the genre is thin — do not de-index a curated
-      // whitelisted genre over a blip. A not-whitelisted genre is still caught
-      // by `genreNotWhitelisted` below, so this only protects trusted genres.
       const fetchFailed = additionalData.popularStationsFetchFailed === true;
       // Prefer the authoritative Genre.stationCount (the exact value the sitemap
       // used to decide whether to publish this URL) so SSR and sitemap agree —
@@ -1438,22 +1415,6 @@ export class SeoRenderer {
         additionalData.notFound = true;
       }
     }
-    // -----------------------------------------------------------------------
-    // ---- Station cross-link fetch (architect P0, GEO + crawl) ------------
-    // Server-render up to three "Discover more" sections in the station body
-    // so AI bots / one-shot crawlers / Googlebot's first pass all see crawl
-    // edges to neighbouring entities WITHOUT needing the React app to
-    // hydrate. Sections:
-    //   • Similar in <country>   (8, sorted by votes)
-    //   • More <primary genre>   (8, sorted by votes)
-    //   • Stations in <state>    (6, only when stationData.state present)
-    // Skipped when the station itself is noindex/junk/not-found (avoids
-    // bleeding crawl budget into a page Google is already supposed to drop).
-    // Each list is junk/noIndex-filtered (mirrors the sitemap manifest's
-    // own filter at sitemap-manifest-builder.ts:553 — junk pages must NOT
-    // be advertised anywhere indexable). All three queries run in parallel
-    // with a hard 4s budget so SSR latency cannot regress when Mongo is
-    // slow; partial / empty results just hide the corresponding section.
     if (
       pageType === 'station' &&
       stationData &&
@@ -1487,44 +1448,6 @@ export class SeoRenderer {
         if (selfId) baseFilter._id = { $ne: selfId };
         const projection = 'name slug favicon logoAssets country tags votes';
 
-        // INCIDENT 2026-05-14: all three station-page SSR cross-link queries
-        // were disabled because three CONCURRENT unindexed/regex Station.find
-        // calls per request stacked under load and pile-up timed out the SSR
-        // pipeline ("Sender wird geladen…" hang).
-        //
-        // RE-ENABLED 2026-06-20 — COUNTRY ONLY: the same-country query is now
-        // safe because (a) it runs ALONE (not concurrently with two siblings),
-        // (b) it is fully covered by the existing
-        // `{ country: 1, lastCheckOk: 1, votes: -1 }` index (mongo-schemas.ts),
-        // and (c) `withSignal` caps it at maxTimeMS so it can never hang the
-        // pipeline — a slow/aborted query just yields an empty section.
-        // Re-enabling this gives every station page 8 server-rendered internal
-        // links to neighbouring stations, fixing the "0 outbound links →
-        // thin/orphaned" signal that parked ~382K pages in GSC's
-        // "Crawled - currently not indexed" bucket.
-        //
-        // GENRE remains disabled ON PURPOSE: the genre query needs a
-        // contains-`$regex` over the comma-joined `tags` string (see line ~642),
-        // which a btree index cannot accelerate. It stays off until backed by
-        // a precomputed cache.
-        //
-        // CITY RE-ENABLED 2026-07-03: the original disable reason ("no state
-        // index") no longer holds — `StationSchema.index({ state: 1 },
-        // { sparse: true })` exists (mongo-schemas.ts ~4022, added for the
-        // US/CA state region pages). The query below is an exact-equality
-        // match on that indexed field (NO regex), withSignal-capped, and
-        // soft-fails to [] — none of the 2026-05-14 incident ingredients.
-        //
-        // PUBLISHER ADDED 2026-07-03 (radio.at parity, "Zugehörige Sender"):
-        // sister channels of the same brand (e.g. "kronehit", "kronehit
-        // dance"). Matched via a CASE-SENSITIVE ANCHORED PREFIX regex on the
-        // indexed `name` field — Mongo turns `^literal` case-sensitive
-        // regexes into a btree range scan on `{ name: 1 }` (docs: "prefix
-        // expressions"), so unlike the incident queries this IS
-        // index-covered. Case-insensitive or unanchored variants would NOT
-        // be; do not "improve" this into `$options: 'i'`. Generic first
-        // tokens ("Radio …", "FM …") are blacklisted so we never fan out a
-        // pseudo-family of thousands of unrelated "Radio X" stations.
         const sameCountryQ: Promise<any[]> = country
           ? withSignal<any[]>(
               pgSeoCatalog().find({ ...baseFilter, country }, { sort: { votes: -1 }, limit: 8 }),
@@ -1601,7 +1524,7 @@ export class SeoRenderer {
       } catch (e: any) {
         if (e?.name === 'AbortError' || signal?.aborted) throw e;
         // Non-fatal — render the page without cross-link sections rather
-        // than 500'ing on a Mongo glitch. The base nav still renders.
+        // than failing on a transient database error. The base nav still renders.
       }
     }
 
@@ -3340,25 +3263,6 @@ export class SeoRenderer {
         const stationLogoRaw =
           station.logoAssets?.webp256 || station.logoAssets?.webp96 || station.favicon || '';
         const stationLogo = /^https?:\/\//i.test(stationLogoRaw) ? stationLogoRaw : null;
-        // 2026-05-12 SEO audit: every nested item in this ItemList was
-        // emitting a full RadioStation entity, and Google evaluates each
-        // one against LocalBusiness's required-field list (RadioStation
-        // inherits from LocalBusiness > Organization). Missing `address`
-        // and (when station.tags was empty) `genre` produced the "2 fields:
-        // address, genre" error reported on every list page (12 stations
-        // × ~15 list pages = ~180 hits per crawl, repeating for ~10 list
-        // pages × all languages). We now:
-        //   1. Emit a PostalAddress with the country (or country code) so
-        //      the LocalBusiness `address` requirement is satisfied.
-        //   2. Drop the `genre` key entirely when there are no tags
-        //      instead of emitting an empty array (Google treats `[]` as
-        //      "empty required field" rather than "absent optional field").
-        // Tags can arrive as `string[]` (Mongoose lean projection sometimes
-        // pre-splits) OR as a comma-separated `string` (canonical schema —
-        // see lib/db-shared/src/mongo-schemas.ts → IStation.tags). Earlier
-        // revision only handled the array case, so any station with a
-        // string tags field would still trip Semrush's "missing genre"
-        // check. Normalise both shapes here.
         const rawTags: any = station.tags;
         const stationGenres: string[] = (Array.isArray(rawTags)
           ? rawTags

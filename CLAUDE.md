@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## CRITICAL WORKFLOW RULE — Always open a PR after every push
 
 After **every** `git push`, immediately:
-1. Check if an open PR exists for the branch: `mcp__github__list_pull_requests` with `state: open` and `head: evolutionphil:<branch>`
+1. Check if an open PR exists for the branch, using the actual `origin` owner and current branch.
 2. If **no open PR exists** → create one immediately with `mcp__github__create_pull_request` (draft is fine)
 3. Never skip this step, even if the branch already had a PR that was merged — a new push always needs a new PR
 
@@ -20,7 +20,7 @@ Railway deploys from `main`. Changes only reach production when a PR is merged. 
 
 ## Project Overview
 
-MegaRadio is a full-stack radio streaming platform organized as a **pnpm workspace monorepo**. The backend is an Express 5 API server backed by MongoDB; the frontend is a React SPA built with Vite. Both are deployed as separate Docker containers behind a shared reverse proxy.
+MegaRadio is a full-stack radio streaming platform organized as a **pnpm workspace monorepo**. The backend is an Express 5 API server backed exclusively by PostgreSQL; the frontend is a React 19.1 SPA built with Vite. Both are deployed as separate Docker containers behind a shared reverse proxy. Use Node.js 24 and pnpm 11.28.1.
 
 ## Commands
 
@@ -32,14 +32,14 @@ pnpm install
 **Run individual apps:**
 ```sh
 pnpm --filter @workspace/api-server run dev      # Build + start API server (port 8080)
-pnpm --filter @workspace/megaradio run dev        # Vite dev server (port 22507)
+PORT=22507 BASE_PATH=/ pnpm --filter @workspace/megaradio run dev
 ```
 
 **Build:**
 ```sh
 pnpm run build                                    # typecheck → per-package builds → tests (full CI)
 pnpm --filter @workspace/api-server run build     # esbuild bundle → dist/index.mjs
-pnpm --filter @workspace/megaradio run build      # Vite → dist/public/
+PORT=22507 BASE_PATH=/ pnpm --filter @workspace/megaradio run build
 ```
 
 **Typecheck:**
@@ -78,8 +78,8 @@ artifacts/
 lib/
   api-client-react/ TanStack Query helpers + generated typed API client (@workspace/api-client-react)
   api-zod/          Shared Zod request/response schemas (@workspace/api-zod)
-  db/               Drizzle ORM + PostgreSQL (future; not the primary DB)
-  db-shared/        Mongoose models + cross-app TS types (@workspace/db-shared)
+  db/               Native PostgreSQL schema and immutable SQL migration history
+  db-shared/        Cross-app TS types and Zod validation (@workspace/db-shared)
   seo-shared/       All SEO templates, URL translations, FAQs, seo-config (@workspace/seo-shared)
 scripts/            Workspace-level utility scripts
 ```
@@ -101,13 +101,13 @@ scripts/            Workspace-level utility scripts
 - L2: Redis (optional, keyed by `REDIS_URL`)
 - `CacheManager.getOrSetSingleFlight(key, loader, opts)` coalesces concurrent cold-miss requests into a single upstream call — always use this on hot read paths.
 
-**MongoDB** is the primary database (`MONGODB_URI`). Mongoose models are in `lib/db-shared/src/mongo-schemas.ts`. Every `Station.aggregate(...)` **must** chain `.option({ maxTimeMS: 15000, allowDiskUse: true })` — the Atlas M10 enforces a 32 MB sort limit and will throw code 292 without `allowDiskUse`.
+**PostgreSQL** is the only application database (`DATABASE_URL`). Native stores live in `src/data/postgres-*.ts`; use parameterized SQL, bounded pagination, transactions and the dedicated coordination pool for leader locks. Run the guarded schema installer at startup. Never edit an already-applied SQL migration or erase historical migration/authority evidence. Restore backups into isolated PostgreSQL databases, not over a running installation.
 
 **SSR / SEO rendering** (`src/seo-renderer.ts`) — the API server injects language-specific `<title>`, `<meta>`, structured data, and `window.__INITIAL_TRANSLATIONS__` into `index.html` before serving it to crawlers. `@workspace/seo-shared` owns all copy; `src/seo/load-database-mappings.ts` hydrates the shared module with DB-sourced URL translations and country mappings at startup.
 
 **Scheduled jobs** live in `src/services/scheduled-*.ts` and are registered in `routes.ts`. Off-peak cron schedule (all Europe/Berlin): TV/Mobile at 2 AM, Genres at 5 AM, Popular at 6:30 AM. **Boot-time warmup is intentionally absent** — caches fill lazily on first organic request (see "Lazy cache fill" in `replit.md`).
 
-**Auth** — `requireAuth` / `requireAdmin` middleware in `src/middleware/auth.ts` accepts either a session cookie (`express-session` backed by `connect-mongo`) or a `Bearer <token>` header checked against the `AuthToken` Mongoose collection. Social logins (Google, Facebook) go through `src/auth/passport-config.ts`. Every auth attempt is logged via `logAuthEvent()` in `src/auth/auth-event-logger.ts` (persists to `auth_event_logs` collection with 30-day TTL).
+**Auth** — `requireAuth` / `requireAdmin` middleware accepts a PostgreSQL-backed session cookie or a bearer token from the native token store. Social logins go through `src/auth/passport-config.ts`. `logAuthEvent()` persists the login audit trail in PostgreSQL. Never log passwords or complete credentials.
 
 **Express 5 syntax** — use `/*path` for wildcards (not `/*`) and `{:param}` for optional params (not `:param?`).
 
@@ -127,37 +127,19 @@ scripts/            Workspace-level utility scripts
 
 | Package | Import path | Purpose |
 |---|---|---|
-| `@workspace/db-shared/mongo-schemas` | server-only runtime | Mongoose models + TS interfaces |
+| `@workspace/db/schema` | server-only | PostgreSQL table definitions |
 | `@workspace/db-shared/schema` | server + client | Zod auth/station validators, `StationWithCountry` type |
 | `@workspace/seo-shared/<module>` | server + client | SEO templates, URL translations, FAQ, seo-config |
 | `@workspace/api-client-react` | client only | TanStack Query hooks over the typed API |
 | `@workspace/api-zod` | server + client | Shared Zod schemas for API request/response |
 
-**Do not import Mongoose or `@workspace/db-shared/mongo-schemas` from the frontend** — it pulls in Node.js-only deps.
+**Do not import server database stores from the frontend.** Client code uses the shared types and API.
 
 ## Key Conventions
 
-### MongoDB `.hint()` discipline
-
-Every `.hint('index_name')` call **must** be preceded within 5 lines by a comment:
-```ts
-// HINT-VERIFIED YYYY-MM-DD - <index_name>
-```
-The CI guard `tests/hint-discipline.test.ts` greps the source and fails the build if this comment is missing. Before adding a hint, verify the index is present and not hidden via `$indexStats`. If in doubt, omit the hint entirely — the planner is faster than a silent 500 (BadValue code 2).
-
-Any hinted query **must** also catch `error.code === 2` and retry unhinted:
-```ts
-try {
-  for await (const doc of cursor.hint('idx')) { ... }
-} catch (err: any) {
-  if (err.code === 2) { /* retry without hint */ }
-  else throw err;
-}
-```
-
 ### Public read endpoints must soft-fail
 
-All public read routes (`/api/stations/*`, `/api/genres/*`, `/api/regions/*`) must catch errors and return a 200 with a stale-cache fallback or an empty-but-shape-correct payload with `Cache-Control: no-store`. A 500 breaks SSR pages for organic visitors.
+Public reads may reuse valid stale data on transient failure. Preserve genuine 404/410 responses and return retryable 503/no-store when no valid sitemap or page data is available. Never cache an error as a successful empty index or invent a successful page that hides an outage.
 
 ### Adding a new SEO language
 
@@ -172,7 +154,7 @@ All public read routes (`/api/stations/*`, `/api/genres/*`, `/api/regions/*`) mu
 ### Shared code location
 
 - SEO/FAQ shared modules → `lib/seo-shared` (never duplicate under `artifacts/*/src/shared/`)
-- Mongoose models + cross-app types → `lib/db-shared`
+- Database schemas → `lib/db`; shared TS/Zod types → `lib/db-shared`
 - Cache loaders that call DB and populate `seo-shared` in-memory stores → `artifacts/api-server/src/seo/load-database-mappings.ts`
 
 ## Environment Variables
@@ -180,7 +162,8 @@ All public read routes (`/api/stations/*`, `/api/genres/*`, `/api/regions/*`) mu
 | Variable | Where used | Notes |
 |---|---|---|
 | `PORT` | api-server, web-server | Default 5000 (api), 3000 (web) |
-| `MONGODB_URI` | api-server | Falls back to `DATABASE_URL` then `mongodb://localhost:27017/mega` |
+| `DATABASE_URL` | api-server, web-server | Required PostgreSQL connection string |
+| `POSTGRES_SSL` | api-server, web-server | Verified TLS by default; disable only for a deliberate local fixture |
 | `REDIS_URL` | api-server | Optional; in-memory cache used if absent |
 | `SESSION_SECRET` | api-server | Required in production |
 | `VITE_API_BASE_URL` | megaradio build | Override API host for split deployment |

@@ -1,0 +1,314 @@
+{
+  "checkedAt": "2026-10-22T16:29:33.092Z",
+  "summary": {
+    "count": 45,
+    "passed": 45
+  },
+  "results": [
+    {
+      "name": "service-health",
+      "ok": true,
+      "path": "/healthz",
+      "status": 200
+    },
+    {
+      "name": "service-health",
+      "ok": true,
+      "path": "https://api.themegaradio.com/healthz",
+      "status": 200
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/kronehit",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/orf-radio-wien",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/fm4-orf",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/orf-hitradio-o3-hq",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/o1-orf-hq",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/orf-radio-niederosterreich-hq",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/radio-vorarlberg",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/orf-tirol-hq",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/orf-radio-steiermark-hq",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/orf-radio-karnten",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/kral-fm",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/virgin-radio-turkiye",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/metro-fm",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/power-pop",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/ntv-radyo",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/alem-fm",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/a-haber",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/radyo-fenomen",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/radyo-seymen",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-http-header",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/joy-turk-turkey",
+      "status": 200,
+      "xRobots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "pilot-xml",
+      "ok": true,
+      "path": "/sitemap-pilot-en-at.xml",
+      "status": 200,
+      "count": 10,
+      "etag": "W/\"7925b9b286b2ec02beb53cf023444b6a7202d99afc4d197d89c1e9c73abc09ee\""
+    },
+    {
+      "name": "pilot-conditional",
+      "ok": true,
+      "path": "/sitemap-pilot-en-at.xml",
+      "status": 304
+    },
+    {
+      "name": "pilot-xml",
+      "ok": true,
+      "path": "/sitemap-pilot-en-tr.xml",
+      "status": 200,
+      "count": 10,
+      "etag": "W/\"daba53409a6c109fad85ef084071c6d7350ab9b0144618b1b5e89851c19efc45\""
+    },
+    {
+      "name": "pilot-conditional",
+      "ok": true,
+      "path": "/sitemap-pilot-en-tr.xml",
+      "status": 304
+    },
+    {
+      "name": "pilot-discovery",
+      "ok": true,
+      "path": "/sitemap.xml",
+      "status": 200,
+      "count": 115
+    },
+    {
+      "name": "pilot-discovery",
+      "ok": true,
+      "path": "/sitemap-index.xml",
+      "status": 200,
+      "count": 115
+    },
+    {
+      "name": "pilot-discovery",
+      "ok": true,
+      "path": "/sitemap-en.xml",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "name": "honest-freshness",
+      "ok": true,
+      "path": "/sitemap-main-en.xml",
+      "status": 200,
+      "count": 73
+    },
+    {
+      "name": "honest-freshness",
+      "ok": true,
+      "path": "https://themegaradio.com/sitemap-stations-en-1.xml",
+      "status": 200,
+      "count": 10000
+    },
+    {
+      "name": "station-child-discovered",
+      "ok": true,
+      "path": "https://themegaradio.com/sitemap-stations-en-1.xml"
+    },
+    {
+      "name": "necessary-single-redirect",
+      "ok": true,
+      "path": "/en/regions/asia/austria?utm_source=release-check",
+      "status": 301,
+      "location": "/en/regions/europe/austria?utm_source=release-check"
+    },
+    {
+      "name": "redirect-target",
+      "ok": true,
+      "path": "https://themegaradio.com/en/regions/europe/austria?utm_source=release-check",
+      "status": 200
+    },
+    {
+      "name": "necessary-single-redirect",
+      "ok": true,
+      "path": "/ar/station/psy-trance",
+      "status": 301,
+      "location": "/ar/mahta/psy-trance"
+    },
+    {
+      "name": "redirect-target",
+      "ok": true,
+      "path": "https://themegaradio.com/ar/mahta/psy-trance",
+      "status": 200
+    },
+    {
+      "name": "necessary-single-redirect",
+      "ok": true,
+      "path": "http://themegaradio.com/en/station/kronehit",
+      "status": 301,
+      "location": "https://themegaradio.com/en/station/kronehit"
+    },
+    {
+      "name": "redirect-target",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/kronehit",
+      "status": 200
+    },
+    {
+      "name": "necessary-single-redirect",
+      "ok": true,
+      "path": "https://www.themegaradio.com/en/station/kronehit",
+      "status": 301,
+      "location": "https://themegaradio.com/en/station/kronehit"
+    },
+    {
+      "name": "redirect-target",
+      "ok": true,
+      "path": "https://themegaradio.com/en/station/kronehit",
+      "status": 200
+    },
+    {
+      "name": "unknown-real-404",
+      "ok": true,
+      "path": "/en/does-not-exist-release-check-20261022",
+      "method": "GET",
+      "status": 404
+    },
+    {
+      "name": "unknown-real-404",
+      "ok": true,
+      "path": "/en/does-not-exist-release-check-20261022",
+      "method": "HEAD",
+      "status": 404
+    },
+    {
+      "name": "early-asset-recovery",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "main-asset",
+      "ok": true,
+      "path": "https://themegaradio.com/assets/index-DBqqP59R.css",
+      "status": 200,
+      "type": "text/css; charset=utf-8"
+    },
+    {
+      "name": "main-asset",
+      "ok": true,
+      "path": "https://themegaradio.com/assets/index-D7z9tbFK.js",
+      "status": 200,
+      "type": "text/javascript; charset=utf-8"
+    }
+  ]
+}

@@ -35,19 +35,6 @@ function parseDate(v: any): Date | null {
 }
 export function registerAdminIapRoutes(app: Express, deps: any) {
     const { requireAdmin } = deps;
-    // -------------------------------------------------------------
-    // GET /api/admin/iap-events
-    // Filtered, paginated list of IAP audit events.
-    // Query params:
-    //   - userId          ObjectId
-    //   - email           User email (resolved → userId)
-    //   - result          one of IapEventResult
-    //   - platform        ios|android|unknown
-    //   - productId       string match
-    //   - originalTransactionId  string match
-    //   - from, to        ISO date range (createdAt)
-    //   - page (1-based), limit (1..100)
-    // -------------------------------------------------------------
     app.get("/api/admin/iap-events", requireAdmin, async (req: Request, res: Response) => {
         try {
             const page = clampInt(req.query.page, 1, 10000, 1);

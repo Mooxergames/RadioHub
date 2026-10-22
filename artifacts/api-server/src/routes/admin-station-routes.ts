@@ -1868,8 +1868,6 @@ export function registerAdminStationRoutes(app: Express, deps: RouteDeps) {
         let matched = 0;
         if (isFilterMode) {
           matched = filterModeIds.length;
-          // Chunk the $unset to keep each Mongo command well below the
-          // 16MB BSON limit on huge result sets.
           const updateChunkSize = 5000;
           for (let i = 0; i < filterModeIds.length; i += updateChunkSize) {
             const chunk = filterModeIds.slice(i, i + updateChunkSize);
@@ -2193,11 +2191,6 @@ export function registerAdminStationRoutes(app: Express, deps: RouteDeps) {
     },
   );
 
-  // COVERAGE BY COUNTRY — admin diagnostic that surfaces which markets are
-  // dragging down indexing quality. Returns one row per countryCode with
-  // total stations + how many have a completed `logoAssets` record + how
-  // many have a non-empty `tags` field. Designed to replace the ad-hoc
-  // Mongo aggregations admins were running by hand to find regressions.
   app.get(
     '/api/admin/coverage/by-country',
     requireAdmin,
@@ -2238,15 +2231,6 @@ export function registerAdminStationRoutes(app: Express, deps: RouteDeps) {
     },
   );
 
-  // COVERAGE BACKFILL BOOT STATUS (Task #232) — surface the outcome of
-  // the first-deploy historical backfill (`services/coverage-backfill-on-boot.ts`)
-  // so admins can tell from the UI whether the seeder ran on the current
-  // deploy, when, how many rows it inserted, and whether it failed —
-  // without having to dig through stdout. The status doc is a singleton
-  // updated by the boot service; we just read it back. Returns
-  // `{ status: null }` when the seeder has never run on any boot
-  // observed by this Mongo (e.g. fresh DB), so the UI can show "no
-  // boot run recorded yet" instead of an error.
   app.get(
     '/api/admin/coverage/backfill-status',
     requireAdmin,

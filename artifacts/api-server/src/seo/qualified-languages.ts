@@ -78,19 +78,6 @@ const DRIFT_FLAP_THRESHOLD = 3;               // 3+ SIGNIFICANT changes/hour = f
 // matching the old 10-min TTL.)
 const DRIFT_SIGNIFICANT_DELTA_RATIO = 0.05;   // 5% of total active langs
 
-/** Emergency seed used ONLY by `seedQualifiedLanguagesLkg()` when the DB has
- * never been populated. Never used at runtime as a silent fallback. */
-// CORRECTION (2026-05-09): the previous "14 AI-translated languages" seed
-// confused two different layers:
-//   • UI/page translations (REQUIRED_*_SEO_KEYS) live across all 57 enabled
-//     SEO_LANGUAGES — driven by `Translation` collection in Mongo.
-//   • Station-level meta (title/description/full per radio) is AI-translated
-//     into 14 languages — that lives in `junk-station-rules.UNIVERSAL_LANGUAGES`
-//     and gates per-station hreflang variants, NOT the qualified-languages set.
-// Qualified languages should track UI completeness (whatever subset of the 57
-// has full UI translations in Mongo). The seed here only fires when the DB
-// is COMPLETELY empty — using the full enabled list maximises safety so a
-// fresh boot does not accidentally trim sitemap coverage.
 export const EMERGENCY_SEED_QUALIFIED_LANGUAGES: readonly string[] =
   Object.freeze([...(ACTIVE_SITEMAP_LANGUAGES as unknown as string[])].sort());
 
@@ -163,14 +150,6 @@ function recordDrift(newHash: string, newLanguages: readonly string[]): void {
   lastLanguages = [...newLanguages];
 }
 
-/**
- * Loads a single language's translation map directly from MongoDB. Used as a
- * fallback when `performanceCache.getTranslations(lang)` returns null because
- * the warmup only preloads 10 critical languages — every other language was
- * silently treated as "not qualified" before this DB-backed fallback existed,
- * which is why production logs showed `live compute returned 0; serving LKG`
- * and `computed=10 < LKG=50 × 0.5` over and over (INCIDENT 2026-05-15).
- */
 async function loadTranslationsFromDb(
   lang: string,
 ): Promise<Record<string, string> | null> {
@@ -250,11 +229,6 @@ async function computeFromTranslations(): Promise<string[]> {
     return withGuaranteedLanguages(qualified);
   }
 
-  // PASS 2: bounded-concurrency DB fallback for misses. INCIDENT 2026-05-15:
-  // 50 sequential `Translation.find().populate()` calls during boot starved
-  // the Mongoose pool while other warmups were in flight. A small concurrency
-  // window (4) lets the DB fallback finish quickly without monopolising the
-  // pool — each query yields after issuing so other consumers can interleave.
   const CONCURRENCY = 4;
   let cursor = 0;
   let dbFallbacks = 0;
@@ -465,21 +439,6 @@ export async function invalidateQualifiedLanguages(opts: { resetLkg?: boolean } 
   lastLanguages = null;
   driftHistory = [];
   if (opts.resetLkg) {
-    // ARCHITECT FIX (2026-05-10): SAFE LKG RESET. The previous behaviour
-    // unconditionally `deleteOne()`'d the LKG BEFORE recomputing. If the
-    // subsequent `computeFromTranslations()` returned 0 (cold translation
-    // cache, transient Mongo error, etc.), `getQualifiedLanguagesState()`
-    // would throw `QualifiedLanguagesUnavailableError` → manifest-builder
-    // ABORTS → /sitemap-stations-*.xml stays frozen forever (observed in
-    // 2026-05-10 prod logs after the admin clicked "Sitemap'i Yenile").
-    //
-    // New behaviour: compute fresh languages FIRST, and only overwrite the
-    // LKG when the compute succeeds. If compute returns 0, leave the
-    // existing LKG intact so the shrink-protection guard can still serve it
-    // and the manifest rebuild can keep working. The shrink-protection
-    // bypass (the original purpose of resetLkg) still works because the
-    // freshly persisted LKG REPLACES the old one in-place — the old large
-    // list never gets a chance to win the shrink-comparison.
     const fresh = await computeFromTranslations();
     if (fresh.length > 0) {
       const hash = hashLanguages(fresh);
@@ -496,28 +455,6 @@ export async function invalidateQualifiedLanguages(opts: { resetLkg?: boolean } 
   }
 }
 
-/**
- * Server-boot warm-up. Computes once, persists LKG, caches in memory. If
- * neither compute nor LKG produces a result, seeds the LKG with the
- * EMERGENCY_SEED so subsequent requests have a non-empty fallback.
- *
- * Call this BEFORE registering public sitemap routes (or before accepting
- * the first request). Returns the resulting state for logging.
- *
- * INCIDENT 2026-05-15 v2: previously this called `getQualifiedLanguagesState()`
- * which ran the full live compute (50 sequential `Translation.find()` queries
- * via the new DB fallback) at the same moment as similar-stations warmup,
- * filters/languages aggregation, popular-stations warmup, hasLogo migration,
- * and seo-health-stats. The combined load saturated the (intentionally small)
- * Mongoose pool and tripped `waitQueueTimeoutMS=5000` repeatedly, cascading
- * into "MongoNetworkTimeoutError" / "operation exceeded time limit" errors
- * for ~90 seconds after boot.
- *
- * New behaviour: at boot we PREFER the persisted LKG (one cheap `findOne`)
- * and prime the in-memory cache from it. The next user request that survives
- * past the in-memory TTL will trigger the live compute organically — by then
- * the warmup storm has subsided and the DB fallback is cheap.
- */
 export async function initializeQualifiedLanguages(): Promise<QualifiedLanguagesState> {
   // Fast-path: serve from LKG without touching Translation collection.
   try {

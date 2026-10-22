@@ -37,11 +37,6 @@ import {
 export const STALE_PROCESSING_MS = 60 * 60 * 1000; // 1h: matches cron
 export const TAGS_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000; // 30d: matches sync
 
-// Bounded auto-retry for transient failures (Mongo hiccup, upstream
-// radio-browser timeout, etc). Most weekly failures clear on a second
-// attempt a few minutes later, so we retry before paging the team.
-// Overridable via env so ops can tune without a redeploy and tests can
-// drop the backoff to ~zero.
 export const BACKFILL_MAX_ATTEMPTS: number = Math.max(
   1,
   Number.parseInt(process.env.BACKFILL_MAX_ATTEMPTS ?? '', 10) || 3,
@@ -195,9 +190,6 @@ export function getEnvBackfillRetention(): {
   };
 }
 
-// How many sample station ids/slugs to persist per country per phase
-// (Task #234). Capped so a single BackfillRun row stays well under
-// Mongo's 16MB limit even for the worst markets.
 export const BACKFILL_SAMPLE_STATIONS_PER_COUNTRY: number = Math.max(
   0,
   Number.parseInt(process.env.BACKFILL_SAMPLE_STATIONS_PER_COUNTRY ?? '', 10) || 50,
@@ -221,19 +213,6 @@ async function sampleStationsForFilter(
   }
 }
 
-/**
- * Drop BackfillRun rows that fall outside the retention window. Best-
- * effort: any error is logged and swallowed so a transient Mongo blip
- * never poisons the sweep that just finished.
- *
- * Two passes:
- *   1. Delete rows older than `BACKFILL_RETENTION_DAYS`.
- *   2. Find the `startedAt` of the Nth-newest row (where N =
- *      `BACKFILL_RETENTION_MAX_ROWS`) and delete anything strictly
- *      older than that. This caps total row count even if the time
- *      bound alone would let more through (e.g. heavy manual usage in
- *      a short window).
- */
 export async function pruneOldBackfillRuns(): Promise<{ removed: number }> { const {days,maxRows}=await resolveBackfillRetentionSettings();return pgCoverage().pruneRuns(days,maxRows); }
 
 export function buildLogoBackfillFilter(
@@ -378,10 +357,6 @@ export async function detectBackfillPhaseSlowdowns(
   if (targets.length === 0) return [];
 
   try {
-    // One Mongo query: pull the recent completed runs once, then
-    // bucket their per-country phase timings client-side. Cheaper
-    // than an aggregation per (country, phase) target on top of a
-    // collection capped at a few hundred rows by the retention sweep.
     type HistoryRow = {
       _id: unknown;
       logos?: Array<{ countryCode?: string; durationMs?: number }>;
@@ -703,14 +678,6 @@ class ScheduledBackfillService {
     }
   }
 
-  /**
-   * Single attempt at the cross-country sweep. Throws on infrastructure
-   * failure (Mongo aggregate / save) so the caller can decide whether to
-   * retry. Per-country errors are still swallowed inside the loops — a
-   * single bad country shouldn't fail the whole sweep — only the
-   * top-offender aggregations and overall control flow surface as
-   * retry-worthy errors here.
-   */
   private async performSweep(
     run: IBackfillRun,
     overrideCountry?: string,

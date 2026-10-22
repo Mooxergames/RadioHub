@@ -20,13 +20,10 @@
     "cleanup:genre-slugs": "tsx src/scripts/cleanup-malformed-genre-slugs.ts",
     "cleanup:junk-genres": "tsx src/scripts/cleanup-junk-genres.ts",
     "indexnow:task-152": "tsx src/scripts/indexnow-resubmit-task-152.ts",
-    "db:migrate:postgres": "pnpm --filter @workspace/legacy-migration migrate",
     "db:schema:postgres": "node scripts/apply-postgres-migrations.mjs",
     "db:verify:postgres:integration": "node scripts/verify-postgres-integration.mjs",
-    "db:verify:postgres": "pnpm --filter @workspace/legacy-migration verify",
     "test:postgres-migration": "tsx --experimental-test-module-mocks --test --test-concurrency=4 --test-timeout=90000 tests/postgres*.test.ts",
     "test:seo": "tsx --test test/seo-soft-404.test.ts",
-    "test:legacy": "node scripts/run-legacy-tests.mjs",
     "verify:production-database": "node scripts/production-database-boundary.mjs"
   },
   "dependencies": {
@@ -73,7 +70,6 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
-    "@workspace/legacy-migration": "workspace:*",
     "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",

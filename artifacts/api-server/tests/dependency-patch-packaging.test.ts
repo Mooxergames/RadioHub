@@ -12,7 +12,7 @@ test('production build contexts include the frontend manifest that owns the work
   assert.match(workspace, /patchedDependencies:\s+['"]?@radix-ui\/react-select@/);
   assert.ok(frontend.devDependencies['@radix-ui/react-select']);
 
-  for (const service of ['api', 'web', 'proxy', 'migration']) {
+  for (const service of ['api', 'web', 'proxy']) {
     const docker = read(`Dockerfile.${service}`);
     const install = docker.search(/^RUN pnpm install --frozen-lockfile\b/m);
     assert.ok(install >= 0, `${service} must install from the frozen workspace lockfile`);
@@ -26,7 +26,7 @@ test('production build contexts include the frontend manifest that owns the work
   }
 });
 
-for (const service of ['api', 'web', 'proxy', 'migration']) {
+for (const service of ['api', 'web', 'proxy']) {
   test(`${service} frozen install includes manifest-only applications without their sources`, () => {
     const docker = read(`Dockerfile.${service}`);
     const install = docker.search(/^RUN pnpm install --frozen-lockfile\b/m);

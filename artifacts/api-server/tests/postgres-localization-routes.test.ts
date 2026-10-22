@@ -19,8 +19,6 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
   let server: Server;
   let baseUrl: string;
   let schemaCreated = false;
-  let mongoQueries = 0;
-  const forbiddenMongo = new Proxy({}, { get: () => () => { mongoQueries++; throw new Error('MongoDB query in PostgreSQL localization mode'); } });
 
   before(async () => {
     assert.match(schema, /^localization_http_\d+_[a-f0-9]{12}$/);
@@ -31,10 +29,6 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
       await pool.query(await readFile(path.join(migrations, file), 'utf8'));
     }
     mock.module('../src/data/postgres-localization-store', { namedExports: { localizationStore: 'postgres', pgLocalization: () => store } });
-    mock.module('@workspace/legacy-migration/mongo-schemas', { namedExports: {
-      TranslationKey: forbiddenMongo, Translation: forbiddenMongo, TranslationLanguage: forbiddenMongo,
-      TranslationMetadata: forbiddenMongo, CountryLanguageMapping: forbiddenMongo, ClearedOverridesAuditLog: forbiddenMongo,
-    } });
     const cache = { clearByPattern: async () => 0, del: async () => {} };
     mock.module('../src/cache', { defaultExport: cache, namedExports: { CacheManager: cache } });
     mock.module('../src/performance-cache', { namedExports: { performanceCache: { clearCountryLanguageMappings: () => {}, getCountryLanguageMappings: async () => new Map((await store.getCountryLanguageMappings()).map((row) => [row.countryCode, row.languageCode])) } } });
@@ -83,7 +77,6 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     assert.equal((await store.findTranslation(created.body._id, 'tr')).value, 'Merhaba');
     assert.equal((await request(`/api/admin/translation-keys/${created.body._id}`, 'DELETE')).status, 200);
     assert.equal(await store.findTranslation(created.body._id, 'tr'), null);
-    assert.equal(mongoQueries, 0);
   });
 
   it('returns compact completion counts and only requested translation values without changing the legacy contract', async () => {
@@ -151,7 +144,6 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     const restored = await request('/api/admin/country-language-mappings/restore', 'POST', { mappings: [{ countryCode: 'de', countryName: 'Germany', languageCode: 'tr' }] });
     assert.equal(restored.status, 200);
     assert.equal(restored.body.restoredCount, 1);
-    assert.equal(mongoQueries, 0);
   });
 
   it('runs every startup localization seeder with PostgreSQL and keeps customized gap-fill translations', async () => {
@@ -185,7 +177,6 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     const forced = await request('/api/admin/seed-turkish-ui', 'POST', { force: true });
     assert.equal(forced.status, 200);
     assert.notEqual((await store.findTranslation(navigation._id, 'tr')).value, 'Human Turkish draft');
-    assert.equal(mongoQueries, 0);
   });
 
   it('protects every legacy translation repair endpoint with admin authentication', async () => {

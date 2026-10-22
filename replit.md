@@ -1,264 +1,72 @@
-# MegaRadio — pnpm Workspace Monorepo
+# MegaRadio pnpm Workspace
 
-## Overview
+## Current architecture
 
-Full-stack radio streaming application migrated to a pnpm workspace monorepo.
-Backend serves the `/api` path; frontend serves `/` (the Vite SPA).
+The application uses PostgreSQL exclusively. Node.js 24 and pnpm 11.28.1
+build the Express 5 API and React 19.1/Vite frontend.
 
-## Architecture
+- `artifacts/api-server`: API, server-rendered SEO, jobs, SSE and WebSockets.
+- `artifacts/megaradio`: Wouter, TanStack Query and Tailwind frontend.
+- `lib/db`: PostgreSQL table definitions and SQL migrations.
+- `lib/db-shared`: shared TypeScript and Zod contracts, safe for browser imports.
+- `lib/seo-shared`: localized paths, SEO templates and structured-data helpers.
 
-```
-artifacts/
-  api-server/   → Express 5 backend (MongoDB/Mongoose, auth, SSE, WebSockets)
-  megaradio/    → React + Vite frontend (Wouter, TanStack Query, Tailwind v3)
-lib/
-  api-zod/      → Zod validation schemas (shared)
-  db/           → Drizzle ORM + PostgreSQL (for future relational data)
-  db-shared/    → Shared Mongoose models + cross-app TS types. Exposes two
-                  entry points:
-                    `@workspace/db-shared/mongo-schemas` — full Mongoose
-                      models + interfaces (used by api-server runtime).
-                    `@workspace/db-shared/schema` — Zod auth/station
-                      validators + `StationWithCountry` interface (used
-                      by both api-server and megaradio; megaradio only
-                      pulls types/zod, never Mongoose).
-  seo-shared/   → Shared SEO/FAQ modules (faq-schema, structured-data,
-                  seo-config, genre/region-seo-templates, url-translations,
-                  country-name-translations, country-regions,
-                  critical-translation-keys) used by both api-server and
-                  megaradio. Imported as `@workspace/seo-shared/<module>`.
+The retired application snapshot and offline database importer are no longer
+distributed. Keep historical SQL migrations, payment provenance and public IDs
+unchanged. Existing PostgreSQL data is authoritative.
+
+## Running and verification
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm --filter @workspace/api-server run test
+pnpm --filter @workspace/megaradio run test
+PORT=22507 BASE_PATH=/ pnpm --filter @workspace/megaradio run build
+PORT=22507 BASE_PATH=/ pnpm --filter @workspace/megaradio run dev
 ```
 
-## Stack
+Configure `DATABASE_URL` for a deliberate development database. Production
+credentials must not be used by local tests. Native integration tests require
+an explicitly disposable `PG_TEST_DATABASE_URL`. API/web startup uses the
+guarded PostgreSQL schema installer. Do not modify applied migration checksums
+or clear existing write-authority and initialization evidence.
 
-- **Monorepo**: pnpm workspaces
-- **Node.js**: v24
-- **API framework**: Express 5 (path-to-regexp v8 — use `{:param}` for optional params, `/*path` for wildcards)
-- **Database**: MongoDB (Mongoose) — primary; PostgreSQL (Drizzle) for future use
-- **Auth**: Passport.js (local, Google, Facebook) + session store (connect-mongo)
-- **Frontend**: React 18, Vite 7, Wouter, TanStack Query, Tailwind CSS v3
-- **Build**: esbuild (ESM bundle for server)
+## Persistence and security
 
-## Key Commands
+All catalog, account, session, billing, translation and operational writes use
+the native stores in `artifacts/api-server/src/data`. Use parameterized SQL
+and transactions. Preserve stable public text IDs and canonical station URLs.
+Leader locks use the dedicated coordination pool and writes must remain on
+the connection that owns the lock.
 
-- `pnpm --filter @workspace/api-server run dev` — run API server
-- `pnpm --filter @workspace/megaradio run dev` — run Vite frontend
-- `pnpm --filter @workspace/api-server run build` — build backend
-- `pnpm run test` — run every workspace package's `test` script via `pnpm -r --if-present run test`. Currently this executes the SEO translation guard at `artifacts/api-server/tests/seo-templates-coverage.test.ts`, which fails the build if any `SEO_LANGUAGES` code is missing a region or genre template. The root `pnpm run build` invokes `pnpm run test` after typecheck + per-package builds, so the guard runs automatically on every full build / CI check. To add new automated tests, drop them in a workspace package's `tests/` folder and expose a `test` script — they will be picked up automatically.
+Redis is an optional cache; object storage holds media, not the application
+database. Login audit events persist in the PostgreSQL `auth_event_logs`
+table. Never log passwords, tokens or full JWTs. Account remediation uses
+authenticated administration endpoints, not retired cleanup scripts.
 
-## Proxy Routing
+## Caching and SEO
 
-A shared reverse proxy routes by path:
-- `/api/*` → api-server (port 8080)
-- `/` → megaradio Vite dev server (port 22507)
+Keep lazy cache filling and single-flight coalescing for hot reads. Do not add
+large eager boot warmups or restore cache-flush/forced-GC cycles tied to
+ordinary RSS fluctuations. Respect the current memory limits in `index-api.ts`.
 
-## Auth event logging (login debug trail)
+Reuse valid stale data for transient read failures. Real missing pages retain
+404/410; unavailable pages and sitemaps without valid data return retryable
+503/no-store. Never hide an outage behind a successful empty sitemap.
 
-Every Google / Apple / Email (web + mobile) login attempt is funnelled
-through `logAuthEvent()` in
-`artifacts/api-server/src/auth/auth-event-logger.ts`. The helper does
-two things on every checkpoint (callback received, profile resolved,
-token issued, session saved, every error branch, redirect):
+Station health, vote and synchronization writes are not editorial changes.
+Do not publish their timestamps as sitemap `lastmod` or `Last-Modified`.
+Retain body-derived ETags and 304 behavior. Existing language sitemap routes
+remain active; the two 10-URL English pilots are separate measurement cohorts.
+A discovered URL is not proof of Google indexing.
 
-1. Prints a single-line structured `✅ AUTH …` / `❌ AUTH …` record to
-   stdout so it shows up in the Railway live tail.
-2. Persists the same record to the `auth_event_logs` MongoDB collection
-   (model: `AuthEventLog` in `lib/db-shared/src/mongo-schemas.ts`) via a
-   `setImmediate` so the auth response is never blocked. The collection
-   has a 30-day TTL on `ts`.
+## Frontend and routing
 
-The persisted log survives Railway process restarts AND page refreshes,
-which is the whole point — debug traces no longer disappear when the
-user reloads after a failed login.
-
-To inspect the log, hit `GET /api/admin/auth-events` (admin-only). Query
-params: `limit` (1-500, default 200), `method`
-(`google|apple|email|mobile-email|mobile-apple|mobile-google`),
-`email`, `event`, `ok=true|false`, `sinceMs` (window in ms — e.g.
-`?sinceMs=3600000` for the last hour).
-
-NEVER log raw passwords, tokens, or full JWTs — the helper already
-truncates `message` (500 chars) and free-form `detail` is intended for
-HTTP status codes / Apple error bodies / similar non-secret context.
-
-## Sitemap operations
-
-- The top-30 country list embedded in `/sitemap-main-{lang}.xml` is computed
-  during the `SitemapManifest` build (see `seo/sitemap-manifest-builder.ts`)
-  and baked into the active `main` manifest's `chunks[0].stationIds` as
-  `tc:<region>/<country>` markers. ETag/Last-Modified for those sitemaps
-  flip automatically when the country leaderboard or recent station updates
-  inside those countries change.
-- After a bulk import/cleanup, force an immediate refresh with:
-  `POST /api/admin/sitemap/rebuild` (admin-only).
-
-## Hint discipline — DO NOT add `.hint('index_name')` without a fresh probe
-
-INCIDENT 2026-05-15 v10 (4th recurrence): production /api/stations/popular
-and /api/cities/precomputed silently 500'd because previously-added
-`.hint('lastCheckOk_1_votes_-1')` (and 2 other hints) referenced indexes
-that the May 14 Atlas index audit (commit aee98c81e) HID. Hinting a
-hidden index throws BadValue (code 2) and the catch returned 500.
-
-**Rule**: every `.hint('name')` MUST be preceded by a comment of the form
-`// HINT-VERIFIED YYYY-MM-DD - <name>` with proof that the index is
-present AND visible. To verify, run `$indexStats` on the live cluster
-via the Atlas Data Explorer **OR** the `mongosh` shell:
-
-```
-db.stations.aggregate([{$indexStats:{}}], {allowDiskUse:true})
-  .toArray().map(i => ({name: i.name, hidden: !!i.hidden, accesses: i.accesses.ops}))
-```
-
-If `hidden: true`, do not hint that index. If the index is missing
-entirely, add it via `Station.collection.createIndex(...)` in `routes.ts`
-`createIndexes()` first. (The previous v10 admin route
-`GET /api/admin/db/indexes` was deliberately removed — it was a
-temporary probe, not a permanent surface.)
-
-When in doubt, **DO NOT hint at all** — the planner is faster than a
-silent 500. We removed all 3 hints in v10
-(station-public-routes.ts:228/717, precomputed-stations.ts:225) and the
-endpoints serve correctly without them.
-
-**Code-2 retry rule (v10.2 round 7)**: any query that DOES use
-`.hint(...)` MUST catch BadValue (`error.code === 2` /
-`error.codeName === 'BadValue'`) and retry the same query unhinted
-before giving up. The only remaining hinted queries
-(`sitemap-manifest-builder.ts` Station + Genre cursors) follow this
-pattern: a `buildXxxCursor(useHint)` factory plus a try/catch around
-the for-await that rebuilds with `useHint=false` on code 2. If you
-add a new hinted query, copy that pattern — never let a hidden /
-renamed index hard-fail a sitemap rebuild or an endpoint.
-
-The CI guard test at
-`artifacts/api-server/tests/hint-discipline.test.ts` greps the
-api-server source for `.hint(` and fails the build if any usage is
-missing the verification comment. It runs automatically as part of
-`pnpm run test` (which the root build invokes).
-
-## Memory monitor thresholds — DO NOT lower without re-reading
-
-INCIDENT 2026-05-17 v13: 5 saatlik prod log analizi gösterdi ki RSS
-780–840 MB arası **stabil** (sızıntı yok), V8 heap 50–200 MB sağlıklı
-GC pattern, jemalloc working-set normal. Önceki eşikler
-(`RSS_WARNING_MB=600`, `RSS_CRITICAL_MB=800`) Node + Sharp + Mongoose
-+ SSR yapan bir proses için çok düşüktü ve dakikada bir alarm
-çalıyordu. Yan etkileri:
-
-1. Her 5 dk `performanceCache.clearSeoAndQuickCaches()` → bir sonraki
-   SSR isteği Redis'e + Mongo'ya iniyor → cache thrash + cold-miss
-   cascade. 16 Mayıs M10 dalgalarının ortağıydı.
-2. Her 2 dk `performanceCache.clearAllForMemoryRelief()` + force GC
-   + `clearOgCache()` — `OG image cache cleared: 0 entries` mesajının
-   defalarca tekrarı, alarmın boşa çaldığını kanıtladı.
-3. Heap 200 → 50 → 200 zikzakı force GC pressure ürünü.
-
-**Yeni eşikler (v13)** — `artifacts/api-server/src/index-api.ts`
-`MEMORY MONITOR` bloğu:
-- `RSS_WARNING_MB` env'i kaldırıldı (v13). Aralarda aksiyon yok;
-  DIAG hattı zaten RSS'i periyodik basıyor, ikinci bir warning
-  branch'i sadece gürültü olurdu.
-- `RSS_CRITICAL_MB = 1700` (eski 800; sadece uyarı, cache flush yok)
-- `RSS_RESTART_MB = 2200` (eski 1200; gerçek OOM yakını için SIGTERM
-  güvenlik ağı). ENV ile override edilebilir — Railway plan'ı
-  değişirse `RSS_RESTART_MB` env'ini güncelle.
-- `heapMB > 3500` koşulu **AYNEN KORUNDU** — gerçek V8 heap leak'i
-  için backstop; force GC'yi tetikler (cache flush yine yok).
-- `MEMORY_GC_COOLDOWN = 10 min` (eski 2 min).
-
-**`native≈` metriği yeniden adlandırıldı**: artık `other≈ =
-rss - heap - external - ab`. Eski formül `rss - heapTotal`
-yanıltıcıydı (V8 isolate, JIT cache, jemalloc dirty page'ler,
-libuv buffer'larını native gibi gösteriyordu). Yeni "other" da
-saf native C++ değil — V8 isolate + JIT + glibc/jemalloc artıkları
-içerir, sadece eskisinden daha az yanıltıcı.
-
-**Mongo `maxPoolSize`** intentionally stays at 100 in prod
-(`db-mongo.ts:320`). v5'te 30'a düşürüldüğünde
-`MongoWaitQueueTimeoutError` storm'u oldu (cold-fallback bursts
-exceeded 30 inflight ops), v6'da 100'e geri çıkıldı. v13 task plan'ı
-bu kararı bilmiyordu; pool'a dokunulmadı (deviation).
-
-DO NOT re-add cache flush or force-GC tied to RSS thresholds without
-re-reading this section. The thresholds are intentionally far above
-the steady-state working set so the alarm only fires for **real**
-memory growth events, not normal jemalloc behavior.
-
-## Lazy cache fill (NO eager boot warmup)
-
-INCIDENT 2026-05-15 v10 — boot warmup is REMOVED. Per user directive
-("ilk gelenler olmaya baslayinca yapsin"), caches fill lazily as the
-first organic visitor arrives. Stampede protection is provided by
-`CacheManager.getOrSetSingleFlight(key, loader, opts)` (see
-`cache.ts:160`) which coalesces concurrent misses on the same key into
-ONE upstream call.
-
-What was stripped from `routes.ts` boot path:
-- `warmupViaHttp()` 5s setTimeout + 50min setInterval
-- `warmupPopularStationsCache()` + `warmupTvMobileCache()`
-- `PrecomputedStationsService.warmupPopularCountries()` 60s setTimeout
-- `PrecomputedGenresService.warmupCache()` 15s setTimeout
-- `PrecomputedCitiesService.warmupCache()` is now a no-op
-
-What remains at boot: ONE cheap `Station.findOne({lastCheckOk:true})`
-probe at the 5s mark to confirm the cluster is reachable. Off-peak cron
-refreshes (TV/Mobile 2 AM, Genres 5 AM, Popular 6:30 AM, all
-Europe/Berlin) still run for steady-state coverage.
-
-If you re-add boot warmup, the M10 cluster will recurringly burn down
-under multiplanner contention + connection pool exhaustion. DO NOT.
-
-## Public read endpoints MUST soft-fail (never 500)
-
-A 500 from a public read endpoint breaks SSR pages (homepage, country,
-city, genre) and shows an error page to organic users. Every public
-read in `station-public-routes.ts`, `genres-countries-routes.ts`,
-`regions-recommendations-routes.ts`, and `translation-admin-routes.ts`
-public filter endpoints now does:
-
-```ts
-} catch (error: any) {
-  logger.error(`❌ /api/... failed: code=${error?.code || 'unknown'} msg=${error?.message || error}`);
-  // SWR fallback: try the cache one more time — a parallel request
-  // may have populated it before we threw.
-  let stale: any = null;
-  try { stale = await CacheManager.get(cacheKey); } catch {}
-  res.set('Cache-Control', 'no-store');
-  res.json(stale ?? <empty-but-shape-correct payload>);
-}
-```
-
-`Cache-Control: no-store` on the failure response is critical: a
-30-second cache on `[]` would lock organic users out of the homepage
-for 30 seconds after the cluster recovers. `no-store` lets the next
-request retry immediately while still returning 200 (so SSR doesn't
-crash).
-
-The hot endpoints (`/api/stations/popular`, `/api/filters/languages`,
-the precomputed-cities service) wrap their cache compute in
-`CacheManager.getOrSetSingleFlight(key, loader, opts)` so 100
-concurrent cold misses (typical SSR fanout when CDN expires the
-homepage) coalesce into ONE Mongo aggregate.
-
-## MongoDB aggregation memory limits (read before adding new aggregations)
-
-Atlas enforces a **32MB sort memory limit per aggregation stage** at every
-tier (M10 included). When a `$sort` / `$group` / `$facet` stage on the
-Station collection exceeds it, Mongo throws code 292
-(`QueryExceededMemoryLimitNoDiskUseAllowed`) and the request fails.
-
-**Rule**: every `Station.aggregate(...)` (and any aggregation that sorts or
-groups a multi-MB result) MUST chain `.allowDiskUse(true)` (or pass
-`{ allowDiskUse: true }` in `.option({...})` alongside `maxTimeMS`).
-The `precomputed-stations`, `precomputed-cities`, `station-public-routes`,
-`regions-recommendations-routes`, and `recommendation-engine` aggregations
-were all retrofitted on 2026-05-12 — DO NOT remove the option. Atlas M10+
-allows disk spill so this is safe; the prior shared/serverless tier ban is
-no longer applicable.
-
-If you add a new `Station.aggregate(...)` call, copy this pattern:
-`.option({ maxTimeMS: 15000, allowDiskUse: true })`.
+Preserve the lazy player, background audio, authentication, favorites,
+localization and accessibility. Express 5 uses `/*path` wildcards and
+`{:param}` optional parameters. Shared SEO cache loaders remain in
+`artifacts/api-server/src/seo/load-database-mappings.ts`.
 
 ## Performance optimization landmines (DO NOT touch without re-reading this)
 
@@ -297,13 +105,3 @@ The following retrofits were investigated on 2026-05-12 and intentionally
   proxy. Microsoft Clarity and GA4 ARE moved to Partytown via
   `@builder.io/partytown` (see `vite.config.ts` + `index.html`); AdSense
   and the Google Cast SDK stay on the main thread.
-
-## Important Migration Notes
-
-- Nothing is duplicated under `artifacts/*/src/shared/` anymore — those folders have been deleted. SEO/FAQ shared code lives in `lib/seo-shared` (`@workspace/seo-shared/<module>`) and Mongoose models + cross-app TS/zod types live in `lib/db-shared` (`@workspace/db-shared/mongo-schemas` for the server, `@workspace/db-shared/schema` for both server and client).
-- The api-server-only cache loaders for SEO/URL translations live in `artifacts/api-server/src/seo/load-database-mappings.ts` (they call `setDatabase*` setters exposed by `@workspace/seo-shared`).
-- Express 5 breaking changes fixed:
-  - `/*` wildcards → `/*path`
-  - `:param?` optional params → `{:param}`
-- Backend entry: `artifacts/api-server/src/index-api.ts` (imports `registerRoutes` from `src/routes.ts`)
-- Frontend fonts: `artifacts/megaradio/public/fonts/` (Ubuntu font family)

@@ -22,7 +22,6 @@ COPY artifacts/megaradio/package.json           ./artifacts/megaradio/
 COPY artifacts/mockup-sandbox/package.json      ./artifacts/mockup-sandbox/
 COPY artifacts/megaradio-investor-deck/package.json ./artifacts/megaradio-investor-deck/
 COPY lib/db-shared/package.json                 ./lib/db-shared/
-COPY lib/legacy-migration/package.json          ./lib/legacy-migration/
 COPY lib/seo-shared/package.json                ./lib/seo-shared/
 COPY lib/api-client-react/package.json          ./lib/api-client-react/
 COPY lib/api-zod/package.json                   ./lib/api-zod/

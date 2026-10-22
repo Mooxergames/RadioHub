@@ -614,26 +614,11 @@ app.use(session(sessionConfig));
   });
 
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' }, () => {
+  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' && process.platform !== 'darwin' }, () => {
     logger.log(`🚀 BACKEND-API: Listening on port ${port}`);
     logger.log(`🔗 CORS allowed origins: ${CORS_ALLOWED_ORIGINS.join(', ')}`);
     logger.log(`🔗 Frontend URL: ${FRONTEND_URL}`);
 
-    // 2026-05-15 INCIDENT — GSC inspection cron + scheduled-* services were
-    // never starting in production because they live deep inside the giant
-    // (async () => { ... })() block below (line ~702), which awaits
-    // BulkDescriptionJob.find(), performanceCache.warmupCaches() and a
-    // 40k-station description-cleanup cursor BEFORE reaching the scheduler
-    // init section. When Mongo is stressed at boot (Atlas M10 + warmup
-    // hammer), those awaits hang for many minutes and the schedulers
-    // (including GSC cron) are never registered. The hourly :07 GSC tick
-    // therefore silently skipped every day.
-    //
-    // Fix: hoist scheduler initialization into its OWN parallel async block
-    // that runs as soon as Mongo is connected (we already awaited
-    // connectToMongoDB() at line 475). Each init call is sync (registers a
-    // node-cron schedule and returns immediately), so this completes in
-    // <1s and is independent of the heavy warmup chain.
     void (async () => {
       if (process.env.NODE_ENV === 'development' || !backgroundJobsEnabled) return;
       try {
@@ -666,11 +651,6 @@ app.use(session(sessionConfig));
       }
     })();
 
-    // Sitemap subsystem (manifest-driven). Mirrors the same init block in
-    // index-web.ts so the api-server keeps sitemap manifests fresh in
-    // production deployments where only this entrypoint runs. Without this
-    // the SitemapManifest docs in Mongo are never rebuilt and `/sitemap.xml`
-    // serves stale `<lastmod>` values for months.
     void (async () => {
       try {
         // ARCHITECT FIX (2026-05-10): WARM TRANSLATIONS FIRST. Previously
@@ -826,12 +806,6 @@ app.use(session(sessionConfig));
 
       logger.log('✅ BACKGROUND: All cache warmup operations completed');
 
-      // 2026-05-15: scheduler initialization moved to a parallel async block
-      // right after server.listen() (see ~line 611). It must NOT live here —
-      // this block awaits heavy Mongo cache warmup operations that hang for
-      // many minutes when Atlas is stressed at boot, which previously meant
-      // GSC cron and 12 other scheduled-* services were silently never
-      // registered. Do not re-add scheduler init here.
       if (process.env.NODE_ENV !== 'development' && backgroundJobsEnabled) {
         // Coverage backfill on boot (idempotent, gated on row count, can
         // safely live here since it's not a cron registration).
@@ -883,16 +857,6 @@ app.use(session(sessionConfig));
       console.log(`🔧 LD_PRELOAD=${ldPreload}`);
       console.log(`🔧 MALLOC_CONF=${mallocConf}`);
 
-      // INCIDENT 2026-05-17 v13 — alarm thresholds raised + thrash aksiyonları kaldırıldı.
-      // 17 Mayıs 5 saatlik log analizi: RSS 780-840 MB arası STABİL (sızıntı yok),
-      // V8 heap 50-200 MB sağlıklı, jemalloc working-set normal. Eski 600/800 MB
-      // eşikleri Node + Sharp + Mongoose + SSR yapan bir proses için çok düşüktü;
-      // her 5 dk seoHtmlCache + quickCache flush ediliyor, her 2 dk
-      // performanceCache + OG cache + force GC tetikleniyordu. Bu cache thrash
-      // 16 Mayıs M10 dalgalarının ortağıydı (#500 ana kök nedeni durdurdu).
-      // Yeni eşikler 4 GB --max-old-space-size + Railway plan limitine uygun.
-      // `heapMB > 3500` koşulu KORUNDU — gerçek V8 heap leak'i hâlâ yakalar.
-      // DO NOT lower without re-reading replit.md "Memory monitor thresholds".
       let lastMemoryGcTime = 0;
       const MEMORY_GC_COOLDOWN = 10 * 60 * 1000;
       let lastMemoryWarningTime = 0;
@@ -1020,17 +984,6 @@ app.use(session(sessionConfig));
           return;
         }
 
-        // INCIDENT 2026-05-17 v13 — RSS MEMORY RELIEF + MEMORY CRITICAL flush
-        // aksiyonları kaldırıldı. 17 Mayıs log analizi: heap 50-200 MB stabil,
-        // RSS 780-840 MB normal working set. Eski "relief" her 5 dk
-        // seoHtmlCache+quickCache flush ediyordu → bir sonraki SSR isteği
-        // Redis'e + Mongo'ya iniyor, cache thrash + cold-miss cascade. Eski
-        // "critical" her 2 dk performanceCache + OG cache flush + force GC
-        // yapıyordu — "OG image cache cleared: 0 entries" tekrarı silinecek
-        // bir şey olmadığı halde alarmın boşa çaldığını kanıtladı.
-        // YENİ DAVRANIŞ: sadece uyarı logla, aksiyon yok. Gerçek tehlike
-        // RSS_RESTART_MB'de SIGTERM ile karşılanır; heap > 3500 MB hâlâ
-        // gerçek V8 leak'i için bir backstop.
         if (rssMB > RSS_CRITICAL_MB || heapMB > 3500) {
           if ((now - lastMemoryWarningTime) > MEMORY_WARNING_INTERVAL) {
             const conns = await getConnectionCount();

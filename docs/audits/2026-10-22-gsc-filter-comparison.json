@@ -1,0 +1,795 @@
+{
+  "observedAt": "2026-10-22",
+  "googleReportDate": "2026-10-16",
+  "filters": [
+    {
+      "label": "Yalnızca gönderilmemiş sayfalar",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n12,9 B\n10 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "12.876"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n9",
+          "values": [
+            "Dizine eklenen",
+            "9"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Bulunamadı (404)\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t736",
+        "\"noindex\" etiketi tarafından hariç tutuldu\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t509",
+        "Soft 404\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t174",
+        "Doğru standart etikete sahip alternatif sayfa\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t102",
+        "Yeniden yönlendirme hatası\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t61",
+        "Kullanıcı tarafından seçilen standart sayfa olmadan kopya\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t54",
+        "Yönlendirmeli sayfa\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t27",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t11.148",
+        "Kopya, Google kullanıcıdan farklı bir standart sayfa seçti\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t64",
+        "Sunucu hatası (5xx)\tWeb sitesi\t\n\nBaşladı\n\t\t1"
+      ]
+    },
+    {
+      "label": "Bilinen tüm sayfalar",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n205 B\n11 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "204.696"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n11",
+          "values": [
+            "Dizine eklenen",
+            "11"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Bulunamadı (404)\tWeb sitesi\t\n\nBaşarısız oldu\n\t\t736",
+        "\"noindex\" etiketi tarafından hariç tutuldu\tWeb sitesi\t\n\nBaşarısız oldu\n\t\t511",
+        "Soft 404\tWeb sitesi\t\n\nBaşarısız oldu\n\t\t174",
+        "Yönlendirmeli sayfa\tWeb sitesi\t\n\nBaşarısız oldu\n\t\t27",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşarısız oldu\n\t\t12.540",
+        "Sunucu hatası (5xx)\tWeb sitesi\t\n\nBaşladı\n\t\t1",
+        "Doğru standart etikete sahip alternatif sayfa\tWeb sitesi\t\n\nBaşarılı\n\t\t102",
+        "Yeniden yönlendirme hatası\tWeb sitesi\t\n\nBaşarılı\n\t\t61",
+        "Kullanıcı tarafından seçilen standart sayfa olmadan kopya\tWeb sitesi\t\n\nBaşarılı\n\t\t54",
+        "Keşfedildi - şu anda dizine eklenmiş değil\n\tGoogle sistemleri\n\t\n\nBaşarılı\n\t\n\t190.426",
+        "Kopya, Google kullanıcıdan farklı bir standart sayfa seçti\tGoogle sistemleri\t\n\nBaşarılı\n\t\t64"
+      ]
+    },
+    {
+      "label": "Gönderilen tüm sayfalar",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n192 B\n3 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "191.820"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n2",
+          "values": [
+            "Dizine eklenen",
+            "2"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "\"noindex\" etiketi tarafından hariç tutuldu\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t2",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t1.392",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşladı\n\t\t190.426",
+        "Kopya, Google kullanıcıdan farklı bir standart sayfa seçti\tGoogle sistemleri\t\nYok\n\t\t0"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-genres-de.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n240\n1 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "240"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t240"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-genres-en.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n243\n1 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "243"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t243"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-genres-it.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n240\n1 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "240"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t240"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-genres-tr.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n243\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "243"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t242",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t1"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-index.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n192 B\n3 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "191.820"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n2",
+          "values": [
+            "Dizine eklenen",
+            "2"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "\"noindex\" etiketi tarafından hariç tutuldu\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t2",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t190.426",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t1.392",
+        "Kopya, Google kullanıcıdan farklı bir standart sayfa seçti\tGoogle sistemleri\t\nYok\n\t\t0"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-main-de.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n73\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "73"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t72",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t1"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-main-en.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n72\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "72"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n1",
+          "values": [
+            "Dizine eklenen",
+            "1"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t66",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t6"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-main-it.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n73\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "73"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t72",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t1"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-main-tr.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n73\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "73"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t71",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t2"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-de-1.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.981",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t19",
+        "Kopya, Google kullanıcıdan farklı bir standart sayfa seçti\tGoogle sistemleri\t\nYok\n\t\t0"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-de-2.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.990",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t10",
+        "Kopya, Google kullanıcıdan farklı bir standart sayfa seçti\tGoogle sistemleri\t\nYok\n\t\t0"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-de-3.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.988",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t12"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-de-4.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.996",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t4",
+        "Kopya, Google kullanıcıdan farklı bir standart sayfa seçti\tGoogle sistemleri\t\nYok\n\t\t0"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-de-5.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n8,58 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "8.580"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t8.578",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t2"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-en-1.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.600",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t400"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-en-2.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.699",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t301"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-en-3.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "9.999"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n1",
+          "values": [
+            "Dizine eklenen",
+            "1"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.699",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t300"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-en-4.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.732",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t268"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-en-5.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n3 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "\"noindex\" etiketi tarafından hariç tutuldu\tWeb sitesi\t\n\nBaşlatılmadı\n\t\t2",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.881",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t117"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-it-1.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.984",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t16"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-it-2.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.988",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t12"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-it-3.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.995",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t5"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-it-4.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.993",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t7"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-it-5.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n8,58 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "8.580"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t8.578",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t2"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-tr-1.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.997",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t3"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-tr-2.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.998",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t2"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-tr-3.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.996",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t4"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-tr-4.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n1 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t10.000"
+      ]
+    },
+    {
+      "label": "https://themegaradio.com/sitemap-stations-tr-5.xml",
+      "metrics": [
+        {
+          "text": "\nDizine eklenmedi\n10 B\n2 neden",
+          "values": [
+            "Dizine eklenmedi",
+            "10.000"
+          ]
+        },
+        {
+          "text": "\nDizine eklenen\n0",
+          "values": [
+            "Dizine eklenen",
+            "0"
+          ]
+        }
+      ],
+      "rows": [
+        "Sebep\n\tKaynak\n\n\tDoğrulama\n\tTrend\t\nSayfa sayısı",
+        "Keşfedildi - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t9.998",
+        "Tarandı - şu anda dizine eklenmiş değil\tGoogle sistemleri\t\n\nBaşlatılmadı\n\t\t2"
+      ]
+    }
+  ]
+}

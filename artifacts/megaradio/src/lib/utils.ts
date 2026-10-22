@@ -24,7 +24,7 @@ export function getStreamProxyUrl(path: string): string {
  *     scheme combo, browser refuses (also ERR_EMPTY_RESPONSE in prod logs)
  *   - Upstream TLS cert expired / hostname mismatch → ERR_CERT_DATE_INVALID
  *     (the only signal we have for this AHEAD of a play attempt is the
- *     `sslError` flag we ingest from Radio-Browser into Mongo, which is
+ *     `sslError` flag we ingest from Radio-Browser into PostgreSQL, which is
  *     surfaced on the station object as `sslError: true`)
  *
  * Returns the URL the audio element / hls.js should actually load. When

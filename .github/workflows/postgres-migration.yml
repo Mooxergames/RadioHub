@@ -1,4 +1,4 @@
-name: PostgreSQL migration
+name: PostgreSQL application
 
 on:
   pull_request:
@@ -12,23 +12,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build the exact production Dockerfiles with frozen installs
         run: |
-          for service in api web proxy migration; do
+          for service in api web proxy; do
             docker build --file "Dockerfile.$service" --tag "radiohub-$service:ci" .
           done
   postgres-migration:
-    # Keep Mongo 8's real integration tests on kernel 6.8 until SERVER-121912
-    # is resolved for the newer kernels in the rolling runner images.
     runs-on: ubuntu-22.04
     services:
-      mongo:
-        image: mongo:8.0
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1}).ok'"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
       postgres:
         image: postgres:17-alpine
         env:
@@ -47,7 +36,6 @@ jobs:
       POSTGRES_SSL: disable
       POSTGRES_INTEGRATION_TEST: "true"
       PG_TEST_DATABASE_URL: postgresql://radiohub:radiohub_test@127.0.0.1:5432/radiohub_test
-      MONGO_TEST_URI: mongodb://127.0.0.1:27017
       PORT: "5000"
       BASE_PATH: /
     steps:
@@ -74,7 +62,7 @@ jobs:
           for entry in src/index.ts src/index-proxy.ts; do
             ENTRY="$entry" pnpm --filter @workspace/api-server run build
           done
-      - name: Package Mongo-free production API and web
+      - name: Package PostgreSQL production API and web
         run: |
           ENTRY=src/index-api.ts pnpm --filter @workspace/api-server run build
           pnpm --filter @workspace/api-server deploy --prod --legacy "$RUNNER_TEMP/radiohub-api-production"
@@ -86,16 +74,6 @@ jobs:
           pnpm --filter @workspace/api-server deploy --prod --legacy "$RUNNER_TEMP/radiohub-web-production"
           cp -r artifacts/megaradio/dist/public "$RUNNER_TEMP/radiohub-web-production/dist/public"
           cp -r lib/db/migrations "$RUNNER_TEMP/radiohub-web-production/db-migrations"
-      - name: Build isolated one-time importer (never packaged in API or web)
-        run: |
-          node artifacts/api-server/scripts/build-postgres-bootstrap.mjs
-          pnpm --filter @workspace/legacy-migration deploy --prod --legacy "$RUNNER_TEMP/radiohub-migration-production"
-          cp -r lib/db/migrations "$RUNNER_TEMP/radiohub-migration-production/db-migrations"
-      - name: Verify real one-time import using the packaged operator, without tsx
-        run: >-
-          PG_BOOTSTRAP_TEST_PACKAGE="$RUNNER_TEMP/radiohub-migration-production"
-          pnpm --filter @workspace/api-server exec tsx --test --test-timeout=90000
-          tests/postgres-auto-bootstrap.integration.test.ts
       - name: Boot real production processes with PostgreSQL and no external egress
         env:
           POSTGRES_PRODUCTION_SMOKE: "true"

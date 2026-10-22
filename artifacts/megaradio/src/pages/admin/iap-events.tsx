@@ -232,7 +232,7 @@ export default function AdminIapEvents() {
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">User ID</label>
               <Input
-                placeholder="ObjectId"
+                placeholder="User ID"
                 value={filterUserId}
                 onChange={(e) => setFilterUserId(e.target.value)}
               />

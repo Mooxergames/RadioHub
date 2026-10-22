@@ -227,9 +227,6 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
   const origQIdx = originalUrl.indexOf('?');
   const originalQueryString = origQIdx >= 0 ? originalUrl.substring(origQIdx) : '';
 
-  // Lazy DB translation cache — only fetched when actually needed.
-  // 2s race-timeout so a stalled mongo lookup cannot push us into the 30s
-  // gateway timeout (would otherwise become a 504).
   let cachedDbTranslations: Map<string, string> | null = null;
   const getDbTranslations = async (): Promise<Map<string, string>> => {
     if (cachedDbTranslations !== null) return cachedDbTranslations;

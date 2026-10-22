@@ -24,12 +24,6 @@ import {
   updateStationDerivedFields,
 } from '../data/station-read-store';
 
-// Escape regex meta-characters from user input. Without this, callers can pass
-// patterns like `.*` or catastrophic-backtracking inputs (e.g. `(a+)+`) and
-// either bypass intended exact-match filters or pin a Mongo regex worker.
-// We also cap input length so a malicious 1MB query string cannot become a
-// multi-million-character RegExp source. Inputs are anchored where the call
-// site indicates an exact match is intended.
 function escapeRegex(input: any, maxLen: number = 80): string {
   if (typeof input !== 'string') return '';
   const s = input.length > maxLen ? input.slice(0, maxLen) : input;
@@ -80,9 +74,6 @@ function applySynonyms(term: string): string {
     .join(' ');
 }
 
-// Sanitise a raw user string for use in MongoDB $text search.
-// $text tokenises on whitespace/punctuation and ignores most special chars,
-// so we only strip characters that break the parser ($, ", \).
 function sanitiseForTextSearch(term: string): string {
   return term.replace(/[$"\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
 }
@@ -180,7 +171,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
       }
       // INCIDENT 2026-05-15 v10 — wrapped compute in single-flight so 100
       // concurrent cold misses (typical SSR fanout when CDN expires the
-      // homepage) coalesce into ONE Mongo aggregate. Previously each
+      // homepage) coalesce into one database query. Previously each
       // miss spawned its own pair of aggregates, draining the M10 pool.
       // INCIDENT 2026-05-15 v10.2 — upgraded to true SWR (1h fresh /
       // 6h stale) so a stressed cluster keeps serving last-known-good
@@ -509,17 +500,6 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
 
   // MAIN STATIONS LIST API - Full filter/sort/search/pagination
   app.get("/api/stations", async (req, res) => {
-    // INCIDENT 2026-05-16 v11 — restructured: cacheable path (no search,
-    // no excludeStationIds) is now wrapped in CacheManager.getOrSetSingleFlight
-    // so 50 concurrent SSR cold misses on the same country page coalesce
-    // into ONE Mongo aggregate. The Railway 15:06-16:18 log dump showed
-    // this endpoint draining the 100-slot pool over 4 minutes because
-    // every miss spawned its own aggregate. Pattern copied from
-    // /api/stations/popular at L163.
-    // Also writes a country-only LKG ("last known good") cache after
-    // every successful aggregate so the catch-block fallback can serve
-    // a populated country page even when the exact filter/sort/page
-    // combination has no cached entry.
     const isTV = req.query.tv === '1';
     // Existing API/admin clients keep full records; card-only consumers opt in.
     const compact = req.query.slim === '1';
