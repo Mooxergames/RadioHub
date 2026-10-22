@@ -58,6 +58,29 @@ yalnizca kendi alan adlari, kimlik bilgisi veya oturum cerezleri olmadan).
 Google export'u ornek listesidir; her buyuk gruptaki tum URL'leri garanti etmez.
 Bu test gercek Googlebot cekimi veya Google'in soft-404/kalite karari degildir.
 
+## Yayin sonrasi ek kapsam kontrolu
+
+32 filtre tekrar secildi; 24 alt sitemap'in taranmis ornek listeleri birlestirilerek
+gonderilen gruptaki 1392 benzersiz URL'nin tamami anonim HTTP ile denetlendi.
+Tamami dogrudan 200, indexlenmeye acik, tek dogru canonical ve tek H1 tasiyor.
+Bu, Google'in icerik secimi kararinin degistigi veya butun gonderilmemis URL'lerin
+kontrol edildigi anlamina gelmez.
+
+29 sitemap dosyasinin tam XML kontrolu, istasyon/ana sitemap tarihleri
+duzeltilmis olsa da tur sitemap'lerinde bir ek yolun kaldigini gosterdi:
+gecelik istasyon-sayisi isinin ilerlettigi `genres.updated_at`, 14 dilin tur
+sayfalarina ve sitemap indexlerine icerik tarihi olarak yansiyordu. Bu tarih
+guvenilir bir editoryal tarih degildir. Tur XML'i, tum indexlerdeki tur
+referanslari ve HTTP tarihleri de bundan arindirildi. Gercek blog tarihleri
+korunuyor. Tur XML onbellegi v3'e alinarak eski tarihli govdelerin tekrar
+sunulmasi engellendi; gercek URL degisikliklerinin ETag'i degistirmesi ve
+degismeyen XML icin 304 korunuyor.
+
+Bu ek duzeltme icin 14 dilde tarih-kararliligi, eski onbellek atlama,
+gercek URL degisimi ve gercek PostgreSQL tur sayaci kontrolleri eklendi.
+Bulgu, yillik indeks kaybinin tek nedeni olarak sunulmamali; Google'in
+yeniden tarama ve kalite secimi ayrica izlenmelidir.
+
 Gonderilen gruptaki eski noindex iki ornek:
 
 - https://themegaradio.com/en/station/3ne-wangaratta-1566-am

@@ -1549,12 +1549,13 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
         return void res.status(503).send('Manifest building — retry shortly');
       }
 
-      // FRESHNESS BUG FIX (2026-05-09): see /sitemap-main route comment.
-      const cacheKey = `sitemap:genres:xml-v2:${lang}:${state.hash}:${manifest.version}:${manifest.maxUpdatedAt instanceof Date ? manifest.maxUpdatedAt.getTime() : 0}`;
-      if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl, manifest.maxUpdatedAt)) return;
+      // Nightly station-count refreshes also advance Genre.updatedAt. Until
+      // editorial dates exist, v3 excludes those operational dates from XML.
+      const cacheKey = `sitemap:genres:xml-v3:${lang}:${state.hash}:${manifest.version}:${manifest.maxUpdatedAt instanceof Date ? manifest.maxUpdatedAt.getTime() : 0}`;
+      if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
       const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
       if (cached) {
-        return sendSitemapXml(req, res, cached, childCacheControl, manifest.maxUpdatedAt);
+        return sendSitemapXml(req, res, cached, childCacheControl);
       }
 
       const baseUrl = getBaseUrl(req);
@@ -1585,12 +1586,10 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
         const genrePath = `/genres/${genre.slug}`;
         const localizedPath = buildLocalizedUrl(genrePath, lang, undefined, urlTranslations);
         const fullUrl = `${baseUrl}${localizedPath}`;
-        const genreLastMod = genre.updatedAt ? formatLastmod(new Date(genre.updatedAt)) : '';
 
         parts.push(`
   <url>
-    <loc>${escapeXml(fullUrl)}</loc>${genreLastMod ? `
-    <lastmod>${genreLastMod}</lastmod>` : ''}
+    <loc>${escapeXml(fullUrl)}</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>`);
 
@@ -1614,7 +1613,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
 
       const sitemap = cacheSitemapXml(xml);
       await storeSitemapXml(cacheKey, sitemap);
-      sendSitemapXml(req, res, sitemap, childCacheControl, manifest.maxUpdatedAt);
+      sendSitemapXml(req, res, sitemap, childCacheControl);
 
       logger.log(`✅ sitemap-genres-${lang}.xml (${genreCount}) ${Date.now() - startTime}ms`);
     } catch (error) {
@@ -1658,10 +1657,9 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
   //   sitemap-genres-{lang}.xml  → genre pages per language
   //   sitemap-stations-{lang}-{chunk}.xml → station pages per language, paginated
   // Sitemap-index — manifest-driven (refactored 2026-04-30)
-  // Reads SitemapManifest collection, emits ONLY child sitemaps that have an
-  // active manifest with chunkCount > 0. Each <sitemap> entry includes
-  // <lastmod> derived from manifest.maxUpdatedAt (omit if missing — never
-  // fake today's date per CRITICAL LASTMOD RULE).
+  // Reads active PostgreSQL manifests and emits only nonempty child sitemaps.
+  // Operational manifest dates are not content dates; only the editorial
+  // blog sitemap has a trustworthy lastmod.
   //
   // Cache: 600s (indexCacheTtlSeconds) — short so manifest swaps propagate
   // through Cloudflare within ~10min instead of 24h.
@@ -1703,17 +1701,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
         return;
       }
 
-      // Compute per-(type,lang) max lastmod for the index entries.
-      const manifestByKey = new Map<string, any>();
-      for (const m of manifests as any[]) {
-        const dates = (m.chunks || [])
-          .map((c: any) => c.maxUpdatedAt)
-          .filter((d: any) => d instanceof Date);
-        const maxUpdatedAt = dates.length > 0
-          ? new Date(Math.max(...dates.map((d: Date) => d.getTime())))
-          : undefined;
-        manifestByKey.set(`${m.type}:${m.language}`, { ...m, maxUpdatedAt });
-      }
+      const manifestByKey = new Map(manifests.map(m => [`${m.type}:${m.language}`, m]));
 
       const parts: string[] = [];
       parts.push(`<?xml version="1.0" encoding="UTF-8"?>
@@ -1744,7 +1732,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       for (const lang of qualifiedLanguages) {
         const m = manifestByKey.get(`genres:${lang}`);
         if (!m || m.chunkCount === 0) continue;
-        emitEntry(`${baseUrl}/sitemap-genres-${lang}.xml`, formatLastmod(m.maxUpdatedAt));
+        emitEntry(`${baseUrl}/sitemap-genres-${lang}.xml`);
       }
 
       // 3. Station sitemaps — emit ONLY existing chunks per language (no
@@ -1759,7 +1747,6 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       // the index. Skip-and-warn instead so the index stays consistent with
       // what the per-chunk route can actually serve.
       let totalChildSitemaps = 0;
-      let indexMaxLastmod: Date | null = new Date(BLOG_UPDATED);
       for (const lang of qualifiedLanguages) {
         const m = manifestByKey.get(`stations:${lang}`);
         if (!m || !Array.isArray(m.chunks) || m.chunks.length === 0) continue;
@@ -1781,19 +1768,11 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
           totalChildSitemaps++;
         }
       }
-      // Only genre/editorial dates are independent of station health writes.
-      for (const m of manifestByKey.values() as any) {
-        if (m.type !== 'genres') continue;
-        if (m?.maxUpdatedAt instanceof Date && (!indexMaxLastmod || m.maxUpdatedAt > indexMaxLastmod)) {
-          indexMaxLastmod = m.maxUpdatedAt;
-        }
-      }
-
       parts.push(`
 </sitemapindex>`);
       const xml = parts.join('');
 
-      sendSitemapXml(req, res, cacheSitemapXml(xml), indexCacheControl, indexMaxLastmod);
+      sendSitemapXml(req, res, cacheSitemapXml(xml), indexCacheControl);
 
       logger.log(`✅ sitemap-index.xml: ${qualifiedLanguages.length} langs, ${totalChildSitemaps} station chunks, ${manifests.length} total entries`);
     } catch (error) {
@@ -1851,17 +1830,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
         return;
       }
 
-      // Per-type lookup with maxUpdatedAt computed from chunks
-      const byType = new Map<string, any>();
-      for (const m of langManifests as any[]) {
-        const dates = (m.chunks || [])
-          .map((c: any) => c.maxUpdatedAt)
-          .filter((d: any) => d instanceof Date);
-        const maxUpdatedAt = dates.length > 0
-          ? new Date(Math.max(...dates.map((d: Date) => d.getTime())))
-          : undefined;
-        byType.set(m.type, { ...m, maxUpdatedAt });
-      }
+      const byType = new Map(langManifests.map(m => [m.type, m]));
 
       const parts: string[] = [];
       parts.push(`<?xml version="1.0" encoding="UTF-8"?>
@@ -1888,7 +1857,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       // 2. Genre pages
       const genresM = byType.get('genres');
       if (genresM && genresM.chunkCount > 0) {
-        emitLangEntry(`${baseUrl}/sitemap-genres-${lang}.xml`, formatLastmod(genresM.maxUpdatedAt));
+        emitLangEntry(`${baseUrl}/sitemap-genres-${lang}.xml`);
       }
 
       // 3. Station chunks (paginated)
