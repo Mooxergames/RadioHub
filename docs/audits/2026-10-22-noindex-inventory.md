@@ -65,6 +65,11 @@ Read city evidence only for plausible closed groups. City is retained in source
 JSON, not a native station column; decompressing the entire catalog's article
 JSON during the writer lock would be unnecessary and unsafe.
 
+Peer enumeration stops as soon as an oversized group is proven ineligible;
+existence checks stop at the first peer. A 66,382-row synthetic worst-case slug
+family reduced the local group scan from about 41 seconds to 38 milliseconds.
+This is a CPU regression check, not a production database latency guarantee.
+
 ## Search Console Limits
 
 The failed noindex cycle still contained 43 currently excluded URLs when checked.

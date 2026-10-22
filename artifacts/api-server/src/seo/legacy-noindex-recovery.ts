@@ -68,27 +68,27 @@ export function createRecoveryIdentityIndex() {
   };
   const plausibleCountry = (peer: Peer, country: string, code: string) =>
     !peer.country || !peer.code || peer.country === country || peer.code === code;
-  const peerIds = (station: RecoveryIdentity & { automaticNoIndex?: unknown }) => {
+  const peerIds = (station: RecoveryIdentity & { automaticNoIndex?: unknown }, limit = 11) => {
     const ids = new Set<string>();
+    const add = (id: string) => { if (id !== station.id) ids.add(id); return ids.size >= limit; };
     const country = normalized(station.country), code = normalized(station.countryCode);
     for (const peer of names.get(normalized(station.name)) || []) {
-      if (plausibleCountry(peer, country, code)) ids.add(peer.id);
+      if (plausibleCountry(peer, country, code) && add(peer.id)) return ids;
     }
-    for (const id of uuids.get(station.stationuuid?.toLowerCase() || '') || []) ids.add(id);
+    for (const id of uuids.get(station.stationuuid?.toLowerCase() || '') || []) if (add(id)) return ids;
     for (const key of familyKeys(station.slug)) {
-      for (const peer of slugFamilies.get(key) || []) if (plausibleCountry(peer, country, code)) ids.add(peer.id);
+      for (const peer of slugFamilies.get(key) || []) if (plausibleCountry(peer, country, code) && add(peer.id)) return ids;
     }
     for (const value of [station.url, station.urlResolved]) {
       const endpoint = recoveryEndpoint(value);
-      if (endpoint) for (const id of endpoints.get(endpoint) || []) ids.add(id);
+      if (endpoint) for (const id of endpoints.get(endpoint) || []) if (add(id)) return ids;
     }
     const provenance = station.automaticNoIndex as { reason?: string } | null;
     const target = typeof provenance?.reason === 'string' && provenance.reason.startsWith('duplicate-of:')
       ? provenance.reason.slice('duplicate-of:'.length) : null;
     for (const slug of [station.slug, ...(station.slugAliases || []), target]) {
-      if (slug) for (const id of slugs.get(slug) || []) ids.add(id);
+      if (slug) for (const id of slugs.get(slug) || []) if (add(id)) return ids;
     }
-    ids.delete(station.id);
     return ids;
   };
   let total = 0;
@@ -121,7 +121,7 @@ export function createRecoveryIdentityIndex() {
       }
     },
     hasPeer(station: RecoveryStation): boolean {
-      return peerIds(station).size > 0;
+      return peerIds(station, 1).size > 0;
     },
     cityEvidenceIds(): string[] {
       const ids = new Set<string>();

@@ -142,6 +142,13 @@ test('only the complete unsuffixed canonical can recover when a closed exact-ide
     'plausible-identity-peer', 'alias ownership conflicts remain protected');
 });
 
+test('oversized slug families remain blocked without scanning every peer for each canonical', { timeout: 5000 }, () => {
+  const index = createRecoveryIdentityIndex();
+  for (let n = 0; n < 20_000; n++) index.add(station({ id: String(n), name: `Broadcaster ${n}`,
+    slug: `broadcaster-${n}`, noIndex: true, url: `https://example.invalid/channel/${n}` }));
+  assert.deepEqual(index.cityEvidenceIds(), []);
+});
+
 function fixture(initial = [station()], invalidate: (slugs: string[]) => Promise<boolean> = async () => true) {
   let rows = initial, identitiesFetched = false, candidatesFetched = false;
   const queries: string[] = [], values: any[][] = [], clients: any[] = [];
