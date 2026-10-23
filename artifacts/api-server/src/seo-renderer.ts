@@ -1450,18 +1450,18 @@ export class SeoRenderer {
           ],
         };
         if (selfId) baseFilter._id = { $ne: selfId };
-        const projection = 'name slug favicon logoAssets country tags votes';
+        const cardFields = ['name', 'slug', 'favicon', 'logoAssets', 'country', 'tags', 'votes'];
 
         const sameCountryQ: Promise<any[]> = country
           ? withSignal<any[]>(
-              pgSeoCatalog().find({ ...baseFilter, country }, { sort: { votes: -1 }, limit: 8 }),
+              pgSeoCatalog().find({ ...baseFilter, country }, { fields: cardFields, sort: { votes: -1 }, limit: 8 }),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
         const sameGenreQ: Promise<any[]> = Promise.resolve([]);
         const sameCityQ: Promise<any[]> = stateName
           ? withSignal<any[]>(
-              pgSeoCatalog().find({ ...baseFilter, state: stateName }, { sort: { votes: -1 }, limit: 6 }),
+              pgSeoCatalog().find({ ...baseFilter, state: stateName }, { fields: cardFields, sort: { votes: -1 }, limit: 6 }),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
@@ -1486,7 +1486,7 @@ export class SeoRenderer {
               pgSeoCatalog().find({
                 ...baseFilter,
                 name: { $regex: `^${brandToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
-              }, { sort: { votes: -1 }, limit: 7 }),
+              }, { fields: cardFields, sort: { votes: -1 }, limit: 7 }),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
