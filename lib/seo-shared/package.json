@@ -15,6 +15,7 @@
     "./faq-schema": "./src/faq-schema.ts",
     "./structured-data": "./src/structured-data.ts",
     "./station-page-copy": "./src/station-page-copy.ts",
+    "./station-description-template": "./src/station-description-template.ts",
     "./station-image-alt": "./src/station-image-alt.ts",
     "./language-preference": "./src/language-preference.ts",
     "./seo-config": "./src/seo-config.ts",

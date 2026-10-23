@@ -26,6 +26,7 @@ const catalog = {
 };
 
 before(async () => {
+  mock.module('../src/data/postgres-admin-settings-store', { namedExports: { getAdminSetting: async () => null } });
   mock.module('../src/data/postgres-catalog-store', { namedExports: {
     pgCatalog: () => catalog, pgCreateSyncRun: async () => ({}), pgSaveSyncRun: async () => {}, pgSyncLogs: async () => [], pgSyncBlacklist: async () => [],
   } });

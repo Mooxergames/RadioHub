@@ -10,6 +10,8 @@ import { assessDuplicateGroup } from '../utils/station-duplicate-policy';
 import { preserveMergedStationMetadata } from '../utils/station-merge-preservation';
 import { allocateUniqueCatalogSlug } from './postgres-slug-store';
 import { automaticNoIndexPatch, evaluateJunkStation } from '../seo/junk-station-rules';
+import { STATION_SYNC_POLICY_KEY, stationIntakeEnabled } from '../utils/station-sync-policy';
+import { descriptionTextSql } from './station-description-sql';
 
 export type CatalogDocument = Record<string, any>;
 export type CatalogFilter = Record<string, any>;
@@ -296,6 +298,28 @@ export class PostgresCatalogStore {
       }
     }
   }
+  async *englishTemplateCandidates(): AsyncGenerator<CatalogDocument> {
+    let lastId = '';
+    while (true) {
+      // Scan bounded pages and transfer only missing-English candidates, not
+      // every station's complete 14-language article/source document.
+      const result = await this.pool.query(`WITH page AS MATERIALIZED (
+        SELECT id,name,country,country_code,state,tags_raw,language,votes,bitrate,codec,homepage,slug,
+          descriptions->'en' AS english,manual_edit_fields
+        FROM stations WHERE id>$1 ORDER BY id LIMIT 200
+      ) SELECT id AS scan_id, CASE WHEN manual_edit_fields->>'descriptions' IS DISTINCT FROM 'true'
+        AND (english IS NULL OR jsonb_typeof(english) IN ('null','object'))
+        AND (NOT COALESCE(${descriptionTextSql("english->'full'")},FALSE)
+          OR NOT COALESCE(${descriptionTextSql("english->'meta'")},FALSE))
+        THEN (to_jsonb(page)-'english')||jsonb_build_object('descriptions',jsonb_build_object('en',english))
+        ELSE NULL END AS candidate FROM page ORDER BY id`, [lastId]);
+      if (!result.rows.length) return;
+      for (const row of result.rows) {
+        lastId = row.scan_id;
+        if (row.candidate) yield catalogShape(row.candidate);
+      }
+    }
+  }
   async claimLogo(id: string, operationId: string, folder: string, expectedFavicon?: string | null): Promise<{ favicon: string | null } | null> {
     // Queued URL processing must claim the URL it actually intends to download,
     // not a newer favicon fetched after the queued work was created. Buffer
@@ -322,6 +346,14 @@ export class PostgresCatalogStore {
       await fenceProviderWrite(client, options.syncRunId);
       const saved: CatalogDocument[] = [];
       if (options.syncRunId) {
+        // Same lock as audited setting writes: after a pause is acknowledged,
+        // even a batch already prepared by another replica cannot insert.
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`admin-setting:${STATION_SYNC_POLICY_KEY}`]);
+        const policy = (await client.query('SELECT value FROM admin_settings WHERE key=$1', [STATION_SYNC_POLICY_KEY])).rows[0];
+        if (!stationIntakeEnabled(policy ?? null)) {
+          await client.query('COMMIT');
+          return [];
+        }
         // Provider names do not carry a local URL identity. Allocate missing
         // slugs atomically with each insert, under the same lock as maintenance.
         // Existing rows and explicitly supplied slugs are never regenerated.

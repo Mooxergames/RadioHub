@@ -11,6 +11,7 @@ function fixture(seed: Record<string, any>[] = []) {
     queries.push(sql);
     if (sql.includes("hashtextextended('admin-slug-assignment',0)")) locked = true;
     if (sql.startsWith('SELECT status,cancel_requested')) return { rowCount: 1, rows: [{ status: 'running', cancel_requested: false }] };
+    if (sql.startsWith('SELECT value FROM admin_settings')) return { rowCount: 0, rows: [] };
     if (sql.startsWith('SELECT 1 FROM station_blacklist')) return { rowCount: 0, rows: [] };
     if (sql.startsWith('SELECT id FROM stations WHERE station_uuid=')) {
       const existing = rows.find(row => row.station_uuid === values[0]
