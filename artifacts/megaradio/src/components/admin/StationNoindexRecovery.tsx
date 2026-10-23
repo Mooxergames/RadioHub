@@ -3,7 +3,8 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download } from 'lucide-react';
+import { Download, ListChecks, Square } from 'lucide-react';
+import { runNoindexRecovery } from '@/lib/noindex-recovery-runner';
 
 interface RecoveryCandidate {
   id: string; slug: string; name: string; country: string; countryCode: string;
@@ -36,6 +37,9 @@ export function StationNoindexRecovery() {
   const [selected, setSelected] = useState<string[]>([]);
   const [expired, setExpired] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ restored: 0, batches: 0 });
+  const stopBulk = useRef(false);
   const [result, setResult] = useState<RecoveryResult | null>(null);
   const scan = useMutation<RecoveryPreview, Error, string | undefined>({
     mutationFn: async afterId => (await apiRequest('POST', '/api/admin/seo-noindex-recovery/preview', { body: afterId ? { afterId } : {} })).json(),
@@ -52,6 +56,25 @@ export function StationNoindexRecovery() {
     onSuccess: data => { setResult(data); setSelected([]); setExpired(true); },
     onError: () => { setExpired(true); setSelected([]); },
   });
+  const bulk = useMutation({
+    mutationFn: async () => {
+      if (!preview || expired) throw new Error('Refresh preview');
+      stopBulk.current = false;
+      setBulkProgress({ restored: 0, batches: 0 });
+      setResult(null);
+      setSelected([]);
+      return runNoindexRecovery({
+        initial: preview,
+        preview: async () => (await apiRequest('POST', '/api/admin/seo-noindex-recovery/preview', { body: {} })).json(),
+        apply: async (snapshot, ids) => (await apiRequest('POST', '/api/admin/seo-noindex-recovery/apply', {
+          body: { previewId: snapshot.previewId, stationIds: ids },
+        })).json(),
+        shouldStop: () => stopBulk.current,
+        onProgress: (restored, batches) => setBulkProgress({ restored, batches }),
+      });
+    },
+    onSettled: () => { setExpired(true); setPreview(null); },
+  });
   const download = useMutation({ mutationFn: async () => {
     downloadRequest.current = new AbortController();
     const response = await apiRequest('GET', '/api/admin/seo-noindex-recovery/review.csv', { signal: downloadRequest.current.signal });
@@ -65,27 +88,30 @@ export function StationNoindexRecovery() {
     document.body.appendChild(link); link.click(); link.remove();
   } });
   useEffect(() => () => {
+    stopBulk.current = true;
     downloadRequest.current?.abort();
     for (const [url, timer] of downloadUrls.current) { clearTimeout(timer); URL.revokeObjectURL(url); }
     downloadUrls.current.clear();
   }, []);
   useEffect(() => {
     setConfirming(false);
+    setConfirmAll(false);
   }, [selected, preview, expired]);
   useEffect(() => {
     if (!preview) return;
     const timeout = setTimeout(() => { setExpired(true); setSelected([]); }, Math.max(0, Date.parse(preview.expiresAt) - Date.now()));
     return () => clearTimeout(timeout);
   }, [preview]);
-  const busy = scan.isPending || apply.isPending || download.isPending;
+  const busy = scan.isPending || apply.isPending || download.isPending || bulk.isPending;
   return <Card className="border-l-4 border-l-amber-500 bg-white">
     <CardHeader><CardTitle className="text-base">Eski noindex işaretlerini kontrollü onar</CardTitle></CardHeader>
     <CardContent className="space-y-4">
       <p className="max-w-3xl text-sm text-slate-600">Önce adayları inceleyin, sonra en fazla {BATCH_LIMIT} radyoyu seçin.
-        Yayın çevrimdışı olsa da 14 dilde zengin ve eksiksiz içerik sunan, kimlik kopyası şüphesi bulunmayan benzersiz bilgi sayfaları arama motorlarında indekslenebilir.
+        İngilizce tam açıklaması ve özeti bulunan geçerli bilgi sayfaları için diğer 13 dilin tamamlanması gerekmez.
+        Benzer ad veya format eki tek başına dışlama nedeni değildir; ortak yayın adresi, sağlayıcı kimliği ve URL çakışmaları kontrol edilir.
         Tüm kopyaları kapalı olan doğrulanmış gruplarda yalnızca asıl sayfa onarılır; kopyaların noindex kararı korunur.
         Sağlayıcı kontrolünün sonucu bilgi olarak gösterilir; güncel başarılı kontrol adaylık koşulu değildir.
-        Manuel kararlar, yönlendirmeler ve belirsiz kayıtlar korunur.
+        Manuel kararlar, yönlendirmeler ve somut kimlik çakışmaları korunur. Eksik ülke veya çevrimdışı yayın tek başına indeks engeli değildir.
         Bu işlem yayını yeniden başlatmaz, gizli radyoları listelerde görünür yapmaz.</p>
       <Button variant="outline" onClick={() => { apply.reset(); scan.mutate(undefined); }} disabled={busy}>
         {scan.isPending ? 'Adaylar inceleniyor…' : 'Onarım adaylarını incele'}
@@ -96,11 +122,17 @@ export function StationNoindexRecovery() {
       {download.isError && <p role="alert" className="text-sm text-rose-700">Kayıt raporu indirilemedi. Hiçbir kayıt değiştirilmedi; yeniden deneyin.</p>}
       {scan.isError && <p role="alert" className="text-sm text-rose-700">Aday taraması tamamlanamadı. Hiçbir kayıt değiştirilmedi; yeniden deneyin.</p>}
       {apply.isError && <p role="alert" className="text-sm text-rose-700">Onarım doğrulanamadı. Otomatik yeniden deneme yapılmaz; yeni taramayla güncel durumu kontrol edin.</p>}
+      {(bulk.isPending || bulk.isSuccess || bulk.isError) && <div role="status" className="border-t pt-3 text-sm">
+        <p>{bulkProgress.restored.toLocaleString()} radyo onarıldı · {bulkProgress.batches} parti tamamlandı.</p>
+        {bulk.isPending && <Button variant="outline" size="sm" onClick={() => { stopBulk.current = true; }}><Square className="mr-2 h-4 w-4" />Bu partiden sonra durdur</Button>}
+        {bulk.isSuccess && <p>{bulk.data.stopped ? 'İşlem durduruldu.' : 'Güncel koşulları sağlayan adaylar tamamlandı.'} Sitemap yenilemesi ve yeni katalog incelemesi gerekli.</p>}
+        {bulk.isError && <p role="alert" className="text-rose-700">{bulk.error.message} İşlem durdu; son parti otomatik yeniden denenmez. Yeni katalog incelemesi yapın.</p>}
+      </div>}
       {result && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
         {result.restored} radyonun noindex işareti kaldırıldı. İçerikler ve eski kararın kaydı korundu.
         {' '}Diğer adaylar için yeniden tarayın; onarımlar bittikten sonra sitemap’i yenileyin. Google indekslemesi garanti edilmez.
       </div>}
-      {preview && <>
+      {preview && !bulk.isPending && <>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
           <span>Taranan: <strong>{preview.totalScanned.toLocaleString()}</strong></span>
           <span>Noindex: <strong>{preview.totalNoIndex.toLocaleString()}</strong></span>
@@ -116,10 +148,18 @@ export function StationNoindexRecovery() {
         {preview.candidates.length === 0 && <p className="text-sm text-slate-600">Bu korumaları geçen aday bulunamadı. Diğer kayıtları açmak için ek kimlik veya içerik kanıtı gerekir; noindex işaretleri değiştirilmedi.</p>}
         {preview.candidates.length > 0 && <>
           <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" size="sm" disabled={busy || expired} onClick={() => setConfirmAll(true)}><ListChecks className="mr-2 h-4 w-4" />Tüm uygun adayları onar ({preview.totalCandidates.toLocaleString()})</Button>
             <Button variant="outline" size="sm" disabled={busy || expired} onClick={() => setSelected(preview.candidates.slice(0, BATCH_LIMIT).map(row => row.id))}>İlk {Math.min(BATCH_LIMIT, preview.candidates.length)} adayı seç</Button>
             <Button variant="ghost" size="sm" disabled={busy || !selected.length} onClick={() => setSelected([])}>Seçimi temizle</Button>
             <span className="text-xs text-slate-600">{selected.length}/{BATCH_LIMIT} seçili · Hiçbir kayıt otomatik seçilmez.</span>
           </div>
+          {confirmAll && !expired && !busy && <section role="group" aria-label="Toplu noindex onarımını onayla" className="border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+            <p>Uygun adaylar 100 kayıtlık partilerle yeniden kontrol edilerek onarılacak. Hiçbir radyo silinmez; eski kararlar korunur. Sayfa açık kalmalıdır.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button onClick={() => { setConfirmAll(false); bulk.mutate(); }}>Toplu onarımı başlat</Button>
+              <Button variant="outline" onClick={() => setConfirmAll(false)}>Vazgeç</Button>
+            </div>
+          </section>}
           <div className="max-h-96 overflow-auto rounded-lg border">
             <table className="w-full text-left text-sm">
               <caption className="sr-only">İnceleme sonuçlarına göre onarılabilecek radyolar</caption>
@@ -136,7 +176,7 @@ export function StationNoindexRecovery() {
                 </td>
                 <td className="p-3 whitespace-nowrap">{formatSuccessfulCheck(row.lastCheckOkTime)}</td>
                 <td className="p-3"><div className="whitespace-nowrap">{row.completeLanguageCount}/14 dil</div><div className="text-xs text-slate-500">{row.evidence.recoveryBasis === 'canonical-of-excluded-duplicates'
-                  ? `Asıl bilgi sayfası; ${row.evidence.identityPeers} kopya kapalı kalır` : 'Tam ve benzersiz bilgi sayfası'}</div></td>
+                  ? `Asıl bilgi sayfası; ${row.evidence.identityPeers} kopya kapalı kalır` : 'İngilizce bilgi sayfası uygun'}</div></td>
               </tr>)}</tbody>
             </table>
           </div>

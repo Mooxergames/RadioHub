@@ -12,7 +12,7 @@ const station = (patch: Partial<RecoveryStation> = {}): RecoveryStation => ({
   stationuuid: `00000000-0000-4000-8000-${createHash('sha256').update(patch.id || 'station-a').digest('hex').slice(0, 12)}`,
   noIndex: true, redirectToSlug: null, manualEditFields: {}, automaticNoIndex: null,
   lastCheckOk: true, lastCheckTime: new Date(now - 60_000), lastCheckOkTime: new Date(now - 60_000).toISOString(),
-  completeLanguageCount: 14, rowVersion: '1000', sourceIsObject: true, journalIsObject: true, ...patch,
+  completeLanguageCount: 14, englishContentComplete: true, rowVersion: '1000', sourceIsObject: true, journalIsObject: true, ...patch,
 });
 const owned = { owner: 'radiohub-junk-policy', version: 1, active: true, reason: 'duplicate-of:old-target' };
 function assess(row: RecoveryStation, peers: RecoveryStation[] = []) {
@@ -43,22 +43,22 @@ test('recovery requires provider identity and complete unique content, never jus
     [{ slug: 'example-test-stream' }, 'junk:test-feed:test-stream'], [{ name: '' }, 'junk:empty-name'],
     [{ stationuuid: 'synthetic-legacy-id' }, 'missing-provider-uuid'],
     [{ stationuuid: '00000000-0000-0000-0000-000000000000' }, 'missing-provider-uuid'],
-    [{ country: '' }, 'missing-country-identity'], [{ countryCode: null }, 'missing-country-identity'],
     [{ name: '---' }, 'missing-country-identity'], [{ url: 'ftp://example.invalid/live' }, 'ambiguous-stream-endpoint'],
     [{ url: 'http:example.invalid/live' }, 'ambiguous-stream-endpoint'],
     [{ urlResolved: 'https://user:password@example.invalid' }, 'ambiguous-stream-endpoint'],
     [{ manualEditFields: { lastCheckOk: true } }, 'manual-provider-evidence'],
     [{ manualEditFields: { url: true } }, 'manual-provider-evidence'],
-    [{ completeLanguageCount: 13 }, 'incomplete-descriptions'],
+    [{ englishContentComplete: false }, 'incomplete-english-description'],
   ];
   for (const [patch, expected] of cases) assert.equal(assess(station(patch)).reason, expected, JSON.stringify(patch));
 });
 
 test('retired format/genre rules require the same complete unique identity checks and explicit apply', () => {
-  for (const reason of ['codec-suffix:-mp3', 'song-or-program-name:\\bremix\\b']) {
+  for (const reason of ['codec-suffix:-mp3', 'song-or-program-name:\\bremix\\b', 'test-feed:pink-noise', 'test-feed:white-noise']) {
     const row = station({ name: 'Remix Radio MP3', slug: 'remix-radio-mp3', automaticNoIndex: { ...owned, reason } });
     assert.equal(assess(row).candidate?.evidence.provenance, 'owned-retired-name-heuristic');
-    assert.equal(assess({ ...row, completeLanguageCount: 13 }).reason, 'incomplete-descriptions');
+    assert.equal(assess({ ...row, completeLanguageCount: 1 }).reason, 'eligible');
+    assert.equal(assess({ ...row, englishContentComplete: false }).reason, 'incomplete-english-description');
     assert.equal(assess({ ...row, manualEditFields: { noIndex: true } }).reason, 'manual-protection');
     assert.equal(assess({ ...row, name: 'Radio Test Stream', slug: 'radio-test-stream' }).reason, 'junk:test-feed:test-stream');
     assert.equal(assess(row, [station({ id: 'peer', name: row.name, slug: 'remix-radio' })]).reason, 'plausible-identity-peer');
@@ -69,13 +69,13 @@ test('retired format/genre rules require the same complete unique identity check
 });
 
 test('record review distinguishes historical provenance, guards, truncated hints and verified targets without writes', () => {
-  const row = station({ name: '=Example Radio', completeLanguageCount: 0 });
+  const row = station({ name: '=Example Radio', completeLanguageCount: 0, englishContentComplete: false });
   const index = createRecoveryIdentityIndex();
   index.add(row);
   index.add(station({ id: 'target', name: row.name, slug: 'canonical', noIndex: false }));
   const before = structuredClone(row), csv = recoveryReviewCsv(row, index, now);
   assert.match(csv, /"'=Example Radio"/);
-  assert.match(csv, /"incomplete-descriptions"/);
+  assert.match(csv, /"incomplete-english-description"/);
   assert.match(csv, /"target","canonical","false","canonical"/);
   assert.deepEqual(row, before);
   for (let n = 0; n < 20; n++) index.add(station({ id: `peer-${n}`, name: row.name, slug: `variant-${n}` }));
@@ -110,34 +110,37 @@ test('offline, stale and unknown health qualify only through complete unique con
     assert.equal(result.candidate?.evidence.recoveryBasis, 'complete-unique-information-page');
     assert.equal(result.candidate?.lastCheckOkTime, successfulDate);
     assert.deepEqual(row, before, 'classification never changes health or metadata');
-    assert.equal(assess(station({ ...patch, completeLanguageCount: 13 })).reason, 'incomplete-descriptions');
+    assert.equal(assess(station({ ...patch, completeLanguageCount: 1 })).reason, 'eligible');
+    assert.equal(assess(station({ ...patch, englishContentComplete: false })).reason, 'incomplete-english-description');
     assert.equal(assess(station({ ...patch, manualEditFields: { noIndex: true } })).reason, 'manual-protection');
     assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug' })]).reason, 'plausible-identity-peer');
   }
 });
 
-test('whole-catalog identity peers include indexed rows, redirects, punctuation variants and missing-country ambiguity', () => {
+test('name, format and country ambiguity alone cannot block a valid English information page', () => {
   const row = station();
   const peer = (patch: Partial<RecoveryStation> = {}) => station({ id: 'peer', slug: 'unique-peer-slug', noIndex: false,
     url: 'https://other.example.invalid/live', lastCheckOk: false, ...patch });
   for (const other of [peer(), peer({ name: 'Éxample-RADIO' }), peer({ country: '', countryCode: null }),
-    peer({ country: 'Deutschland', countryCode: null }), peer({ redirectToSlug: 'elsewhere' }),
-    peer({ name: 'Different brand', country: 'France', countryCode: 'FR', urlResolved: row.url }),
-    peer({ name: 'Other brand', country: 'France', countryCode: 'FR', url: row.url + '#player' }),
-    peer({ name: 'Other brand', country: 'France', countryCode: 'FR', slug: row.slug })]) {
-    assert.equal(assess(row, [other]).reason, 'plausible-identity-peer');
+    peer({ country: 'Deutschland', countryCode: null }), peer({ redirectToSlug: 'elsewhere' })]) {
+    assert.equal(assess(row, [other]).reason, 'eligible');
   }
+  assert.equal(assess(station({ country: 'Unknown', countryCode: '' })).reason, 'eligible');
+  assert.equal(assess(station({ country: null, countryCode: null, completeLanguageCount: 1 })).reason, 'eligible');
   assert.equal(assess(row, [peer({ country: 'France', countryCode: 'FR' })]).reason, 'eligible');
   assert.equal(assess(station({ automaticNoIndex: owned }), [peer({ name: 'Renamed station', slug: 'old-target' })]).reason, 'plausible-identity-peer');
   for (const other of [peer({ name: 'Other Brand', slug: 'example-radio-2' }),
     peer({ name: 'Other Brand', slug: '1024-example-radio' }),
-    peer({ name: 'Other Brand', slug: 'example-radio-mp3' }),
+    peer({ name: 'Other Brand', slug: 'example-radio-mp3' })]) assert.equal(assess(row, [other]).reason, 'eligible');
+  for (const other of [peer({ name: 'Different brand', country: 'France', countryCode: 'FR', urlResolved: row.url }),
+    peer({ name: 'Other brand', country: 'France', countryCode: 'FR', url: row.url + '#player' }),
+    peer({ name: 'Other brand', country: 'France', countryCode: 'FR', slug: row.slug }),
     peer({ name: 'Other Brand', slugAliases: ['example-radio'] }),
     peer({ name: 'Other Brand', stationuuid: row.stationuuid.toUpperCase() })]) assert.equal(assess(row, [other]).reason, 'plausible-identity-peer');
   for (const slug of ['example-radio-mp3-192', 'example-radio-aac-plus-1', 'example-radio-mp3',
     'example-radio-128kb-mp3', 'example-radio-128k-aac', 'example-radio-64kbs-aac', 'example-radio-320-kbps-mp3']) {
     assert.equal(assess(station({ name: 'Other Brand MP3', slug }), [peer({ name: 'Other Brand', slug: 'example--radio' })]).reason,
-      'plausible-identity-peer', 'stacked formats and separator spelling stay in the identity review');
+      'eligible', 'format/name resemblance without shared identity is not proof of a duplicate');
   }
 });
 
@@ -164,8 +167,7 @@ test('only the complete unsuffixed canonical can recover when a closed exact-ide
   for (const patch of [{ noIndex: false }, { redirectToSlug: 'elsewhere' }, { manualEditFields: { noIndex: true } },
     { manualEditFields: [] }, { manualEditFields: { url: true } }, { name: 'Example-Radio' },
     { countryCode: 'AT' }, { state: 'Vienna' }, { stationuuid: 'unknown' },
-    { slug: 'example-radio-11' }, { slug: 'different-slug' },
-    { url: 'https://other.invalid/live', urlResolved: null }]) {
+    { slug: 'example-radio-11' }, { slug: 'different-slug' }]) {
     assert.equal(assess(station({ state: 'Berlin' }), [{ ...duplicate, ...patch }]).reason,
       'plausible-identity-peer', JSON.stringify(patch));
   }
@@ -208,7 +210,10 @@ function fixture(initial = [station()], invalidate: (slugs: string[]) => Promise
           if (candidatesFetched) return { rows: [] }; candidatesFetched = true; return { rows: structuredClone(rows.filter(row => row.noIndex)) };
         }
         if (sql.startsWith('SELECT') && sql.includes('FROM stations s WHERE')) return { rows: structuredClone(rows.filter(row => parameters[0].includes(row.id))) };
-        if (sql.startsWith('SELECT') && sql.includes('FROM stations s')) return { rows: structuredClone(rows) };
+        if (sql.startsWith('SELECT') && sql.includes('FROM stations s')) {
+          if (simulatedError) { client.emit('error', new Error('connection died')); return { rows: [] }; }
+          return { rows: structuredClone(rows) };
+        }
         if (sql.startsWith('UPDATE stations')) { client.wrote = true; return { rows: rows.filter(row => parameters[0].includes(row.id)).map(row => ({ id: row.id })) }; }
         if (sql === 'COMMIT') {
           if (client.wrote && commitAckError) client.emit('error', new Error('Socket ended alongside COMMIT acknowledgement'));

@@ -21,6 +21,7 @@ const stationProjection = `${identityProjection},s.source->>'city' AS city,
   s.last_check_time AS "lastCheckTime",s.source->'lastCheckOkTime' AS "lastCheckOkTime",s.xmin::text AS "rowVersion",
   (jsonb_typeof(s.source)='object') AS "sourceIsObject",
   (s.no_index_recovery_journal IS NULL OR jsonb_typeof(s.no_index_recovery_journal)='object') AS "journalIsObject",
+  (${descriptionTextSql("s.descriptions->'en'->'full'")} AND ${descriptionTextSql("s.descriptions->'en'->'meta'")}) AS "englishContentComplete",
   (SELECT count(*)::integer FROM jsonb_each(CASE WHEN jsonb_typeof(s.descriptions)='object' THEN s.descriptions ELSE '{}'::jsonb END) d
     WHERE d.key IN (${AUDIT_LANGUAGES.map(language => `'${language}'`).join(',')})
       AND ${descriptionTextSql("d.value->'full'")} AND ${descriptionTextSql("d.value->'meta'")}) AS "completeLanguageCount"`;
@@ -85,7 +86,7 @@ async function withTransaction<T>(pool: RecoveryPool, write: boolean, signal: Ab
       await query('LOCK TABLE stations IN SHARE ROW EXCLUSIVE MODE NOWAIT');
     }
     if (coordinate) {
-      const lock = await query("SELECT pg_try_advisory_xact_lock(hashtext('station-legacy-noindex-recovery')) AS acquired");
+      const lock = await query("SELECT pg_try_advisory_xact_lock(hashtext(current_schema() || ':station-legacy-noindex-recovery')) AS acquired");
       if (!lock.rows[0]?.acquired) throw failure('RECOVERY_BUSY', 'Another recovery operation is running');
     }
     const timestamp = await query('SELECT transaction_timestamp() AS at');
@@ -176,7 +177,7 @@ export class LegacyNoindexRecoveryStore {
     const report = await withTransaction(this.pool(), false, options.signal, async (query, now, signal) => {
       // The full catalog identity scan includes indexed rows and redirects;
       // limiting it to noindex rows would miss real duplicate peers.
-      const index = await readIdentityIndex(query);
+      const index = await readIdentityIndex(query, true);
       const result: RecoveryPreview = { previewId: randomUUID(), createdAt: new Date(now).toISOString(),
         expiresAt: '', totalScanned: index.total, totalNoIndex: 0, totalCandidates: 0,
         candidateLimit: RECOVERY_CANDIDATE_LIMIT, reasonCounts: {}, candidates: [] };
