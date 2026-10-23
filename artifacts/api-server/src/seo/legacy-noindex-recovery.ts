@@ -45,6 +45,27 @@ export function recoveryEndpoint(value: unknown): string | null {
   } catch { return null; }
 }
 
+function pageBrand(name: string): { brand: string; frequencies: string[] } {
+  const frequencies: string[] = [];
+  const words = name.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()
+    .replace(/\b(\d{2,4}(?:[.,]\d{1,2})?)\s*(fm|am|mhz|khz)\b/g, (_match, number: string, band: string) => {
+      frequencies.push(`${number.replace(',', '.')}:${band}`); return ' ';
+    }).replace(/\bradio\b/g, '');
+  return { brand: words.replace(/[^\p{L}\p{N}]/gu, ''), frequencies };
+}
+
+/** Page consolidation only, never station merging. A generic Radio prefix or
+ * an optional frequency may vary, but actual primary URLs, location and any
+ * two known frequencies must agree. Different brands remain blocked. */
+function assessPageCopyGroup(rows: RecoveryIdentity[]): boolean {
+  if (rows.length < 2 || rows.some(row => recoveryEndpoint(row.url) !== recoveryEndpoint(rows[0].url))) return false;
+  if (assessDuplicateGroup(rows).eligible) return true;
+  const brands = rows.map(row => pageBrand(row.name));
+  if (brands[0].brand.length < 4 || brands.some(row => row.brand !== brands[0].brand) ||
+      new Set(brands.flatMap(row => row.frequencies)).size > 1) return false;
+  return assessDuplicateGroup(rows.map(row => ({ ...row, name: brands[0].brand }))).eligible;
+}
+
 export function createRecoveryIdentityIndex() {
   const identities = new Map<string, RecoveryIdentity>();
   type Peer = { id: string; country: string; code: string };
@@ -170,7 +191,7 @@ export function createRecoveryIdentityIndex() {
         peer.id !== station.id && peer.noIndex === false && !peer.redirectToSlug && peer.englishContentComplete === true &&
         /^[a-z0-9][a-z0-9-]{0,199}$/.test(peer.slug || '') && nativeSlugs.get(peer.slug!)?.size === 1 &&
         !isNumericOnlySlug(peer.slug) && !evaluateJunkStation({ name: peer.name, slug: peer.slug || undefined, url: peer.url }).isJunk &&
-        assessDuplicateRedirect(station, peer).eligible);
+        (assessDuplicateRedirect(station, peer).eligible || assessPageCopyGroup([station, peer])));
       const base = matches.filter(peer => peer.slug === slugifyStationName(station.name));
       return base.length === 1 ? base[0] : matches.length === 1 ? matches[0] : null;
     },
@@ -190,12 +211,15 @@ export function createRecoveryIdentityIndex() {
               .some(key => Object.hasOwn(manual, key)) ||
             !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.stationuuid || '')) return null;
       }
-      const base = slugifyStationName(station.name);
       const ready = rows.filter(row => row.englishContentComplete === true && row.name.length <= 160 &&
         /^[a-z0-9][a-z0-9-]{0,179}$/.test(row.slug || '') && !isNumericOnlySlug(row.slug) &&
         !evaluateJunkStation({ name: row.name, slug: row.slug || undefined, url: row.url }).isJunk);
-      ready.sort((a, b) => Number(b.slug === base) - Number(a.slug === base) || a.id.localeCompare(b.id));
-      if (ready[0]?.id !== station.id || !assessDuplicateGroup(rows).eligible) return null;
+      // Ranking is independent of the reviewed row, including name variants:
+      // there must never be two independently selected winners in one group.
+      ready.sort((a, b) => Number(b.slug === slugifyStationName(b.name)) - Number(a.slug === slugifyStationName(a.name)) ||
+        Number(pageBrand(a.name).frequencies.length > 0) - Number(pageBrand(b.name).frequencies.length > 0) ||
+        a.slug!.length - b.slug!.length || a.id.localeCompare(b.id));
+      if (ready[0]?.id !== station.id || !assessPageCopyGroup(rows)) return null;
       // Every strong identity edge must stay inside the exact-primary group.
       for (const row of rows) for (const peers of identityPeerSets(row.id === station.id ? station : row)) {
         if (peers) for (const id of peers) if (!ids.has(id)) return null;
@@ -208,6 +232,10 @@ export function createRecoveryIdentityIndex() {
         if (identity.noIndex !== true || onlyIds && !onlyIds.has(identity.id)) continue;
         const peers = this.excludedCanonicalPeers(identity as RecoveryStation) || this.closedPrimaryCanonicalPeers(identity as RecoveryStation);
         if (peers) for (const row of [identity, ...peers]) ids.add(row.id);
+        const target = !peers ? this.duplicateRedirectTarget(identity as RecoveryStation) : null;
+        if (target && !assessDuplicateRedirect(identity, target).eligible) {
+          ids.add(identity.id); ids.add(target.id);
+        }
       }
       return [...ids];
     },
@@ -315,7 +343,7 @@ export function assessLegacyNoindexContentRepair(station: RecoveryStation, index
   return reviewLegacyNoindex(station, index, now, 'content-repair');
 }
 
-export const RECOVERY_REVIEW_CSV_HEADER = 'station_id,name,slug,country,country_code,url,stream_url,resolved_stream_url,noindex,recorded_owner,recorded_reason,manual_protection_fields,complete_languages,recovery_guard,repair_basis,plausible_peer_count_at_least,peer_list_truncated,peer_ids,peer_slugs,peer_noindex,exact_name_primary_stream_indexable_target_slugs\r\n';
+export const RECOVERY_REVIEW_CSV_HEADER = 'station_id,name,slug,country,country_code,url,stream_url,resolved_stream_url,noindex,recorded_owner,recorded_reason,manual_protection_fields,complete_languages,recovery_guard,repair_basis,plausible_peer_count_at_least,peer_list_truncated,peer_ids,peer_slugs,peer_noindex,verified_primary_stream_page_copy_target_slugs\r\n';
 
 /** A first failing guard is not the historical reason for a legacy flag.
  * Peer hints stay explicitly separate from exact name/primary-stream evidence. */

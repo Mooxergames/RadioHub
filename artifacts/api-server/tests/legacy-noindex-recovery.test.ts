@@ -442,3 +442,30 @@ test('closed-group city evidence is bounded to selected groups and rejects confl
   index.add(station({ id: 'outside', slug: 'outside', slugAliases: ['old-b'], url: 'https://outside.invalid/live' }));
   assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
 });
+
+test('optional Radio wording and frequency variants recover exactly one closed page, then redirect retained copies', () => {
+  for (const [name, variant] of [['Radio Estrada', 'Radio Estrada 107.7 FM'], ['madhurtarang', 'Radio Madhur Tarang']]) {
+    const first = station({ id: 'a', name, slug: name === 'madhurtarang' ? 'madhurtarang' : 'radio-estrada' });
+    const second = station({ id: 'b', name: variant, slug: name === 'madhurtarang' ? 'radio-madhur-tarang' : 'radio-estrada-107-7-fm' });
+    assert.equal(assess(first, [second]).candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(second, [first]).candidate, undefined, 'group has only one winner regardless of review order');
+    assert.equal(assess(second, [{ ...first, noIndex: false }]).candidate?.redirectToSlug, first.slug);
+    assert.equal(assess({ ...second, city: 'Other city' }, [{ ...first, city: 'Original city', noIndex: false }]).candidate, undefined);
+  }
+});
+
+test('page-copy variants reject different known frequencies, foreign locations, generic names and mismatched primary URLs', () => {
+  const first = station({ id: 'a', name: 'Radio Estrada 107.7 FM', slug: 'radio-estrada', state: 'Galicia' });
+  for (const patch of [{ name: 'Radio Estrada 106.7 FM' }, { name: 'Radio Different 107.7 FM' },
+    { name: 'Estrada 107.7 FM', countryCode: 'AT' }, { name: 'Estrada 107.7 FM', state: 'Vienna' },
+    { name: 'Estrada 107.7 FM', url: 'https://other.invalid/live', urlResolved: first.url }]) {
+    const other = station({ id: 'b', slug: 'copy-b', ...patch });
+    assert.equal(assess(first, [other]).candidate, undefined, JSON.stringify(patch));
+    assert.equal(assess(other, [{ ...first, noIndex: false }]).candidate, undefined, JSON.stringify(patch));
+  }
+  const base = station({ id: 'base', name: 'Radio Estrada', slug: 'radio-estrada' });
+  const one = { ...first, slug: 'radio-estrada-107-7' };
+  const two = station({ id: 'c', name: 'Radio Estrada 106.7 FM', slug: 'radio-estrada-106-7' });
+  for (const row of [base, one, two]) assert.equal(assess(row, [base, one, two].filter(peer => peer.id !== row.id)).candidate, undefined);
+  assert.equal(assess(station({ name: 'Radio Mix' }), [station({ id: 'b', name: 'Mix', slug: 'mix' })]).candidate, undefined);
+});
