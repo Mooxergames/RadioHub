@@ -183,12 +183,12 @@ export function isJunkStation(station: any): boolean {
   return evaluateJunkStation(station).isJunk;
 }
 
-/** An unknown old exclusion is not permission to reindex. Its rich offline
- * information page can still be shown with noindex, without altering the row.
- * Explicit manual decisions, actual quality junk and redirects stay excluded.
+/** An unknown old exclusion is not evidence that an existing page is gone.
+ * Keep its information page with noindex until identity review, independently
+ * of stream health. Manual decisions, actual junk and redirects stay excluded.
  */
-export function canRenderLegacyOfflineInformation(station: any): boolean {
-  return station?.lastCheckOk === false && station.noIndex === true &&
+export function canRenderLegacyStationInformation(station: any): boolean {
+  return station?.noIndex === true &&
     station.manualEditFields?.noIndex === undefined && !station.redirectToSlug &&
     !isNumericOnlySlug(station.slug) && !isJunkStation(station);
 }

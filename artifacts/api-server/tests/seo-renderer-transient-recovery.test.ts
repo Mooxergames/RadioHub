@@ -241,7 +241,7 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
 }
 
 test('verified legacy alias repair never bypasses an excluded target or guesses a missing record', async () => {
-  exactLookupFixtures = new Map([['alias:kpiss-fm-2', { ...station, slug: 'kpiss-fm', noIndex: true }]]);
+  exactLookupFixtures = new Map([['alias:kpiss-fm-2', { ...station, slug: 'kpiss-fm', noIndex: true, manualEditFields: { noIndex: true } }]]);
   const excluded = await renderer.renderStaticPage('/en/station/kpissfm-2', 'https://themegaradio.com');
   assert.equal(excluded.pageData?.stationIsJunk, true);
   assert.equal(excluded.pageData?.redirectTo, undefined);
@@ -436,10 +436,22 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
 
 test('merged aliases never bypass an explicit junk target decision', async () => {
   missing = true;
-  mergedAlias = { ...station, noIndex: true };
+  mergedAlias = { ...station, noIndex: true, manualEditFields: { noIndex: true } };
   const result = await renderer.renderStaticPage('/tr/istasyon/old-uuid', 'https://themegaradio.com');
   assert.equal(result.pageData?.redirectTo, undefined);
   assert.equal(result.pageData?.stationIsJunk, true);
+});
+
+test('a persisted alias may retain a live historical noindex information page without claiming indexing approval', async () => {
+  missing = true;
+  mergedAlias = { ...station, noIndex: true, lastCheckOk: true };
+  const alias = await renderer.renderStaticPage('/en/station/old-uuid', 'https://themegaradio.com');
+  assert.equal(alias.pageData?.redirectTo, '/en/station/recovery-fm');
+  pageCache.clear(); missing = false; noIndex = true; stationOverrides = { lastCheckOk: true };
+  const target = await renderer.renderStaticPage('/en/station/recovery-fm', 'https://themegaradio.com');
+  assert.equal(target.pageData?.stationIsJunk, false);
+  assert.equal(target.seoTags.noIndex, true);
+  assert.deepEqual(target.seoTags.hreflangs, []);
 });
 
 test('transient PostgreSQL placeholder is not permanent junk and the next request re-reads recovered data', async () => {
@@ -476,6 +488,7 @@ test('real missing stations and explicit noIndex quality decisions retain perman
   assert.equal(unknown.pageData?.notFound, true);
   assert.equal(unknown.pageData?.stationDbError, undefined);
   pageCache.clear(); missing = false; noIndex = true;
+  stationOverrides = { manualEditFields: { noIndex: true } };
   const excluded = await renderer.renderStaticPage(url, 'https://themegaradio.com');
   assert.equal(excluded.pageData?.stationIsJunk, true);
   assert.equal(excluded.seoTags.noIndex, true);
@@ -606,6 +619,29 @@ test('unknown legacy offline noindex keeps rich localized200 data without reinde
   const duplicate = await renderer.renderStaticPage(url, 'https://themegaradio.com');
   assert.match(duplicate.pageData.redirectTo, /original-fm$/);
 });
+
+for (const lastCheckOk of [true, undefined]) {
+  test(`legacy noindex with stream health ${lastCheckOk} is not evidence of a permanently removed page`, async () => {
+    noIndex = true; qualifiedLanguages = [...ACTIVE_SITEMAP_LANGUAGES];
+    stationOverrides = { lastCheckOk, descriptions: Object.fromEntries(qualifiedLanguages.map(lang => [lang,
+      { full: `Retained station information ${lang}`, meta: `Retained summary ${lang}` }])) };
+    const entries = generateLanguageUrls('/station/recovery-fm', 'https://themegaradio.com', 'en', undefined, undefined, qualifiedLanguages);
+    for (const entry of entries.filter(item => item.lang !== 'x-default')) {
+      const page = await renderer.renderStaticPage(new URL(entry.url).pathname, 'https://themegaradio.com');
+      assert.equal(page.pageData.stationIsJunk, false);
+      assert.equal(page.pageData.notFound, false);
+      assert.equal(page.pageData.redirectTo, undefined);
+      assert.equal(page.pageData.station.noIndex, true, 'identity review remains required');
+      assert.equal(page.seoTags.noIndex, true);
+      assert.deepEqual(page.seoTags.hreflangs, []);
+      assert.deepEqual(getIndexableLanguagesForStation(page.pageData.station, qualifiedLanguages), []);
+      assert.equal(new URL(page.seoTags.canonical).href, new URL(entry.url).href);
+      const body = renderer.generateHtmlBody({ pageType: 'station', language: entry.lang, translations: {},
+        stationData: page.pageData.station, seoTags: page.seoTags });
+      assert.ok(body.includes(stationOverrides.descriptions[entry.lang].full));
+    }
+  });
+}
 
 const escapeHead = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 test('page-data and HTML emit identical bounded descriptions without shortening stored body content', async () => {
