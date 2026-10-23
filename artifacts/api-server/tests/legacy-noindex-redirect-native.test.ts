@@ -166,3 +166,21 @@ test('native name-variant page repair reads city evidence for both open targets 
       assert.equal((await fixture.pool.query("SELECT count(*)::integer AS count FROM stations WHERE id IN ('copy','target')")).rows[0].count, 2);
     } finally { await fixture.close(); }
   });
+
+test('native recovery preserves separate broadcasts when only an obsolete alias points at a real native page',
+  { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
+    const fixture = await createNativePostgresFixture('noindex_shadowed_alias');
+    try {
+      await seed(fixture);
+      await fixture.pool.query("UPDATE stations SET slug='los40-2',url='https://argentina.invalid/live',country='Argentina',country_code='AR' WHERE id='copy'");
+      await fixture.pool.query("UPDATE stations SET slug='los40',slug_aliases=ARRAY['los40-2'],country='Spain',country_code='ES' WHERE id='target'");
+      const target = (await fixture.pool.query("SELECT * FROM stations WHERE id='target'")).rows[0];
+      const store = new LegacyNoindexRecoveryStore(() => fixture.pool, async () => true);
+      const preview = await store.preview();
+      assert.equal(preview.candidates.find(row => row.id === 'copy')?.evidence.recoveryBasis, 'complete-unique-information-page');
+      await store.apply({ previewId: preview.previewId, stationIds: ['copy'] });
+      const copy = (await fixture.pool.query("SELECT * FROM stations WHERE id='copy'")).rows[0];
+      assert.equal(copy.no_index, false); assert.equal(copy.slug, 'los40-2'); assert.equal(copy.redirect_to_slug, null);
+      assert.deepEqual((await fixture.pool.query("SELECT * FROM stations WHERE id='target'")).rows[0], target);
+    } finally { await fixture.close(); }
+  });

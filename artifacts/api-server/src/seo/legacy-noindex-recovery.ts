@@ -134,9 +134,20 @@ export function createRecoveryIdentityIndex() {
       const endpoint = recoveryEndpoint(value);
       if (endpoint) sets.push(endpoints.get(endpoint));
     }
-    for (const slug of [station.slug, ...(station.slugAliases || [])]) if (slug) sets.push(slugs.get(slug));
+    for (const slug of [station.slug, ...(station.slugAliases || [])]) {
+      if (!slug) continue;
+      const owners = nativeSlugs.get(slug);
+      // The public reader and SSR resolve native slugs before legacy aliases.
+      // An alias shadowed by another native page cannot own that URL or turn
+      // two independently addressed broadcasts into duplicate identities.
+      if (!owners) sets.push(slugs.get(slug));
+      else if (slug === station.slug) sets.push(owners);
+    }
     const reason = (station.automaticNoIndex as { reason?: unknown } | null)?.reason;
-    if (typeof reason === 'string' && reason.startsWith('duplicate-of:')) sets.push(slugs.get(reason.slice('duplicate-of:'.length)));
+    if (typeof reason === 'string' && reason.startsWith('duplicate-of:')) {
+      const target = reason.slice('duplicate-of:'.length);
+      sets.push(nativeSlugs.get(target) || slugs.get(target));
+    }
     return sets;
   };
   let total = 0;
