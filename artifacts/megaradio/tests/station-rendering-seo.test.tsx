@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { getQueryFn } from '../src/lib/queryClient';
 import { ServerSeoHeadContext } from '../src/utils/ssr-seo-head';
+import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 
 const state = vi.hoisted(() => ({
   language: 'en', slug: 'fixture-radio', playStation: vi.fn(),
@@ -204,6 +205,15 @@ it('renders the legacy description used by SSR instead of replacing it with gene
   await act(async () => { finish(Response.json({ ...seed, descriptions: {}, description: article })); });
   await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: seed.name })).toBeInTheDocument());
   expect(screen.getAllByText(article)).toHaveLength(1);
+});
+
+it('uses the factual English fallback in the visible article when stored prose is missing or malformed', async () => {
+  const station = { ...seed, country: 'Austria', countryCode: 'AT', tags: 'news',
+    descriptions: { en: { full: 42, meta: false } } };
+  mount();
+  await act(async () => { finish(Response.json(station)); });
+  await waitFor(() => expect(screen.getAllByText(buildTemplateDescription(station).full)).toHaveLength(1));
+  expect(screen.queryByText(/You are now listening/)).not.toBeInTheDocument();
 });
 
 it('does not replace the localized SSR legacy article with an unrelated English fallback', async () => {

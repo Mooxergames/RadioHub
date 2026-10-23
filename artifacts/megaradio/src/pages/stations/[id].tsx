@@ -29,6 +29,7 @@ import StationLogo from "@/components/ui/station-logo";
 import { readStationBootstrap } from '@/lib/station-bootstrap';
 import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import AnimatedEqualizer from "@/components/ui/animated-equalizer";
 import { StarRating } from "@/components/star-rating";
 import { ListeningTimer } from "@/components/ui/listening-timer";
@@ -849,7 +850,7 @@ export default function StationDetails() {
                       if (station.descriptions) {
                         const desc = station.descriptions[language];
                         if (desc) {
-                          if (typeof desc === 'object' && desc.full) {
+                          if (typeof desc === 'object' && typeof desc.full === 'string') {
                             fullText = desc.full;
                           } else if (typeof desc === 'string') {
                             fullText = desc;
@@ -858,14 +859,15 @@ export default function StationDetails() {
                       }
                       // SSR uses this legacy article when the locale has no
                       // description; prefer it to unrelated English/default copy.
-                      if (!fullText && typeof station.description === 'string') fullText = station.description;
-                      if (!fullText) {
+                      if (!fullText.trim() && typeof station.description === 'string') fullText = station.description;
+                      if (!fullText.trim()) {
                         const english = station.descriptions?.en;
-                        fullText = typeof english === 'string' ? english : english?.full || '';
+                        fullText = typeof english === 'string' ? english : typeof english?.full === 'string' ? english.full : '';
                       }
                       fullText = fullText.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').trim();
                       
-                      if (!fullText) {
+                      if (!fullText && language === 'en') fullText = buildTemplateDescription(station).full;
+                      if (!fullText && language !== 'en') {
                         fullText = language === 'tr' 
                           ? `Şu anda ${station.name} dinliyorsunuz! – Mega Radio üzerinde binlerce radyo istasyonunu HD kalitede ücretsiz online dinleyin.`
                           : t('default_station_about', `You are now listening to ${station.name}! – Listen to thousands of radio stations in HD quality online for free on Mega Radio.`, {
