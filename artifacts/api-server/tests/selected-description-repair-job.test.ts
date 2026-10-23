@@ -23,6 +23,7 @@ const localized: Record<string, { full: string; meta: string }> = {
 let fixture: any, persisted: any, reviewRows: any[], backgrounds: Array<() => Promise<void>>;
 let routes: Map<string, any>, checkpoints: any[], saved: any[], translations: any[], connects: number;
 let modelFailure: boolean, leadership: boolean, mutateDuringTranslation: (() => void) | undefined;
+let nativeLanguage: string, allowGeneration: boolean, generatedLanguages: string[];
 const auth = () => {};
 mock.module(new URL('../src/data/postgres-catalog-store.ts', import.meta.url).href, { namedExports: {
   pgCatalog: () => ({
@@ -58,8 +59,13 @@ mock.module(new URL('../src/routes/shared-utils.ts', import.meta.url).href, { na
 mock.module(new URL('../src/performance-cache.ts', import.meta.url).href, { namedExports: { performanceCache: { invalidateStationCache: () => {}, setQuick: () => {} } } });
 mock.module(new URL('../src/utils/logger.ts', import.meta.url).href, { namedExports: { logger: { log: () => {}, warn: () => {}, error: () => {} } } });
 mock.module(new URL('../src/services/ai-station-description.ts', import.meta.url).href, { namedExports: {
-  detectStationLanguage: () => 'it',
-  generateStationDescription: async () => { throw new Error('An existing reviewed English source must be retained'); },
+  detectStationLanguage: () => nativeLanguage,
+  generateStationDescription: async (_station: unknown, language: string) => {
+    assert.equal(allowGeneration, true, 'An existing reviewed English source must be retained');
+    assert.ok(localized[language], 'Generation must use a supported target locale');
+    generatedLanguages.push(language);
+    return { success: true, language, fullDescription: localized[language].full, metaDescription: localized[language].meta };
+  },
   translateDescription: async (full: string, meta: string, source: string, targets: string[]) => {
     translations.push({ full, meta, source, targets }); mutateDuringTranslation?.();
     if (modelFailure) throw new Error('Model service unavailable');
@@ -84,6 +90,7 @@ beforeEach(async () => {
     identity: descriptionRepairIdentity(fixture), descriptions: structuredClone(persisted) }];
   backgrounds = []; checkpoints = []; saved = []; translations = []; connects = 0;
   modelFailure = false; leadership = true; mutateDuringTranslation = undefined; routes = new Map();
+  nativeLanguage = 'it'; allowGeneration = false; generatedLanguages = [];
   const register = (path: string, ...handlers: any[]) => { assert.equal(handlers[0], auth); routes.set(path, handlers.at(-1)); };
   await registerAiDescriptionRoutes({ post: register, get: register } as any, { requireAdmin: auth });
 });
@@ -171,4 +178,30 @@ test('provider failure retains local metadata repairs and records failure instea
 test('a running fill leader prevents overlapping selected work before model calls', async () => {
   leadership = false; const response = await request(startPath, selection());
   assert.equal(response.status, 409); assert.equal(backgrounds.length, 0); assert.equal(translations.length, 0);
+});
+
+test('selected missing-source generation stays inside supported targets with an English fallback for other native languages', async () => {
+  for (const native of ['el', 'it']) {
+    nativeLanguage = native; allowGeneration = true; persisted = {}; fixture.descriptions = {};
+    fixture.manualEditFields = {};
+    reviewRows = [{ id: fixture._id, name: fixture.name, slug: fixture.slug, reason: 'eligible-for-content-repair',
+      identity: descriptionRepairIdentity(fixture), descriptions: {} }];
+    const response = await request(startPath, selection());
+    assert.equal(response.result.total, 1); await backgrounds.shift()!();
+    assert.equal(generatedLanguages.at(-1), native === 'el' ? 'en' : 'it');
+    assert.equal(checkpoints.at(-1).status, 'completed');
+    assert.equal(checkpoints.at(-1).failedCount, 0);
+    assert.deepEqual(new Set(Object.keys(persisted)), new Set(SITEMAP_PRIORITY_LANGUAGES.universal14));
+  }
+});
+
+test('selected generation never pays for a protected empty source locale', async () => {
+  nativeLanguage = 'en'; allowGeneration = true; persisted = {}; fixture.descriptions = {};
+  fixture.manualEditFields = { 'descriptions.en': true };
+  reviewRows = [{ id: fixture._id, name: fixture.name, slug: fixture.slug, reason: 'eligible-for-content-repair',
+    identity: descriptionRepairIdentity(fixture), descriptions: {} }];
+  await request(startPath, selection()); await backgrounds.shift()!();
+  assert.notEqual(generatedLanguages[0], 'en'); assert.equal(persisted.en, undefined);
+  assert.equal(checkpoints.at(-1).status, 'completed'); assert.equal(checkpoints.at(-1).failedCount, 0);
+  assert.ok(saved.every(input => input.language !== 'en'));
 });

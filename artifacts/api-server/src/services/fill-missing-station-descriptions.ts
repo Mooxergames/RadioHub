@@ -77,12 +77,18 @@ export async function fillMissingStationDescriptions(
   );
   if (!sourceLanguage) {
     if (station.aiDescriptionSkipped) return { skipped: true, languages: written };
+    // The selected writer accepts only the reviewed, unprotected target
+    // locales. Do not bill for an unsupported or protected native source.
+    const generationLanguage = options.reviewedExcluded
+      ? [sourceLanguageEvidence, nativeLanguage, 'en', ...targetLanguages].find(language => language && targetLanguages.includes(language))!
+      : nativeLanguage;
     assertActive();
-    onAction('generating', [nativeLanguage]);
-    const result = await generateStationDescription(station, nativeLanguage);
+    onAction('generating', [generationLanguage]);
+    const result = await generateStationDescription(station, generationLanguage);
     if (!result.success || !result.fullDescription || !result.metaDescription) {
       throw new Error(result.error || 'Failed to generate a source description');
     }
+    if (options.reviewedExcluded && result.language !== generationLanguage) throw new Error('Generated source language differs from the reviewed locale');
     sourceLanguage = result.language;
     await save(sourceLanguage, { full: result.fullDescription, meta: result.metaDescription });
     missing = targetLanguages.filter(language => !hasCompleteDescription(descriptions[language]));

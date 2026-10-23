@@ -22,6 +22,10 @@ repair to historical exclusions, and it never changes a noindex decision.
 - Metadata-only gaps can use retained localized prose without model calls.
   Valid text and locale extension fields are retained. Existing provider
   generation/translation validation, concurrency limits and cancellation apply.
+- A missing source is generated only in a supported, unprotected selected
+  target locale. An unsupported native language falls back to English or the
+  next editable target before billing; protected source locales are never
+  generated and then rejected by the native writer.
 
 ## Storage and Concurrency
 
