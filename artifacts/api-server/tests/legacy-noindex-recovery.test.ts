@@ -61,7 +61,9 @@ test('retired format/genre rules require the same complete unique identity check
     assert.equal(assess({ ...row, englishContentComplete: false }).reason, 'incomplete-english-description');
     assert.equal(assess({ ...row, manualEditFields: { noIndex: true } }).reason, 'manual-protection');
     assert.equal(assess({ ...row, name: 'Radio Test Stream', slug: 'radio-test-stream' }).reason, 'junk:test-feed:test-stream');
-    assert.equal(assess(row, [station({ id: 'peer', name: row.name, slug: 'remix-radio' })]).reason, 'plausible-identity-peer');
+    assert.equal(assess(row, [station({ id: 'peer', name: row.name, slug: 'remix-radio' })])
+      .candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(row, [station({ id: 'peer', name: 'Different Radio', slug: 'remix-radio' })]).reason, 'plausible-identity-peer');
     for (const provenance of [{ ...owned, reason, owner: 'other' }, { ...owned, reason, active: false }, { ...owned, reason, version: 2 }]) {
       assert.equal(assess({ ...row, automaticNoIndex: provenance }).reason, 'other-provenance');
     }
@@ -113,7 +115,9 @@ test('offline, stale and unknown health qualify only through complete unique con
     assert.equal(assess(station({ ...patch, completeLanguageCount: 1 })).reason, 'eligible');
     assert.equal(assess(station({ ...patch, englishContentComplete: false })).reason, 'incomplete-english-description');
     assert.equal(assess(station({ ...patch, manualEditFields: { noIndex: true } })).reason, 'manual-protection');
-    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug' })]).reason, 'plausible-identity-peer');
+    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug' })])
+      .candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug', countryCode: 'AT' })]).reason, 'plausible-identity-peer');
   }
 });
 
@@ -253,7 +257,7 @@ test('explicit apply locks before rereading all peers, rechecks selected evidenc
   const queries = f.queries.slice(offset);
   const lock = queries.findIndex(sql => sql.startsWith('LOCK TABLE'));
   const selected = queries.findIndex(sql => sql.includes('FOR UPDATE'));
-  const identity = queries.findIndex(sql => sql.startsWith('SELECT') && sql.includes('FROM stations s') && !sql.includes('WHERE'));
+  const identity = queries.findIndex(sql => sql.startsWith('SELECT') && /FROM stations s\s*$/.test(sql));
   const update = queries.findIndex(sql => sql.startsWith('UPDATE stations'));
   assert.ok(lock >= 0 && selected > lock && identity > selected && update > identity);
   assert.match(queries[lock], /SHARE ROW EXCLUSIVE MODE NOWAIT/);
@@ -373,4 +377,68 @@ test('postcommit cache rejection or a stuck cache never loses the successful mut
     assert.ok(Date.now() - startedAt < 2000, 'cache response wait is bounded independently of database safety deadline');
     assert.equal(f.queries.at(-1), 'COMMIT'); assert.ok(f.clients.every(client => client.released));
   }
+});
+
+test('exact duplicate repair selects an English-ready open canonical without deleting or opening the copy', () => {
+  const source = station({ slug: 'old-copy', lastCheckOk: false });
+  const target = station({ id: 'target', slug: 'example-radio', noIndex: false, completeLanguageCount: 1 });
+  const result = assess(source, [target]);
+  assert.equal(result.candidate?.redirectToSlug, target.slug);
+  assert.equal(result.candidate?.evidence.recoveryBasis, 'verified-duplicate-redirect');
+  assert.deepEqual(result.peerEvidence, [target]);
+  assert.equal(source.noIndex, true);
+  for (const patch of [{ name: 'Other Brand' }, { url: source.url + '?channel=other' },
+    { url: 'https://other.invalid/live', urlResolved: source.url }, { noIndex: true },
+    { noIndex: undefined }, { englishContentComplete: false }, { redirectToSlug: 'third' },
+    { slug: '12345' }, { slug: 'bad slug' }]) {
+    assert.equal(assess(source, [{ ...target, ...patch }]).candidate?.redirectToSlug, undefined, JSON.stringify(patch));
+  }
+  assert.equal(assess({ ...source, manualEditFields: { noIndex: true } }, [target]).reason, 'manual-protection');
+});
+
+test('duplicate repair rejects chains and ambiguous targets and does not truncate endpoint evidence behind name hints', () => {
+  const source = station({ slug: 'old-copy' });
+  const target = station({ id: 'target', slug: 'example-radio', noIndex: false });
+  const incoming = station({ id: 'incoming', slug: 'earlier-copy', name: 'Old title',
+    url: 'https://other.invalid/live', redirectToSlug: source.slug });
+  assert.equal(assess(source, [target, incoming]).candidate, undefined);
+  assert.equal(assess(source, [target, { ...target, id: 'slug-collision' }]).candidate, undefined);
+  assert.equal(assess(source, [{ ...target, slug: 'candidate-a' }, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate, undefined);
+  assert.equal(assess(source, [target, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate?.redirectToSlug, target.slug);
+  const index = createRecoveryIdentityIndex();
+  index.add(source);
+  for (let n = 0; n < 20; n++) index.add(station({ id: `hint-${n}`, slug: `hint-${n}`, url: `https://hint${n}.invalid/live` }));
+  index.add(target);
+  assert.equal(assessLegacyNoindexRecovery(source, index, now).candidate?.redirectToSlug, target.slug);
+  assert.match(recoveryReviewCsv(source, index, now), /verified-duplicate-redirect/);
+  assert.match(recoveryReviewCsv(source, index, now), /"example-radio"\r\n$/);
+});
+
+test('an entirely excluded exact-primary group can recover one stable canonical even without an unsuffixed import slug', () => {
+  const first = station({ id: 'a', slug: 'old-import-a', completeLanguageCount: 1 });
+  const second = station({ id: 'b', slug: 'old-import-b', completeLanguageCount: 1 });
+  const result = assess(first, [second]);
+  assert.equal(result.candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.deepEqual(result.candidate?.evidence.excludedDuplicateIds, ['b']);
+  assert.equal(assess(second, [first]).candidate, undefined);
+  assert.equal(assess(second, [{ ...first, noIndex: false }]).candidate?.redirectToSlug, first.slug);
+  for (const patch of [{ name: 'Different Station' }, { countryCode: 'AT' }, { state: 'Vienna' },
+    { manualEditFields: { noIndex: true } }, { manualEditFields: { url: true } }, { stationuuid: 'unknown' }]) {
+    assert.equal(assess({ ...first, state: 'Berlin' }, [{ ...second, ...patch }]).candidate, undefined, JSON.stringify(patch));
+  }
+});
+
+test('closed-group city evidence is bounded to selected groups and rejects conflicting cities or outside aliases', () => {
+  const a = station({ id: 'a', slug: 'old-a' }), b = station({ id: 'b', slug: 'old-b' });
+  const c = station({ id: 'c', slug: 'other-c', url: 'https://other.invalid/live' });
+  const d = station({ id: 'd', slug: 'other-d', url: c.url });
+  const index = createRecoveryIdentityIndex();
+  [a, b, c, d].forEach(row => index.add(row));
+  assert.deepEqual(index.cityEvidenceIds(new Set([a.id])).sort(), ['a', 'b']);
+  index.setCityEvidence(a.id, 'Berlin'); index.setCityEvidence(b.id, 'Munich');
+  assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
+  index.setCityEvidence(b.id, 'Berlin');
+  assert.ok(assessLegacyNoindexRecovery(a, index, now).candidate);
+  index.add(station({ id: 'outside', slug: 'outside', slugAliases: ['old-b'], url: 'https://outside.invalid/live' }));
+  assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
 });

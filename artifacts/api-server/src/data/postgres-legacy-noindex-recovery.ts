@@ -15,13 +15,13 @@ export const RECOVERY_PREVIEW_DEADLINE_MS = 60_000;
 const RECEIPT_DEADLINE_MS = 2000;
 const CACHE_RESPONSE_DEADLINE_MS = 1000;
 const identityProjection = `s.id,s.name,s.slug,s.slug_aliases AS "slugAliases",s.country,s.country_code AS "countryCode",s.state,s.url,s.url_resolved AS "urlResolved",s.station_uuid AS stationuuid,
-  s.no_index AS "noIndex",s.redirect_to_slug AS "redirectToSlug",s.manual_edit_fields AS "manualEditFields"`;
+  s.no_index AS "noIndex",s.redirect_to_slug AS "redirectToSlug",s.manual_edit_fields AS "manualEditFields",
+  COALESCE((SELECT (d.full_mask & d.meta_mask & 1)=1 FROM station_description_summary d WHERE d.station_id=s.id),false) AS "englishContentComplete"`;
 const stationProjection = `${identityProjection},s.source->>'city' AS city,
   s.source->'automaticNoIndex' AS "automaticNoIndex",s.last_check_ok AS "lastCheckOk",
   s.last_check_time AS "lastCheckTime",s.source->'lastCheckOkTime' AS "lastCheckOkTime",s.xmin::text AS "rowVersion",
   (jsonb_typeof(s.source)='object') AS "sourceIsObject",
   (s.no_index_recovery_journal IS NULL OR jsonb_typeof(s.no_index_recovery_journal)='object') AS "journalIsObject",
-  (${descriptionTextSql("s.descriptions->'en'->'full'")} AND ${descriptionTextSql("s.descriptions->'en'->'meta'")}) AS "englishContentComplete",
   (SELECT count(*)::integer FROM jsonb_each(CASE WHEN jsonb_typeof(s.descriptions)='object' THEN s.descriptions ELSE '{}'::jsonb END) d
     WHERE d.key IN (${AUDIT_LANGUAGES.map(language => `'${language}'`).join(',')})
       AND ${descriptionTextSql("d.value->'full'")} AND ${descriptionTextSql("d.value->'meta'")}) AS "completeLanguageCount"`;
@@ -32,6 +32,14 @@ const fingerprint = (station: RecoveryStation, peers?: RecoveryIdentity[]) =>
 type RecoveryPool = Pick<pg.Pool, 'connect'>;
 type RecoveryQuery = (sql: string, parameters?: any[]) => Promise<pg.QueryResult>;
 type Snapshot = { expiresAt: number; fingerprints: Map<string, string> };
+interface RecoveryApplyResult {
+  restored: number; restoredIds: string[]; redirected?: number; redirectedIds?: string[]; updatedIds?: string[];
+  skipped: number; skippedReasons: never[];
+}
+function applyResult(restoredIds: string[], redirectedIds: string[] = []): RecoveryApplyResult {
+  return { restored: restoredIds.length, restoredIds, skipped: 0, skippedReasons: [],
+    ...(redirectedIds.length ? { redirected: redirectedIds.length, redirectedIds, updatedIds: [...restoredIds, ...redirectedIds] } : {}) };
+}
 export interface RecoveryPreview {
   previewId: string; createdAt: string; expiresAt: string; totalScanned: number; totalNoIndex: number;
   totalCandidates: number; candidateLimit: number; reasonCounts: Record<string, number>; candidates: RecoveryCandidate[];
@@ -115,7 +123,7 @@ async function withTransaction<T>(pool: RecoveryPool, write: boolean, signal: Ab
   }
 }
 
-async function readIdentityIndex(query: RecoveryQuery, singleQuery = false) {
+async function readIdentityIndex(query: RecoveryQuery, singleQuery = false, selectedIds?: ReadonlySet<string>) {
   const index = createRecoveryIdentityIndex();
   if (singleQuery) {
     // Avoid 100+ cursor round trips while the short writer lock is held.
@@ -133,7 +141,7 @@ async function readIdentityIndex(query: RecoveryQuery, singleQuery = false) {
   }
   // City is retained in source JSON, not a native station column. Read it
   // only for plausible closed groups instead of decompressing 66k articles.
-  const ids = index.cityEvidenceIds();
+  const ids = index.cityEvidenceIds(selectedIds);
   if (ids.length) {
     const cities = await query(`SELECT s.id,s.source->>'city' AS city FROM stations s WHERE s.id=ANY($1::text[])`, [ids]);
     for (const city of cities.rows) index.setCityEvidence(city.id, city.city);
@@ -152,7 +160,7 @@ export class LegacyNoindexRecoveryStore {
       throw failure('RECOVERY_INVALID', 'Review 1-100 distinct station IDs');
     }
     return withTransaction(this.pool(), false, signal, async (query, now) => {
-      const index = await readIdentityIndex(query, true);
+      const index = await readIdentityIndex(query, true, new Set(stationIds));
       const selected = await query(`SELECT ${stationProjection},s.descriptions,
         (s.description_repair_journal IS NULL OR jsonb_typeof(s.description_repair_journal)='object') AS "descriptionJournalIsObject"
         FROM stations s WHERE s.id=ANY($1::text[]) ORDER BY s.id`, [stationIds]);
@@ -224,12 +232,12 @@ export class LegacyNoindexRecoveryStore {
     this.snapshots.delete(input.previewId);
     let restoredSlugs: string[] = [];
     let mutationSubmitted = false;
-    let result: { restored: number; restoredIds: string[]; skipped: number; skippedReasons: never[] };
+    let result: RecoveryApplyResult;
     try {
       result = await withTransaction(this.pool(), true, input.signal, async (query, now) => {
       const selected = await query(`SELECT ${stationProjection} FROM stations s WHERE s.id=ANY($1::text[]) ORDER BY s.id FOR UPDATE`, [input.stationIds]);
       if (selected.rows.length !== input.stationIds.length) throw failure('RECOVERY_STALE', 'A selected station changed; run preview again');
-      const index = await readIdentityIndex(query, true);
+      const index = await readIdentityIndex(query, true, new Set(input.stationIds));
       const candidates: RecoveryCandidate[] = [];
       for (const station of selected.rows as RecoveryStation[]) {
         const decision = assessLegacyNoindexRecovery(station, index, now);
@@ -239,7 +247,9 @@ export class LegacyNoindexRecoveryStore {
         candidates.push(decision.candidate);
       }
       mutationSubmitted = true;
-      const result = await query(`UPDATE stations s SET no_index=false,
+      const recovered = candidates.filter(candidate => !candidate.redirectToSlug);
+      const redirected = candidates.filter(candidate => candidate.redirectToSlug);
+      const result = recovered.length ? await query(`UPDATE stations s SET no_index=false,
         source=s.source || jsonb_build_object('noIndex',false) || CASE
           WHEN evidence.value->'evidence'->>'provenance'='owned-retired-name-heuristic' THEN
             jsonb_build_object('automaticNoIndex',(s.source->'automaticNoIndex') || jsonb_build_object(
@@ -253,19 +263,32 @@ export class LegacyNoindexRecoveryStore {
         updated_at=transaction_timestamp()
         FROM jsonb_array_elements($5::jsonb) evidence(value)
         WHERE s.id=ANY($1::text[]) AND s.id=evidence.value->>'id' AND s.no_index=true
-        RETURNING s.id`, [input.stationIds, input.previewId, new Date(now).toISOString(),
-        (input.actor || 'authenticated-admin').slice(0, 200), JSON.stringify(candidates)]);
-      if (result.rows.length !== input.stationIds.length) throw failure('RECOVERY_STALE', 'Recovery selection changed; run preview again');
-      restoredSlugs = candidates.map(candidate => candidate.slug);
-      return { restored: result.rows.length, restoredIds: result.rows.map(row => String(row.id)), skipped: 0, skippedReasons: [] };
+        RETURNING s.id`, [recovered.map(row => row.id), input.previewId, new Date(now).toISOString(),
+        (input.actor || 'authenticated-admin').slice(0, 200), JSON.stringify(recovered)]) : { rows: [] };
+      if (result.rows.length !== recovered.length) throw failure('RECOVERY_STALE', 'Recovery selection changed; run preview again');
+      const redirects = redirected.length ? await query(`UPDATE stations s SET redirect_to_slug=evidence.value->>'redirectToSlug',
+        source=s.source || jsonb_build_object('redirectToSlug',evidence.value->>'redirectToSlug'),
+        no_index_recovery_journal=COALESCE(s.no_index_recovery_journal,'{}'::jsonb) || jsonb_build_object($2::text,jsonb_build_object(
+          'version',1,'action','explicit-selected-legacy-duplicate-redirect','recoveredAt',$3::text,'actor',$4::text,
+          'before',jsonb_build_object('noIndex',s.no_index,'redirectToSlug',s.redirect_to_slug,
+            'sourceRedirectPresent',s.source ? 'redirectToSlug','sourceRedirect',s.source->'redirectToSlug'),
+          'after',jsonb_build_object('noIndex',s.no_index,'redirectToSlug',evidence.value->>'redirectToSlug'),
+          'evidence',evidence.value)),updated_at=transaction_timestamp()
+        FROM jsonb_array_elements($5::jsonb) evidence(value)
+        WHERE s.id=ANY($1::text[]) AND s.id=evidence.value->>'id' AND s.no_index=true AND NULLIF(s.redirect_to_slug,'') IS NULL
+        RETURNING s.id`, [redirected.map(row => row.id), input.previewId, new Date(now).toISOString(),
+        (input.actor || 'authenticated-admin').slice(0, 200), JSON.stringify(redirected)]) : { rows: [] };
+      if (redirects.rows.length !== redirected.length) throw failure('RECOVERY_STALE', 'Redirect selection changed; run preview again');
+      restoredSlugs = candidates.flatMap(candidate => [candidate.slug, ...(candidate.redirectToSlug ? [candidate.redirectToSlug] : [])]);
+      return applyResult(result.rows.map(row => String(row.id)), redirects.rows.map(row => String(row.id)));
       });
     } catch (error) {
       // Losing COMMIT's acknowledgement does not prove rollback. Read only
       // this operation's durable private receipts, never retry its mutation.
       const receipt = mutationSubmitted ? await this.committedReceipt(input.previewId, input.stationIds) : null;
       if (!receipt) throw error;
-      restoredSlugs = receipt.map(row => row.slug);
-      result = { restored: receipt.length, restoredIds: receipt.map(row => row.id), skipped: 0, skippedReasons: [] };
+      restoredSlugs = receipt.flatMap(row => [row.slug, ...(row.redirectToSlug ? [row.redirectToSlug] : [])]);
+      result = applyResult(receipt.filter(row => !row.redirected).map(row => row.id), receipt.filter(row => row.redirected).map(row => row.id));
     }
     // The database transaction is already committed and the writer lock is
     // released. A cache failure must never masquerade as a failed recovery.
@@ -277,17 +300,21 @@ export class LegacyNoindexRecoveryStore {
     return { ...result, cacheInvalidated };
   }
 
-  private async committedReceipt(previewId: string, stationIds: string[]): Promise<Array<{ id: string; slug: string }> | null> {
+  private async committedReceipt(previewId: string, stationIds: string[]): Promise<Array<{ id: string; slug: string; redirected: boolean; redirectToSlug: string | null }> | null> {
     const controller = new AbortController();
     let deadline: ReturnType<typeof setTimeout> | undefined;
     const read = withTransaction(this.pool(), false, controller.signal, async query => {
-      const rows = await query(`SELECT id,slug FROM stations
-        WHERE id=ANY($1::text[]) AND no_index=false
-          AND no_index_recovery_journal->$2::text->>'action'='explicit-selected-legacy-noindex-recovery'
+      const rows = await query(`SELECT id,slug,redirect_to_slug AS "redirectToSlug",
+          no_index_recovery_journal->$2::text->>'action'='explicit-selected-legacy-duplicate-redirect' AS redirected
+        FROM stations WHERE id=ANY($1::text[])
+          AND ((no_index=false AND no_index_recovery_journal->$2::text->>'action'='explicit-selected-legacy-noindex-recovery'
+            AND no_index_recovery_journal->$2::text->'after'->>'noIndex'='false')
+          OR (no_index=true AND no_index_recovery_journal->$2::text->>'action'='explicit-selected-legacy-duplicate-redirect'
+            AND no_index_recovery_journal->$2::text->'after'->>'noIndex'='true'
+            AND redirect_to_slug=no_index_recovery_journal->$2::text->'after'->>'redirectToSlug'))
           AND no_index_recovery_journal->$2::text->'before'->>'noIndex'='true'
-          AND no_index_recovery_journal->$2::text->'after'->>'noIndex'='false'
           AND no_index_recovery_journal->$2::text->'evidence'->>'id'=id`, [stationIds, previewId]);
-      return rows.rows.length === stationIds.length ? rows.rows as Array<{ id: string; slug: string }> : null;
+      return rows.rows.length === stationIds.length ? rows.rows as Array<{ id: string; slug: string; redirected: boolean; redirectToSlug: string | null }> : null;
     }, false).catch(() => null);
     try {
       return await Promise.race([read, new Promise<null>(resolve => {
