@@ -283,6 +283,11 @@ function StationFormSession({
   };
 
   const handleCountryChange = (countryName: string) => {
+    if (countryName === '__unknown__') {
+      form.setValue('country', '', { shouldDirty: true, shouldValidate: true });
+      form.setValue('countryCode', '', { shouldDirty: true });
+      return;
+    }
     const selectedCountry = countries.find(c => c.name === countryName);
     if (selectedCountry) {
       form.setValue('country', selectedCountry.name, { shouldDirty: true, shouldValidate: true });
@@ -453,13 +458,14 @@ function StationFormSession({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Country</FormLabel>
-                        <Select value={field.value || ""} onValueChange={handleCountryChange}>
+                        <Select value={field.value || '__unknown__'} onValueChange={handleCountryChange}>
                           <FormControl>
                             <SelectTrigger className="text-gray-900">
                               <SelectValue placeholder="Select country" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="max-h-[250px] bg-white">
+                            <SelectItem value="__unknown__">Unknown / not verified</SelectItem>
                             {countries.map((country) => (
                               <SelectItem key={country.code} value={country.name}>
                                 {country.name} ({country.code})
