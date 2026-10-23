@@ -203,6 +203,12 @@ describe('durable catalogue merge workflow', () => {
     await screen.findByText('Preview completed');
     expect(screen.getByRole('button', { name: 'Merge 12 eligible groups' })).toBeDisabled();
   });
+  it('reports groups merged separately from duplicate records actually combined', async () => {
+    usePreview(job('done-apply', { dryRun: false, results: { ...job().results, mergedGroups: 12, totalStationsDeleted: 15 } })); setup();
+    await screen.findByText('Merge completed');
+    expect(screen.getByText('Groups merged').parentElement).toHaveTextContent('12');
+    expect(screen.getByText('Duplicate records combined').parentElement).toHaveTextContent('15');
+  });
   it('rejects malformed or mismatched job payloads and stops polling every terminal/error state', async () => {
     expect(() => parseAdminMergeJob({ ...job(), results: { ...job().results, eligibleGroups: -5 } })).toThrow('Invalid merge status');
     expect(() => parseAdminMergeJob({ ...job(), status: 'unknown' })).toThrow('Invalid merge status');

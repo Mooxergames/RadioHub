@@ -79,8 +79,8 @@ export default function AdminDuplicateMergePanel({ onApplied, bulkActionTarget }
           {job.dryRun && job.status === 'running' && <Button size="sm" variant="outline" disabled={merge.pending} onClick={() => void merge.cancelPreview()}><X aria-hidden="true" className="mr-2 h-4 w-4" />Cancel preview</Button>}
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              ['Candidates', results.totalGroups], ['Eligible', results.eligibleGroups], ['Skipped for review', results.skippedGroups],
-              [job.dryRun ? 'Duplicate records to combine' : 'Groups merged', job.dryRun ? results.totalStationsToDelete : results.mergedGroups],
+              ['Candidates', results.totalGroups], [job.dryRun ? 'Eligible' : 'Groups merged', job.dryRun ? results.eligibleGroups : results.mergedGroups], ['Skipped for review', results.skippedGroups],
+              [job.dryRun ? 'Duplicate records to combine' : 'Duplicate records combined', job.dryRun ? results.totalStationsToDelete : results.totalStationsDeleted],
             ].map(([label, value]) => <div key={label} className="min-w-0 border-l-2 pl-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{Number(value).toLocaleString()}</dd></div>)}
           </dl>
           {job.dryRun && job.status === 'completed' && results.eligibleGroups === 0 && <p className="text-sm text-muted-foreground">No groups are eligible for automatic merging. Review the remaining candidates individually.</p>}

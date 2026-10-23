@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import type pg from 'pg';
 import { PostgresCatalogStore } from './postgres-catalog-store';
-import { assessDuplicateGroup, partitionDuplicateGroup } from '../utils/station-duplicate-policy';
+import { assessDuplicateMerge, compareDuplicateSurvivors, partitionDuplicateGroup } from '../utils/station-duplicate-policy';
 
 const SUMMARY_LIMIT = 20;
 const jobError = (message: string, status: number) => Object.assign(new Error(message), { status });
@@ -208,10 +208,11 @@ export class PostgresDuplicateJobsStore {
               await this.record(client, job, group, 'skipped', 'group_too_large');
             } else if (job.kind === 'preview') {
               let docs = (await client.query(`SELECT id AS "_id",name,country,country_code AS "countryCode",source->>'city' AS city,state,url,
-                url_resolved AS "urlResolved",manual_edit_fields AS "manualEditFields",votes FROM stations WHERE id=ANY($1::text[]) ORDER BY id`, [group.station_ids])).rows;
-              if (docs.length === group.station_count && !assessDuplicateGroup(docs).eligible) docs = await this.partitionPreview(client, job, group, docs);
-              const decision = docs.length === group.station_count ? assessDuplicateGroup(docs) : { eligible: false, reason: 'station_missing' };
-              const planned = [...docs].sort((a,b) => (b.votes || 0)-(a.votes || 0) || a._id.localeCompare(b._id));
+                url_resolved AS "urlResolved",manual_edit_fields AS "manualEditFields",votes,no_index AS "noIndex",
+                redirect_to_slug AS "redirectToSlug" FROM stations WHERE id=ANY($1::text[]) ORDER BY id`, [group.station_ids])).rows;
+              if (docs.length === group.station_count && !assessDuplicateMerge(docs).eligible) docs = await this.partitionPreview(client, job, group, docs);
+              const decision = docs.length === group.station_count ? assessDuplicateMerge(docs) : { eligible: false, reason: 'station_missing' };
+              const planned = [...docs].sort(compareDuplicateSurvivors);
               await this.record(client, job, group, decision.eligible ? 'eligible' : 'skipped', decision.eligible ? null : decision.reason,
                 decision.eligible ? this.summary(group, { ...planned[0], votes: planned.reduce((sum,doc) => sum + (Number(doc.votes) || 0), 0) }, planned.slice(1)) : undefined);
             } else {

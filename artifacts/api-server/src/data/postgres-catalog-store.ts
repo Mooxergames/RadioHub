@@ -6,7 +6,7 @@ import type { StationDescriptionChange } from '../utils/station-description-patc
 import { assertRecoverableStation, getStreamRecoverySnapshot } from '../utils/station-health-recovery';
 import { providerHealthIsNewer, PROVIDER_HEALTH_FIELDS } from '../utils/provider-health-freshness';
 import { stationVisibilityFields, stationVisibilitySql, stationAvailabilitySql } from '../utils/station-visibility';
-import { assessDuplicateGroup } from '../utils/station-duplicate-policy';
+import { assessDuplicateMerge, compareDuplicateSurvivors } from '../utils/station-duplicate-policy';
 import { preserveMergedStationMetadata } from '../utils/station-merge-preservation';
 import { allocateUniqueCatalogSlug } from './postgres-slug-store';
 import { automaticNoIndexPatch, evaluateJunkStation } from '../seo/junk-station-rules';
@@ -676,9 +676,10 @@ export class PostgresCatalogStore {
       if (ownsTransaction) await client.query('BEGIN');
       else await client.query(`SAVEPOINT ${savepoint}`);
       const rows = await client.query('SELECT * FROM stations WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[ids]);
-      const docs = rows.rows.map(catalogShape).sort((a,b)=>(b.votes || 0)-(a.votes || 0) || a._id.localeCompare(b._id));
+      const docs = rows.rows.map(catalogShape).sort(options.requireSafeIdentity ? compareDuplicateSurvivors
+        : (a,b)=>(b.votes || 0)-(a.votes || 0) || a._id.localeCompare(b._id));
       if (options.requireSafeIdentity) {
-        const assessment = docs.length === new Set(ids).size ? assessDuplicateGroup(docs) : { eligible: false, reason: 'Detected station group changed or a member is missing' };
+        const assessment = docs.length === new Set(ids).size ? assessDuplicateMerge(docs) : { eligible: false, reason: 'Detected station group changed or a member is missing' };
         if (!assessment.eligible) throw Object.assign(new Error(assessment.reason), { code: 'UNSAFE_DUPLICATE_GROUP' });
       }
       let primary = options.primaryId ? docs.find(doc=>doc._id===options.primaryId) : docs[0];

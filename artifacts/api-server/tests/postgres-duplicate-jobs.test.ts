@@ -122,6 +122,28 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
     assert.equal(applied.results.totalStationsDeleted, 2); assert.equal(await catalog.count(), 3);
     assert.ok(await catalog.findOne({ _id: unrelated._id }));
   });
+  it('retains the open canonical even when an excluded clone has more votes; manual exclusions and redirects stay separate', async () => {
+    const open = await add('Open canonical', { noIndex: false, votes: 1 });
+    const excluded = await add('Open canonical', { noIndex: true, votes: 9999 });
+    await add('Manual exclusion'); await add('Manual exclusion', { noIndex: true, manualEditFields: { noIndex: true } });
+    await add('Existing redirect'); await add('Existing redirect', { noIndex: true, redirectToSlug: 'different-target' });
+    const preview = await store.createPreview(), planned = await finish(preview);
+    assert.equal(planned.results.eligibleGroups, 1); assert.equal(planned.results.skippedGroups, 2);
+    const applied = await finish(await store.createApply(preview));
+    assert.equal(applied.results.totalStationsDeleted, 1);
+    const survivor = await catalog.findOne({ _id: open._id });
+    assert.equal(survivor?.noIndex, false); assert.equal(survivor?.votes, 10000);
+    assert.equal(await catalog.findOne({ _id: excluded._id }), null);
+    assert.equal((await fixture.pool.query('SELECT station_id FROM station_merge_aliases WHERE alias=$1', [excluded._id])).rows[0].station_id, open._id);
+  });
+  it('revalidates a newly protected SEO decision between preview and apply', async () => {
+    await add('New manual fence'); const changed = await add('New manual fence');
+    const preview = await store.createPreview(); await finish(preview);
+    await fixture.pool.query(`UPDATE stations SET no_index=true,manual_edit_fields='{"noIndex":true}' WHERE id=$1`, [changed._id]);
+    const job = await finish(await store.createApply(preview));
+    assert.equal(job.results.skippedGroups, 1); assert.equal(job.results.totalStationsDeleted, 0);
+    assert.equal(await catalog.count(), 2);
+  });
 
   it('revalidates changed URLs and missing preview members before merging', async () => {
     await add('Changed'); const changed = await add('Changed');
