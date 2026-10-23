@@ -134,6 +134,7 @@ function buildFakeManifest(
 // (e.g. simulate a missing chunk to assert the 410-vs-503 contract) without
 // re-mocking the module — `mock.module` snapshots `namedExports` at install
 // time, so we close over these holders instead.
+let manualBuildResult: Record<string, unknown> = {};
 const builderOverrides: {
   getActiveManifest:
     | null
@@ -150,7 +151,10 @@ const builderOverrides: {
 
 mock.module(new URL('../src/seo/sitemap-manifest-builder.ts', import.meta.url).href, {
   namedExports: {
-    buildAllSitemapManifests: async () => ({}),
+    buildAllSitemapManifests: async (options: unknown) => {
+      assert.deepEqual(options, { force: true });
+      return manualBuildResult;
+    },
     getActiveManifest: async (
       type: 'main' | 'genres' | 'stations',
       language: string,
@@ -281,7 +285,11 @@ mock.module(new URL('../src/performance-cache.ts', import.meta.url).href, {
   namedExports: {
     performanceCache: {
       getUrlTranslations: async () => new Map<string, string>(),
+      getCountryLanguageMappings: async () => new Map<string, string[]>(),
       getStats: () => ({ hits: 0, misses: 0 }),
+      clearTranslations: () => {},
+      clearUrlTranslations: () => {},
+      clearCountryLanguageMappings: () => {},
     },
     PerformanceCache: class {},
     deepFreeze: <T,>(v: T) => v,
@@ -336,8 +344,9 @@ before(async () => {
 
   app = express();
   await mod.registerSeoSitemapRoutes(app, {
-    requireAdmin: (_req, res) => {
-      res.status(403).end();
+    requireAdmin: (req, res, next) => {
+      if (req.headers['x-fixture-admin'] === 'manual-build') next();
+      else res.status(403).end();
     },
   });
 
@@ -1312,4 +1321,24 @@ test('A clearly-unmatched path DOES fall through to the SPA catch-all (negative 
   const res = await fetch(`${baseUrl}/__definitely-not-a-real-route__`);
   assert.equal(res.headers.get('x-spa-catchall'), '1');
   assert.equal(spaCalls, callsBefore + 1);
+});
+
+test('manual sitemap rebuild never reports busy or unavailable builds as fresh success', async () => {
+  for (const [reason, status, code] of [
+    ['build-in-progress', 409, 'sitemap_build_in_progress'],
+    ['qualified-languages-unavailable', 503, 'sitemap_build_unavailable'],
+    ['fresh', 503, 'sitemap_build_unavailable'],
+  ] as const) {
+    manualBuildResult = { built: false, skippedReason: reason, qualifiedLanguages: [], activatedCount: 0 };
+    const response = await fetch(`${baseUrl}/api/admin/sitemap/rebuild`, {
+      method: 'POST', headers: { 'x-fixture-admin': 'manual-build' },
+    });
+    assert.equal(response.status, status);
+    assert.equal(response.headers.get('retry-after'), '60');
+    const body = await response.json() as any;
+    assert.equal(body.ok, false);
+    assert.equal(body.error, code);
+    assert.ok(body.message);
+  }
+  assert.equal((await fetch(`${baseUrl}/api/admin/sitemap/rebuild`, { method: 'POST' })).status, 403);
 });

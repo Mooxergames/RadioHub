@@ -1,7 +1,7 @@
 
 import crypto from 'crypto';
 import { pgCatalog } from '../data/postgres-catalog-store';
-import { pgWriteBuildingManifest, pgActivateManifest, pgFreshManifestCount, pgSeoGenres, pgTopSitemapCountries, pgRetireManifests, pgActiveManifest, pgSeoCleanup, type ISitemapManifestChunk } from '../data/postgres-seo-indexing-store';
+import { pgWriteBuildingManifest, pgActivateManifest, pgFreshManifestCount, pgSeoGenres, pgTopSitemapCountries, pgRetireManifests, pgActiveManifest, pgSeoCleanup, pgSitemapStationBatch, SITEMAP_STATION_READ_BATCH_SIZE, type ISitemapManifestChunk } from '../data/postgres-seo-indexing-store';
 import { logger } from '../utils/logger';
 import { IndexNowService } from '../services/indexnow';
 import { getQualifiedLanguagesState, QualifiedLanguagesUnavailableError } from './qualified-languages';
@@ -45,6 +45,7 @@ interface StationLite {
   language?: string;
   languageCodes?: string;
   noIndex?: boolean;
+  completeDescriptionLanguages?: string[];
   votes?: number;
   updatedAt?: Date;
   logoAssets?: any;
@@ -124,12 +125,13 @@ async function buildStationBuckets(qualifiedLanguages: string[]): Promise<{
   const buckets = new Map<string, Array<{ id: string; votes: number; updatedAt?: Date }>>();
   for (const lang of qualifiedLanguages) buckets.set(lang, []);
 
-  const cursor = pgCatalog().iterate({ slug: { $exists: true, $ne: '' }, noIndex: { $ne: true } }, { batchSize: 500 });
+  const cursor = pgCatalog().iterate({ slug: { $exists: true, $ne: '' }, noIndex: { $ne: true } },
+    { batchSize: SITEMAP_STATION_READ_BATCH_SIZE, fields: ['_id'] });
   let processed = 0;
-  const consume = async (c: any) => {
-    for await (const stationDoc of c) {
+  const consume = async (ids: string[]) => {
+    for (const stationDoc of await pgSitemapStationBatch(ids)) {
       const station = stationDoc as StationLite;
-      const indexableLangs = getIndexableLanguagesForStation(station as any, qualifiedLanguages);
+      const indexableLangs = getIndexableLanguagesForStation(station as any, qualifiedLanguages, station.completeDescriptionLanguages);
       if (indexableLangs.length === 0) continue;
       const entry = {
         id: station._id,
@@ -143,7 +145,12 @@ async function buildStationBuckets(qualifiedLanguages: string[]): Promise<{
       processed++;
     }
   };
-  await consume(cursor);
+  let pending: string[] = [];
+  for await (const station of cursor) {
+    pending.push(String(station._id));
+    if (pending.length === SITEMAP_STATION_READ_BATCH_SIZE) { await consume(pending); pending = []; }
+  }
+  if (pending.length) await consume(pending);
   logger.log(`📦 manifest-builder: scanned ${processed} indexable stations across ${qualifiedLanguages.length} langs`);
 
   const perLang = new Map<string, ISitemapManifestChunk[]>();
@@ -370,6 +377,7 @@ async function buildMainChunks(): Promise<{ chunk: ISitemapManifestChunk; totalU
  */
 export async function buildAllSitemapManifests(opts: { force?: boolean } = {}): Promise<{
   built: boolean;
+  skippedReason?: 'build-in-progress' | 'qualified-languages-unavailable' | 'fresh';
   qualifiedLanguagesHash: string;
   qualifiedLanguages: string[];
   perLangCounts?: Record<string, number>;
@@ -388,7 +396,7 @@ export async function buildAllSitemapManifests(opts: { force?: boolean } = {}): 
 }> {
   if (buildLock) {
     logger.warn('⏭️ manifest-builder: build already in progress, skipping');
-    return { built: false, qualifiedLanguagesHash: '', qualifiedLanguages: [], activatedCount: 0 };
+    return { built: false, skippedReason: 'build-in-progress', qualifiedLanguagesHash: '', qualifiedLanguages: [], activatedCount: 0 };
   }
   buildLock = true;
 
@@ -399,7 +407,7 @@ export async function buildAllSitemapManifests(opts: { force?: boolean } = {}): 
     } catch (err) {
       if (err instanceof QualifiedLanguagesUnavailableError) {
         logger.error('🔴 manifest-builder: aborting build — qualified-languages unavailable (will retry next cycle)');
-        return { built: false, qualifiedLanguagesHash: '', qualifiedLanguages: [] };
+        return { built: false, skippedReason: 'qualified-languages-unavailable', qualifiedLanguagesHash: '', qualifiedLanguages: [] };
       }
       throw err;
     }
@@ -409,7 +417,7 @@ export async function buildAllSitemapManifests(opts: { force?: boolean } = {}): 
 
     if (!opts.force && (await isManifestUpToDate(hash, languages, REBUILD_FRESH_WINDOW_MS))) {
       logger.log(`⏭️ manifest-builder: active manifests fresh (hash=${hash}, langs=${languages.length}) — skipping`);
-      return { built: false, qualifiedLanguagesHash: hash, qualifiedLanguages: languages, activatedCount: 0 };
+      return { built: false, skippedReason: 'fresh', qualifiedLanguagesHash: hash, qualifiedLanguages: languages, activatedCount: 0 };
     }
 
     logger.log(`🏗️ manifest-builder: building manifests for ${languages.length} langs (hash=${hash})`);

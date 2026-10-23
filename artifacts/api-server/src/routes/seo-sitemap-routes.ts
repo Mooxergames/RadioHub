@@ -533,6 +533,18 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
         loadDatabaseCountryLanguageMappings(),
       ]);
       const result = await buildAllSitemapManifests({ force: true });
+      if (!result.built) {
+        const busy = result.skippedReason === 'build-in-progress';
+        res.set('Retry-After', '60');
+        res.status(busy ? 409 : 503).json({
+          ok: false,
+          error: busy ? 'sitemap_build_in_progress' : 'sitemap_build_unavailable',
+          message: busy
+            ? 'Başka bir sitemap derlemesi sürüyor. Bu istek tamamlanmadı; işlem bittikten sonra yeniden deneyin.'
+            : 'Sitemap derlemesi tamamlanamadı. Mevcut sitemap korundu; dil bilgisi ve sunucu durumunu kontrol edin.',
+        });
+        return;
+      }
       // FRESHNESS BUG FIX (2026-05-09): nuke the per-XML response cache so
       // the admin rebuild button takes effect immediately. Without this,
       // the in-process / Redis cache (1h TTL) keeps serving the previous
@@ -1362,7 +1374,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
     const rows = await pgSitemapStationBatch(profiles.map(profile => profile.id));
     const { getIndexableLanguagesForStation } = await import('../seo/junk-station-rules');
     const eligible = new Set(rows.filter(station => matchingPilotProfile(station)
-      && getIndexableLanguagesForStation(station, qualifiedLanguages).includes('en')).map(station => String(station._id)));
+      && getIndexableLanguagesForStation(station, qualifiedLanguages, station.completeDescriptionLanguages).includes('en')).map(station => String(station._id)));
     return profiles.filter(profile => eligible.has(profile.id));
   }
 
@@ -1459,7 +1471,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
 
         // Defensive double-check: re-run the indexability gate at serve time
         // so a freshly-flagged junk/noIndex station never leaks into XML.
-        const indexable = getIndexableLanguagesForStation(station as any, qualifiedLanguages);
+        const indexable = getIndexableLanguagesForStation(station as any, qualifiedLanguages, station.completeDescriptionLanguages);
         if (!indexable.includes(lang)) continue;
 
         stationCount++;

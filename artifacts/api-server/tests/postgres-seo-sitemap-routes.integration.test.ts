@@ -167,26 +167,44 @@ describe('PostgreSQL public sitemap and playback diagnostics',{skip:!connectionS
     await pgCatalog().insertMany([{_id:stationId,stationuuid:randomUUID(),name:'Projection Radio',slug:'projection-radio',
       url:'https://stream.example.invalid/projection',country:'Turkey',countryCode:'TR',language:'Turkish',languageCodes:'tr,es',
       tags:'pop, news',lastCheckOk:false,lastCheckOkTime:new Date('2026-01-01T00:00:00Z'),lastCheckTime:new Date('2026-01-02T00:00:00Z'),
-      descriptions:{de:{full:'Beschreibung',meta:'Kurzbeschreibung'},ja:{full:'詳細',meta:'説明'},fr:{full:'',meta:'Incomplete'}},
+      descriptions:{de:{full:'Beschreibung '.repeat(20_000),meta:'Kurzbeschreibung'},ja:{full:'詳細',meta:'説明'},fr:{full:'',meta:'Incomplete'}},
       logoAssets:{webp256:'https://cdn.themegaradio.com/projection.webp'},upstreamDiagnosticPayload:'x'.repeat(100_000)}]);
     const full=await pgCatalog().findOne({_id:stationId});
     const [slim]=await seo.pgSitemapStationBatch([stationId,'missing-native-id']);
     assert.ok(full);assert.ok(slim);
-    for(const field of ['_id','slug','name','url','homepage','tags','bitrate','country','countryCode','language','languageCodes','descriptions','noIndex','lastCheckOk','lastCheckTime','updatedAt','logoAssets','favicon']) {
+    for(const field of ['_id','slug','name','url','homepage','tags','bitrate','country','countryCode','language','languageCodes','noIndex','lastCheckOk','lastCheckTime','updatedAt','logoAssets','favicon']) {
       assert.deepEqual(slim[field]??null,full![field]??null,`projection parity: ${field}`);
     }
     assert.equal(new Date(slim.lastCheckOkTime).toISOString(),new Date(full!.lastCheckOkTime).toISOString());
     assert.equal(slim.source,undefined);assert.equal(slim.upstreamDiagnosticPayload,undefined);
-    assert.ok(JSON.stringify(slim).length<JSON.stringify(full).length/10);
+    assert.equal(slim.descriptions,undefined);assert.deepEqual(slim.completeDescriptionLanguages,['de','ja']);
+    assert.ok(JSON.stringify(slim).length<JSON.stringify(full).length/100);
     const {getIndexableLanguagesForStation}=await import('../src/seo/junk-station-rules');
     const languages=['en','tr','es','de','ja','fr'];
-    assert.deepEqual(getIndexableLanguagesForStation(slim,languages),getIndexableLanguagesForStation(full!,languages));
+    assert.deepEqual(getIndexableLanguagesForStation(slim,languages,slim.completeDescriptionLanguages),getIndexableLanguagesForStation(full!,languages));
     await pgCatalog().update({_id:stationId},{$set:{lastCheckOk:true}});
     const [healthySlim]=await seo.pgSitemapStationBatch([stationId]);
     const healthyFull=await pgCatalog().findOne({_id:stationId});
-    assert.deepEqual(getIndexableLanguagesForStation(healthySlim,languages),getIndexableLanguagesForStation(healthyFull!,languages));
-    assert.ok(getIndexableLanguagesForStation(healthySlim,languages).includes('ja'));
-    assert.equal(getIndexableLanguagesForStation(healthySlim,languages).includes('fr'),false);
+    assert.deepEqual(getIndexableLanguagesForStation(healthySlim,languages,healthySlim.completeDescriptionLanguages),getIndexableLanguagesForStation(healthyFull!,languages));
+    assert.ok(getIndexableLanguagesForStation(healthySlim,languages,healthySlim.completeDescriptionLanguages).includes('ja'));
+    assert.equal(getIndexableLanguagesForStation(healthySlim,languages,healthySlim.completeDescriptionLanguages).includes('fr'),false);
+  });
+  it('compact description presence matches JavaScript trim and rejects malformed fields without changing stored prose',async()=>{
+    const stationId=randomUUID();
+    await pgCatalog().insertMany([{_id:stationId,stationuuid:randomUUID(),name:'Presence Radio',slug:'presence-radio',countryCode:'US',url:'https://stream.example.invalid/live',noIndex:false}]);
+    const {getIndexableLanguagesForStation}=await import('../src/seo/junk-station-rules');
+    const samples=[null,[], 'Legacy string', {full:123,meta:'Valid'}, {full:{text:'Invalid'},meta:'Valid'},
+      {full:'\t\u00a0\u3000\ufeff',meta:'Valid'}, {full:'\u0085',meta:'Valid'}, {full:'Valid',meta:'\r\n'}, {full:' Valid ',meta:' Summary '}];
+    for(const sample of samples){
+      const descriptions={DE:sample};
+      await pool.query('UPDATE stations SET descriptions=$2::jsonb WHERE id=$1',[stationId,JSON.stringify(descriptions)]);
+      const full=await pgCatalog().findOne({_id:stationId});const [slim]=await seo.pgSitemapStationBatch([stationId]);
+      assert.deepEqual(getIndexableLanguagesForStation(slim,['en','de'],slim.completeDescriptionLanguages),getIndexableLanguagesForStation(full!,['en','de']));
+      assert.deepEqual((await pgCatalog().findOne({_id:stationId}))!.descriptions,descriptions);
+      assert.equal(slim.descriptions,undefined);
+    }
+    const untrusted={name:'Source Radio',slug:'source-radio',url:'https://stream.example.invalid/live',countryCode:'US',completeDescriptionLanguages:['de']};
+    assert.deepEqual(getIndexableLanguagesForStation(untrusted,['en','de']),['en']);
   });
   it('serves both pinned pilot cohorts from native rows and removes newly excluded identities before conditional304',async()=>{
     const {INDEXING_PILOT}=await import('../src/seo/indexing-pilot');
