@@ -117,7 +117,8 @@ export function StationNoindexRecovery() {
         İngilizce tam açıklaması ve özeti bulunan geçerli bilgi sayfaları için diğer 13 dilin tamamlanması gerekmez.
         Benzer ad veya format eki tek başına dışlama nedeni değildir; ortak yayın adresi, sağlayıcı kimliği ve URL çakışmaları kontrol edilir.
         Tüm kopyaları kapalı olan doğrulanmış gruplarda yalnızca asıl sayfa onarılır; kopyaların noindex kararı korunur.
-        Açık bir asıl sayfayla adı ve tam yayın adresi eşleşen kopyalar, kayıtları silinmeden canonical sayfaya yönlendirilir.
+        Açık bir asıl sayfayla kimliği ve tam yayın adresi eşleşen kopyalar, kayıtları silinmeden canonical sayfaya yönlendirilir.
+        Yalnızca Radio sözcüğü veya eksik frekans bilgisiyle ayrılan adlarda konum ve bilinen frekansların da uyumlu olması gerekir.
         Sağlayıcı kontrolünün sonucu bilgi olarak gösterilir; güncel başarılı kontrol adaylık koşulu değildir.
         Manuel kararlar, yönlendirmeler ve somut kimlik çakışmaları korunur. Eksik ülke veya çevrimdışı yayın tek başına indeks engeli değildir.
         Bu işlem yayını yeniden başlatmaz, gizli radyoları listelerde görünür yapmaz.</p>

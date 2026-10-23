@@ -139,8 +139,9 @@ test('name, format and country ambiguity alone cannot block a valid English info
   for (const other of [peer({ name: 'Different brand', country: 'France', countryCode: 'FR', urlResolved: row.url }),
     peer({ name: 'Other brand', country: 'France', countryCode: 'FR', url: row.url + '#player' }),
     peer({ name: 'Other brand', country: 'France', countryCode: 'FR', slug: row.slug }),
-    peer({ name: 'Other Brand', slugAliases: ['example-radio'] }),
     peer({ name: 'Other Brand', stationuuid: row.stationuuid.toUpperCase() })]) assert.equal(assess(row, [other]).reason, 'plausible-identity-peer');
+  assert.equal(assess(row, [peer({ name: 'Other Brand', slugAliases: ['example-radio'] })]).reason, 'eligible',
+    'a shadowed legacy alias cannot supersede the real native URL owner');
   for (const slug of ['example-radio-mp3-192', 'example-radio-aac-plus-1', 'example-radio-mp3',
     'example-radio-128kb-mp3', 'example-radio-128k-aac', 'example-radio-64kbs-aac', 'example-radio-320-kbps-mp3']) {
     assert.equal(assess(station({ name: 'Other Brand MP3', slug }), [peer({ name: 'Other Brand', slug: 'example--radio' })]).reason,
@@ -429,7 +430,7 @@ test('an entirely excluded exact-primary group can recover one stable canonical 
 });
 
 test('closed-group city evidence is bounded to selected groups and rejects conflicting cities or outside aliases', () => {
-  const a = station({ id: 'a', slug: 'old-a' }), b = station({ id: 'b', slug: 'old-b' });
+  const a = station({ id: 'a', slug: 'old-a' }), b = station({ id: 'b', slug: 'old-b', slugAliases: ['unowned-legacy-b'] });
   const c = station({ id: 'c', slug: 'other-c', url: 'https://other.invalid/live' });
   const d = station({ id: 'd', slug: 'other-d', url: c.url });
   const index = createRecoveryIdentityIndex();
@@ -439,6 +440,50 @@ test('closed-group city evidence is bounded to selected groups and rejects confl
   assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
   index.setCityEvidence(b.id, 'Berlin');
   assert.ok(assessLegacyNoindexRecovery(a, index, now).candidate);
-  index.add(station({ id: 'outside', slug: 'outside', slugAliases: ['old-b'], url: 'https://outside.invalid/live' }));
+  index.add(station({ id: 'outside', slug: 'outside', slugAliases: ['unowned-legacy-b'], url: 'https://outside.invalid/live' }));
   assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
+});
+
+test('optional Radio wording and frequency variants recover exactly one closed page, then redirect retained copies', () => {
+  for (const [name, variant] of [['Radio Estrada', 'Radio Estrada 107.7 FM'], ['madhurtarang', 'Radio Madhur Tarang']]) {
+    const first = station({ id: 'a', name, slug: name === 'madhurtarang' ? 'madhurtarang' : 'radio-estrada' });
+    const second = station({ id: 'b', name: variant, slug: name === 'madhurtarang' ? 'radio-madhur-tarang' : 'radio-estrada-107-7-fm' });
+    assert.equal(assess(first, [second]).candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(second, [first]).candidate, undefined, 'group has only one winner regardless of review order');
+    assert.equal(assess(second, [{ ...first, noIndex: false }]).candidate?.redirectToSlug, first.slug);
+    assert.equal(assess({ ...second, city: 'Other city' }, [{ ...first, city: 'Original city', noIndex: false }]).candidate, undefined);
+  }
+});
+
+test('page-copy variants reject different known frequencies, foreign locations, generic names and mismatched primary URLs', () => {
+  const first = station({ id: 'a', name: 'Radio Estrada 107.7 FM', slug: 'radio-estrada', state: 'Galicia' });
+  for (const patch of [{ name: 'Radio Estrada 106.7 FM' }, { name: 'Radio Different 107.7 FM' },
+    { name: 'Estrada 107.7 FM', countryCode: 'AT' }, { name: 'Estrada 107.7 FM', state: 'Vienna' },
+    { name: 'Estrada 107.7 FM', url: 'https://other.invalid/live', urlResolved: first.url }]) {
+    const other = station({ id: 'b', slug: 'copy-b', ...patch });
+    assert.equal(assess(first, [other]).candidate, undefined, JSON.stringify(patch));
+    assert.equal(assess(other, [{ ...first, noIndex: false }]).candidate, undefined, JSON.stringify(patch));
+  }
+  const base = station({ id: 'base', name: 'Radio Estrada', slug: 'radio-estrada' });
+  const one = { ...first, slug: 'radio-estrada-107-7' };
+  const two = station({ id: 'c', name: 'Radio Estrada 106.7 FM', slug: 'radio-estrada-106-7' });
+  for (const row of [base, one, two]) assert.equal(assess(row, [base, one, two].filter(peer => peer.id !== row.id)).candidate, undefined);
+  assert.equal(assess(station({ name: 'Radio Mix' }), [station({ id: 'b', name: 'Mix', slug: 'mix' })]).candidate, undefined);
+});
+
+test('native URL ownership wins over shadowed aliases without suppressing actual shared identities', () => {
+  const argentina = station({ id: 'argentina', name: 'Los40', slug: 'los40-2', country: 'Argentina', countryCode: 'AR',
+    url: 'https://player.argentina.invalid/live', completeLanguageCount: 1 });
+  const spain = station({ id: 'spain', name: 'LOS40', slug: 'los40', country: 'Spain', countryCode: 'ES',
+    slugAliases: ['los40-2'], url: 'https://spain.invalid/live', noIndex: false });
+  assert.equal(assess(argentina, [spain]).candidate?.evidence.recoveryBasis, 'complete-unique-information-page');
+  assert.equal(assess({ ...argentina, slugAliases: ['los40'] }, [spain]).reason, 'eligible');
+  assert.equal(assess({ ...argentina, slugAliases: ['legacy-shared'] }, [{ ...spain, slugAliases: ['legacy-shared'] }]).reason,
+    'plausible-identity-peer', 'an alias with no native owner is still ambiguous');
+  for (const patch of [{ slug: argentina.slug }, { url: argentina.url }, { stationuuid: argentina.stationuuid }]) {
+    assert.notEqual(assess(argentina, [{ ...spain, ...patch }]).candidate?.evidence.recoveryBasis,
+      'complete-unique-information-page', JSON.stringify(patch));
+  }
+  assert.equal(assess({ ...argentina, automaticNoIndex: { ...owned, reason: 'duplicate-of:los40' } }, [spain]).candidate, undefined);
+  assert.equal(assess({ ...argentina, manualEditFields: { noIndex: true } }, [spain]).reason, 'manual-protection');
 });
