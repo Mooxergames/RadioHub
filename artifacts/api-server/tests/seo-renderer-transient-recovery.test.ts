@@ -18,6 +18,8 @@ let customMetadata: Record<string, any> | null = null;
 let mergedAlias: Record<string, any> | null = null;
 let exactLookupFixtures: Map<string, any> | null = null;
 let qualifiedLanguages = ['en'];
+let relatedReads: Array<{ filter: any; options: any }> = [];
+let relatedCards: any[] = [];
 const station = { _id: 'test-station', name: 'Recovery FM', slug: 'recovery-fm', url: 'https://stream.example.invalid/live', country: 'Germany', tags: 'pop', lastCheckOk: true };
 mock.module('../src/performance-cache', { namedExports: { performanceCache: {
   getPageData: (key: string) => pageCache.get(key),
@@ -35,7 +37,10 @@ mock.module('../src/data/postgres-seo-read-store', { namedExports: { pgSeoCatalo
     }
     return missing ? null : { ...station, ...stationOverrides, noIndex };
   },
-  find: async () => [], count: async () => 0, groupCount: async () => [],
+  find: async (filter: any, options: any) => {
+    relatedReads.push({ filter, options });
+    return relatedCards;
+  }, count: async () => 0, groupCount: async () => [],
   findMergedAlias: async () => mergedAlias,
 }) } });
 mock.module('../src/data/postgres-content-store', { namedExports: { pgSeoMetadata: async () => customMetadata } });
@@ -107,6 +112,28 @@ beforeEach(() => {
   stationOverrides = {}; qualifiedLanguages = ['en']; customMetadata = null;
   mergedAlias = null;
   exactLookupFixtures = null;
+  relatedReads = [];
+  relatedCards = [];
+});
+
+test('station cross-links read compact native cards, retaining identity, visibility and ranking filters', async () => {
+  stationOverrides = { state: 'Berlin' };
+  relatedCards = [{ _id: 'related', name: 'Related Radio', slug: 'related-radio', country: 'Germany', isListVisible: true }];
+  const result = await renderer.renderStaticPage(url, 'https://themegaradio.com');
+  assert.equal(result.pageData.station.name, 'Recovery FM');
+  assert.equal(relatedReads.length, 3);
+  for (const { filter, options } of relatedReads) {
+    assert.deepEqual(options.fields, ['name', 'slug', 'favicon', 'logoAssets', 'country', 'tags', 'votes']);
+    assert.equal(filter.noIndex.$ne, true);
+    assert.equal(filter.isListVisible, true);
+    assert.equal(filter._id.$ne, 'test-station');
+    assert.deepEqual(options.sort, { votes: -1 });
+  }
+  assert.deepEqual(relatedReads.map(read => read.options.limit), [8, 6, 7]);
+  assert.deepEqual(result.pageData.additionalData.crossLinks.samePublisher.map((row: any) => row.slug), ['related-radio']);
+  const body = renderer.generateHtmlBody({ pageType: 'station', stationData: result.pageData.station,
+    additionalData: result.pageData.additionalData, language: 'en', translations: {}, seoTags: result.seoTags });
+  assert.ok(body.includes('/en/station/related-radio'));
 });
 
 for (const language of ACTIVE_SITEMAP_LANGUAGES) {
