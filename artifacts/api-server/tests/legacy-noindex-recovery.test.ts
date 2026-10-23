@@ -404,7 +404,8 @@ test('duplicate repair rejects chains and ambiguous targets and does not truncat
     url: 'https://other.invalid/live', redirectToSlug: source.slug });
   assert.equal(assess(source, [target, incoming]).candidate, undefined);
   assert.equal(assess(source, [target, { ...target, id: 'slug-collision' }]).candidate, undefined);
-  assert.equal(assess(source, [{ ...target, slug: 'candidate-a' }, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate, undefined);
+  assert.equal(assess(source, [{ ...target, slug: 'candidate-a' }, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate?.redirectToSlug,
+    'candidate-a', 'equivalent open information pages choose one stable target');
   assert.equal(assess(source, [target, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate?.redirectToSlug, target.slug);
   const index = createRecoveryIdentityIndex();
   index.add(source);
@@ -486,4 +487,98 @@ test('native URL ownership wins over shadowed aliases without suppressing actual
   }
   assert.equal(assess({ ...argentina, automaticNoIndex: { ...owned, reason: 'duplicate-of:los40' } }, [spain]).candidate, undefined);
   assert.equal(assess({ ...argentina, manualEditFields: { noIndex: true } }, [spain]).reason, 'manual-protection');
+});
+
+test('delivery suffixes consolidate matching primary information pages without erasing a programming brand', () => {
+  const target = station({ id: 'a', name: 'In Demand Radio', slug: 'in-demand-radio', noIndex: false });
+  for (const name of ['InDemand Radio (256Kbps AAC)', 'InDemand Radio MP3 192', 'InDemand Radio (128 AAC)',
+    'InDemand Radio FLAC', 'InDemand Radio [AAC+]']) {
+    const source = station({ id: 'b', name, slug: 'old-format-copy' });
+    assert.equal(assess(source, [target]).candidate?.redirectToSlug, target.slug, name);
+    assert.equal(source.noIndex, true);
+  }
+  for (const name of ['Opus In Demand Radio', 'InDemand Radio Remix', 'InDemand Radio 90s', 'InDemand Radio FM2']) {
+    assert.equal(assess(station({ id: 'b', name, slug: 'other-programme' }), [target]).candidate, undefined, name);
+  }
+});
+
+test('matching brand and full homepage consolidate alternate delivery URLs, never replace playback or merge records', () => {
+  const target = station({ id: 'target', name: 'Radio Example FM', slug: 'radio-example-fm', noIndex: false,
+    homepage: 'https://www.example.invalid/stations/example?channel=1', url: 'https://new.invalid/aac' });
+  const source = station({ id: 'copy', name: 'Example FM (MP3)', slug: 'example-fm-mp3',
+    homepage: 'http://example.invalid/stations/example/?channel=1', url: 'https://old.invalid/mp3' });
+  const before = structuredClone([source, target]);
+  assert.equal(assess(source, [target]).candidate?.redirectToSlug, target.slug);
+  assert.deepEqual([source, target], before);
+  for (const patch of [{ countryCode: null }, { countryCode: 'AT' }, { city: 'Vienna' }, { state: 'Austria' },
+    { name: 'Different Example' }, { homepage: 'https://example.invalid/stations/other?channel=1' },
+    { homepage: 'https://example.invalid/Stations/example?channel=1' }, { homepage: 'https://example.invalid/stations/example?channel=2' },
+    { homepage: 'https://user:secret@example.invalid/stations/example?channel=1' }]) {
+    assert.equal(assess({ ...source, city: 'Berlin', state: 'Germany', ...patch },
+      [{ ...target, city: 'Berlin', state: 'Germany' }]).candidate?.redirectToSlug, undefined, JSON.stringify(patch));
+  }
+  for (const homepage of ['https://facebook.com/shared', 'https://tunein.com/shared', 'https://radio.garden/shared']) {
+    assert.equal(assess({ ...source, homepage }, [{ ...target, homepage }]).candidate?.redirectToSlug, undefined, homepage);
+  }
+  assert.equal(assess({ ...source, manualEditFields: { noIndex: true } }, [target]).reason, 'manual-protection');
+});
+
+test('different known frequencies remain separate even on the same broadcaster homepage', () => {
+  const a = station({ id: 'a', name: 'Example 106.7 FM', slug: 'example-1067', homepage: 'https://example.invalid', url: 'https://a.invalid/live' });
+  const b = station({ id: 'b', name: 'Example 107.7 FM', slug: 'example-1077', homepage: a.homepage, url: 'https://b.invalid/live', noIndex: false });
+  assert.notEqual(assess(a, [b]).candidate?.redirectToSlug, b.slug);
+});
+
+test('closed homepage information group recovers one winner and fences outside identities and manual choices', () => {
+  const a = station({ id: 'a', name: 'Clare FM', slug: 'clare-fm', homepage: 'https://clare.invalid', url: 'https://a.invalid/live' });
+  const b = station({ id: 'b', name: 'Clare FM', slug: 'clare-fm-1', homepage: a.homepage, url: 'https://b.invalid/live' });
+  for (const order of [[a, b], [b, a]]) {
+    assert.equal(assess(a, order.filter(row => row.id !== a.id)).candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(b, order.filter(row => row.id !== b.id)).candidate, undefined);
+  }
+  assert.equal(assess(b, [{ ...a, noIndex: false }]).candidate?.redirectToSlug, a.slug);
+  const outside = station({ id: 'outside', name: 'Different Station', slug: 'outside', url: b.url, noIndex: false });
+  assert.equal(assess(a, [b, outside]).candidate, undefined);
+  for (const patch of [{ manualEditFields: { noIndex: true } }, { countryCode: 'AT' }, { city: 'Other City' },
+    { state: 'Other State' }, { homepage: 'https://different.invalid' }]) {
+    assert.notEqual(assess({ ...a, city: 'Home City', state: 'Home State' }, [{ ...b, ...patch }]).candidate?.evidence.recoveryBasis,
+      'canonical-of-excluded-duplicates', JSON.stringify(patch));
+  }
+});
+
+test('homepage city evidence covers all possible targets and selected closed group members', () => {
+  const a = station({ id: 'a', slug: 'old-copy', homepage: 'https://example.invalid', url: 'https://a.invalid' });
+  const b = station({ id: 'b', slug: 'example-radio', homepage: a.homepage, url: 'https://b.invalid', noIndex: false });
+  const c = station({ id: 'c', slug: 'other-copy', homepage: a.homepage, url: 'https://c.invalid', noIndex: false });
+  const index = createRecoveryIdentityIndex(); [a, b, c].forEach(row => index.add(row));
+  assert.deepEqual(index.cityEvidenceIds(new Set([a.id])).sort(), ['a', 'b', 'c']);
+  index.setCityEvidence(a.id, 'Berlin'); index.setCityEvidence(b.id, 'Vienna'); index.setCityEvidence(c.id, 'Vienna');
+  assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate?.redirectToSlug, undefined);
+});
+
+test('homepage changes after review invalidate the entire apply snapshot', async () => {
+  const source = station({ slug: 'old-copy', homepage: 'https://example.invalid', url: 'https://old.invalid' });
+  const target = station({ id: 'target', slug: 'example-radio', homepage: source.homepage, url: 'https://new.invalid', noIndex: false });
+  const f = fixture([source, target]); const preview = await f.store.preview();
+  assert.equal(preview.candidates[0].redirectToSlug, target.slug);
+  f.setRows([source, { ...target, homepage: 'https://different.invalid' }]);
+  await assert.rejects(f.store.apply({ previewId: preview.previewId, stationIds: [source.id] }), { code: 'RECOVERY_STALE' });
+  assert.ok(!f.queries.some(sql => sql.startsWith('UPDATE')));
+});
+
+test('Mexican exact-primary callsigns consolidate written city variants, not different licences, frequencies or HD services', () => {
+  const source = station({ id: 'copy', name: 'EL HERALDO RADIO 98.5 (CDMX) - 98.5 FM - XHDL-FM - Heraldo Media Group',
+    slug: 'heraldo-old', country: 'Mexico', countryCode: 'MX', state: 'CDMX' });
+  const target = station({ id: 'target', name: 'El Heraldo Radio (Ciudad de Mexico) - 98.5 FM - XHDL-FM - Heraldo Media Group',
+    slug: 'heraldo-main', country: 'Mexico', countryCode: 'MX', state: 'Ciudad de Mexico', noIndex: false });
+  assert.equal(assess(source, [target]).candidate?.redirectToSlug, target.slug);
+  for (const patch of [{ countryCode: 'US' }, { name: target.name.replace('XHDL-FM', 'XHZZ-FM') },
+    { name: target.name.replace('98.5 FM', '99.5 FM') }, { name: `${target.name} HD2` },
+    { name: `${target.name} XHABC-FM` }, { url: target.url + '?station=other' }]) {
+    assert.equal(assess(source, [{ ...target, ...patch }]).candidate?.redirectToSlug, undefined, JSON.stringify(patch));
+  }
+  assert.equal(assess(source, [{ ...target, noIndex: true }]).candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.equal(assess({ ...target, noIndex: true }, [source]).candidate, undefined);
+  const newBrand = { ...target, name: target.name.replace('El Heraldo Radio', 'New Station Brand'), noIndex: true };
+  assert.equal(assess(source, [newBrand]).candidate, undefined, 'a closed licence group cannot infer which brand is current');
 });
