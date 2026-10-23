@@ -42,11 +42,43 @@ beforeEach(() => {
       jobs.set(next.jobId, next); schedule = { ...schedule, currentJob: next };
       return reply({ success: true, async: true, jobId: next.jobId });
     }
+    if (method === 'POST' && url.endsWith('/cancel-preview')) {
+      const id = url.split('/').at(-2); jobs.set(id, { ...jobs.get(id)!, status: 'failed', errorMessage: 'Preview cancelled by an administrator. No stations were changed.' });
+      schedule.currentJob = null; schedule.latestPreview = jobs.get(id);
+      return reply({ success: true, jobId: id });
+    }
     throw new Error(`Unexpected ${method} ${url}`);
   });
 });
 
 describe('durable catalogue merge workflow', () => {
+  it('offers Merge All beside the manual list, previews without selected IDs, and never bypasses confirmation', async () => {
+    const target = document.createElement('div'); document.body.append(target);
+    const page = setup(<AdminDuplicateMergePanel bulkActionTarget={target} />);
+    try {
+      const bulk = within(target).getByRole('button', { name: 'Merge All' });
+      await waitFor(() => expect(bulk).toBeEnabled()); fireEvent.click(bulk);
+      await screen.findByText('Preview running');
+      expect(mocks.request.mock.calls.filter(call => call[0] === 'POST')).toEqual([['POST', '/api/admin/auto-merge-all', { body: { dryRun: true } }]]);
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      fireEvent.click(bulk);
+      expect(mocks.request.mock.calls.filter(call => call[0] === 'POST')).toHaveLength(1);
+    } finally { page.unmount(); target.remove(); }
+  });
+  it('Merge All reuses the completed preview and requires its explicit confirmation', async () => {
+    usePreview(); const target = document.createElement('div'); document.body.append(target);
+    const page = setup(<AdminDuplicateMergePanel bulkActionTarget={target} />);
+    try {
+      const bulk = within(target).getByRole('button', { name: 'Merge All' });
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Merge 12 eligible groups' })).toBeEnabled());
+      fireEvent.click(bulk);
+      expect(within(screen.getByRole('alertdialog')).getByText('Merge 12 eligible groups?')).toBeInTheDocument();
+      expect(mocks.request.mock.calls.some(call => call[0] === 'POST')).toBe(false);
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm eligible merge' }));
+      await screen.findByText('Merge running');
+      expect(mocks.request).toHaveBeenCalledWith('POST', '/api/admin/auto-merge-all', { body: { dryRun: false, previewJobId: 'preview-one' } });
+    } finally { page.unmount(); target.remove(); }
+  });
   it('starts a whole-catalogue preview with no loaded-page IDs and does not apply it automatically', async () => {
     setup();
     const preview = screen.getByRole('button', { name: 'Preview all candidate groups' });
@@ -98,6 +130,16 @@ describe('durable catalogue merge workflow', () => {
     expect(screen.getByText(/server continues and progress is restored/)).toBeInTheDocument();
     expect(mocks.request.mock.calls.filter(call => call[0] !== 'GET')).toHaveLength(0);
     expect(localStorage.getItem(adminMergeStorageKey('admin-one'))).toBe('apply-persisted');
+  });
+  it('can cancel a running preview and create a fresh one, but never offers cancellation for merges', async () => {
+    usePreview(job('running-preview', { status: 'running' })); const page = setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel preview' }));
+    await screen.findByText(/Preview cancelled by an administrator/);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Preview all candidate groups' })).toBeEnabled());
+    expect(mocks.request).toHaveBeenCalledWith('POST', '/api/admin/merge-jobs/running-preview/cancel-preview');
+    page.unmount(); localStorage.clear(); schedule.currentJob = null;
+    usePreview(job('running-merge', { status: 'running', dryRun: false })); setup();
+    await screen.findByText('Merge running'); expect(screen.queryByRole('button', { name: 'Cancel preview' })).not.toBeInTheDocument();
   });
   it('does not poll another account’s saved ID or fetch before admin identity is ready', async () => {
     localStorage.setItem(adminMergeStorageKey('admin-two'), 'someone-elses-job');
@@ -160,6 +202,12 @@ describe('durable catalogue merge workflow', () => {
     usePreview(); schedule.latestApply = job('previous-apply', { dryRun: false, previewJobId: 'preview-one' }); setup();
     await screen.findByText('Preview completed');
     expect(screen.getByRole('button', { name: 'Merge 12 eligible groups' })).toBeDisabled();
+  });
+  it('reports groups merged separately from duplicate records actually combined', async () => {
+    usePreview(job('done-apply', { dryRun: false, results: { ...job().results, mergedGroups: 12, totalStationsDeleted: 15 } })); setup();
+    await screen.findByText('Merge completed');
+    expect(screen.getByText('Groups merged').parentElement).toHaveTextContent('12');
+    expect(screen.getByText('Duplicate records combined').parentElement).toHaveTextContent('15');
   });
   it('rejects malformed or mismatched job payloads and stops polling every terminal/error state', async () => {
     expect(() => parseAdminMergeJob({ ...job(), results: { ...job().results, eligibleGroups: -5 } })).toThrow('Invalid merge status');

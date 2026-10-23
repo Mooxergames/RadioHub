@@ -33,4 +33,14 @@ export function registerAdminDuplicateJobRoutes(app: Express, requireAdmin: Requ
       res.json(job);
     } catch { res.status(503).json({ error: 'Duplicate job is temporarily unavailable' }); }
   });
+  app.post('/api/admin/merge-jobs/:jobId/cancel-preview', requireAdmin, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      await store().cancelPreview(req.params.jobId);
+      res.json({ success: true, jobId: req.params.jobId });
+    } catch (error: any) {
+      const status = [400,409].includes(error?.status) ? error.status : 503;
+      res.status(status).json({ success: false, error: status === 503 ? 'Preview cancellation is temporarily unavailable' : error.message });
+    }
+  });
 }
