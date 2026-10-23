@@ -492,11 +492,12 @@ export class SeoRenderer {
               }
             }
             if (aliasMatch && aliasMatch.slug && aliasMatch.slug !== stationSlug) {
-              const { isJunkStation, isNumericOnlySlug, canRenderLegacyOfflineInformation } = await import('./seo/junk-station-rules');
+              const { isJunkStation, isNumericOnlySlug, canRenderLegacyOfflineInformation, getIndexableLanguagesForStation } = await import('./seo/junk-station-rules');
               // A retained duplicate can own historical aliases and an explicit
               // redirect. Resolve that single hop before its noindex gate, but
               // never promote a missing/excluded target or follow redirect chains.
               let aliasRedirectRejected = false;
+              let aliasRedirectLanguage = actualLanguage;
               if (aliasMatch.redirectToSlug) {
                 const target = await withSignal(pgSeoCatalog().findOne({ slug: aliasMatch.redirectToSlug }), signal);
                 if (target && target.slug === aliasMatch.redirectToSlug
@@ -504,6 +505,7 @@ export class SeoRenderer {
                     && target.noIndex === false && !target.redirectToSlug
                     && !isNumericOnlySlug(target.slug) && !isJunkStation(target)) {
                   aliasMatch = target;
+                  aliasRedirectLanguage = getIndexableLanguagesForStation(target).includes(actualLanguage) ? actualLanguage : 'en';
                 } else {
                   aliasRedirectRejected = true;
                 }
@@ -555,8 +557,8 @@ export class SeoRenderer {
               );
               const canonicalPath = buildLocalizedUrl(
                 englishCanonical,
-                actualLanguage,
-                countryCode,
+                aliasRedirectLanguage,
+                aliasRedirectLanguage === actualLanguage ? countryCode : undefined,
                 urlTranslations,
               );
               logger.log(`🔀 SEO ALIAS 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${aliasMatch.slug})`);
@@ -581,7 +583,7 @@ export class SeoRenderer {
           // reach the outer transient-error handler (uncached 503), not this 410.
           if (stationData && stationData.redirectToSlug) {
             const canonicalSlug = stationData.redirectToSlug;
-            const { isJunkStation, isNumericOnlySlug } = await import('./seo/junk-station-rules');
+            const { isJunkStation, isNumericOnlySlug, getIndexableLanguagesForStation } = await import('./seo/junk-station-rules');
             const target = typeof canonicalSlug === 'string'
               && canonicalSlug !== stationData.slug && canonicalSlug !== stationSlug
               ? await withSignal(pgSeoCatalog().findOne({ slug: canonicalSlug }), signal)
@@ -599,10 +601,11 @@ export class SeoRenderer {
             // Do not replace a substring: slugs such as "station" or "sta"
             // also occur in the route prefix and would produce the wrong URL.
             const englishCanonical = `/station/${canonicalSlug}`;
+            const redirectLanguage = getIndexableLanguagesForStation(target).includes(actualLanguage) ? actualLanguage : 'en';
             const canonicalPath = buildLocalizedUrl(
               englishCanonical,
-              actualLanguage,
-              countryCode,
+              redirectLanguage,
+              redirectLanguage === actualLanguage ? countryCode : undefined,
               urlTranslations,
             );
             logger.log(`🔀 SEO FREQ-DUP 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${canonicalSlug})`);

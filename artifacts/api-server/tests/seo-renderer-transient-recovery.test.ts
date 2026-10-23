@@ -304,7 +304,8 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
     test(`${language}: retained duplicate alias ${alias} redirects directly to its indexable final target`, async () => {
       exactLookupFixtures = new Map([
         [`alias:${alias}`, { ...station, slug: sourceSlug, noIndex: true, redirectToSlug: targetSlug }],
-        [`slug:${targetSlug}`, { ...station, slug: targetSlug, noIndex: false }],
+        [`slug:${targetSlug}`, { ...station, slug: targetSlug, noIndex: false,
+          descriptions: Object.fromEntries(ACTIVE_SITEMAP_LANGUAGES.map(lang => [lang, { full: `Full ${lang}`, meta: `Meta ${lang}` }])) }],
       ]);
       const detail = URL_TRANSLATIONS[language]?.station || 'station';
       const result = await renderer.renderStaticPage(`/${language}/${detail}/${alias}`, 'https://themegaradio.com');
@@ -381,7 +382,8 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
     };
     exactLookupFixtures = new Map([
       ['slug:radio-eurodance-classic', source],
-      [`slug:${source.redirectToSlug}`, { ...station, slug: source.redirectToSlug, noIndex: false }],
+      [`slug:${source.redirectToSlug}`, { ...station, slug: source.redirectToSlug, noIndex: false,
+        descriptions: Object.fromEntries(ACTIVE_SITEMAP_LANGUAGES.map(lang => [lang, { full: `Full ${lang}`, meta: `Meta ${lang}` }])) }],
     ]);
     const detail = URL_TRANSLATIONS[language]?.station || 'station';
     const result = await renderer.renderStaticPage(`/${language}/${detail}/${source.slug}`, 'https://themegaradio.com');

@@ -155,4 +155,21 @@ describe('explicit legacy noindex recovery', () => {
     expect(apiRequest).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('checkbox')).not.toBeChecked();
   });
+  it('shows canonical targets and separately counts redirects in a mixed bulk receipt', async () => {
+    const data = preview(2);
+    Object.assign(data.candidates[1], { redirectToSlug: 'canonical-radio' });
+    Object.assign(data.candidates[1].evidence, { recoveryBasis: 'verified-duplicate-redirect' });
+    vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify(data)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ restored: 1, restoredIds: ['id-0'], redirected: 1,
+        updatedIds: ['id-0', 'id-1'], skipped: 0 })))
+      .mockResolvedValueOnce(new Response(JSON.stringify(preview(0))));
+    show(); await scan();
+    expect(screen.getByText('Canonical hedef: canonical-radio')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Tüm uygun adayları onar (2)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Toplu onarımı başlat' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Güncel koşulları sağlayan adaylar tamamlandı'));
+    expect(screen.getByRole('status')).toHaveTextContent('2 radyo onarıldı');
+    expect(screen.getByRole('status')).toHaveTextContent('1 noindex kaldırıldı; 1 doğrulanmış kopya canonical sayfasına yönlendirildi');
+    expect(apiRequest).toHaveBeenCalledTimes(3);
+  });
 });

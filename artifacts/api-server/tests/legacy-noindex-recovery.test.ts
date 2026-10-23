@@ -253,7 +253,7 @@ test('explicit apply locks before rereading all peers, rechecks selected evidenc
   const queries = f.queries.slice(offset);
   const lock = queries.findIndex(sql => sql.startsWith('LOCK TABLE'));
   const selected = queries.findIndex(sql => sql.includes('FOR UPDATE'));
-  const identity = queries.findIndex(sql => sql.startsWith('SELECT') && sql.includes('FROM stations s') && !sql.includes('WHERE'));
+  const identity = queries.findIndex(sql => sql.startsWith('SELECT') && /FROM stations s\s*$/.test(sql));
   const update = queries.findIndex(sql => sql.startsWith('UPDATE stations'));
   assert.ok(lock >= 0 && selected > lock && identity > selected && update > identity);
   assert.match(queries[lock], /SHARE ROW EXCLUSIVE MODE NOWAIT/);
@@ -373,4 +373,39 @@ test('postcommit cache rejection or a stuck cache never loses the successful mut
     assert.ok(Date.now() - startedAt < 2000, 'cache response wait is bounded independently of database safety deadline');
     assert.equal(f.queries.at(-1), 'COMMIT'); assert.ok(f.clients.every(client => client.released));
   }
+});
+
+test('exact duplicate repair selects an English-ready open canonical without deleting or opening the copy', () => {
+  const source = station({ slug: 'old-copy', lastCheckOk: false });
+  const target = station({ id: 'target', slug: 'example-radio', noIndex: false, completeLanguageCount: 1 });
+  const result = assess(source, [target]);
+  assert.equal(result.candidate?.redirectToSlug, target.slug);
+  assert.equal(result.candidate?.evidence.recoveryBasis, 'verified-duplicate-redirect');
+  assert.deepEqual(result.peerEvidence, [target]);
+  assert.equal(source.noIndex, true);
+  for (const patch of [{ name: 'Other Brand' }, { url: source.url + '?channel=other' },
+    { url: 'https://other.invalid/live', urlResolved: source.url }, { noIndex: true },
+    { noIndex: undefined }, { englishContentComplete: false }, { redirectToSlug: 'third' },
+    { slug: '12345' }, { slug: 'bad slug' }]) {
+    assert.equal(assess(source, [{ ...target, ...patch }]).candidate?.redirectToSlug, undefined, JSON.stringify(patch));
+  }
+  assert.equal(assess({ ...source, manualEditFields: { noIndex: true } }, [target]).reason, 'manual-protection');
+});
+
+test('duplicate repair rejects chains and ambiguous targets and does not truncate endpoint evidence behind name hints', () => {
+  const source = station({ slug: 'old-copy' });
+  const target = station({ id: 'target', slug: 'example-radio', noIndex: false });
+  const incoming = station({ id: 'incoming', slug: 'earlier-copy', name: 'Old title',
+    url: 'https://other.invalid/live', redirectToSlug: source.slug });
+  assert.equal(assess(source, [target, incoming]).candidate, undefined);
+  assert.equal(assess(source, [target, { ...target, id: 'slug-collision' }]).candidate, undefined);
+  assert.equal(assess(source, [{ ...target, slug: 'candidate-a' }, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate, undefined);
+  assert.equal(assess(source, [target, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate?.redirectToSlug, target.slug);
+  const index = createRecoveryIdentityIndex();
+  index.add(source);
+  for (let n = 0; n < 20; n++) index.add(station({ id: `hint-${n}`, slug: `hint-${n}`, url: `https://hint${n}.invalid/live` }));
+  index.add(target);
+  assert.equal(assessLegacyNoindexRecovery(source, index, now).candidate?.redirectToSlug, target.slug);
+  assert.match(recoveryReviewCsv(source, index, now), /verified-duplicate-redirect/);
+  assert.match(recoveryReviewCsv(source, index, now), /"example-radio"\r\n$/);
 });

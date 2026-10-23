@@ -151,6 +151,18 @@ test('a retained offline destination remains valid when it is explicitly indexab
   assert.deepEqual(reads, ['slug:duplicate-fm', 'slug:canonical-fm']);
 });
 
+test('an English-only canonical is reached in one hop from an ineligible localized copy or historical alias', async () => {
+  fixtures.set('slug:canonical-fm', { ...destination, descriptions: { en: destination.descriptions.en } });
+  for (const input of ['/ar/mahta/duplicate-fm', '/fr/station/duplicate-fm', '/ar/mahta/old-copy']) {
+    fixtures.set('alias:old-copy', { ...base });
+    const result = await renderer.renderStaticPage(input, 'https://themegaradio.com');
+    assert.equal(result.pageData.redirectTo, '/en/station/canonical-fm');
+    const final = await renderer.renderStaticPage(result.pageData.redirectTo, 'https://themegaradio.com');
+    assert.equal(final.pageData.redirectTo, undefined);
+    assert.notEqual(final.seoTags.noIndex, true);
+  }
+});
+
 test('a target database outage is uncached and retryable, then recovers to a validated redirect', async () => {
   fixtures.set('slug:canonical-fm', () => { throw new Error('temporary target read outage'); });
   const failed = await renderer.renderStaticPage(sourceUrl, 'https://themegaradio.com');
