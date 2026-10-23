@@ -123,7 +123,7 @@ async function withTransaction<T>(pool: RecoveryPool, write: boolean, signal: Ab
   }
 }
 
-async function readIdentityIndex(query: RecoveryQuery, singleQuery = false) {
+async function readIdentityIndex(query: RecoveryQuery, singleQuery = false, selectedIds?: ReadonlySet<string>) {
   const index = createRecoveryIdentityIndex();
   if (singleQuery) {
     // Avoid 100+ cursor round trips while the short writer lock is held.
@@ -141,7 +141,7 @@ async function readIdentityIndex(query: RecoveryQuery, singleQuery = false) {
   }
   // City is retained in source JSON, not a native station column. Read it
   // only for plausible closed groups instead of decompressing 66k articles.
-  const ids = index.cityEvidenceIds();
+  const ids = index.cityEvidenceIds(selectedIds);
   if (ids.length) {
     const cities = await query(`SELECT s.id,s.source->>'city' AS city FROM stations s WHERE s.id=ANY($1::text[])`, [ids]);
     for (const city of cities.rows) index.setCityEvidence(city.id, city.city);
@@ -160,7 +160,7 @@ export class LegacyNoindexRecoveryStore {
       throw failure('RECOVERY_INVALID', 'Review 1-100 distinct station IDs');
     }
     return withTransaction(this.pool(), false, signal, async (query, now) => {
-      const index = await readIdentityIndex(query, true);
+      const index = await readIdentityIndex(query, true, new Set(stationIds));
       const selected = await query(`SELECT ${stationProjection},s.descriptions,
         (s.description_repair_journal IS NULL OR jsonb_typeof(s.description_repair_journal)='object') AS "descriptionJournalIsObject"
         FROM stations s WHERE s.id=ANY($1::text[]) ORDER BY s.id`, [stationIds]);
@@ -237,7 +237,7 @@ export class LegacyNoindexRecoveryStore {
       result = await withTransaction(this.pool(), true, input.signal, async (query, now) => {
       const selected = await query(`SELECT ${stationProjection} FROM stations s WHERE s.id=ANY($1::text[]) ORDER BY s.id FOR UPDATE`, [input.stationIds]);
       if (selected.rows.length !== input.stationIds.length) throw failure('RECOVERY_STALE', 'A selected station changed; run preview again');
-      const index = await readIdentityIndex(query, true);
+      const index = await readIdentityIndex(query, true, new Set(input.stationIds));
       const candidates: RecoveryCandidate[] = [];
       for (const station of selected.rows as RecoveryStation[]) {
         const decision = assessLegacyNoindexRecovery(station, index, now);

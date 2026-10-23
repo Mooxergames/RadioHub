@@ -61,7 +61,9 @@ test('retired format/genre rules require the same complete unique identity check
     assert.equal(assess({ ...row, englishContentComplete: false }).reason, 'incomplete-english-description');
     assert.equal(assess({ ...row, manualEditFields: { noIndex: true } }).reason, 'manual-protection');
     assert.equal(assess({ ...row, name: 'Radio Test Stream', slug: 'radio-test-stream' }).reason, 'junk:test-feed:test-stream');
-    assert.equal(assess(row, [station({ id: 'peer', name: row.name, slug: 'remix-radio' })]).reason, 'plausible-identity-peer');
+    assert.equal(assess(row, [station({ id: 'peer', name: row.name, slug: 'remix-radio' })])
+      .candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(row, [station({ id: 'peer', name: 'Different Radio', slug: 'remix-radio' })]).reason, 'plausible-identity-peer');
     for (const provenance of [{ ...owned, reason, owner: 'other' }, { ...owned, reason, active: false }, { ...owned, reason, version: 2 }]) {
       assert.equal(assess({ ...row, automaticNoIndex: provenance }).reason, 'other-provenance');
     }
@@ -113,7 +115,9 @@ test('offline, stale and unknown health qualify only through complete unique con
     assert.equal(assess(station({ ...patch, completeLanguageCount: 1 })).reason, 'eligible');
     assert.equal(assess(station({ ...patch, englishContentComplete: false })).reason, 'incomplete-english-description');
     assert.equal(assess(station({ ...patch, manualEditFields: { noIndex: true } })).reason, 'manual-protection');
-    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug' })]).reason, 'plausible-identity-peer');
+    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug' })])
+      .candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug', countryCode: 'AT' })]).reason, 'plausible-identity-peer');
   }
 });
 
@@ -408,4 +412,33 @@ test('duplicate repair rejects chains and ambiguous targets and does not truncat
   assert.equal(assessLegacyNoindexRecovery(source, index, now).candidate?.redirectToSlug, target.slug);
   assert.match(recoveryReviewCsv(source, index, now), /verified-duplicate-redirect/);
   assert.match(recoveryReviewCsv(source, index, now), /"example-radio"\r\n$/);
+});
+
+test('an entirely excluded exact-primary group can recover one stable canonical even without an unsuffixed import slug', () => {
+  const first = station({ id: 'a', slug: 'old-import-a', completeLanguageCount: 1 });
+  const second = station({ id: 'b', slug: 'old-import-b', completeLanguageCount: 1 });
+  const result = assess(first, [second]);
+  assert.equal(result.candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.deepEqual(result.candidate?.evidence.excludedDuplicateIds, ['b']);
+  assert.equal(assess(second, [first]).candidate, undefined);
+  assert.equal(assess(second, [{ ...first, noIndex: false }]).candidate?.redirectToSlug, first.slug);
+  for (const patch of [{ name: 'Different Station' }, { countryCode: 'AT' }, { state: 'Vienna' },
+    { manualEditFields: { noIndex: true } }, { manualEditFields: { url: true } }, { stationuuid: 'unknown' }]) {
+    assert.equal(assess({ ...first, state: 'Berlin' }, [{ ...second, ...patch }]).candidate, undefined, JSON.stringify(patch));
+  }
+});
+
+test('closed-group city evidence is bounded to selected groups and rejects conflicting cities or outside aliases', () => {
+  const a = station({ id: 'a', slug: 'old-a' }), b = station({ id: 'b', slug: 'old-b' });
+  const c = station({ id: 'c', slug: 'other-c', url: 'https://other.invalid/live' });
+  const d = station({ id: 'd', slug: 'other-d', url: c.url });
+  const index = createRecoveryIdentityIndex();
+  [a, b, c, d].forEach(row => index.add(row));
+  assert.deepEqual(index.cityEvidenceIds(new Set([a.id])).sort(), ['a', 'b']);
+  index.setCityEvidence(a.id, 'Berlin'); index.setCityEvidence(b.id, 'Munich');
+  assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
+  index.setCityEvidence(b.id, 'Berlin');
+  assert.ok(assessLegacyNoindexRecovery(a, index, now).candidate);
+  index.add(station({ id: 'outside', slug: 'outside', slugAliases: ['old-b'], url: 'https://outside.invalid/live' }));
+  assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
 });

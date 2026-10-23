@@ -113,3 +113,28 @@ test('a failed redirect write rolls back earlier flag recovery in the same nativ
       assert.deepEqual((await fixture.pool.query('SELECT * FROM stations ORDER BY id')).rows, before);
     } finally { await fixture.close(); }
   });
+
+test('native closed import groups recover one canonical, then redirect remaining copies, with retained city conflicts respected',
+  { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
+    const fixture = await createNativePostgresFixture('noindex_closed_import');
+    try {
+      await seed(fixture);
+      await fixture.pool.query(`UPDATE stations SET no_index=true,slug='imported-main',source=source || '{"noIndex":true}'::jsonb WHERE id='target'`);
+      await fixture.pool.query(`UPDATE stations SET source=source || jsonb_build_object('city',CASE WHEN id='copy' THEN 'Berlin' ELSE 'Munich' END)
+        WHERE id IN ('copy','target')`);
+      const store = new LegacyNoindexRecoveryStore(() => fixture.pool, async () => true);
+      const conflicted = await store.preview();
+      assert.ok(conflicted.candidates.every(row => !['copy', 'target'].includes(row.id)));
+      await fixture.pool.query("UPDATE stations SET source=source-'city' WHERE id IN ('copy','target')");
+      const first = await store.preview();
+      assert.equal(first.candidates.find(row => row.id === 'copy')?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+      assert.equal(first.candidates.some(row => row.id === 'target'), false);
+      await store.apply({ previewId: first.previewId, stationIds: ['copy'] });
+      const second = await store.preview();
+      assert.equal(second.candidates.find(row => row.id === 'target')?.redirectToSlug, 'old-copy');
+      await store.apply({ previewId: second.previewId, stationIds: ['target'] });
+      const rows = (await fixture.pool.query("SELECT id,no_index,redirect_to_slug FROM stations WHERE id IN ('copy','target') ORDER BY id")).rows;
+      assert.deepEqual(rows, [{ id: 'copy', no_index: false, redirect_to_slug: null },
+        { id: 'target', no_index: true, redirect_to_slug: 'old-copy' }]);
+    } finally { await fixture.close(); }
+  });

@@ -107,6 +107,17 @@ export function createRecoveryIdentityIndex() {
     }
     return ids;
   };
+  const identityPeerSets = (station: RecoveryIdentity & { automaticNoIndex?: unknown }) => {
+    const sets = [uuids.get(station.stationuuid?.toLowerCase() || '')];
+    for (const value of [station.url, station.urlResolved]) {
+      const endpoint = recoveryEndpoint(value);
+      if (endpoint) sets.push(endpoints.get(endpoint));
+    }
+    for (const slug of [station.slug, ...(station.slugAliases || [])]) if (slug) sets.push(slugs.get(slug));
+    const reason = (station.automaticNoIndex as { reason?: unknown } | null)?.reason;
+    if (typeof reason === 'string' && reason.startsWith('duplicate-of:')) sets.push(slugs.get(reason.slice('duplicate-of:'.length)));
+    return sets;
+  };
   let total = 0;
   return {
     get total() { return total; },
@@ -147,21 +158,8 @@ export function createRecoveryIdentityIndex() {
     hasIdentityConflict(station: RecoveryStation): boolean {
       // Similar names, frequency prefixes and format suffixes are discovery
       // hints, not evidence that two independently addressed pages are copies.
-      const sets = [uuids.get(station.stationuuid?.toLowerCase() || '')];
-      for (const value of [station.url, station.urlResolved]) {
-        const endpoint = recoveryEndpoint(value);
-        if (endpoint) sets.push(endpoints.get(endpoint));
-      }
-      for (const slug of [station.slug, ...(station.slugAliases || [])]) {
-        if (slug) sets.push(slugs.get(slug));
-      }
-      const provenance = station.automaticNoIndex as { reason?: string } | null;
-      if (provenance?.reason?.startsWith('duplicate-of:')) {
-        // A recorded duplicate decision is explicit evidence and still needs
-        // review when its named target exists, even after a stream URL change.
-        sets.push(slugs.get(provenance.reason.slice('duplicate-of:'.length)));
-      }
-      return sets.some(ids => ids && [...ids].some(id => id !== station.id));
+      for (const ids of identityPeerSets(station)) if (ids) for (const id of ids) if (id !== station.id) return true;
+      return false;
     },
     duplicateRedirectTarget(station: RecoveryStation): RecoveryIdentity | null {
       if (!station.slug || incomingRedirects.has(station.slug) || nativeSlugs.get(station.slug)?.size !== 1) return null;
@@ -179,11 +177,36 @@ export function createRecoveryIdentityIndex() {
     reviewPeers(station: RecoveryStation): RecoveryIdentity[] {
       return [...peerIds(station)].sort().map(id => identities.get(id)!);
     },
-    cityEvidenceIds(): string[] {
+    closedPrimaryCanonicalPeers(station: RecoveryStation): RecoveryIdentity[] | null {
+      const endpoint = recoveryEndpoint(station.url);
+      const ids = endpoint ? endpoints.get(endpoint) : undefined;
+      if (!ids || ids.size < 2 || ids.size > 50) return null;
+      const rows = [...ids].sort().map(id => identities.get(id)!);
+      for (const row of rows) {
+        const manual = row.manualEditFields;
+        if (row.noIndex !== true || row.redirectToSlug || recoveryEndpoint(row.url) !== endpoint ||
+            !manual || typeof manual !== 'object' || Array.isArray(manual) ||
+            ['noIndex', 'slug', 'redirectToSlug', 'name', 'country', 'countryCode', 'city', 'state', 'url', 'urlResolved']
+              .some(key => Object.hasOwn(manual, key)) ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.stationuuid || '')) return null;
+      }
+      const base = slugifyStationName(station.name);
+      const ready = rows.filter(row => row.englishContentComplete === true && row.name.length <= 160 &&
+        /^[a-z0-9][a-z0-9-]{0,179}$/.test(row.slug || '') && !isNumericOnlySlug(row.slug) &&
+        !evaluateJunkStation({ name: row.name, slug: row.slug || undefined, url: row.url }).isJunk);
+      ready.sort((a, b) => Number(b.slug === base) - Number(a.slug === base) || a.id.localeCompare(b.id));
+      if (ready[0]?.id !== station.id || !assessDuplicateGroup(rows).eligible) return null;
+      // Every strong identity edge must stay inside the exact-primary group.
+      for (const row of rows) for (const peers of identityPeerSets(row.id === station.id ? station : row)) {
+        if (peers) for (const id of peers) if (!ids.has(id)) return null;
+      }
+      return rows.filter(row => row.id !== station.id);
+    },
+    cityEvidenceIds(onlyIds?: ReadonlySet<string>): string[] {
       const ids = new Set<string>();
       for (const identity of identities.values()) {
-        if (identity.noIndex !== true) continue;
-        const peers = this.excludedCanonicalPeers(identity as RecoveryStation);
+        if (identity.noIndex !== true || onlyIds && !onlyIds.has(identity.id)) continue;
+        const peers = this.excludedCanonicalPeers(identity as RecoveryStation) || this.closedPrimaryCanonicalPeers(identity as RecoveryStation);
         if (peers) for (const row of [identity, ...peers]) ids.add(row.id);
       }
       return [...ids];
@@ -264,7 +287,8 @@ function reviewLegacyNoindex(station: RecoveryStation, index: RecoveryIdentityIn
   const englishComplete = station.englishContentComplete ?? station.completeLanguageCount === AUDIT_LANGUAGES.length;
   if (purpose === 'recovery' && !englishComplete) return reject('incomplete-english-description');
   const conflict = purpose === 'recovery' ? index.hasIdentityConflict(station) : index.hasPeer(station);
-  const peers = conflict ? index.excludedCanonicalPeers(station) : [];
+  const peers = conflict ? index.excludedCanonicalPeers(station) ||
+    (purpose === 'recovery' ? index.closedPrimaryCanonicalPeers(station) : null) : [];
   const redirectTarget = !peers && purpose === 'recovery' ? index.duplicateRedirectTarget(station) : null;
   if (!peers && !redirectTarget) return reject('plausible-identity-peer');
   const evidencePeers = peers || [redirectTarget!];
@@ -291,7 +315,7 @@ export function assessLegacyNoindexContentRepair(station: RecoveryStation, index
   return reviewLegacyNoindex(station, index, now, 'content-repair');
 }
 
-export const RECOVERY_REVIEW_CSV_HEADER = 'station_id,name,slug,country,country_code,url,noindex,recorded_owner,recorded_reason,manual_protection_fields,complete_languages,recovery_guard,repair_basis,plausible_peer_count_at_least,peer_list_truncated,peer_ids,peer_slugs,peer_noindex,exact_name_primary_stream_indexable_target_slugs\r\n';
+export const RECOVERY_REVIEW_CSV_HEADER = 'station_id,name,slug,country,country_code,url,stream_url,resolved_stream_url,noindex,recorded_owner,recorded_reason,manual_protection_fields,complete_languages,recovery_guard,repair_basis,plausible_peer_count_at_least,peer_list_truncated,peer_ids,peer_slugs,peer_noindex,exact_name_primary_stream_indexable_target_slugs\r\n';
 
 /** A first failing guard is not the historical reason for a legacy flag.
  * Peer hints stay explicitly separate from exact name/primary-stream evidence. */
@@ -305,6 +329,7 @@ export function recoveryReviewCsv(station: RecoveryStation, index: RecoveryIdent
     assessDuplicateRedirect(station, peer).eligible);
   return [station.id, station.name, station.slug, station.country, station.countryCode,
     station.slug ? `https://themegaradio.com/en/station/${encodeURIComponent(station.slug)}` : '',
+    station.url, station.urlResolved,
     station.noIndex, provenance?.owner, provenance?.reason,
     manual && typeof manual === 'object' && !Array.isArray(manual) ? Object.keys(manual).sort().join('|') : 'ambiguous',
     station.completeLanguageCount, decision.reason, decision.candidate?.evidence.recoveryBasis,
