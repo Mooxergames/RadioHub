@@ -179,6 +179,7 @@ export interface StationSitemapDoc {
   languageCodes?: string;
   noIndex?: boolean;
   descriptions?: Record<string, { full?: string; meta?: string } | null | undefined> | null;
+  completeDescriptionLanguages?: readonly string[];
 }
 
 /** Build the canonical URL set that the live `/sitemap-stations-{lang}-{chunk}.xml`
@@ -202,7 +203,7 @@ export function computeStationsSitemapUrlsForChunk(args: {
   for (const id of stationIds) {
     const s = stationsById.get(String(id));
     if (!s || !s.slug) continue;
-    const indexable = getIndexableLanguagesForStation(s, qualifiedLanguages as string[]);
+    const indexable = getIndexableLanguagesForStation(s, qualifiedLanguages as string[], s.completeDescriptionLanguages);
     if (!indexable.includes(language)) continue;
     const path = buildLocalizedUrl(`/station/${s.slug}`, language, undefined, translations);
     const url = `${baseUrl}${path}`;

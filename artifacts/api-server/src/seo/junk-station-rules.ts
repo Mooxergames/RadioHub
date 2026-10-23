@@ -314,7 +314,7 @@ export function getEligibleLanguages(station: {
   language?: string;
   languageCodes?: string;
   descriptions?: Record<string, { full?: string; meta?: string } | null | undefined> | null;
-}): string[] {
+}, completeDescriptionLanguages?: readonly string[]): string[] {
   // QUALITY-CORE (2026-07-01): previously seeded with ALL 14 universal
   // languages unconditionally, which minted 14 thin near-duplicate pages for
   // every non-junk station (~60K stations × 14 ≈ 840K URLs) — the dominant
@@ -357,6 +357,14 @@ export function getEligibleLanguages(station: {
   // This is what lets multi-language stations like Kronehit get indexed in
   // every language where they genuinely have content, not just in their
   // country-of-origin language.
+  // Only trusted internal SQL readers supply this argument. Provider/source
+  // properties with the same name must never expand SSR language eligibility.
+  if (completeDescriptionLanguages) {
+    for (const rawLang of completeDescriptionLanguages) {
+      if (typeof rawLang === 'string' && KNOWN_LANGUAGE_CODES.has(rawLang.toLowerCase())) set.add(rawLang.toLowerCase());
+    }
+    return Array.from(set);
+  }
   const descriptions = station.descriptions;
   if (descriptions && typeof descriptions === 'object') {
     for (const rawLang of Object.keys(descriptions)) {
@@ -364,8 +372,8 @@ export function getEligibleLanguages(station: {
       if (!KNOWN_LANGUAGE_CODES.has(lang)) continue;
       const entry = descriptions[rawLang];
       if (!entry) continue;
-      const full = (entry.full || '').trim();
-      const meta = (entry.meta || '').trim();
+      const full = typeof entry.full === 'string' ? entry.full.trim() : '';
+      const meta = typeof entry.meta === 'string' ? entry.meta.trim() : '';
       // Require BOTH fields non-empty so a half-filled record does not
       // advertise a language that will render a blank/thin page.
       if (full.length > 0 && meta.length > 0) {
@@ -435,6 +443,7 @@ export function getIndexableLanguagesForStation(
     redirectToSlug?: string | null;
   },
   qualifiedLangs?: string[] | ReadonlyArray<string> | Set<string>,
+  completeDescriptionLanguages?: readonly string[],
 ): string[] {
   if (!station) return [];
   if (station.noIndex === true) return [];
@@ -447,7 +456,7 @@ export function getIndexableLanguagesForStation(
   if (isNumericOnlySlug(station.slug)) return [];
   if (isJunkStation(station)) return [];
 
-  const eligible = getEligibleLanguages(station);
+  const eligible = getEligibleLanguages(station, completeDescriptionLanguages);
 
   if (!qualifiedLangs) return eligible;
 
