@@ -14,6 +14,37 @@ async function seed(fixture: Awaited<ReturnType<typeof createNativePostgresFixtu
     url: 'https://other.invalid/live', noIndex: true });
 }
 
+test('native homepage information repair loads city and homepage evidence, detects stale targets and preserves stream URLs',
+  { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
+    const fixture = await createNativePostgresFixture('noindex_homepage_identity');
+    try {
+      await seed(fixture);
+      await fixture.pool.query(`UPDATE stations SET homepage='https://example.invalid/station',
+        url=CASE WHEN id='copy' THEN 'https://old.invalid/mp3' ELSE 'https://new.invalid/aac' END,
+        source=source || jsonb_build_object('city',CASE WHEN id='copy' THEN 'Berlin' ELSE 'Munich' END)
+        WHERE id IN ('copy','target')`);
+      const store = new LegacyNoindexRecoveryStore(() => fixture.pool, async () => true);
+      assert.equal((await store.preview()).candidates.find(row => row.id === 'copy')?.redirectToSlug, undefined,
+        'different known cities cannot consolidate; an independently addressed information page may recover');
+      await fixture.pool.query("UPDATE stations SET source=source || '{\"city\":\"Berlin\"}'::jsonb WHERE id='target'");
+      const preview = await store.preview();
+      assert.equal(preview.candidates.find(row => row.id === 'copy')?.redirectToSlug, 'exact-radio');
+      await fixture.pool.query("UPDATE stations SET homepage='https://other.invalid/station' WHERE id='target'");
+      await assert.rejects(store.apply({ previewId: preview.previewId, stationIds: ['copy'] }), { code: 'RECOVERY_STALE' });
+      await fixture.pool.query("UPDATE stations SET homepage='https://example.invalid/station' WHERE id='target'");
+      const fresh = await store.preview();
+      const before = (await fixture.pool.query("SELECT * FROM stations WHERE id IN ('copy','target') ORDER BY id")).rows;
+      const result = await store.apply({ previewId: fresh.previewId, stationIds: ['copy'] });
+      assert.equal(result.redirected, 1);
+      const after = (await fixture.pool.query("SELECT * FROM stations WHERE id IN ('copy','target') ORDER BY id")).rows;
+      assert.equal(after[0].redirect_to_slug, 'exact-radio');
+      assert.equal(after[0].no_index, true);
+      assert.equal(after[0].url, before[0].url); assert.equal(after[0].homepage, before[0].homepage);
+      assert.deepEqual(after[0].descriptions, before[0].descriptions);
+      assert.deepEqual(after[1], before[1]);
+    } finally { await fixture.close(); }
+  });
+
 test('native mixed recovery journals a reversible exact redirect, preserves every copy field and leaves the canonical untouched',
   { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
     const fixture = await createNativePostgresFixture('noindex_redirect');

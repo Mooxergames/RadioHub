@@ -14,7 +14,7 @@ export const RECOVERY_APPLY_DEADLINE_MS = 5000;
 export const RECOVERY_PREVIEW_DEADLINE_MS = 60_000;
 const RECEIPT_DEADLINE_MS = 2000;
 const CACHE_RESPONSE_DEADLINE_MS = 1000;
-const identityProjection = `s.id,s.name,s.slug,s.slug_aliases AS "slugAliases",s.country,s.country_code AS "countryCode",s.state,s.url,s.url_resolved AS "urlResolved",s.station_uuid AS stationuuid,
+const identityProjection = `s.id,s.name,s.slug,s.slug_aliases AS "slugAliases",s.country,s.country_code AS "countryCode",s.state,s.url,s.url_resolved AS "urlResolved",s.homepage,s.station_uuid AS stationuuid,
   s.no_index AS "noIndex",s.redirect_to_slug AS "redirectToSlug",s.manual_edit_fields AS "manualEditFields",
   COALESCE((SELECT (d.full_mask & d.meta_mask & 1)=1 FROM station_description_summary d WHERE d.station_id=s.id),false) AS "englishContentComplete"`;
 const stationProjection = `${identityProjection},s.source->>'city' AS city,

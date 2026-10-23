@@ -18,7 +18,7 @@ test('PostgreSQL engine executes recovery SQL, preserves all content and journal
     try {
       await db.exec(`CREATE TABLE stations (
         id text PRIMARY KEY,station_uuid text NOT NULL,name text,slug text,slug_aliases text[] DEFAULT '{}',
-        country text,country_code text,city text,state text,url text,url_resolved text,no_index boolean,redirect_to_slug text,
+        country text,country_code text,city text,state text,url text,url_resolved text,homepage text,no_index boolean,redirect_to_slug text,
         manual_edit_fields jsonb,source jsonb,last_check_ok boolean,last_check_time timestamptz,
         descriptions jsonb,updated_at timestamptz DEFAULT now(),is_list_visible boolean DEFAULT true,
         visibility_expires_at timestamptz,availability_outcome text,availability_checked_at timestamptz
