@@ -492,7 +492,7 @@ export class SeoRenderer {
               }
             }
             if (aliasMatch && aliasMatch.slug && aliasMatch.slug !== stationSlug) {
-              const { isJunkStation, isNumericOnlySlug, canRenderLegacyOfflineInformation, getIndexableLanguagesForStation } = await import('./seo/junk-station-rules');
+              const { isJunkStation, isNumericOnlySlug, canRenderLegacyStationInformation, getIndexableLanguagesForStation } = await import('./seo/junk-station-rules');
               // A retained duplicate can own historical aliases and an explicit
               // redirect. Resolve that single hop before its noindex gate, but
               // never promote a missing/excluded target or follow redirect chains.
@@ -521,7 +521,7 @@ export class SeoRenderer {
               const aliasTargetIsJunk =
                 aliasRedirectRejected || isJunkStation(aliasMatch)
                 || (!!repairedAlias && aliasMatch.noIndex === true)
-                || (aliasMatch.noIndex === true && !canRenderLegacyOfflineInformation(aliasMatch));
+                || (aliasMatch.noIndex === true && !canRenderLegacyStationInformation(aliasMatch));
               if (aliasTargetIsJunk) {
                 // CRITICAL: Do NOT set notFound:true — the HTTP-layer junk
                 // handler in both index.ts:1068 and index-web.ts:719 gates on
@@ -1266,7 +1266,7 @@ export class SeoRenderer {
           getIndexableLanguagesForStation,
           isStationIndexableInLanguage,
           isNumericOnlySlug,
-          canRenderLegacyOfflineInformation,
+          canRenderLegacyStationInformation,
         } = await import('./seo/junk-station-rules');
         const { getCachedQualifiedLanguages } = await import('./seo/qualified-languages');
 
@@ -1276,11 +1276,11 @@ export class SeoRenderer {
         // here — that bypasses the translation-qualification check and can
         // re-introduce "Crawled - currently not indexed" regressions.
         const qualifiedLangs = await getCachedQualifiedLanguages();
-        const legacyOfflineInformation = canRenderLegacyOfflineInformation(stationData);
-        const isJunk = isJunkStation(stationData) || (stationData.noIndex === true && !legacyOfflineInformation);
+        const legacyInformation = canRenderLegacyStationInformation(stationData);
+        const isJunk = isJunkStation(stationData) || (stationData.noIndex === true && !legacyInformation);
         const indexable = getIndexableLanguagesForStation(stationData, qualifiedLangs);
         const langIneligible =
-          !isJunk && !legacyOfflineInformation && !isStationIndexableInLanguage(stationData, language, qualifiedLangs);
+          !isJunk && !legacyInformation && !isStationIndexableInLanguage(stationData, language, qualifiedLangs);
         // Negative integer slugs (e.g. `-598`, `-2612`) are DB artifact IDs —
         // never valid station callsigns. Treat as junk → 410. Positive integer
         // slugs (e.g. `1234`) stay noindex-only in case they're callsign brands.
@@ -1289,7 +1289,7 @@ export class SeoRenderer {
         // legitimate numeric-callsign brands are not lost.
         const numericOnlySlug = !isJunk && !negativeNumericSlug && isNumericOnlySlug(stationData.slug);
 
-        if (legacyOfflineInformation) {
+        if (legacyInformation) {
           // Preserve the unknown historical noindex, not a gone response or
           // an invented reindexing approval. Real localized content remains.
           seoTags.robots = 'noindex, follow';
@@ -1331,7 +1331,7 @@ export class SeoRenderer {
           langRedirectUrl = `${domain}/en/${enSegment}/${stationData.slug}`;
         }
 
-        if (legacyOfflineInformation) {
+        if (legacyInformation) {
           seoTags.hreflangs = [];
         } else if (isJunk || negativeNumericSlug) {
           // Signal to the HTTP layer to return 410 Gone instead of SSR'ing

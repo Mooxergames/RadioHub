@@ -128,14 +128,28 @@ describe('PostgreSQL public sitemap and playback diagnostics',{skip:!connectionS
     const unknown=await renderer.renderStaticPage('/en/station/unknown-native-station','https://themegaradio.com');
     assert.equal(unknown.pageData?.notFound,true);
   });
-  it('preserves single-hop aliases while refusing to redirect an alias onto a junk station',async()=>{
+  it('preserves single-hop aliases while refusing to redirect onto a manually excluded station',async()=>{
     const {SeoRenderer}=await import('../src/seo-renderer');const renderer=new SeoRenderer();
     await pgCatalog().update({slug:'berlin-music'},{$set:{slugAliases:['legacy-berlin']}});
     const alias=await renderer.renderStaticPage('/en/station/legacy-berlin','https://themegaradio.com');
     assert.equal(alias.pageData?.redirectTo,'/en/station/berlin-music');
-    await pgCatalog().insertMany([{stationuuid:randomUUID(),name:'Pink Noise',slug:'pink-noise',slugAliases:['legacy-noise'],url:'https://stream.example.invalid/noise',noIndex:true}]);
+    await pgCatalog().insertMany([{stationuuid:randomUUID(),name:'Pink Noise',slug:'pink-noise',slugAliases:['legacy-noise'],url:'https://stream.example.invalid/noise',noIndex:true,manualEditFields:{noIndex:true}}]);
     const junk=await renderer.renderStaticPage('/en/station/legacy-noise','https://themegaradio.com');
     assert.equal(junk.pageData?.stationIsJunk,true);assert.equal(junk.pageData?.redirectTo,undefined);
+  });
+  it('keeps native historical positive-health noindex information instead of treating a retained record as removed',async()=>{
+    const {SeoRenderer}=await import('../src/seo-renderer');const renderer=new SeoRenderer();
+    await pgCatalog().insertMany([{_id:'retained-information',stationuuid:randomUUID(),name:'Retained Radio',slug:'retained-radio',
+      url:'https://stream.example.invalid/retained',noIndex:true,lastCheckOk:true,
+      descriptions:{en:{full:'Retained original station information',meta:'Retained station summary'}}}]);
+    const page=await renderer.renderStaticPage('/en/station/retained-radio','https://themegaradio.com');
+    assert.equal(page.pageData?.stationIsJunk,false);assert.equal(page.pageData?.notFound,false);
+    assert.equal(page.seoTags.noIndex,true);assert.deepEqual(page.seoTags.hreflangs,[]);
+    assert.equal(page.seoTags.canonical,'https://themegaradio.com/en/station/retained-radio');
+    assert.equal(page.pageData?.station.descriptions.en.full,'Retained original station information');
+    const retained=await pgCatalog().findById('retained-information');
+    assert.equal(retained?.noIndex,true);assert.equal(retained?.lastCheckOk,true);
+    assert.equal(retained?.manualEditFields?.noIndex,undefined);
   });
   it('loads native slug/alias/country/city existence and uses real tag rankings in llms.txt',async()=>{
     await pgCatalog().update({slug:'berlin-music'},{$set:{tags:'pop, rock',state:'Berlin'}});
