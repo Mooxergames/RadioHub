@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { assessDuplicateGroup } from '../src/utils/station-duplicate-policy';
+import { assessDuplicateGroup, partitionDuplicateGroup } from '../src/utils/station-duplicate-policy';
 import { preserveMergedStationMetadata } from '../src/utils/station-merge-preservation';
 
 const station = (id: string, patch: Record<string, any> = {}) => ({ _id: id, stationuuid: `uuid-${id}`, name: 'Radio One', country: 'Germany', countryCode: 'DE', url: 'https://stream.example/live?channel=1', ...patch });
@@ -34,6 +34,22 @@ describe('conservative duplicate identity policy', () => {
   it('rejects missing, non-HTTP and credential-bearing shared values', () => {
     for (const url of ['', '/live', 'ftp://example.org/live', 'javascript:alert(1)', 'https://user:secret@example.org/live']) {
       assert.equal(assessDuplicateGroup([station('a', { url }), station('b', { url })]).eligible, false);
+    }
+  });
+  it('extracts exact endpoint subsets without absorbing a different broadcast', () => {
+    const docs = [station('a'), station('b'), station('c', { url: 'https://other.example/live' }), station('d', { url: 'https://other.example/live' }), station('e', { url: 'https://third.example/live' })];
+    const result = partitionDuplicateGroup(docs);
+    assert.deepEqual(result.groups.map(group => group.map(doc => doc._id)), [['c', 'd'], ['a', 'b']]);
+    assert.deepEqual(result.remaining.map(doc => doc._id), ['e']);
+    assert.equal(result.groups.every(group => assessDuplicateGroup(group).eligible), true);
+    assert.equal(new Set([...result.groups.flat(), ...result.remaining]).size, docs.length);
+  });
+  it('does not merge through a bridge, manual URL override, or conflicting region', () => {
+    const a = 'https://example.org/a', b = 'https://example.org/b';
+    const result = partitionDuplicateGroup([station('a', { url: a }), station('bridge', { url: a, urlResolved: b }), station('b', { url: b })]);
+    assert.equal(result.groups.length, 1); assert.equal(result.groups[0].length, 2); assert.equal(result.remaining.length, 1);
+    for (const patch of [{ city: 'Vienna' }, { countryCode: 'AT' }, { url: b, urlResolved: station('a').url, manualEditFields: { url: true } }]) {
+      assert.equal(partitionDuplicateGroup([station('a', { city: 'Berlin' }), station('b', patch)]).groups.length, 0);
     }
   });
 });

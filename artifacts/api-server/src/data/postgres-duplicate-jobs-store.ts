@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import type pg from 'pg';
 import { PostgresCatalogStore } from './postgres-catalog-store';
-import { assessDuplicateGroup } from '../utils/station-duplicate-policy';
+import { assessDuplicateGroup, partitionDuplicateGroup } from '../utils/station-duplicate-policy';
 
 const SUMMARY_LIMIT = 20;
 const jobError = (message: string, status: number) => Object.assign(new Error(message), { status });
@@ -73,6 +73,20 @@ export class PostgresDuplicateJobsStore {
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
 
+  async cancelPreview(id: unknown): Promise<void> {
+    if (!safeId(id)) throw jobError('A valid preview job ID is required', 400);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL statement_timeout='2s'; SET LOCAL lock_timeout='200ms'");
+      const result = await client.query(`UPDATE station_duplicate_jobs SET status='failed',
+        error_message='Preview cancelled by an administrator. No stations were changed.',finished_at=now(),updated_at=now()
+        WHERE id=$1 AND kind='preview' AND status IN ('queued','running') RETURNING id`, [id]);
+      if (!result.rowCount) throw jobError('Only an active preview can be cancelled; merge jobs are never interrupted', 409);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+  }
+
   async getJob(id: unknown) {
     if (!safeId(id)) return null;
     const row = (await this.pool.query('SELECT * FROM station_duplicate_jobs WHERE id=$1', [id])).rows[0];
@@ -94,32 +108,54 @@ export class PostgresDuplicateJobsStore {
     };
   }
 
-  private async seed(client: pg.PoolClient, job: Row, automaticCursor?: { name: string; country: string }) {
+  private async seed(client: pg.PoolClient, job: Row, automaticCursor?: { name: string; country: string; stream?: string }) {
     // SQL stores only IDs + bounded group metadata, never source/descriptions.
     // Automatic discovery is deliberately stricter than manual preview: an
     // identical raw endpoint is required before even entering its 100-group cap.
-    const seed = async (cursor?: { name: string; country: string }) => client.query(`WITH grouped AS (
+    const automatic = job.kind === 'automatic';
+    const seed = async (cursor?: { name: string; country: string; stream?: string }) => client.query(`WITH grouped AS (
       SELECT lower(btrim(regexp_replace(normalize(name,NFKC),'\\s+',' ','g'))) AS name,
         lower(btrim(regexp_replace(normalize(COALESCE(country,''),NFKC),'\\s+',' ','g'))) AS country,
+        ${automatic ? "btrim(url)" : "''::text"} AS stream,
         (array_agg(id ORDER BY id))[1:51] AS ids,count(*)::integer AS members
       FROM stations WHERE char_length(btrim(name)) >= $2
-      GROUP BY 1,2 HAVING count(*)>1
-      ${job.kind === 'automatic' ? "AND count(DISTINCT btrim(url))=1 AND bool_and(NULLIF(btrim(url),'') IS NOT NULL)" : ''}
+      GROUP BY 1,2,3 HAVING count(*)>1
+      ${automatic ? "AND bool_and(NULLIF(btrim(url),'') IS NOT NULL)" : ''}
     ), candidates AS (
-      SELECT * FROM grouped WHERE ($4::text IS NULL OR (name,country)>($4,$5))
-      ORDER BY name,country LIMIT $3
+      SELECT * FROM grouped WHERE ($4::text IS NULL OR (name,country,stream)>($4,$5,$6))
+      ORDER BY name,country,stream LIMIT $3
     ) INSERT INTO station_duplicate_job_groups(job_id,ordinal,station_ids,station_count,group_name,country)
-      SELECT $1,row_number() OVER(ORDER BY name,country)::integer,ids,members,name,country FROM candidates`,
-    [job.id, 1, job.kind === 'automatic' ? 100 : 50_000, cursor?.name ?? null, cursor?.country ?? null]);
+      SELECT $1,row_number() OVER(ORDER BY name,country,stream)::integer,ids,members,name,country FROM candidates`,
+    [job.id, 1, automatic ? 100 : 50_000, cursor?.name ?? null, cursor?.country ?? null, cursor?.stream ?? '']);
     let inserted = await seed(job.kind === 'automatic' ? automaticCursor : undefined);
     if (job.kind === 'automatic' && !inserted.rowCount && automaticCursor) inserted = await seed();
     if (job.kind === 'automatic') {
-      const last = (await client.query('SELECT group_name AS name,country FROM station_duplicate_job_groups WHERE job_id=$1 ORDER BY ordinal DESC LIMIT 1', [job.id])).rows[0];
+      const last = (await client.query(`SELECT g.group_name AS name,g.country,btrim(s.url) AS stream
+        FROM station_duplicate_job_groups g JOIN stations s ON s.id=g.station_ids[1]
+        WHERE g.job_id=$1 ORDER BY g.ordinal DESC LIMIT 1`, [job.id])).rows[0];
       await client.query("UPDATE station_duplicate_merge_control SET summary=jsonb_set(summary,'{automaticCursor}',$1::jsonb) WHERE id=1", [JSON.stringify(last || null)]);
     }
     const count = (await client.query('SELECT count(*)::integer total FROM station_duplicate_job_groups WHERE job_id=$1', [job.id])).rows[0].total;
     await client.query("UPDATE station_duplicate_jobs SET phase='evaluate',total_groups=$2 WHERE id=$1", [job.id, count]);
     job.phase = 'evaluate'; job.total_groups = count;
+  }
+
+  private async partitionPreview(client: pg.PoolClient, job: Row, group: Row, docs: Row[]): Promise<Row[]> {
+    const partition = partitionDuplicateGroup(docs);
+    if (!partition.groups.length) return docs;
+    const current = partition.remaining.length ? partition.remaining : partition.groups.shift()!;
+    await client.query('UPDATE station_duplicate_job_groups SET station_ids=$3,station_count=$4 WHERE job_id=$1 AND ordinal=$2',
+      [job.id, group.ordinal, current.map(doc => doc._id), current.length]);
+    group.station_ids = current.map(doc => doc._id); group.station_count = current.length;
+    if (partition.groups.length) {
+      const last = (await client.query('SELECT max(ordinal)::integer AS ordinal FROM station_duplicate_job_groups WHERE job_id=$1', [job.id])).rows[0].ordinal;
+      for (const [index, subset] of partition.groups.entries()) {
+        await client.query(`INSERT INTO station_duplicate_job_groups(job_id,ordinal,station_ids,station_count,group_name,country)
+          VALUES($1,$2,$3,$4,$5,$6)`, [job.id, last + index + 1, subset.map(doc => doc._id), subset.length, group.group_name, group.country]);
+      }
+      await client.query('UPDATE station_duplicate_jobs SET total_groups=total_groups+$2 WHERE id=$1', [job.id, partition.groups.length]);
+    }
+    return current;
   }
 
   private async record(client: pg.PoolClient, job: Row, group: Row, outcome: 'eligible'|'skipped'|'merged', reason: string | null, summary?: Row, deleted = 0) {
@@ -171,8 +207,9 @@ export class PostgresDuplicateJobsStore {
             if (group.station_count > 50) {
               await this.record(client, job, group, 'skipped', 'group_too_large');
             } else if (job.kind === 'preview') {
-              const docs = (await client.query(`SELECT id AS "_id",name,country,country_code AS "countryCode",source->>'city' AS city,state,url,
+              let docs = (await client.query(`SELECT id AS "_id",name,country,country_code AS "countryCode",source->>'city' AS city,state,url,
                 url_resolved AS "urlResolved",manual_edit_fields AS "manualEditFields",votes FROM stations WHERE id=ANY($1::text[]) ORDER BY id`, [group.station_ids])).rows;
+              if (docs.length === group.station_count && !assessDuplicateGroup(docs).eligible) docs = await this.partitionPreview(client, job, group, docs);
               const decision = docs.length === group.station_count ? assessDuplicateGroup(docs) : { eligible: false, reason: 'station_missing' };
               const planned = [...docs].sort((a,b) => (b.votes || 0)-(a.votes || 0) || a._id.localeCompare(b._id));
               await this.record(client, job, group, decision.eligible ? 'eligible' : 'skipped', decision.eligible ? null : decision.reason,
