@@ -3,26 +3,34 @@ import { performanceCache } from '../performance-cache';
 import { generateStationDescription, detectStationLanguage, translateDescription } from './ai-station-description';
 import { fillMissingDescription, hasCompleteDescription, hasDescriptionText, metadataFromFull } from './station-description-content';
 import { findDescriptionLanguageIssues } from './station-description-validation';
+import { descriptionLocaleProtected } from './description-repair-policy';
 
 export async function fillMissingStationDescriptions(
   station: any,
   targetLanguages: string[],
   onAction: (action: 'generating' | 'translating' | 'saving', languages: string[]) => void,
   assertActive: () => void,
-  options: { repairInvalid?: boolean; onSaved?: (language: string) => void } = {},
+  options: { repairInvalid?: boolean; onSaved?: (language: string) => void;
+    reviewedExcluded?: { sourceLanguage?: 'en'; save: (language: string, expected: unknown, next: Record<string, any>) => Promise<{ modifiedCount: number }> } } = {},
 ): Promise<{ skipped: boolean; languages: string[] }> {
   if (station.manualEditFields?.descriptions === true) return { skipped: true, languages: [] };
-  if (options.repairInvalid && (station.noIndex !== false || station.redirectToSlug)) return { skipped: true, languages: [] };
+  if (options.reviewedExcluded && (!options.repairInvalid || station.noIndex !== true || station.redirectToSlug || typeof options.reviewedExcluded.save !== 'function')) {
+    throw new Error('Reviewed excluded repair requires an unchanged excluded information page');
+  }
+  if (options.repairInvalid && !options.reviewedExcluded && (station.noIndex !== false || station.redirectToSlug)) return { skipped: true, languages: [] };
+  if (options.reviewedExcluded) targetLanguages = targetLanguages.filter(language => !descriptionLocaleProtected(station.manualEditFields, language));
+  if (!targetLanguages.length) return { skipped: true, languages: [] };
   if (station.descriptions != null && (typeof station.descriptions !== 'object' || Array.isArray(station.descriptions))) {
     throw new Error('Malformed description collection; repair its structure before missing-only generation');
   }
   const descriptions = station.descriptions && typeof station.descriptions === 'object' && !Array.isArray(station.descriptions)
     ? structuredClone(station.descriptions) : {};
   const expectedDescriptions = structuredClone(descriptions);
+  const sourceLanguageEvidence = options.reviewedExcluded?.sourceLanguage;
   if (options.repairInvalid) {
     // Country/native-language metadata is not proof of a stored source's
     // language. Only conclusive script/opening evidence authorizes replacement.
-    for (const issue of findDescriptionLanguageIssues(descriptions, targetLanguages, { stationName: station.name })) {
+    for (const issue of findDescriptionLanguageIssues(descriptions, targetLanguages, { stationName: station.name, sourceLanguage: sourceLanguageEvidence })) {
       descriptions[issue.language][issue.field] = '';
     }
   }
@@ -33,10 +41,10 @@ export async function fillMissingStationDescriptions(
     const existing = descriptions[language];
     const next = fillMissingDescription(existing, generated);
     if (!hasCompleteDescription(next)) throw new Error(`Incomplete generated description for ${language}`);
-    if (options.repairInvalid && findDescriptionLanguageIssues({ [language]: next }, [language], { stationName: station.name }).length) {
+    if (options.repairInvalid && findDescriptionLanguageIssues({ ...descriptions, [language]: next }, [language], { stationName: station.name, sourceLanguage: sourceLanguageEvidence }).length) {
       throw new Error(`Generated description has invalid language evidence: ${language}`);
     }
-    const result = await pgCatalog().update(
+    const result = options.reviewedExcluded ? await options.reviewedExcluded.save(language, expectedDescriptions[language] ?? null, next) : await pgCatalog().update(
       { _id: station._id, [`descriptions.${language}`]: expectedDescriptions[language] ?? null, 'manualEditFields.descriptions': { $ne: true },
         ...(options.repairInvalid ? { noIndex: false, redirectToSlug: { $in: [null, ''] } } : {}) },
       { $set: { [`descriptions.${language}`]: next } },
@@ -63,7 +71,7 @@ export async function fillMissingStationDescriptions(
   if (!missing.length) return { skipped: written.length === 0, languages: written };
 
   const nativeLanguage = detectStationLanguage(station);
-  let sourceLanguage = [nativeLanguage, ...Object.keys(descriptions)].find(language =>
+  let sourceLanguage = [...new Set([...(sourceLanguageEvidence ? [sourceLanguageEvidence] : []), nativeLanguage, ...Object.keys(descriptions)])].find(language =>
     hasDescriptionText(descriptions[language]?.full) &&
     (hasDescriptionText(descriptions[language]?.meta) || metadataFromFull(descriptions[language].full)),
   );

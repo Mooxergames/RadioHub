@@ -3,8 +3,9 @@ import type pg from 'pg';
 import { getPostgresPool } from '../postgres-runtime';
 import { descriptionTextSql } from './station-description-sql';
 import { AUDIT_LANGUAGES } from '../seo/station-indexability-audit';
-import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, recoveryReviewCsv, RECOVERY_CANDIDATE_LIMIT,
+import { assessLegacyNoindexRecovery, assessLegacyNoindexContentRepair, createRecoveryIdentityIndex, recoveryReviewCsv, RECOVERY_CANDIDATE_LIMIT,
   type RecoveryCandidate, type RecoveryStation, type RecoveryIdentity } from '../seo/legacy-noindex-recovery';
+import { descriptionRepairIdentity } from '../services/description-repair-policy';
 
 const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const MAX_SNAPSHOTS = 8;
@@ -143,6 +144,29 @@ export class LegacyNoindexRecoveryStore {
   private readonly snapshots = new Map<string, Snapshot>();
   constructor(private readonly pool: () => RecoveryPool = getPostgresPool,
     private readonly invalidate: (slugs: string[]) => Promise<boolean> = invalidateRecoveryCaches) {}
+
+  async reviewDescriptions(stationIds: string[], signal?: AbortSignal) {
+    if (!Array.isArray(stationIds) || !stationIds.length || stationIds.length > 100 ||
+        stationIds.some(id => typeof id !== 'string' || !id || id.length > 200) || new Set(stationIds).size !== stationIds.length) {
+      throw failure('RECOVERY_INVALID', 'Review 1-100 distinct station IDs');
+    }
+    return withTransaction(this.pool(), false, signal, async (query, now) => {
+      const index = await readIdentityIndex(query, true);
+      const selected = await query(`SELECT ${stationProjection},s.descriptions,
+        (s.description_repair_journal IS NULL OR jsonb_typeof(s.description_repair_journal)='object') AS "descriptionJournalIsObject"
+        FROM stations s WHERE s.id=ANY($1::text[]) ORDER BY s.id`, [stationIds]);
+      return stationIds.map(id => {
+        const station = selected.rows.find(row => row.id === id) as (RecoveryStation & { descriptions: unknown; descriptionJournalIsObject: boolean }) | undefined;
+        if (!station) return { id, name: '', slug: null, reason: 'missing-station' };
+        if (!station.descriptionJournalIsObject) return { id, name: station.name, slug: station.slug, reason: 'ambiguous-description-journal' };
+        const decision = assessLegacyNoindexContentRepair(station, index, now);
+        return { id, name: station.name, slug: station.slug, reason: decision.reason,
+          ...(decision.reason === 'eligible-for-content-repair' ? {
+            identity: descriptionRepairIdentity(station), descriptions: station.descriptions,
+          } : {}) };
+      });
+    });
+  }
 
   async preview(options: { signal?: AbortSignal; afterId?: string; onReviewRow?: (csv: string, signal?: AbortSignal) => Promise<void> } = {}): Promise<RecoveryPreview> {
     if (options.afterId !== undefined && (typeof options.afterId !== 'string' || !options.afterId || options.afterId.length > 200)) {
@@ -290,3 +314,4 @@ async function invalidateRecoveryCaches(slugs: string[]): Promise<boolean> {
 const store = new LegacyNoindexRecoveryStore();
 export const pgPreviewLegacyNoindexRecovery = (options: Parameters<LegacyNoindexRecoveryStore['preview']>[0] = {}) => store.preview(options);
 export const pgApplyLegacyNoindexRecovery = (input: Parameters<LegacyNoindexRecoveryStore['apply']>[0]) => store.apply(input);
+export const pgReviewSelectedDescriptionRepairs = (stationIds: string[], signal?: AbortSignal) => store.reviewDescriptions(stationIds, signal);

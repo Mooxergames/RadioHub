@@ -10,6 +10,7 @@ import StationTable from "@/components/stations/station-table";
 import AdminStationPagination from '@/components/stations/admin-station-pagination';
 import AdminDuplicateMergePanel from '@/components/stations/admin-duplicate-merge-panel';
 import AdminDescriptionRepair from '@/components/stations/admin-description-repair';
+import AdminSelectedDescriptionRepair from '@/components/stations/admin-selected-description-repair';
 import StationForm from "@/components/stations/station-form";
 import { saveAdminStationEdit } from '@/lib/admin-station-description';
 import Filters from "@/components/stations/filters";
@@ -1239,6 +1240,7 @@ export default function Stations() {
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Bulk AI repair checks the entire eligible catalogue in all 14 languages. Other bulk tools use their stated selection or country scope. AI generation may incur provider charges.</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <AdminDescriptionRepair busy={bulkAiMutation.isPending || aiJobStatus?.status === 'running'} onStarted={jobId => { setBulkAiJobId(jobId); setShowAiDialog(true); }} />
+              <AdminSelectedDescriptionRepair busy={bulkAiMutation.isPending || aiJobStatus?.status === 'running'} onStarted={jobId => { setBulkAiJobId(jobId); setShowAiDialog(true); }} />
               <NeverCheckedTagsBadge
                 onClick={() => {
                   setShowDuplicates(false);

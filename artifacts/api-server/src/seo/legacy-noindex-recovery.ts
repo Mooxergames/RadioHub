@@ -182,7 +182,7 @@ export type RecoveryIdentityIndex = ReturnType<typeof createRecoveryIdentityInde
 /** An unknown flag alone is never evidence for recovery. Complete retained
  * information and identity must pass every guard. Stream availability is
  * recorded as evidence; it does not determine this information page's SEO. */
-export function assessLegacyNoindexRecovery(station: RecoveryStation, index: RecoveryIdentityIndex, now: number):
+function reviewLegacyNoindex(station: RecoveryStation, index: RecoveryIdentityIndex, now: number, purpose: 'recovery' | 'content-repair'):
   { reason: string; candidate?: RecoveryCandidate; peerEvidence?: RecoveryIdentity[] } {
   const reject = (reason: string) => ({ reason });
   if (station.noIndex !== true) return reject('not-noindex');
@@ -217,9 +217,12 @@ export function assessLegacyNoindexRecovery(station: RecoveryStation, index: Rec
     (!Number.isFinite(checkedAt) || successfulAt <= checkedAt) ? successfulAt : null;
   const recentProviderSuccess = station.lastCheckOk === true && knownSuccessfulAt !== null &&
     [checkedAt, knownSuccessfulAt].every(value => Number.isFinite(value) && value <= now && value >= now - RECOVERY_MAX_AGE_MS);
-  if (station.completeLanguageCount !== AUDIT_LANGUAGES.length) return reject('incomplete-descriptions');
+  if (purpose === 'recovery' && station.completeLanguageCount !== AUDIT_LANGUAGES.length) return reject('incomplete-descriptions');
   const peers = index.hasPeer(station) ? index.excludedCanonicalPeers(station) : [];
   if (!peers) return reject('plausible-identity-peer');
+  // Missing prose may be repaired after identity review, but this never
+  // authorizes noindex recovery or fabricates a complete-language count.
+  if (purpose === 'content-repair') return { reason: 'eligible-for-content-repair', ...(peers.length ? { peerEvidence: peers } : {}) };
   return { reason: 'eligible', ...(peers.length ? { peerEvidence: peers } : {}), candidate: {
     id: station.id, slug: station.slug, name: station.name, country: station.country, countryCode: station.countryCode!,
     lastCheckOkTime: knownSuccessfulAt === null ? null : new Date(knownSuccessfulAt).toISOString(), completeLanguageCount: station.completeLanguageCount,
@@ -229,6 +232,14 @@ export function assessLegacyNoindexRecovery(station: RecoveryStation, index: Rec
       recoveryBasis: peers.length ? 'canonical-of-excluded-duplicates' : 'complete-unique-information-page',
       ...(peers.length ? { excludedDuplicateIds: peers.map(peer => peer.id) } : {}) },
   } };
+}
+
+export function assessLegacyNoindexRecovery(station: RecoveryStation, index: RecoveryIdentityIndex, now: number) {
+  return reviewLegacyNoindex(station, index, now, 'recovery');
+}
+
+export function assessLegacyNoindexContentRepair(station: RecoveryStation, index: RecoveryIdentityIndex, now: number) {
+  return reviewLegacyNoindex(station, index, now, 'content-repair');
 }
 
 export const RECOVERY_REVIEW_CSV_HEADER = 'station_id,name,slug,country,country_code,url,noindex,recorded_owner,recorded_reason,manual_protection_fields,complete_languages,recovery_guard,repair_basis,plausible_peer_count_at_least,peer_list_truncated,peer_ids,peer_slugs,peer_noindex,exact_name_primary_stream_indexable_target_slugs\r\n';
