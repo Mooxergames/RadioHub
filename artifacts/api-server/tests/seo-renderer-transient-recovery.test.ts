@@ -4,6 +4,7 @@ import { ACTIVE_SITEMAP_LANGUAGES, generateLanguageUrls, getLanguageFromPath, tr
 import { getIndexableLanguagesForStation, isStationIndexableInLanguage } from '../src/seo/junk-station-rules';
 import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
+import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { getLocalizedCountryName, getLocalizedRegionName } from '@workspace/seo-shared/country-name-translations';
 
 const pageCache = new Map<string, any>();
@@ -491,6 +492,17 @@ test('actual localized SSR station routes retain the same reciprocal fourteen-la
     assert.equal(page.pageData?.pageType, 'station');
     assert.equal(new URL(page.seoTags.canonical).href, new URL(entry.url).href);
     assert.deepEqual(page.seoTags.hreflangs.map((item: any) => ({ ...item, url: new URL(item.url).href })), expected, entry.lang);
+  }
+});
+
+test('English station HTML retains a factual article without waiting for fourteen translations or crashing on malformed prose', async () => {
+  for (const descriptions of [{}, { en: { full: ' \u00a0', meta: '' } }, { en: { full: 42, meta: false } }]) {
+    pageCache.clear(); stationOverrides = { descriptions };
+    const page = await renderer.renderStaticPage('/en/station/recovery-fm', 'https://themegaradio.com');
+    assert.notEqual(page.seoTags.noIndex, true);
+    const body = renderer.generateHtmlBody({ pageType: 'station', language: 'en', translations: {},
+      stationData: page.pageData.station, seoTags: page.seoTags });
+    assert.ok(body.includes(buildTemplateDescription(station).full));
   }
 });
 

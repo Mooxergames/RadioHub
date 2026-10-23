@@ -2052,10 +2052,6 @@ export default function SeoMaintenancePage() {
               <CardTitle className="text-base">Template açıklama doldur (İngilizce eksik istasyonlar)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-slate-600">
-                İngilizce açıklaması olmayan istasyonlar için Radio-Browser verilerinden (votes, bitrate, codec, konum) sıfır maliyetli benzersiz açıklama üretir.
-                <strong className="text-amber-700"> votes ≥ 1000</strong> olan istasyonlar "AI Ready" olarak raporlanır — bunlar sonradan AI ile upgrade edilebilir.
-              </p>
               <Button
                 onClick={() => startFillTemplates.mutate()}
                 disabled={startFillTemplates.isPending || !fillTemplatesJobQuery.isSuccess || tmplJob?.isRunning || stripSuffixJobQuery.data?.job?.isRunning}

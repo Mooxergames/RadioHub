@@ -21,6 +21,7 @@ import { logger } from "../utils/logger";
 import { stripPlaceholders } from "./shared-utils";
 import { refreshCommunityFavoritesCache, fetchTranslationsForLanguage, refreshTranslationsCache } from "./cache-refresh-utils";
 import { syncService } from "../services/sync";
+import { registerAdminStationSyncPolicyRoutes } from './admin-station-sync-policy-routes';
 import { isQuotaExceeded, isQuotaError, handleQuotaError, safeWrite } from "../utils/quota-guard";
 import { performanceCache } from "../performance-cache";
 import { getPhaseCTranslations } from "../data/phase-c-translations";
@@ -57,6 +58,7 @@ async function healthyRadioBrowserStations(order: 'clickCount' | 'votes' | 'upda
 export function registerTranslationAdminRoutes(app: Express, deps: any) {
     app.use(['/api/filters','/api/recently-played','/api/community-favorites','/api/radio-browser','/api/user/favorites','/api/users'], publicStationResponseCache);
     const { requireAuth, requireAdmin } = deps;
+    registerAdminStationSyncPolicyRoutes(app, requireAdmin);
     const userEngagementService = new UserEngagementService();
     async function authenticatedUserId(req: any): Promise<string | undefined> {
         const sessionUserId = req.session?.userId || req.session?.user?.userId;

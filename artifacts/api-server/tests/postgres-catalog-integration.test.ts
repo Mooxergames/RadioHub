@@ -6,6 +6,8 @@ import { after, before, describe, it } from "node:test";
 import pg from "pg";
 import { PostgresCatalogStore, compileCatalogFilter, pgSaveSyncRun } from "../src/data/postgres-catalog-store";
 import { PostgresAdminAuxiliaryStore } from '../src/data/postgres-admin-auxiliary-store';
+import { PostgresAdminSettingsStore } from '../src/data/postgres-admin-settings-store';
+import { STATION_SYNC_POLICY_KEY } from '../src/utils/station-sync-policy';
 
 describe("Catalog SQL predicates", () => {
   it("binds values and paths and rejects unsupported or unsafe queries", () => {
@@ -69,6 +71,36 @@ describe("PostgreSQL native catalog writes", { skip: !connectionString }, () => 
     } finally { await admin.end(); }
   });
   const station = (id: string) => ({ _id: id, stationuuid: `uuid-${id}`, name: `Station ${id}`, url: `https://example.invalid/${id}`, countryCode: "TR" });
+
+  it('an acknowledged intake pause fences native provider inserts while existing stream updates remain allowed', async () => {
+    const settings = new PostgresAdminSettingsStore(pool);
+    await pool.query("INSERT INTO catalog_sync_runs(id,sync_type,status) VALUES ('intake-run','incremental','running')");
+    await catalog.insertMany([station('existing-intake')]);
+    try {
+      await settings.save({ key: STATION_SYNC_POLICY_KEY, value: { allowNewStations: false }, changedBy: 'test' });
+      assert.deepEqual(await catalog.insertMany([station('paused-new')], { syncRunId: 'intake-run' }), []);
+      assert.equal(await catalog.count({ _id: 'paused-new' }), 0);
+      await catalog.updateProviderBatch([{ uuid: 'uuid-existing-intake', patch: { url: 'https://new.invalid/live' } }], 'intake-run');
+      assert.equal((await catalog.findById('existing-intake'))?.url, 'https://new.invalid/live');
+      await settings.save({ key: STATION_SYNC_POLICY_KEY, value: { allowNewStations: true }, changedBy: 'test' });
+      assert.equal((await catalog.insertMany([station('resumed-new')], { syncRunId: 'intake-run' })).length, 1);
+      // Emulate a pause being committed while a prepared insert is waiting.
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`admin-setting:${STATION_SYNC_POLICY_KEY}`]);
+        await client.query('UPDATE admin_settings SET value=$2::jsonb WHERE key=$1', [STATION_SYNC_POLICY_KEY, JSON.stringify({ allowNewStations: false })]);
+        const pending = catalog.insertMany([station('prepared-new')], { syncRunId: 'intake-run' });
+        await client.query('COMMIT');
+        assert.deepEqual(await pending, []);
+      } finally { client.release(); }
+      assert.equal(await catalog.count({ _id: 'prepared-new' }), 0);
+    } finally {
+      await settings.clear({ key: STATION_SYNC_POLICY_KEY, changedBy: 'test' });
+      await pool.query("DELETE FROM stations WHERE id IN ('existing-intake','resumed-new')");
+      await pool.query("DELETE FROM catalog_sync_runs WHERE id='intake-run'");
+    }
+  });
 
   it("persists canonical columns, metadata and ordered normalized genres atomically", async () => {
     const [doc] = await catalog.insertMany([{ ...station("one"), tags: ["Türkçe Pop", "Jazz", "Jazz"], logoAssets: { status: "pending" }, customValue: 42 }]);

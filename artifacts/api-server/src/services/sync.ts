@@ -2,6 +2,8 @@ import { pgCatalog, pgCreateSyncRun, pgSaveSyncRun, pgSyncLogs, pgSyncBlacklist 
 import { buildSyncBlacklist } from '../utils/sync-blacklist';
 import { assessDuplicateGroup, DUPLICATE_POLICY_FIELDS } from '../utils/station-duplicate-policy';
 import { getPostgresPool, getPostgresCoordinationPool } from '../postgres-runtime';
+import { getAdminSetting } from '../data/postgres-admin-settings-store';
+import { STATION_SYNC_POLICY_KEY, stationIntakeEnabled } from '../utils/station-sync-policy';
 import NodeCache from 'node-cache';
 import { radioBrowserHealthDate } from '../utils/provider-health-freshness';
 import { ImageManager } from './image-manager';
@@ -406,6 +408,7 @@ export class SyncService {
       const existingByUuid = new Map<string, any>(
         existingStations.map((s: any) => [s.stationuuid, s])
       );
+      const allowNewStations = stationIntakeEnabled(await getAdminSetting(STATION_SYNC_POLICY_KEY));
 
       // CONTENT-KEY DEDUP (2026-05-23): Radio-Browser occasionally re-issues a
       // stationuuid when records are merged/split upstream. Without this guard,
@@ -448,8 +451,8 @@ export class SyncService {
 
       // Insert new stations — auto-mark junk records with noIndex:true so
       // the upstream radio-browser feed cannot quietly re-pollute the sitemap.
-      if (newStations.length > 0) {
-        let batchAutoFlagged = 0;
+      if (!allowNewStations) skipped += newStations.length;
+      if (allowNewStations && newStations.length > 0) {
         const convertedNewStations = newStations.map(station => {
           const doc = this.convertStation(station);
           // Use the slug we'd generate downstream so test-feed rules apply
@@ -468,7 +471,6 @@ export class SyncService {
           });
           if (verdict.isJunk) {
             Object.assign(doc, automaticNoIndexPatch({ ...doc, slug: probeSlug }, verdict));
-            batchAutoFlagged++;
           }
           return doc;
         });
@@ -478,6 +480,8 @@ export class SyncService {
             () => pgCatalog().insertMany(convertedNewStations, { syncRunId: syncLog._id }),
           );
           inserted += insertResult.length;
+          skipped += convertedNewStations.length - insertResult.length;
+          const batchAutoFlagged = insertResult.filter(station => station.automaticNoIndex?.active === true).length;
           autoFlagged += batchAutoFlagged;
           logger.log(`➕ Batch ${Math.ceil((i + 1) / batchSize)}: Inserted ${insertResult.length} new stations (🚯 ${batchAutoFlagged} auto-flagged junk)`);
         } catch (error: any) {
@@ -721,6 +725,7 @@ export class SyncService {
     const lastSyncLog = (await pgSyncLogs(1))[0] || null;
     
     const status = {
+      allowNewStations: stationIntakeEnabled(await getAdminSetting(STATION_SYNC_POLICY_KEY)),
       isRunning: this.isRunning || lastSyncLog?.status === 'running',
       lastFullSync: lastSyncLog?.syncType === 'full' ? lastSyncLog.completedAt : null,
       lastSyncLog: lastSyncLog || null

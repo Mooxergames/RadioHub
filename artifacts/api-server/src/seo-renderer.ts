@@ -4,6 +4,7 @@ import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcr
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
 import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
+import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
 import { pgSeoCatalog } from './data/postgres-seo-read-store';
 import { pgStoredGenreBySlug } from './data/postgres-taxonomy-store';
@@ -2444,14 +2445,16 @@ export class SeoRenderer {
                     .replace(/\{COUNTRY\}/g, country);
                   return `<p class="station-intro">${this.escapeHtml(introText)}</p>`;
                 })()}
-                ${stationData.descriptions && stationData.descriptions[language] ? (() => {
-                  const desc = stationData.descriptions[language];
+                ${(() => {
+                  const desc = stationData.descriptions?.[language];
                   let fullText = '';
-                  if (typeof desc === 'object' && desc.full) {
+                  if (desc && typeof desc === 'object' && typeof desc.full === 'string') {
                     fullText = desc.full;
                   } else if (typeof desc === 'string') {
                     fullText = desc;
                   }
+                  if (!fullText.trim() && typeof stationData.description === 'string') fullText = stationData.description;
+                  if (!fullText.trim() && language === 'en') fullText = buildTemplateDescription(stationData).full;
                   fullText = fullText
                     .replace(/^\s*\[TRANSLATED\s+FULL\s+DESCRIPTION\]\s*/i, '')
                     .replace(/^\s*\[TRANSLATED\s+META[^\]]*\]\s*/i, '')
@@ -2481,7 +2484,7 @@ export class SeoRenderer {
                     return '<p>' + this.escapeHtml(fullText) + '</p>';
                   }
                   return '';
-                })() : (stationData.description ? `<p>${this.escapeHtml(stationData.description)}</p>` : '')}
+                })()}
                 <!-- DALGA 4: Station-specific outro (25-35 words, interpolation: name + country + tags — NOT scaled boilerplate) -->
                 ${(() => {
                   const outroTemplate = getStationPageCopy(language, translations).outro;

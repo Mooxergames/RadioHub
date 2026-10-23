@@ -29,7 +29,8 @@ import {
 } from "../services/scheduled-genre-slug-cleanup";
 import { getGenreSlugCleanupAlertThreshold } from "../services/genre-slug-cleanup-notifier";
 import { logger } from "../utils/logger";
-import { buildTemplateDescription } from "../services/station-description-template";
+import { performanceCache } from '../performance-cache';
+import { missingEnglishDescriptionPatch } from "../services/station-description-template";
 import { registerAdminIndexabilityAuditRoutes } from './admin-indexability-audit-routes';
 import { registerAdminLegacyNoindexRecoveryRoutes } from './admin-legacy-noindex-recovery-routes';
 
@@ -1203,21 +1204,25 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
       if(!leader)return void res.status(409).json({error:'already_running'});
       const job:FillTemplatesJobState={jobId:`fill-templates-${Date.now()}`,startedAt:new Date(),finishedAt:null,processed:0,filled:0,skipped:0,aiReady:0,isRunning:true,lastError:null};
       activeFillTemplatesJob=job;
-      const missingEnglish={$or:[{'descriptions.en':{$exists:false}},{'descriptions.en.full':{$exists:false}},{'descriptions.en.full':''},{'descriptions.en.full':null}]};
       void(async()=>{
         try{
-          for await(const station of pgCatalog().iterate(missingEnglish,{fields:['name','country','countryCode','state','tags','language','votes','bitrate','codec','homepage','slug']})){
+          for await(const station of pgCatalog().englishTemplateCandidates()){
             leader.assertOwned();job.processed++;
-            let description;
-            try{description=buildTemplateDescription(station as Parameters<typeof buildTemplateDescription>[0]);}
+            let patch;
+            try{patch=missingEnglishDescriptionPatch(station as Parameters<typeof missingEnglishDescriptionPatch>[0]);}
             catch(error){job.skipped++;logger.error('[fill-templates] template generation failed:',error);continue;}
-            if(!description.full){job.skipped++;continue;}
+            if(!Object.keys(patch).length){job.skipped++;continue;}
             leader.assertOwned();
-            const result=await pgCatalog().update({_id:station._id,...missingEnglish,'manualEditFields.descriptions':{$ne:true}},{$set:{'descriptions.en.full':description.full,'descriptions.en.meta':description.meta}},{respectManualFields:true});
+            const english = station.descriptions?.en;
+            const result=await pgCatalog().update({_id:station._id,
+              'descriptions.en':english === undefined ? {$exists:false} : {$eq:english},
+              'manualEditFields.descriptions':{$ne:true}},{$set:patch},{respectManualFields:true});
             job.filled+=result.modifiedCount;
             if(result.modifiedCount&&station.votes>=1000)job.aiReady++;
             if(!result.modifiedCount)job.skipped++;
           }
+          performanceCache.clearSeoHtml();
+          performanceCache.clearPageData();
         }catch(error:any){job.lastError=error?.message||String(error);logger.error('[fill-templates] failed:',error);}
         finally{try{await leader.release();}finally{job.isRunning=false;job.finishedAt=new Date();}}
       })().catch(error=>{job.lastError=String(error);logger.error('[fill-templates] release failed:',error);});
