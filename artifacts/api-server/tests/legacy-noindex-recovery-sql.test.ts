@@ -96,12 +96,16 @@ test('PostgreSQL engine executes recovery SQL, preserves all content and journal
       assert.equal(retained.no_index, true); assert.equal(retained.descriptions.en.full, 'Edited retained article');
       assert.equal(Object.keys(retained.no_index_recovery_journal).length, 2);
 
-      // Null/nonstring/whitespace descriptions never satisfy the SQL count.
+      // Missing another locale does not block English recovery.
       await db.query(`UPDATE stations SET descriptions=jsonb_set(descriptions,'{de,meta}','"   "'::jsonb)`);
       const incomplete = await store.preview();
-      assert.equal(incomplete.totalCandidates, 0); assert.equal(incomplete.reasonCounts['incomplete-descriptions'], 1);
+      assert.equal(incomplete.totalCandidates, 1);
       const missingCoverage = await pgAdminDescriptionCoverage(coveragePool);
       assert.equal(missingCoverage.languages.find(locale => locale.language === 'de')?.missingComplete, 1);
+      await db.query(`UPDATE stations SET descriptions=jsonb_set(descriptions,'{en,meta}','"   "'::jsonb)`);
+      const missingEnglish = await store.preview();
+      assert.equal(missingEnglish.totalCandidates, 0);
+      assert.equal(missingEnglish.reasonCounts['incomplete-english-description'], 1);
 
       await db.query('UPDATE stations SET descriptions=$1', [descriptions]);
       const retry = await store.preview(); loseCommitAcknowledgement = true;

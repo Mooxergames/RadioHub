@@ -19,3 +19,12 @@ test('Chinese radio names and names containing the generic test word are not exc
     assert.ok(getIndexableLanguagesForStation(row, ['en', 'zh']).includes('zh'), name);
   }
 });
+
+test('noise/soundscape programming is not proof of a test signal', () => {
+  for (const [name, slug] of [['LiSTNR Cooling Fan (White Noise)', 'listnr-cooling-fan-white-noise'],
+    ['Pink Noise Radio', 'pink-noise-radio'], ['White Noise Radio', 'white-noise-radio']]) {
+    assert.deepEqual(evaluateJunkStation({ name, slug, url: 'https://example.invalid/live' }), { isJunk: false });
+  }
+  assert.equal(evaluateJunkStation({ name: 'White Noise Test Feed', slug: 'white-noise-test-feed',
+    url: 'https://example.invalid/test' }).isJunk, true);
+});

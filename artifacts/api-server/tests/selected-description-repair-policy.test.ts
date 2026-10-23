@@ -15,7 +15,7 @@ test('content repair reviews missing prose without authorizing SEO recovery or c
   const before = structuredClone(row);
   assert.equal(assessLegacyNoindexContentRepair(row, index, Date.now()).reason, 'eligible-for-content-repair');
   assert.equal(assessLegacyNoindexContentRepair(row, index, Date.now()).candidate, undefined);
-  assert.equal(assessLegacyNoindexRecovery(row, index, Date.now()).reason, 'incomplete-descriptions');
+  assert.equal(assessLegacyNoindexRecovery(row, index, Date.now()).reason, 'incomplete-english-description');
   assert.deepEqual(row, before);
 });
 

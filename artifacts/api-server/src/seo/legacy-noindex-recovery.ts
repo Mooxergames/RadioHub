@@ -16,7 +16,8 @@ export interface RecoveryStation extends RecoveryIdentity {
   stationuuid: string; noIndex: boolean; redirectToSlug: string | null;
   manualEditFields: unknown; automaticNoIndex: unknown;
   lastCheckOk: boolean | null; lastCheckTime: Date | string | null; lastCheckOkTime: unknown;
-  completeLanguageCount: number; rowVersion: string; sourceIsObject: boolean; journalIsObject: boolean;
+  completeLanguageCount: number; englishContentComplete?: boolean;
+  rowVersion: string; sourceIsObject: boolean; journalIsObject: boolean;
 }
 export interface RecoveryCandidate {
   id: string; slug: string; name: string; country: string; countryCode: string;
@@ -134,6 +135,25 @@ export function createRecoveryIdentityIndex() {
     hasPeer(station: RecoveryStation): boolean {
       return peerIds(station, 1).size > 0;
     },
+    hasIdentityConflict(station: RecoveryStation): boolean {
+      // Similar names, frequency prefixes and format suffixes are discovery
+      // hints, not evidence that two independently addressed pages are copies.
+      const sets = [uuids.get(station.stationuuid?.toLowerCase() || '')];
+      for (const value of [station.url, station.urlResolved]) {
+        const endpoint = recoveryEndpoint(value);
+        if (endpoint) sets.push(endpoints.get(endpoint));
+      }
+      for (const slug of [station.slug, ...(station.slugAliases || [])]) {
+        if (slug) sets.push(slugs.get(slug));
+      }
+      const provenance = station.automaticNoIndex as { reason?: string } | null;
+      if (provenance?.reason?.startsWith('duplicate-of:')) {
+        // A recorded duplicate decision is explicit evidence and still needs
+        // review when its named target exists, even after a stream URL change.
+        sets.push(slugs.get(provenance.reason.slice('duplicate-of:'.length)));
+      }
+      return sets.some(ids => ids && [...ids].some(id => id !== station.id));
+    },
     reviewPeers(station: RecoveryStation): RecoveryIdentity[] {
       return [...peerIds(station)].sort().map(id => identities.get(id)!);
     },
@@ -196,7 +216,8 @@ function reviewLegacyNoindex(station: RecoveryStation, index: RecoveryIdentityIn
   const ownedDuplicate = owned && typeof provenance.reason === 'string' && provenance.reason.startsWith('duplicate-of:') &&
     provenance.reason.length > 'duplicate-of:'.length;
   const retiredNameHeuristic = owned && typeof provenance.reason === 'string' &&
-    (provenance.reason.startsWith('codec-suffix:') || provenance.reason.startsWith('song-or-program-name:'));
+    (provenance.reason.startsWith('codec-suffix:') || provenance.reason.startsWith('song-or-program-name:') ||
+      ['test-feed:white-noise', 'test-feed:pink-noise'].includes(provenance.reason));
   if (provenance != null && !ownedDuplicate && !retiredNameHeuristic) return reject('other-provenance');
   if (!text(station.slug)) return reject('missing-slug');
   if (station.name.length > 160 || station.slug.length > 180) return reject('ambiguous-long-identity');
@@ -204,7 +225,8 @@ function reviewLegacyNoindex(station: RecoveryStation, index: RecoveryIdentityIn
   const junk = evaluateJunkStation({ name: station.name, slug: station.slug, url: station.url });
   if (junk.isJunk) return reject(`junk:${junk.reason}`);
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(station.stationuuid)) return reject('missing-provider-uuid');
-  if (!text(station.country) || !/^[a-z]{2}$/i.test(station.countryCode || '') || !normalized(station.name)) return reject('missing-country-identity');
+  if (!normalized(station.name) || (purpose === 'content-repair' &&
+      (!text(station.country) || !/^[a-z]{2}$/i.test(station.countryCode || '')))) return reject('missing-country-identity');
   if (!recoveryEndpoint(station.url) || (station.urlResolved && !recoveryEndpoint(station.urlResolved))) return reject('ambiguous-stream-endpoint');
   if (['lastCheckOk', 'lastCheckTime', 'lastCheckOkTime', 'url', 'urlResolved'].some(key => Object.hasOwn(manual, key))) return reject('manual-provider-evidence');
   const checkedAt = station.lastCheckTime == null ? NaN : new Date(station.lastCheckTime).getTime();
@@ -217,14 +239,16 @@ function reviewLegacyNoindex(station: RecoveryStation, index: RecoveryIdentityIn
     (!Number.isFinite(checkedAt) || successfulAt <= checkedAt) ? successfulAt : null;
   const recentProviderSuccess = station.lastCheckOk === true && knownSuccessfulAt !== null &&
     [checkedAt, knownSuccessfulAt].every(value => Number.isFinite(value) && value <= now && value >= now - RECOVERY_MAX_AGE_MS);
-  if (purpose === 'recovery' && station.completeLanguageCount !== AUDIT_LANGUAGES.length) return reject('incomplete-descriptions');
-  const peers = index.hasPeer(station) ? index.excludedCanonicalPeers(station) : [];
+  const englishComplete = station.englishContentComplete ?? station.completeLanguageCount === AUDIT_LANGUAGES.length;
+  if (purpose === 'recovery' && !englishComplete) return reject('incomplete-english-description');
+  const conflict = purpose === 'recovery' ? index.hasIdentityConflict(station) : index.hasPeer(station);
+  const peers = conflict ? index.excludedCanonicalPeers(station) : [];
   if (!peers) return reject('plausible-identity-peer');
   // Missing prose may be repaired after identity review, but this never
   // authorizes noindex recovery or fabricates a complete-language count.
   if (purpose === 'content-repair') return { reason: 'eligible-for-content-repair', ...(peers.length ? { peerEvidence: peers } : {}) };
   return { reason: 'eligible', ...(peers.length ? { peerEvidence: peers } : {}), candidate: {
-    id: station.id, slug: station.slug, name: station.name, country: station.country, countryCode: station.countryCode!,
+    id: station.id, slug: station.slug, name: station.name, country: station.country || '', countryCode: station.countryCode || '',
     lastCheckOkTime: knownSuccessfulAt === null ? null : new Date(knownSuccessfulAt).toISOString(), completeLanguageCount: station.completeLanguageCount,
     evidence: { provenance: ownedDuplicate ? 'owned-duplicate' : retiredNameHeuristic ? 'owned-retired-name-heuristic' : 'legacy-unknown', providerUuidPresent: true,
       providerLastCheckOk: typeof station.lastCheckOk === 'boolean' ? station.lastCheckOk : null,

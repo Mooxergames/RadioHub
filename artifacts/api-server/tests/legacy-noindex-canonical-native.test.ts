@@ -5,6 +5,35 @@ import { LegacyNoindexRecoveryStore } from '../src/data/postgres-legacy-noindex-
 import { AUDIT_LANGUAGES } from '../src/seo/station-indexability-audit';
 import { createNativePostgresFixture } from './helpers/native-postgres-fixture';
 
+test('native recovery accepts English-only pages without country metadata or a false name-only duplicate',
+  { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
+    const fixture = await createNativePostgresFixture('noindex_english');
+    try {
+      const descriptions = { en: { full: 'Retained English station information.', meta: 'English station summary.' } };
+      const common = { name: 'Example Radio', country: 'Unknown', countryCode: '', noIndex: true,
+        manualEditFields: {}, descriptions, lastCheckOk: false };
+      await fixture.insert('stations', { ...common, _id: 'english', stationuuid: randomUUID(), slug: 'example-radio',
+        url: 'https://one.example.invalid/live' });
+      await fixture.insert('stations', { ...common, _id: 'different-stream', stationuuid: randomUUID(), slug: 'example-radio-mp3',
+        url: 'https://two.example.invalid/live', noIndex: false });
+      await fixture.insert('stations', { ...common, _id: 'no-english', stationuuid: randomUUID(), name: 'Other Brand', slug: 'other-brand',
+        url: 'https://three.example.invalid/live', descriptions: { de: { full: 'Artikel', meta: 'Zusammenfassung' } } });
+      const store = new LegacyNoindexRecoveryStore(() => fixture.pool, async () => true);
+      const preview = await store.preview();
+      assert.equal(preview.totalCandidates, 1);
+      assert.equal(preview.candidates[0].id, 'english');
+      assert.equal(preview.candidates[0].completeLanguageCount, 1);
+      assert.equal(preview.reasonCounts['incomplete-english-description'], 1);
+      await store.apply({ previewId: preview.previewId, stationIds: ['english'] });
+      const row = (await fixture.pool.query("SELECT * FROM stations WHERE id='english'")).rows[0];
+      assert.equal(row.no_index, false);
+      assert.deepEqual(row.descriptions, descriptions);
+      assert.equal(row.country_code, '');
+      assert.equal(row.last_check_ok, false);
+      assert.equal(row.no_index_recovery_journal[preview.previewId].before.noIndex, true);
+    } finally { await fixture.close(); }
+  });
+
 test('native recovery restores only a closed group canonical and fences peer changes without losing retained data',
   { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
     const fixture = await createNativePostgresFixture('noindex_canonical');

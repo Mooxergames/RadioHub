@@ -72,8 +72,6 @@ const JUNK_SLUG_SUBSTRINGS = [
   'test-feed',
   'test-stream',
   'test-loop',
-  'pink-noise',
-  'white-noise',
   'sweep-tone',
   'silence-stream',
 ];
@@ -163,7 +161,7 @@ export function evaluateJunkStation(station: {
   // marks a record junk when an actual sibling with the canonical base slug
   // exists in the database.
 
-  // MP3/AAC/DAB describe delivery, and Remix/Phonk describe programming.
+  // MP3/AAC/DAB describe delivery; Remix/Phonk and white/pink noise describe programming.
   // Neither proves a duplicate or a fake station. Catalog identity checks
   // handle actual siblings; existing stored exclusions need explicit review.
 

@@ -90,7 +90,7 @@ describe('explicit legacy noindex recovery', () => {
     expect(within(offline).getByText('Başarısız')).toBeVisible();
     expect(within(offline).getByText('Kayıt yok')).toBeVisible();
     expect(within(offline).getByText('Yakın tarihli başarı kaydı yok')).toBeVisible();
-    expect(within(offline).getByText('Tam ve benzersiz bilgi sayfası')).toBeVisible();
+    expect(within(offline).getByText('İngilizce bilgi sayfası uygun')).toBeVisible();
     expect(within(offline).getByRole('checkbox')).toBeEnabled();
     const unknown = screen.getByRole('row', { name: /Radio 1/ });
     expect(within(unknown).getByText('Bilinmiyor')).toBeVisible();
@@ -100,7 +100,7 @@ describe('explicit legacy noindex recovery', () => {
     expect(within(stale).getByText('Yakın tarihli başarı kaydı yok')).toBeVisible();
     expect(within(stale).getByText(new Date(data.candidates[2].lastCheckOkTime!).toLocaleString())).toBeVisible();
     expect(screen.queryByText(/Invalid Date|1970/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Yayın çevrimdışı olsa da/)).toHaveTextContent('Bu işlem yayını yeniden başlatmaz, gizli radyoları listelerde görünür yapmaz.');
+    expect(screen.getByText(/İngilizce tam açıklaması/)).toHaveTextContent('Bu işlem yayını yeniden başlatmaz, gizli radyoları listelerde görünür yapmaz.');
   });
   it('sends only the explicit selection, displays a verified receipt and requires a fresh preview', async () => {
     vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify(preview()))).mockResolvedValueOnce(new Response(JSON.stringify({ restored: 1, restoredIds: ['id-0'], skipped: 0, skippedReasons: [] })));
@@ -131,5 +131,28 @@ describe('explicit legacy noindex recovery', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Onarım doğrulanamadı');
     expect(screen.getByRole('button', { name: 'Seçilen 0 radyoyu onar' })).toBeDisabled();
     expect(apiRequest).toHaveBeenCalledTimes(2);
+  });
+  it('requires explicit bulk confirmation and preserves confirmed progress when the next scan fails', async () => {
+    vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify(preview(2))))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ restored: 2, restoredIds: ['id-0', 'id-1'], skipped: 0 })))
+      .mockRejectedValueOnce(new Error('Scan unavailable'));
+    show(); await scan();
+    fireEvent.click(screen.getByRole('button', { name: 'Tüm uygun adayları onar (2)' }));
+    expect(screen.getByRole('group', { name: 'Toplu noindex onarımını onayla' })).toBeVisible();
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Toplu onarımı başlat' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Scan unavailable');
+    expect(screen.getByRole('status')).toHaveTextContent('2 radyo onarıldı');
+    expect(apiRequest).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+  it('cancels the bulk confirmation without writing or selecting records', async () => {
+    vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify(preview(1))));
+    show(); await scan();
+    fireEvent.click(screen.getByRole('button', { name: 'Tüm uygun adayları onar (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
+    expect(screen.queryByRole('group', { name: 'Toplu noindex onarımını onayla' })).not.toBeInTheDocument();
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
   });
 });
