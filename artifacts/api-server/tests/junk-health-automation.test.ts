@@ -123,6 +123,48 @@ test('nightly cleanup owned-health retirement is guarded and audited while offli
   assert.equal(updates.length, 0);
 });
 
+test('nightly cleanup never reassigns a freed collision URL to another published station', async () => {
+  const existing = row({ name: 'NRJ', slug: 'nrj-5', slugAliases: ['nrj-6'], country: 'France', countryCode: 'FR' });
+  const base = row({ _id: 'station-b', name: 'NRJ', slug: 'nrj', country: 'Germany', countryCode: 'DE', url: 'https://other.invalid/live' });
+  const firstCollision = row({ _id: 'station-c', name: 'NRJ', slug: 'nrj-1', country: 'Belgium', countryCode: 'BE', url: 'https://third.invalid/live' });
+  reset([existing, base, firstCollision]);
+  const result = await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+  assert.equal(result.slugRewrites, 0);
+  assert.equal(updates.some(write => write.update.$set.slug !== undefined), false);
+  assert.equal(updates.some(write => write.update.$set.slugAliases !== undefined), false);
+});
+
+test('nightly cleanup preserves published transliteration and manually protected URLs', async () => {
+  for (const manualEditFields of [{}, { slug: true }]) {
+    reset([row({ name: '\u00d6sterreich R\u00e1dio', slug: 'osterreich-radio-4', manualEditFields })]);
+    const result = await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+    assert.equal(result.slugRewrites, 0);
+    assert.equal(updates.length, 0);
+  }
+});
+
+test('nightly health-only retirement cannot rename an existing station', async () => {
+  reset([recovered({ name: 'NRJ', slug: 'nrj-5', slugAliases: ['nrj-6'] })]);
+  const result = await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+  assert.equal(result.slugRewrites, 0);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].update.$set.noIndex, false);
+  assert.equal(updates[0].update.$set.slug, undefined);
+  assert.equal(updates[0].update.$set.slugAliases, undefined);
+});
+
+test('nightly cleanup can still assign a genuinely missing station URL', async () => {
+  for (const slug of ['', null]) {
+    reset([row({ name: 'Fresh Radio', slug })]);
+    const result = await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+    assert.equal(result.slugRewrites, 1);
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].update.$set.slug, 'fresh-radio');
+    assert.equal(updates[0].update.$set.slugAliases, undefined);
+    assert.deepEqual(updates[0].filter.slug, { $eq: slug }, 'a concurrently assigned published URL must win');
+  }
+});
+
 test('cleanup new flags have provenance and existing unknown flags are not adopted', async () => {
   reset([row()]); await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
   assert.equal(updates.length, 0, 'availability failure alone cannot create SEO exclusion');
