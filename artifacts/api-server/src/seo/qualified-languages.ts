@@ -77,9 +77,10 @@ const DRIFT_FLAP_THRESHOLD = 3;               // 3+ SIGNIFICANT changes/hour = f
 // effectively stable. (Observed in 2026-05-11 prod: 6 flaps/hour, exactly
 // matching the old 10-min TTL.)
 const DRIFT_SIGNIFICANT_DELTA_RATIO = 0.05;   // 5% of total active langs
+const LANGUAGE_ORDER = new Map<string, number>(ACTIVE_SITEMAP_LANGUAGES.map((language, index) => [language, index]));
 
 export const EMERGENCY_SEED_QUALIFIED_LANGUAGES: readonly string[] =
-  Object.freeze([...(ACTIVE_SITEMAP_LANGUAGES as unknown as string[])].sort());
+  Object.freeze(normalizeLanguageOrder(ACTIVE_SITEMAP_LANGUAGES));
 
 // ---------------------------------------------------------------------------
 // In-memory state
@@ -99,6 +100,14 @@ let inflightCompute: Promise<QualifiedLanguagesState> | null = null;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+// Cache misses finish out of order. Keep identical language sets byte-stable
+// in sitemap XML and hreflang, including legacy LKG and startup reads.
+function normalizeLanguageOrder(languages: readonly string[]): string[] {
+  return [...languages].sort((a, b) =>
+    (LANGUAGE_ORDER.get(a) ?? LANGUAGE_ORDER.size) - (LANGUAGE_ORDER.get(b) ?? LANGUAGE_ORDER.size)
+    || (a < b ? -1 : a > b ? 1 : 0));
+}
+
 function hashLanguages(langs: readonly string[]): string {
   const normalized = [...langs].sort().join(',');
   return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 16);
@@ -203,7 +212,7 @@ const GUARANTEED_QUALIFIED_LANGUAGES: readonly string[] = (
 function withGuaranteedLanguages(qualified: readonly string[]): string[] {
   const result = new Set<string>(qualified);
   for (const lang of GUARANTEED_QUALIFIED_LANGUAGES) result.add(lang);
-  return Array.from(result);
+  return normalizeLanguageOrder(Array.from(result));
 }
 
 async function computeFromTranslations(): Promise<string[]> {
@@ -273,7 +282,7 @@ async function loadLkg(): Promise<QualifiedLanguagesState | null> {
       return null;
     }
     return {
-      languages: doc.languages,
+      languages: normalizeLanguageOrder(doc.languages),
       hash: doc.hash,
       source: 'lkg',
       computedAt: doc.computedAt,
