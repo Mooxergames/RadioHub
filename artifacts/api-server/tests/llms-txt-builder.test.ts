@@ -22,6 +22,16 @@ mock.module('../src/utils/logger', { namedExports: { logger: { warn() {} } } });
 const { buildLlmsTxtBody, clearLlmsTxtCache } = await import('../src/seo/llms-txt-builder');
 const base = 'https://themegaradio.com';
 
+function assertCoreDiscovery(body: string): void {
+  assert.match(body, /\[All Stations\]\(https:\/\/themegaradio\.com\/en\/stations\)/);
+  assert.match(body, /\[Radio Data Usage\]\(https:\/\/themegaradio\.com\/en\/blog\/radio-data-usage\)/);
+  assert.match(body, /\[Listen to Radio Online\]\(https:\/\/themegaradio\.com\/en\/blog\/listen-to-radio-online\)/);
+  assert.match(body, /API access is subject to existing API-key and authorization requirements/);
+  assert.match(body, /Sign in to manage API keys and usage information in a developer account/);
+  assert.doesNotMatch(body, /\/api-docs|\/api-user|\/api\/|\/admin|\/profile|\/en\/radios|requires? an? account|account required/i);
+  assert.doesNotMatch(body, /<html|<!doctype|fair use|freely accessible for AI training|citations? (?:are )?guaranteed/i);
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(done => { resolve = done; });
@@ -46,6 +56,7 @@ test('cold concurrent reads return a real core guide without waiting for any dat
   assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1 }, 'one shared refresh, not 100 aggregations');
   assert.match(bodies[0], /^# MegaRadio\n/);
   assert.match(bodies[0], /\[Sitemap Index\]\(https:\/\/themegaradio\.com\/sitemap-index\.xml\)/);
+  assertCoreDiscovery(bodies[0]);
   assert.doesNotMatch(bodies[0], /Top genre directories|Top country directories/);
   pending.resolve([]); await setImmediate();
 });
@@ -55,6 +66,7 @@ test('completed refresh supplies only measured, whitelisted optional links and q
   assert.doesNotMatch(first, /Top genre directories/);
   await setImmediate();
   const enriched = await buildLlmsTxtBody(base);
+  assertCoreDiscovery(enriched);
   assert.match(enriched, /\/en\/genres\/rock/);
   assert.match(enriched, /\/en\/regions\/europe\/germany/);
   assert.match(enriched, /\/de\/sender/);
@@ -67,6 +79,7 @@ test('completed refresh supplies only measured, whitelisted optional links and q
 test('expired reads keep the complete guide available while one background refresh runs', async () => {
   await buildLlmsTxtBody(base); await setImmediate();
   const previous = await buildLlmsTxtBody(base);
+  assertCoreDiscovery(previous);
   now += 6 * 60 * 60 * 1000 + 1;
   const pending = deferred<any>(); genres = () => pending.promise;
   assert.equal(await buildLlmsTxtBody(base), previous);
@@ -80,6 +93,7 @@ test('expired reads keep the complete guide available while one background refre
 test('failed optional sources do not fabricate a ranked whitelist sample and retry after one minute', async () => {
   countries = genres = languages = async () => { throw new Error('database unavailable'); };
   const core = await buildLlmsTxtBody(base); await setImmediate();
+  assertCoreDiscovery(core);
   assert.equal(await buildLlmsTxtBody(base), core);
   assert.doesNotMatch(core, /Top genre directories|Top country directories|\/en\/genres\/pop/);
   assert.equal(calls.genres, 1);
@@ -99,6 +113,7 @@ test('failed stale refresh retains the last verified guide instead of erasing it
   genres = async () => { throw new Error('database unavailable'); };
   await buildLlmsTxtBody(base); await setImmediate();
   assert.equal(await buildLlmsTxtBody(base), previous);
+  assertCoreDiscovery(await buildLlmsTxtBody(base));
   assert.equal(calls.genres, 2);
 });
 
@@ -110,6 +125,7 @@ test('clearing the cache prevents an old in-flight refresh from republishing obs
   await buildLlmsTxtBody(base); await setImmediate();
   pending.resolve([{ _id: 'rock', count: 20 }]); await setImmediate();
   const body = await buildLlmsTxtBody(base);
+  assertCoreDiscovery(body);
   assert.match(body, /\/en\/genres\/jazz/);
   assert.doesNotMatch(body, /\/en\/genres\/rock/);
 });
@@ -118,6 +134,7 @@ test('guide uses current supported locale scope and real homepage link, without 
   languages = async () => ['en', 'de', 'af', 'xx'];
   await buildLlmsTxtBody(base); await setImmediate();
   const body = await buildLlmsTxtBody(base);
+  assertCoreDiscovery(body);
   assert.match(body, /14 supported languages/);
   assert.match(body, /\[Popular Stations\]\(https:\/\/themegaradio\.com\/en\)/);
   assert.doesNotMatch(body, /57 languages|Top 100|\/en\/popular|1,000 requests|updated daily|verified stream|\/af\/|\/xx\//);

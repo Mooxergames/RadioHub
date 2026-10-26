@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSeoRouting } from '../src/hooks/useSeoRouting';
 import { TranslationProvider, useTranslation } from '../src/hooks/useTranslation';
 import { prefetchNavigationTranslations } from '../src/lib/translation-navigation-prefetch';
-import { setDatabaseUrlTranslations } from '@workspace/seo-shared/url-translations';
+import { setDatabaseUrlTranslations, URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
+import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
 let client: QueryClient;
 let routing: ReturnType<typeof useSeoRouting>;
@@ -101,6 +102,51 @@ it('explicit user choice uses SPA navigation, preserving the document and query/
   expect(document.cookie).toContain('preferredLanguage=ar');
   expect(fetchDictionary).toHaveBeenCalledWith('/api/translations/ar');
   expect(renderedLocales).toEqual(['ar']);
+});
+
+for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+  it(`${language}: station identity survives mount normalization and SPA language changes without remounting`, async () => {
+    client.setQueryData(['/api/translations', 'tr'], { hello: 'Merhaba' });
+    const session = { user: { id: 'unchanged-session' } };
+    client.setQueryData(['/api/auth/me'], session);
+    for (const identity of ['profil', 'profile', 'discover', 'station', 'sta', 'station-xyz', '0123456789abcdef01234567']) {
+      const detail = URL_TRANSLATIONS[language]?.station || 'station';
+      window.history.replaceState({}, '', `/${language}/${detail}/${identity}?utm_source=a%26b#player`);
+      const view = mount(1);
+      expect(routing.englishPath).toMatch(new RegExp(`^/stations?/${identity}$`));
+      expect(decodeURI(window.location.pathname)).toBe(`/${language}/${detail}/${identity}`);
+      expect(window.location.search).toBe('?utm_source=a%26b');
+      expect(window.location.hash).toBe('#player');
+      const originalDocument = document.documentElement;
+      const originalLink = view.container.querySelector('a');
+      const target = language === 'tr' ? 'en' : 'tr';
+      const routeKey = routing.englishPath.split('/')[1];
+      await act(async () => { routing.changeLanguage(target); });
+      const targetDetail = URL_TRANSLATIONS[target]?.[routeKey] || routeKey;
+      expect(decodeURI(window.location.pathname)).toBe(`/${target}/${targetDetail}/${identity}`);
+      expect(window.location.search).toBe('?utm_source=a%26b');
+      expect(window.location.hash).toBe('#player');
+      expect(view.container.querySelector('a')).toBe(originalLink);
+      expect(document.documentElement).toBe(originalDocument);
+      expect(client.getQueryData(['/api/auth/me'])).toBe(session);
+      cleanup();
+    }
+  });
+}
+
+it.each(ACTIVE_SITEMAP_LANGUAGES)('%s: cross-language correction preserves identity, query and hash without adding history', (language) => {
+  const wrongRoute = language === 'tr' ? 'station' : 'istasyon';
+  const detail = URL_TRANSLATIONS[language]?.station || 'station';
+  window.history.replaceState({}, '', `/${language}/${wrongRoute}/discover?country=Austria&utm_source=a%26b#player`);
+  const historyLength = window.history.length;
+  const push = vi.spyOn(window.history, 'pushState');
+  mount(1);
+  expect(decodeURI(window.location.pathname)).toBe(`/${language}/${detail}/discover`);
+  expect(window.location.search).toBe('?country=Austria&utm_source=a%26b');
+  expect(window.location.hash).toBe('#player');
+  expect(window.history.length).toBe(historyLength);
+  expect(push).not.toHaveBeenCalled();
+  expect(routing.englishPath).toMatch(/^\/stations?\/discover$/);
 });
 
 it('same-locale and unsupported choices do not navigate or fetch', () => {

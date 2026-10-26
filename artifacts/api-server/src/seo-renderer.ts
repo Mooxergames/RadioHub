@@ -447,6 +447,7 @@ export class SeoRenderer {
     // Determine page type from path and extract relevant data
     let pageType = 'home';
     let stationData: any = null;
+    let stationIdFallback: string | undefined;
     let additionalData: any = {};
     
     // Helper function to detect if path is a station path in ANY language
@@ -572,10 +573,7 @@ export class SeoRenderer {
               // Google Search Console. Now we rebuild the FULL localized canonical
               // (lang prefix + translated segment) so it's a single 301 hop to the
               // correct localized URL — preserving language signal and SEO equity.
-              const englishCanonical = cleanPath.replace(
-                `/${stationSlug}`,
-                `/${aliasMatch.slug}`,
-              );
+              const englishCanonical = `/station/${aliasMatch.slug}`;
               const canonicalPath = buildLocalizedUrl(
                 englishCanonical,
                 aliasRedirectLanguage,
@@ -595,6 +593,7 @@ export class SeoRenderer {
           }
 
           if (!stationData && stationSlug.match(/^[0-9a-fA-F]{24}$/)) {
+            stationIdFallback = stationSlug;
             stationData = await withSignal(pgSeoCatalog().findById(stationSlug), signal);
           }
 
@@ -1282,7 +1281,8 @@ export class SeoRenderer {
     // The HTTP layer uses this retryable-data flag for any failed required
     // SEO read, including reference directories. Never cache an empty 200
     // HTML directory after a temporary outage.
-    let stationDbErrorFlag = !!(stationData as any)?._dbError || additionalData.hubReadFailed === true;
+    let stationDbErrorFlag = !!(stationData as any)?._dbError || additionalData.hubReadFailed === true
+      || additionalData.stationQualificationFailed === true;
     if (pageType === 'station' && stationData && !stationNotFound && !stationDbErrorFlag) {
       try {
         const {
@@ -1383,10 +1383,36 @@ export class SeoRenderer {
             indexable,
           );
         }
+
+        // ID consolidation belongs after the shared quality/qualification gate,
+        // never in the lookup fallback. Verify the slug's exact owner as well:
+        // the destination must serve this same persisted station, not an alias.
+        if (stationIdFallback) {
+          langRedirectUrl = null;
+          const slug = stationData.slug;
+          const redirectLanguage = indexable.includes(actualLanguage) ? actualLanguage : 'en';
+          const safeSlug = typeof slug === 'string' && slug.length > 0 && slug === slug.trim()
+            && !/[\\/?#%\s\u0000-\u001f\u007f-\u009f]/u.test(slug)
+            && slug !== '.' && slug !== '..' && !matchAzIndexPath(`/station/${slug}`);
+          if (!legacyInformation && !isJunk && !numericOnlySlug && !negativeNumericSlug
+              && safeSlug && slug !== stationIdFallback
+              && String(stationData._id).toLowerCase() === stationIdFallback.toLowerCase()
+              && indexable.includes(redirectLanguage)) {
+            const target = await withSignal(pgSeoCatalog().findOne({ slug }), signal);
+            if (target?.slug === slug && String(target._id) === String(stationData._id)
+                && !target.redirectToSlug
+                && getIndexableLanguagesForStation(target, qualifiedLangs).includes(redirectLanguage)) {
+              langRedirectUrl = buildLocalizedUrl(`/station/${slug}`, redirectLanguage,
+                redirectLanguage === actualLanguage ? countryCode : undefined, urlTranslations);
+            }
+          }
+        }
       } catch (e: any) {
         // Qualification can fail on a transient database/cache outage too.
         // Fail closed with an uncached 503, not a lasting noindex decision.
+        if (e?.name === 'AbortError' || signal?.aborted) throw e;
         stationDbErrorFlag = true;
+        langRedirectUrl = null;
         seoTags.hreflangs = [];
         try {
           const { logger } = await import('./utils/logger');
@@ -1606,6 +1632,7 @@ export class SeoRenderer {
     // Resolve after all quality guards and admin overrides, before caching or
     // returning the same metadata to SSR and SPA navigation.
     seoTags = this.finalizeSeoDirectives(seoTags, initialRobots);
+    if (stationIdFallback && seoTags.noIndex) langRedirectUrl = null;
 
     // Hydration must receive the same descriptions the HTML head emits.
     // Keep admin metadata precedence and all stored/full body text intact;
@@ -1652,7 +1679,7 @@ export class SeoRenderer {
         stationIsJunk: stationIsJunkFlag,
         // Language-ineligible station variant: HTTP layer issues 301 → /en.
         // Avoids burning crawl budget on millions of noindex variants.
-        ...(langRedirectUrl ? { redirectTo: langRedirectUrl } : {}),
+        ...(!stationDbErrorFlag && langRedirectUrl ? { redirectTo: langRedirectUrl } : {}),
         // Transient DB error: placeholder data, must not be indexed.
         ...(stationDbErrorFlag ? { stationDbError: true } : {}),
       }
@@ -1919,6 +1946,7 @@ export class SeoRenderer {
       // (a) self-referential hreflang is always present, (b) we never expose
       // a language not also present in some sitemap, (c) sitemap-routes will
       // independently 503/410 anyway via getQualifiedLanguagesState().
+      if (pageType === 'station') additionalData.stationQualificationFailed = true;
       const minimalSet = Array.from(new Set([language, 'en'])).filter(Boolean);
       allowedLanguages = minimalSet;
       try {

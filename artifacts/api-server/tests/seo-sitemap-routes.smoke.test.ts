@@ -890,6 +890,11 @@ test('/llms.txt returns text/plain 200 advertising the sitemap-index', async () 
   const body = await res.text();
   assert.match(body, /\/sitemap-index\.xml/);
   assert.match(body, /\/robots\.txt/);
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.match(body, /\/en\/stations/);
+  assert.match(body, /\/en\/blog\/radio-data-usage/);
+  assert.match(body, /\/en\/blog\/listen-to-radio-online/);
+  assert.doesNotMatch(body, /\/api-docs|\/api-user|\/en\/radios|<html/i);
 });
 
 test('/robots.txt returns text/plain 200 with Sitemap directive', async () => {
@@ -948,7 +953,7 @@ function parseRobotsRules(body: string) {
   };
 }
 
-for (const userAgent of ['Googlebot', 'bingbot', 'Google-InspectionTool', 'Baiduspider', 'Sogou']) {
+for (const userAgent of ['generic-crawler', 'Googlebot', 'bingbot', 'OAI-SearchBot', 'Google-InspectionTool', 'Baiduspider', 'Sogou']) {
   test(`robots allows only the two exact public discovery URLs for ${userAgent}`, async () => {
     const response = await fetch(`${baseUrl}/robots.txt`);
     assert.equal(response.status, 200);
@@ -986,6 +991,57 @@ for (const userAgent of ['Googlebot', 'bingbot', 'Google-InspectionTool', 'Baidu
     }
   });
 }
+
+test('robots applies generic crawl bounds equally to bingbot and OAI-SearchBot without blocking public discovery', async () => {
+  const response = await fetch(`${baseUrl}/robots.txt`);
+  assert.equal(response.status, 200);
+  const body = await response.text();
+  assert.doesNotMatch(body, /^User-agent: (?:OAI-SearchBot|bingbot)\s*$/im);
+  const allows = parseRobotsRules(body);
+  const publicPaths = [
+    '/en/station/fixture-radio', '/fr/station/fixture-radio', '/ar/mahta/fixture-radio',
+    '/en/stations', '/en/stations?page=2', '/en/genres/rock?page=2',
+    '/en/regions/europe/germany/stations?page=2', '/en/about',
+    '/en/blog/radio-data-usage', '/en/blog/listen-to-radio-online',
+    '/images/fixture.webp', '/station-logos/fixture.webp',
+    '/api/image/fixture?w=256', '/api/og-image/fixture',
+    '/assets/app.js', '/assets/app.css', '/api/stations?page=2', '/api/genres', '/api/regions',
+    '/search?q=fixture', '/en/search?q=fixture', '/llms', '/en/llms',
+    '/api/users/search', '/api/users/search?page=1&limit=20&sortBy=recent_favorites',
+  ];
+  const privatePaths = [
+    '/api/admin/stations', '/api/auth/me', '/api/user/favorites', '/api/users/private-listener',
+    '/api/sync/stations', '/api/test/probe', '/api/payments/checkout', '/api/iap/verify',
+    '/api/push/register', '/api/stream/proxy', '/api/stream-analysis', '/api/stream-https-analysis',
+    '/api/tv/session', '/api/analytics', '/api/messages/inbox', '/api/cast/session', '/api/ml/model',
+    '/api/internal/stats', '/api/cache/keys', '/api/logs/recent',
+    '/en/admin', '/en/admin/stations', '/en/profile', '/en/profile/settings', '/en/settings',
+    '/en/messages', '/messages', '/en/analytics', '/en/import-export', '/en/login', '/en/signup',
+    '/en/premium', '/en/premium-success', '/en/activate', '/en/activate-success', '/en/reset-password',
+    '/en/notifications', '/en/recommendations', '/en/trending', '/en/favorites', '/en/request-station',
+    '/en/dashboard', '/en/feedback', '/en/station-requests', '/en/station-submissions',
+    '/en/status-monitoring', '/en/sync', '/en/change-password', '/en/forgot-password', '/en/tv-login',
+  ];
+  for (const parameter of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'ref', 'fbclid', 'gclid']) {
+    privatePaths.push(`/en/stations?${parameter}=fixture`, `/en/stations?page=2&${parameter}=fixture`);
+  }
+  for (const userAgent of ['generic-crawler', 'bingbot', 'OAI-SearchBot']) {
+    for (const path of publicPaths) {
+      assert.equal(allows(path, userAgent), true, `${userAgent} must fetch public/noindex-readable ${path}`);
+      assert.equal(allows(path, userAgent), allows(path, 'generic-crawler'), `${userAgent} must match the generic rules for ${path}`);
+    }
+    for (const path of privatePaths) {
+      assert.equal(allows(path, userAgent), false, `${userAgent} must not fetch ${path}`);
+      assert.equal(allows(path, userAgent), allows(path, 'generic-crawler'), `${userAgent} must match the generic rules for ${path}`);
+    }
+  }
+  for (const userAgent of ['GPTBot', 'Google-Extended']) {
+    for (const path of [...publicPaths, ...privatePaths]) {
+      assert.equal(allows(path, userAgent), false, `${userAgent} must remain blocked on ${path}`);
+    }
+  }
+  assert.equal(allows('/en/about', 'ChatGPT-User'), true);
+});
 
 test('/sitemap.xml returns the sitemap-index XML directly (Task #128 contract)', async () => {
   const callsBefore = spaCalls;

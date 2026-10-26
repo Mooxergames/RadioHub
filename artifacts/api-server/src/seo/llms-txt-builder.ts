@@ -14,7 +14,7 @@
  *      respecting bots can crawl ALL ~60k stations from one entry point.
  *   3. Per-language entry points — qualified languages only (>=50% UI
  *      translated, surfaced via getCachedQualifiedLanguages). Capped at
- *      one bullet per language pointing at /<lang>/radios so the bot
+ *      one bullet per language pointing at the localized stations catalog so the bot
  *      discovers localized listings without us advertising every language
  *      variant of every page (which would explode the file).
  *   4. Top countries (≤30) — pulled from the active `main` sitemap manifest,
@@ -140,9 +140,13 @@ function renderLlmsTxtBody(cleanBase: string, topCountries: Array<{ region: stri
   lines.push(`- [Countries & Regions](${cleanBase}/en/regions): Station index by country and continent`);
   lines.push('');
 
+  lines.push('## Listening Guides');
+  lines.push(`- [Radio Data Usage](${cleanBase}/en/blog/radio-data-usage): Understand data usage when listening to online radio`);
+  lines.push(`- [Listen to Radio Online](${cleanBase}/en/blog/listen-to-radio-online): A guide to listening to radio in the browser`);
+  lines.push('');
+
   lines.push('## Developer API');
-  lines.push(`- [API Documentation](${cleanBase}/api-docs): REST API for station metadata, stream URLs, genre listings, and country data`);
-  lines.push(`- [API Registration](${cleanBase}/api-user): API account registration and access information`);
+  lines.push('An API is available for station metadata, stream URLs, genre listings, and country data. API access is subject to existing API-key and authorization requirements. Sign in to manage API keys and usage information in a developer account.');
   lines.push('');
 
   lines.push('## Data & Discovery');

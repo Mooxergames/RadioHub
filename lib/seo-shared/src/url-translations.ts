@@ -1944,6 +1944,39 @@ for (const segment of englishSegments) {
   }
 }
 
+function splitUrlSuffix(urlPath: string): [string, string] {
+  const index = urlPath.search(/[?#]/);
+  return index < 0 ? [urlPath, ''] : [urlPath.slice(0, index), urlPath.slice(index)];
+}
+
+// cleanPath is still a path string: decoding an identity must not create a
+// separator, control character or dot-navigation segment.
+function decodeStationSegment(segment: string): string {
+  try {
+    const decoded = decodeURIComponent(segment);
+    return /[\\/?#\u0000-\u001f\u007f-\u009f]/u.test(decoded) || decoded === '.' || decoded === '..'
+      ? segment : decoded;
+  } catch {
+    return segment;
+  }
+}
+
+function stationRouteKey(segment: string, language: string, crossLanguage = false): string | undefined {
+  const decoded = decodeStationSegment(segment);
+  const localMapping = databaseReverseTranslationsCache?.get(`${language}:${decoded}`)
+    || REVERSE_URL_TRANSLATIONS[language]?.[decoded];
+  const english = localMapping || decoded;
+  if (english === 'station' || english === 'stations') return english;
+  if (!crossLanguage || localMapping) return undefined;
+  if (databaseReverseTranslationsCache) {
+    for (const [key, value] of databaseReverseTranslationsCache) {
+      if (key.slice(key.indexOf(':') + 1) === decoded && (value === 'station' || value === 'stations')) return value;
+    }
+  }
+  const global = GLOBAL_REVERSE_URL_TRANSLATIONS.get(decoded)?.english;
+  return global === 'station' || global === 'stations' ? global : undefined;
+}
+
 
 /**
  * Normalize a URL path to the correct translated form for the target language.
@@ -1954,7 +1987,8 @@ for (const segment of englishSegments) {
  * @returns { normalized: string, needsRedirect: boolean } - The normalized path and whether a redirect is needed
  */
 export function normalizeUrlForLanguage(urlPath: string, targetLanguage: string): { normalized: string; needsRedirect: boolean } {
-  const segments = urlPath.split('/').filter(Boolean);
+  const [pathname, suffix] = splitUrlSuffix(urlPath);
+  const segments = pathname.split('/').filter(Boolean);
   
   // First segment is language code, skip it
   if (segments.length === 0) {
@@ -1974,6 +2008,16 @@ export function normalizeUrlForLanguage(urlPath: string, targetLanguage: string)
   
   if (pathSegments.length === 0) {
     return { normalized: urlPath, needsRedirect: false };
+  }
+
+  const stationKey = pathSegments.length === 2 && stationRouteKey(pathSegments[0], targetLanguage, true);
+  if (stationKey) {
+    const route = translateUrlSegment(stationKey, targetLanguage);
+    const prefix = isFirstSegmentLangCode ? `/${targetLanguage}` : '';
+    return {
+      normalized: `${prefix}/${route}/${decodeStationSegment(pathSegments[1])}${suffix}`,
+      needsRedirect: decodeStationSegment(pathSegments[0]) !== route,
+    };
   }
   
   let needsRedirect = false;
@@ -2014,7 +2058,7 @@ export function normalizeUrlForLanguage(urlPath: string, targetLanguage: string)
   
   // Reconstruct path with language prefix
   const languagePrefix = isFirstSegmentLangCode ? `/${targetLanguage}` : '';
-  const normalized = `${languagePrefix}/${normalizedSegments.join('/')}`;
+  const normalized = `${languagePrefix}/${normalizedSegments.join('/')}${suffix}`;
   
   return { normalized, needsRedirect };
 }
@@ -2053,7 +2097,11 @@ export function translateUrl(urlPath: string, targetLanguage: string): string {
     return urlPath;
   }
 
-  const segments = urlPath.split('/').filter(Boolean);
+  const [pathname, suffix] = splitUrlSuffix(urlPath);
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length === 2 && (segments[0] === 'station' || segments[0] === 'stations')) {
+    return `/${translateUrlSegment(segments[0], targetLanguage)}/${segments[1]}${suffix}`;
+  }
   const translatedSegments = segments.map(segment => {
     // CRITICAL FIX: Check if the whole segment is a translatable key FIRST
     // This prevents compound segments from being split and incorrectly translated
@@ -2080,7 +2128,7 @@ export function translateUrl(urlPath: string, targetLanguage: string): string {
     return segment;
   });
 
-  return '/' + translatedSegments.join('/');
+  return '/' + translatedSegments.join('/') + suffix;
 }
 
 /**
@@ -2089,7 +2137,12 @@ export function translateUrl(urlPath: string, targetLanguage: string): string {
  */
 export function reverseTranslateUrl(urlPath: string, sourceLanguage: string): string {
   if (/^\/blog(?:\/|$)/.test(urlPath)) return urlPath;
-  const segments = urlPath.split('/').filter(Boolean);
+  const [pathname, suffix] = splitUrlSuffix(urlPath);
+  const segments = pathname.split('/').filter(Boolean);
+  const stationKey = segments.length === 2 && stationRouteKey(segments[0], sourceLanguage);
+  if (stationKey) {
+    return `/${stationKey}/${decodeStationSegment(segments[1])}${suffix}`;
+  }
   const englishSegments = segments.map(segment => {
     // CRITICAL: Decode URL-encoded characters (e.g., %D5%BD%D5%BF%D5%A1%D6%81%D5%AB%D5%A1 → ստացիա)
     let decodedSegment = segment;
@@ -2122,7 +2175,7 @@ export function reverseTranslateUrl(urlPath: string, sourceLanguage: string): st
     return decodedSegment;
   });
 
-  const result = '/' + englishSegments.join('/');
+  const result = '/' + englishSegments.join('/') + suffix;
   return result;
 }
 
