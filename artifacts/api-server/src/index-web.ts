@@ -10,6 +10,7 @@ import { createServer } from "http";
 import { createServer as createHttpsServer } from "https";
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { forwardApiRequest } from './middleware/forward-api-request';
+import { publicImageProxyHeaders } from './middleware/public-image-headers';
 import { seedPostgresDefaultLanguages } from "./services/postgres-bootstrap";
 import { closePostgres, initializePostgres, getPostgresHealth, postgresAvailable } from "./postgres-runtime";
 import { performanceCache } from "./performance-cache";
@@ -606,6 +607,7 @@ const streamServiceProxy = createProxyMiddleware({
   // The destination needs the full /api/image|stream path. The mount wrappers
   // below restore req.originalUrl after Express strips the mounted prefix.
   on: {
+    proxyRes: publicImageProxyHeaders,
     error: (err: any, _req: any, res: any) => {
       console.error('❌ Stream-service proxy error:', err?.message || err);
       try {

@@ -872,6 +872,85 @@ test('/robots.txt returns text/plain 200 with Sitemap directive', async () => {
   assert.match(body, /User-agent: \*/);
 });
 
+// Match the emitted ASCII rules without reordering queries or decoding reserved
+// separators. REP compares unreserved percent-encoded octets as their literals.
+function parseRobotsRules(body: string) {
+  const normalizeOctets = (value: string) => value.replace(/%([0-9a-f]{2})/gi, (_encoded, hex: string) => {
+    const character = String.fromCharCode(Number.parseInt(hex, 16));
+    return /^[A-Za-z0-9._~-]$/.test(character) ? character : `%${hex.toUpperCase()}`;
+  });
+  type Rule = { allow: boolean; matcher: RegExp; specificity: number };
+  const groups: Array<{ agents: string[]; rules: Rule[] }> = [];
+  let group: typeof groups[number] | undefined;
+  for (const line of body.split(/\r?\n/)) {
+    const directive = /^([^:]+):\s*(.*)$/.exec(line.split('#', 1)[0].trim());
+    if (!directive) continue;
+    const field = directive[1].trim().toLowerCase();
+    const value = directive[2].trim();
+    if (field === 'user-agent') {
+      if (!group || group.rules.length) { group = { agents: [], rules: [] }; groups.push(group); }
+      group.agents.push(value.toLowerCase());
+    } else if (group && value && (field === 'allow' || field === 'disallow')) {
+      const terminal = value.endsWith('$');
+      const pattern = normalizeOctets(terminal ? value.slice(0, -1) : value);
+      const source = pattern.split('*').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+      group.rules.push({ allow: field === 'allow', matcher: new RegExp(`^${source}${terminal ? '$' : ''}`),
+        specificity: Buffer.byteLength(pattern.replace(/\*/g, '')) });
+    }
+  }
+  return (path: string, userAgent: string): boolean => {
+    const agent = userAgent.toLowerCase();
+    const scored = groups.map(entry => ({ ...entry, score: Math.max(-1,
+      ...entry.agents.map(name => name === '*' ? 0 : agent.includes(name) ? name.length : -1)) }));
+    const best = Math.max(-1, ...scored.map(entry => entry.score));
+    const url = new URL(path, 'https://themegaradio.com');
+    const target = normalizeOctets(url.pathname + url.search);
+    const matching = scored.filter(entry => entry.score === best).flatMap(entry => entry.rules)
+      .filter(rule => rule.matcher.test(target));
+    const longest = Math.max(-1, ...matching.map(rule => rule.specificity));
+    return longest === -1 || matching.some(rule => rule.specificity === longest && rule.allow);
+  };
+}
+
+for (const userAgent of ['Googlebot', 'bingbot', 'Google-InspectionTool', 'Baiduspider', 'Sogou']) {
+  test(`robots allows only the two exact public discovery URLs for ${userAgent}`, async () => {
+    const response = await fetch(`${baseUrl}/robots.txt`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=86400');
+    const allows = parseRobotsRules(await response.text());
+    const firstPage = '/api/users/search?page=1&limit=20&sortBy=recent_favorites';
+    for (const path of [
+      '/api/users/search', firstPage,
+      '/api/users/search?%70age=1&limit=20&sortBy=recent_favorites',
+      '/api/users/se%61rch?page=1&limit=20&sortBy=recent_favorites',
+      '/api/users/search?page=1&limit=20&sortBy=%72ecent_favorites',
+    ]) {
+      assert.equal(allows(path, userAgent), true, `${userAgent} must fetch ${path}`);
+    }
+    for (const path of [
+      '/api/users/search?q=listener', '/api/users/search?search=listener',
+      `${firstPage}&q=listener`, `${firstPage}&q=`, `${firstPage}&search=listener`,
+      '/api/users/search?page=2&limit=20&sortBy=recent_favorites',
+      '/api/users/search?page=1&limit=50&sortBy=recent_favorites',
+      '/api/users/search?page=1&limit=20&sortBy=newest',
+      '/api/users/search?page=01&limit=20&sortBy=recent_favorites',
+      '/api/users/search?page=1&limit=20&sortBy=recent_favorites_extra',
+      '/api/users/search?limit=20&page=1&sortBy=recent_favorites',
+      '/api/users/search?sortBy=recent_favorites&page=1&limit=20',
+      '/api/users/search?page=1%26limit=20&sortBy=recent_favorites',
+      '/api/users/search?page=1%26limit%3D20%26sortBy%3Drecent_favorites',
+      `${firstPage}&page=1`, `${firstPage}&limit=20`, `${firstPage}&sortBy=recent_favorites`,
+      `${firstPage}&unknown=1`, `${firstPage}&`, `${firstPage}/private`,
+      '/api/users/search/', '/api/users/search/private', '/api/users/searching', '/api/users/search.json',
+      '/api/users/private-listener', '/api/users/private-listener/favorites',
+      '/api/user/favorites', '/api/auth/me', '/api/auth/token-session', '/api/admin/users',
+      '/en/profile', '/en/recommendations',
+    ]) {
+      assert.equal(allows(path, userAgent), false, `${userAgent} must not fetch ${path}`);
+    }
+  });
+}
+
 test('/sitemap.xml returns the sitemap-index XML directly (Task #128 contract)', async () => {
   const callsBefore = spaCalls;
   const res = await fetch(`${baseUrl}/sitemap.xml`);
