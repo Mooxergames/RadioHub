@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { SeoMetaTags, truncateAtWordBoundary, normalizeSeoTitle } from '@workspace/seo-shared/seo-config';
 import { applyServerStructuredData, type ServerStructuredData } from '@/utils/server-structured-data';
+import { updateOgImageDimensions } from '@/utils/og-image-dimensions';
 
 interface SeoHeadProps {
   seoData: SeoMetaTags;
@@ -76,6 +77,7 @@ export function SeoHead({ seoData, structuredData }: SeoHeadProps) {
       ? ogImageRaw 
       : `${window.location.origin}${ogImageRaw.startsWith('/') ? '' : '/'}${ogImageRaw}`;
     updateMetaTag('', ogImage, 'og:image');
+    updateOgImageDimensions(ogImage, window.location.origin);
     
     // og:type - REQUIRED
     updateMetaTag('', seoData.ogType || 'website', 'og:type');

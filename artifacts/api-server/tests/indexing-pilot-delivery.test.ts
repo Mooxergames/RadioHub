@@ -70,6 +70,7 @@ for (const profile of INDEXING_PILOT) {
     assert.equal(api.homepage, profile.homepage);
     assert.equal(api.url, fixture.url);
     assert.equal(api.noIndex, false);
+    assert.equal(Object.hasOwn(api, 'manualEditFields'), false, 'private editorial protection is not a public API field');
     assert.deepEqual(fixture, original, 'neither delivery path mutates a cached database row');
   });
 }

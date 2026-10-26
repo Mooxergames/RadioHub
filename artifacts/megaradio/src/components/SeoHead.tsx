@@ -10,6 +10,7 @@ import { generateSeoTags, getLanguageFromPath, truncateAtWordBoundary, normalize
 // They are now dynamic-imported inside the effect, per pageType branch, so
 // only the page family that actually needs its registry downloads it.
 import { useQuery } from '@tanstack/react-query';
+import { updateOgImageDimensions } from '@/utils/og-image-dimensions';
 
 interface SeoHeadProps {
   stationData?: {
@@ -185,6 +186,7 @@ export function SeoHead({ stationData, pageType = 'home', genreName }: SeoHeadPr
     if (seoTags.ogImage) {
       updateMetaProperty('og:image', seoTags.ogImage);
     }
+    updateOgImageDimensions(seoTags.ogImage || '', currentDomain);
 
     // Update Twitter tags
     updateMetaTag('twitter:card', 'summary_large_image');

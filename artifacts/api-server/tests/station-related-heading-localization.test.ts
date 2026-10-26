@@ -22,10 +22,10 @@ before(async () => {
   renderer = new SeoRenderer();
 });
 
-function stationBody(language: string, translations: Record<string, string> = {}, crossLinks: Record<string, unknown> = {}) {
+function stationBody(language: string, translations: Record<string, string> = {}, crossLinks: Record<string, unknown> = {}, station: Record<string, unknown> = {}) {
   return renderer.generateHtmlBody({
     pageType: 'station', language, translations,
-    stationData: { name: 'Example Radio', slug: 'example-radio', country: 'Germany', descriptions: {} },
+    stationData: { name: 'Example Radio', slug: 'example-radio', country: 'Germany', descriptions: {}, ...station },
     urlTranslations: new Map([[`${language}:station`, language === 'de' ? 'sender' : 'station']]),
     additionalData: { crossLinks: {
       sameCountry: [{ name: 'Country & Radio', slug: 'country-radio' }],
@@ -109,9 +109,11 @@ test('localized database prefixes and location templates remain honored and are 
   assert.doesNotMatch(section(body, 'city'), /<script>|&amp;amp;|&amp;lt;/);
 });
 
-test('missing location names use localized generic headings and empty related lists stay absent', () => {
-  const body = stationBody('de', {}, { countryName: '', cityName: '' });
-  assert.ok(section(body, 'country').includes('<h2>Ähnliche Sender</h2>'));
+test('unknown-country rails stay absent while missing cities use localized generic headings', () => {
+  const known = stationBody('de', {}, { countryName: '', cityName: '' });
+  assert.ok(section(known, 'country').includes('<h2>Weitere Radiosender aus Deutschland</h2>'));
+  const body = stationBody('de', {}, { countryName: '', cityName: '' }, { country: 'Unknown', countryCode: null });
+  assert.equal(section(body, 'country'), '');
   assert.ok(section(body, 'city').includes('<h2>Sender in der Nähe</h2>'));
   const empty = stationBody('tr', {}, { sameCountry: [], sameCity: [] });
   assert.equal(section(empty, 'country'), '');

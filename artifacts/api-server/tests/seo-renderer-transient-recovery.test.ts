@@ -123,7 +123,7 @@ test('station cross-links read compact native cards, retaining identity, visibil
   assert.equal(result.pageData.station.name, 'Recovery FM');
   assert.equal(relatedReads.length, 3);
   for (const { filter, options } of relatedReads) {
-    assert.deepEqual(options.fields, ['name', 'slug', 'favicon', 'logoAssets', 'country', 'tags', 'votes']);
+    assert.deepEqual(options.fields, ['name', 'slug', 'favicon', 'logoAssets', 'country', 'countryCode', 'tags', 'votes']);
     assert.equal(filter.noIndex.$ne, true);
     assert.equal(filter.isListVisible, true);
     assert.equal(filter._id.$ne, 'test-station');
@@ -135,6 +135,23 @@ test('station cross-links read compact native cards, retaining identity, visibil
     additionalData: result.pageData.additionalData, language: 'en', translations: {}, seoTags: result.seoTags });
   assert.ok(body.includes('/en/station/related-radio'));
 });
+
+for (const fixture of [
+  { country: 'Unknown', countryCode: undefined, expected: '' },
+  { country: 'N/A', countryCode: 'ZZ', expected: '' },
+  { country: '', countryCode: undefined, expected: '' },
+  { country: 'Unknown', countryCode: 'DE', expected: 'Germany' },
+  { country: undefined, countryCode: 'TR', expected: 'Türkiye' },
+  { country: 'The United States Of America', countryCode: 'US', expected: 'The United States Of America' },
+]) {
+  test(`same-country SSR query respects stable country identity: ${fixture.country}/${fixture.countryCode}`, async () => {
+    stationOverrides = { country: fixture.country, countryCode: fixture.countryCode };
+    await renderer.renderStaticPage(url, 'https://themegaradio.com');
+    const countryReads = relatedReads.filter(read => Object.hasOwn(read.filter, 'country'));
+    assert.deepEqual(countryReads.map(read => read.filter.country), fixture.expected ? [fixture.expected] : []);
+    assert.equal(relatedReads.length, fixture.expected ? 2 : 1, 'unknown geography cannot start a country lookup');
+  });
+}
 
 for (const language of ACTIVE_SITEMAP_LANGUAGES) {
   test(`${language}: raw and encoded Unicode station slugs resolve the same exact identity`, async () => {

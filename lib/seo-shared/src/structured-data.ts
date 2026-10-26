@@ -1,12 +1,14 @@
-import { SEO_LANGUAGES, ACTIVE_SITEMAP_LANGUAGES } from './seo-config';
+import { SEO_LANGUAGES, ACTIVE_SITEMAP_LANGUAGES, getStationCountryIdentity } from './seo-config';
 import { getBrandSchemaCopy } from './brand-schema-copy';
 import { getLocalizedCountryName } from './country-name-translations';
 
 const regionNames = new Map<string, Intl.DisplayNames>();
 export function getSchemaCountry(station: {country?: unknown; countryCode?: unknown}, language: string): {name: string; code?: string} | undefined {
+  const country = getStationCountryIdentity(station);
+  if (!country) return undefined;
   const locale = (ACTIVE_SITEMAP_LANGUAGES as readonly string[]).includes(language) ? language : 'en';
-  const code = typeof station.countryCode === 'string' ? station.countryCode.trim().toUpperCase() : '';
-  if (/^[A-Z]{2}$/.test(code) && !['ZZ','XX'].includes(code)) {
+  const code = country.code;
+  if (code) {
     try {
       let names = regionNames.get(locale);
       if (!names) { names = new Intl.DisplayNames([locale], {type:'region',fallback:'none'}); regionNames.set(locale,names); }
@@ -14,8 +16,7 @@ export function getSchemaCountry(station: {country?: unknown; countryCode?: unkn
       if (name && name !== code) return {name,code};
     } catch { /* Fall back to verified source names when Intl is unavailable. */ }
   }
-  const raw = typeof station.country === 'string' ? station.country.trim() : '';
-  if (!raw || /^(unknown|n\/a|none|null|undefined|global|worldwide)$/i.test(raw)) return undefined;
+  const raw = country.name;
   const canonical = /^the united states of america$/i.test(raw) ? 'United States'
     : /^the united kingdom of great britain and northern ireland$/i.test(raw) ? 'United Kingdom' : raw;
   return {name:getLocalizedCountryName(canonical,locale)};
@@ -124,7 +125,8 @@ export function generateRadioStationSchema(
     stationDescription = station.description;
   } else {
     // Fallback to template-based description
-    stationDescription = `Listen to ${station.name} live online.${station.country ? ` Broadcasting from ${station.country}.` : ''}${station.tags ? ` Genres: ${station.tags.split(',').slice(0, 3).join(', ')}.` : ''} Free radio streaming on Mega Radio.`;
+    const country = getSchemaCountry(station, language)?.name;
+    stationDescription = `Listen to ${station.name} live online${country ? ` — ${country}` : ''}.${station.tags ? ` Genres: ${station.tags.split(',').slice(0, 3).join(', ')}.` : ''} Free radio streaming on Mega Radio.`;
   }
   
   // Build the correct URL - use current URL if provided, otherwise construct from slug/ID
@@ -149,8 +151,8 @@ export function generateRadioStationSchema(
   // broadcastFormat / broadcastLanguage are NOT in any Service-side
   // vocabulary, so we move tags to Service.category
   // and default to ["Music"] when a station ships no tags so
-  // we never emit an empty list. Physical address belongs on the
-  // broadcaster Organization, not on the Service — Service uses areaServed.
+  // we never emit an empty list. Catalog geography describes service coverage,
+  // not a verified physical broadcaster address.
   const rawTagList: string[] = (() => {
     if (!station.tags) return [];
     const raw = Array.isArray(station.tags)
@@ -166,23 +168,6 @@ export function generateRadioStationSchema(
     "name": station.name,
     ...(station.homepage && { "url": station.homepage }),
   };
-  if (station.country) {
-    broadcaster.address = {
-      "@type": "PostalAddress",
-      "addressCountry": station.countryCode || station.country,
-      ...(station.state && { "addressLocality": station.state }),
-    };
-  }
-  if (station.geoLat && station.geoLong) {
-    broadcaster.location = {
-      "@type": "Place",
-      "geo": {
-        "@type": "GeoCoordinates",
-        "latitude": parseFloat(station.geoLat),
-        "longitude": parseFloat(station.geoLong),
-      },
-    };
-  }
 
   const schema: StructuredDataConfig = {
     "@context": "https://schema.org",
@@ -207,10 +192,11 @@ export function generateRadioStationSchema(
   };
 
   // Service-level area served (Place) when we know the country
-  if (station.country) {
+  const schemaCountry = getSchemaCountry(station, language);
+  if (schemaCountry) {
     schema.areaServed = {
       "@type": "Country",
-      "name": station.country,
+      "name": schemaCountry.name,
     };
   }
 
@@ -229,33 +215,7 @@ export function generateRadioStationSchema(
   // Bitrate and codec belong to the visible station data, not to Service's
   // vocabulary. additionalProperty is not defined on Service either.
 
-  // D-A1 FIX (2026-05-08): emit broadcastFrequency as a structured
-  // BroadcastFrequencySpecification when we can parse a real frequency
-  // from the station tags (e.g. "FM 102.5"). Otherwise fall back to a
-  // simple string ("FM" / "AM") which is the schema.org permissive
-  // alternative. Pure online streams omit this field entirely (correct
-  // per spec — they have no broadcast frequency).
-  if (station.tags) {
-    const freqMatch = String(station.tags).match(/(FM|AM)\s*([0-9]{2,4}(?:[.,][0-9]+)?)/i);
-    if (freqMatch) {
-      const band = freqMatch[1].toUpperCase();
-      const value = parseFloat(freqMatch[2].replace(',', '.'));
-      if (Number.isFinite(value)) {
-        schema.broadcastFrequency = {
-          "@type": "BroadcastFrequencySpecification",
-          "broadcastFrequencyValue": {
-            "@type": "QuantitativeValue", "value": value,
-            "unitText": band === 'FM' ? 'MHz' : 'kHz',
-          },
-          "broadcastSignalModulation": band,
-        };
-      } else {
-        schema.broadcastFrequency = band;
-      }
-    } else if (station.tags.includes('FM') || station.tags.includes('AM')) {
-      schema.broadcastFrequency = station.tags.includes('FM') ? 'FM' : 'AM';
-    }
-  }
+  // Free-form tags, including numeric FM/AM labels, do not verify a frequency.
 
   return schema;
 }

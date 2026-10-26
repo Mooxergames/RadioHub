@@ -75,13 +75,13 @@ describe('station card accessible text', () => {
     state.language = 'tr';
     state.translations.seo_station_logo_alt_with_country = '{NAME}: {country} ülkesinden {genre} radyosu';
     render(<StationCard station={{ ...station, name: "Test $& Radio" }} />);
-    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Test $& Radio: Germany ülkesinden rock radyosu');
+    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Test $& Radio: Almanya ülkesinden rock radyosu');
   });
   it('falls back to a complete localized image description for the exact corrupted legacy template', () => {
     state.language = 'ja';
     state.translations.seo_station_logo_alt_with_country = 'Listen to ${station.name} live from ${station.country} - ${station.genre ||';
     render(<StationCard station={station} />);
-    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Test Radio ロゴ — Germany');
+    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Test Radio ロゴ — ドイツ');
   });
   it.each([null, undefined, NaN, Infinity, -Infinity, -1, '', '1.2', false])('hides invalid distance %s', distance => {
     const { container } = render(<StationCard station={{ ...station, distance }} />);
