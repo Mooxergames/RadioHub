@@ -2,6 +2,7 @@
 import { buildTemplateDescription } from './station-description-template';
 import { reverseTranslateUrl, URL_TRANSLATIONS } from './url-translations';
 import { buildDirectoryIndexSeo } from './directory-index-seo';
+import { normalizePublicStationLogoUrl } from './station-logo-url';
 
 /**
  * Word-boundary safe truncation for meta descriptions.
@@ -2338,6 +2339,7 @@ export function generateSeoTags(
   // Ensure images have absolute URLs for social sharing
   const makeAbsoluteUrl = (url?: string): string | undefined => {
     if (!url) return undefined;
+    url = normalizePublicStationLogoUrl(url);
     if (url.startsWith('http')) return url;
     return `${currentDomain}${url.startsWith('/') ? '' : '/'}${url}`;
   };

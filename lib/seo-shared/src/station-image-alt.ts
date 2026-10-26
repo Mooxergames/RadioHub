@@ -1,5 +1,11 @@
 import { LOCALIZED_LOGO_WORD } from './seo-config';
 
+export function ensureStationNameInImageAlt(alt: string, stationName: string): string {
+  const name = stationName.trim() || 'Radio Station';
+  if (alt.toLowerCase().includes(name.toLowerCase())) return alt;
+  return alt.trim() ? `${alt} — ${name}` : name;
+}
+
 /** Shared by SSR and cards; translation content is text, never JavaScript. */
 export function getStationImageAlt(
   station: { name?: unknown; country?: unknown; genre?: unknown },
@@ -22,5 +28,8 @@ export function getStationImageAlt(
     return fallback;
   }
   // Function replacement preserves literal `$&`/`$'` in station names.
-  return template.replace(placeholders, (_match, key: string) => params[key.toLowerCase()]);
+  return ensureStationNameInImageAlt(
+    template.replace(placeholders, (_match, key: string) => params[key.toLowerCase()]),
+    params.name,
+  );
 }
