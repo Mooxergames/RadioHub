@@ -26,6 +26,7 @@ before(async () => {
   await writeFile(path.join(directory, '~partytown', 'partytown.js'), '/* local worker runtime fixture */');
   await writeFile(path.join(directory, 'manifest.json'), JSON.stringify({ name: 'Mega Radio', icons: [{ src: '/favicon.png' }] }));
   await writeFile(path.join(directory, 'favicon.png'), 'PNG-fixture');
+  await writeFile(path.join(directory, 'favicon.ico'), await readFile(new URL('../../megaradio/public/favicon.ico', import.meta.url)));
   await writeFile(path.join(directory, '.vite', 'manifest.json'), '{"privateBuildDetails":true}');
   await writeFile(path.join(directory, 'package.json'), '{"privatePackageDetails":true}');
   const app = express();
@@ -82,6 +83,17 @@ test('existing Partytown runtime remains available with JavaScript MIME', async 
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type') || '', /javascript/);
   assert.doesNotMatch(response.headers.get('cache-control') || '', /immutable/);
+});
+
+test('API-host favicon is served directly, not redirected or replaced by an HTML shell', async () => {
+  for (const method of ['GET', 'HEAD']) {
+    const response = await fetch(base + '/favicon.ico?v=old', { method, redirect: 'manual' });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('location'), null);
+    assert.match(response.headers.get('content-type') || '', /^image\/(?:vnd\.microsoft\.icon|x-icon)/);
+    if (method === 'HEAD') assert.equal(await response.text(), '');
+    else assert.equal(Buffer.from(await response.arrayBuffer()).readUInt16LE(2), 1);
+  }
 });
 
 for (const extension of ['js', 'css']) {

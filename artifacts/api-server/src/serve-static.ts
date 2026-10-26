@@ -14,7 +14,7 @@ export const HTML_CACHE_CONTROL = 'public, no-cache, max-age=0, must-revalidate'
 // Keep this exact: unrelated assets, private routes and missing files retain
 // their existing indexing policy.
 const PUBLIC_BRAND_IMAGES = new Set([
-  'favicon.png', 'apple-touch-icon.png', 'header-logo-80w.webp',
+  'favicon.ico', 'favicon.svg', 'favicon.png', 'apple-touch-icon.png', 'header-logo-80w.webp',
   'logo-icon.webp', 'images/logo-icon.webp',
 ]);
 
@@ -46,20 +46,17 @@ export function serveStatic(app: Express, distPath = path.resolve(import.meta.di
   app.use(express.static(distPath, {
     setHeaders(res, filePath) {
       if (filePath.endsWith('.html')) revalidateSuccessfulHtml(res);
-      if (PUBLIC_BRAND_IMAGES.has(path.relative(distPath, filePath).split(path.sep).join('/'))) {
+      const relative = path.relative(distPath, filePath).split(path.sep).join('/');
+      if (PUBLIC_BRAND_IMAGES.has(relative)) {
         res.removeHeader('X-Robots-Tag');
+      }
+      if (['favicon.ico', 'favicon.png', 'favicon.svg'].includes(relative)) {
+        res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+        res.removeHeader('Expires');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
       }
     },
   }));
-
-  // Browsers and older notification payloads still request the conventional
-  // ICO URL. Point it to the existing PNG instead of serving a 200 HTML shell.
-  app.get('/favicon.ico', (_req, res) => {
-    res.removeHeader('Expires');
-    res.removeHeader('X-Robots-Tag');
-    res.set('Cache-Control', 'public, max-age=86400');
-    res.redirect(301, '/favicon.png');
-  });
 
   // Missing build chunks and genre uploads are files, not SPA navigations.
   // A 200 HTML shell at an image URL silently breaks the carousel and can
