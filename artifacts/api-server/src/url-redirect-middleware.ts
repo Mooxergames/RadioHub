@@ -538,7 +538,7 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
   }
 
   const target = newPath + queryString;
-  if (aliasRedirectApplied) {
+  if (aliasRedirectApplied || recoveredRouteEncoding) {
     res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
   }
   logger.log(`🔀 SEO 301: ${originalUrl} → ${target} (single-hop canonicalization${aliasRedirectApplied ? ' + slug-alias' : ''})`);

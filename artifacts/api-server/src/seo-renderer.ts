@@ -280,6 +280,25 @@ export class SeoRenderer {
     
     return baseSeoTags;
   }
+
+  private finalizeSeoDirectives(seoTags: any, previousRobots = ''): any {
+    const directives = `${seoTags.robots || 'index, follow'},${previousRobots}`.split(',')
+      .map((directive: string) => directive.trim()).filter(Boolean);
+    const noIndex = seoTags.noIndex === true
+      || directives.some((directive: string) => /^(?:noindex|none)$/i.test(directive));
+    const noFollow = seoTags.noFollow === true
+      || directives.some((directive: string) => /^(?:nofollow|none)$/i.test(directive));
+
+    // Restrictive flags and tokens win; keep unrelated preview/archive limits.
+    return {
+      ...seoTags,
+      robots: [noIndex ? 'noindex' : 'index', noFollow ? 'nofollow' : 'follow',
+        ...new Set(directives.filter((directive: string) => !/^(?:index|noindex|follow|nofollow|all|none)$/i.test(directive))),
+      ].join(', '),
+      ...(noIndex ? { noIndex: true, hreflangs: [], ogLocaleAlternates: [] } : {}),
+      ...(noFollow ? { noFollow: true } : {}),
+    };
+  }
   
   async renderStaticPage(url: string, domain: string = '', preferredLanguage?: string): Promise<StaticPageData> {
     if (seoRenderActive >= SEO_RENDER_MAX_CONCURRENT || eventLoopLagMs > EVENT_LOOP_LAG_THRESHOLD_MS) {
@@ -940,7 +959,9 @@ export class SeoRenderer {
       cleanPath === '/feedback' || cleanPath.startsWith('/feedback/') ||
       cleanPath === '/llms' || cleanPath.startsWith('/llms/') ||
       cleanPath === '/notifications' || cleanPath.startsWith('/notifications/') ||
-      cleanPath === '/profile' || cleanPath.startsWith('/profile/')
+      cleanPath === '/profile' || cleanPath.startsWith('/profile/') ||
+      // Profile details have no privacy-aware SSR contract.
+      cleanPath.startsWith('/users/')
     ) {
       // 2026-05-12 SEO audit: utility/account pages have no unique
       // public SEO content. Without an explicit branch they fell
@@ -952,7 +973,7 @@ export class SeoRenderer {
       // /users/ so the more general utility match wins for the
       // non-public surfaces.
       pageType = 'utility';
-    } else if (cleanPath === '/users' || cleanPath.startsWith('/users/') || cleanPath === '/users') {
+    } else if (cleanPath === '/users') {
       // 2026-05-12 SEO audit: previously /users had no pageType branch
       // and fell through to the home bucket, producing duplicate-title
       // audit errors (every locale's /users page reused meta_title).
@@ -1239,6 +1260,7 @@ export class SeoRenderer {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     let seoTags = await this.generateEnhancedSeoTags(pageType, language, translations, cleanPath, domain, stationData, additionalData, cleanUrl, localizedPath, urlTranslations);
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const initialRobots = seoTags.robots;
 
     // ---- ContentQuality safeguard (task #17 + architect P0) ---------------
     // 1) If the resolved station is junk (test feed, codec suffix, song name,
@@ -1579,6 +1601,9 @@ export class SeoRenderer {
       stationNotFound = true;
       seoTags = { ...seoTags, noIndex: true, robots: 'noindex, follow', hreflangs: [] };
     }
+    // Resolve after all quality guards and admin overrides, before caching or
+    // returning the same metadata to SSR and SPA navigation.
+    seoTags = this.finalizeSeoDirectives(seoTags, initialRobots);
 
     // Hydration must receive the same descriptions the HTML head emits.
     // Keep admin metadata precedence and all stored/full body text intact;
@@ -1784,6 +1809,9 @@ export class SeoRenderer {
       if (communitySeo.keywords) baseSeoTags.keywords = communitySeo.keywords;
       baseSeoTags.ogType = 'website';
 
+      // Personalised discovery keeps its existing crawl exclusion.
+      if (pageType === 'recommendations') baseSeoTags.noIndex = true;
+
       // A-Z letter pages (Task #11): every letter needs a UNIQUE title and
       // description or all 27 pages become a duplicate-title cluster. Insert
       // the letter label before the "| Mega Radio" brand suffix when present.
@@ -1941,7 +1969,7 @@ export class SeoRenderer {
       }
     }
 
-    return baseSeoTags;
+    return this.finalizeSeoDirectives(baseSeoTags);
   }
   
   private escapeHtml(input: string): string {
@@ -2182,8 +2210,9 @@ export class SeoRenderer {
         }
         return buildDirectoryIndexSeo('regions', language, translations).h1;
       
+      case 'users':
       case 'stations':
-        return deriveH1FromTitle(buildCommunityPageSeo('stations', language, translations).title);
+        return deriveH1FromTitle(buildCommunityPageSeo(pageType, language, translations).title);
       
       case 'about':
         return deriveH1FromTitle(buildStaticPageSeo('about', language, translations).title);

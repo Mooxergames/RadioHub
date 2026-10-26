@@ -81,6 +81,7 @@ for (const [language, slug] of [['zh', 'laikos-87-6'], ['ja', 'hasya-katta-offic
       const response = await fetch(`${baseUrl}/${language}/${encoded}/${slug}?keep=%252F&page=2`, { redirect: 'manual' });
       assert.equal(response.status, 301);
       assert.equal(response.headers.get('location'), `${canonical}?keep=%252F&page=2`);
+      assert.equal(response.headers.get('cache-control'), 'public, max-age=300, must-revalidate');
       const final = await fetch(baseUrl + response.headers.get('location'), { redirect: 'manual' });
       assert.equal(final.status, 200);
       assert.equal(final.headers.get('location'), null);

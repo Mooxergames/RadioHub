@@ -1918,7 +1918,6 @@ export function generateSeoTags(
       'more_information': 'Daha Fazla Bilgi',
       // External links translations
       'external_resources': 'Dış Kaynaklar',
-      'flixapp_tv': 'FlixApp TV - Eğlence Platformu',
       'radio_browser': 'Radio Browser - Açık Radyo Veritabanı',
       'musicbrainz': 'MusicBrainz - Müzik Metadata'
     },
@@ -1974,7 +1973,6 @@ export function generateSeoTags(
       'more_information': 'Weitere Informationen',
       // External links translations
       'external_resources': 'Externe Ressourcen',
-      'flixapp_tv': 'FlixApp TV - Entertainment-Plattform',
       'radio_browser': 'Radio Browser - Offene Radio-Datenbank',
       'musicbrainz': 'MusicBrainz - Musik-Metadaten'
     },
@@ -2030,7 +2028,6 @@ export function generateSeoTags(
       'more_information': 'Plus d\'Informations',
       // External links translations
       'external_resources': 'Ressources Externes',
-      'flixapp_tv': 'FlixApp TV - Plateforme de Divertissement',
       'radio_browser': 'Radio Browser - Base de Données Radio Ouverte',
       'musicbrainz': 'MusicBrainz - Métadonnées Musicales'
     },
@@ -2086,7 +2083,6 @@ export function generateSeoTags(
       'more_information': 'Más Información',
       // External links translations
       'external_resources': 'Recursos Externos',
-      'flixapp_tv': 'FlixApp TV - Plataforma de Entretenimiento',
       'radio_browser': 'Radio Browser - Base de Datos Radio Abierta',
       'musicbrainz': 'MusicBrainz - Metadatos Musicales'
     },
@@ -2134,7 +2130,6 @@ export function generateSeoTags(
       'more_information': 'More Information',
       // External links translations
       'external_resources': 'External Resources',
-      'flixapp_tv': 'FlixApp TV - Entertainment Platform',
       'radio_browser': 'Radio Browser - Open Radio Database',
       'musicbrainz': 'MusicBrainz - Music Metadata'
     }

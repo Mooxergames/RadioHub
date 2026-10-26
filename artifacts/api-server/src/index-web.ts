@@ -24,7 +24,7 @@ import { SeoRenderer, getSeoRenderStats } from './seo-renderer';
 import { markSeoTemporarilyUnavailable } from './seo/temporary-unavailable';
 import { parseSeoCatalogPage } from './seo/catalog-pagination';
 import { sendSeoNotFound } from './seo/send-seo-not-found';
-import { buildPublicSeoRouteMatchers, collectSeoTranslations } from './seo/public-route-matchers';
+import { buildPublicSeoRouteMatchers, collectSeoTranslations, decodePublicSeoPath } from './seo/public-route-matchers';
 import { buildPublicRoutePreloads } from './seo/frontend-asset-preloads';
 import { renderStationBootstrap } from './seo/station-bootstrap';
 import { renderTranslationBootstrap } from './seo/translation-bootstrap';
@@ -759,17 +759,13 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   app.use(langIneligibilityRedirectMiddleware);
 
   app.use(async (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     const url = req.originalUrl;
     const userAgent = req.get('user-agent') || '';
 
-    // P0 fix: decodeURIComponent throws URIError on malformed escapes (e.g.
-    // %E0%A4%A) and would crash the entire SSR worker. Trap and fall back to
-    // raw URL — broken sequences just won't match SEO routes.
-    let cleanUrlForMatching: string;
-    try {
-      cleanUrlForMatching = decodeURIComponent(url.split('?')[0].split('#')[0]);
-    } catch {
-      cleanUrlForMatching = url.split('?')[0].split('#')[0];
+    const cleanUrlForMatching = decodePublicSeoPath(url);
+    if (cleanUrlForMatching === null) {
+      return sendSeoNotFound(res, '<!doctype html><title>Not found</title><h1>Not found</h1>');
     }
 
     const isStationPage = SEO_PRECOMPILED_REGEX.stationPage.test(cleanUrlForMatching);
@@ -785,9 +781,10 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
     const isFaqPage = SEO_PRECOMPILED_REGEX.faqPage.test(cleanUrlForMatching);
     const isTermsPage = SEO_PRECOMPILED_REGEX.termsPage.test(cleanUrlForMatching);
     const isApplicationsPage = SEO_PRECOMPILED_REGEX.applicationsPage.test(cleanUrlForMatching);
-    const isBlogPage = /^\/(?:[a-z]{2}\/)?blog(?:\/|$)/.test(cleanUrlForMatching);
+    const isUsersPage = SEO_PRECOMPILED_REGEX.usersPage.test(cleanUrlForMatching);
+    const isBlogPage = SEO_PRECOMPILED_REGEX.blogPage.test(cleanUrlForMatching);
 
-    const isSeoEligiblePage = isBlogPage || isStationPage || isHomepage || isRegionsPage || isGenresPage || isAboutPage || isContactPage || isPrivacyPage || isCountryPage || isStationsPage || isSearchPage || isFaqPage || isTermsPage || isApplicationsPage;
+    const isSeoEligiblePage = isBlogPage || isStationPage || isHomepage || isRegionsPage || isGenresPage || isAboutPage || isContactPage || isPrivacyPage || isCountryPage || isStationsPage || isSearchPage || isFaqPage || isTermsPage || isApplicationsPage || isUsersPage;
     const isBot = SEO_PRECOMPILED_REGEX.botDetect.test(userAgent);
 
     // CLOAKING FIX (2026-05-12): SSR is now served to ALL visitors on SEO
