@@ -24,6 +24,7 @@ import { SeoRenderer, getSeoRenderStats } from './seo-renderer';
 import { markSeoTemporarilyUnavailable } from './seo/temporary-unavailable';
 import { parseSeoCatalogPage } from './seo/catalog-pagination';
 import { sendSeoNotFound } from './seo/send-seo-not-found';
+import { buildPublicSeoRouteMatchers, collectSeoTranslations } from './seo/public-route-matchers';
 import { buildPublicRoutePreloads } from './seo/frontend-asset-preloads';
 import { renderStationBootstrap } from './seo/station-bootstrap';
 import { renderTranslationBootstrap } from './seo/translation-bootstrap';
@@ -714,48 +715,13 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   // Warm the cache at startup so the first SSR request doesn't pay the IO.
   getProdAssetTags();
 
-  const { URL_TRANSLATIONS: seoUrlTranslations } = await import('@workspace/seo-shared/url-translations');
-  function collectSeoTranslations(englishKey: string): string[] {
-    const vals = new Set<string>();
-    vals.add(englishKey);
-    for (const lang of Object.keys(seoUrlTranslations)) {
-      const val = (seoUrlTranslations as any)[lang]?.[englishKey];
-      if (val) vals.add(val);
-    }
-    return Array.from(vals).map(v => v.replace(/[.*+?${}()|[\]\\]/g, '\\$&'));
-  }
-
-  const seoStationPluralAlts = collectSeoTranslations('stations');
-  const seoStationSingularAlts = collectSeoTranslations('station');
-  const combinedSet = new Set<string>(seoStationPluralAlts.concat(seoStationSingularAlts));
-  const seoStationAllAlts = Array.from(combinedSet);
-  const seoGenreAlts = collectSeoTranslations('genres');
-  const seoAboutAlts = collectSeoTranslations('about');
-  const seoContactAlts = collectSeoTranslations('contact');
-  const seoPrivacyAlts = collectSeoTranslations('privacy-policy');
   const seoRegionAlts = collectSeoTranslations('regions');
-  // Bing SEO: include /search, /faq, /terms-and-conditions, /applications in
-  // SEO eligibility so SSR returns proper <h1> + 150+ char meta description
-  // for those previously-bare paths (Bing flagged terms specifically).
-  const seoSearchAlts = collectSeoTranslations('search');
-  const seoFaqAlts = collectSeoTranslations('faq');
-  const seoTermsAlts = collectSeoTranslations('terms-and-conditions');
-  const seoApplicationsAlts = collectSeoTranslations('applications');
+  const seoGenreAlts = collectSeoTranslations('genres');
+  const seoStationSingularAlts = collectSeoTranslations('station');
+  const seoStationPluralAlts = collectSeoTranslations('stations');
 
   const SEO_PRECOMPILED_REGEX = {
-    stationPage: new RegExp(`^\\/([a-z]{2}\\/)?(?:${seoStationAllAlts.join('|')})\\/`, 'u'),
-    homepage: /^\/([a-z]{2}\/?)?$/,
-    regionsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoRegionAlts.join('|')})(\\/.*)?$`, 'u'),
-    genresPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoGenreAlts.join('|')})\\/?(.*)$`, 'u'),
-    aboutPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoAboutAlts.join('|')})\\/?$`, 'u'),
-    contactPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoContactAlts.join('|')})\\/?$`, 'u'),
-    privacyPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoPrivacyAlts.join('|')})\\/?$`, 'u'),
-    countryPage: /^\/([a-z]{2}\/?)?country\/.+$/u,
-    stationsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoStationAllAlts.join('|')})\\/?$`, 'u'),
-    searchPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoSearchAlts.join('|')})\\/?(\\?.*)?$`, 'u'),
-    faqPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoFaqAlts.join('|')})\\/?$`, 'u'),
-    termsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoTermsAlts.join('|')})\\/?$`, 'u'),
-    applicationsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoApplicationsAlts.join('|')})\\/?$`, 'u'),
+    ...buildPublicSeoRouteMatchers(),
     botDetect: /\b(googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegram|skype|pinterestbot|redditbot|crawler|spider|seobility|semrush|ahrefs|mozbot|majestic|screaming|frog|nutch|fastcrawler|genieo|demandbase|gptbot|chatgpt-user|ccbot|anthropic-ai|claude-web|bytespider|perplexitybot|applebot|cohere-ai)\b/i
   };
 

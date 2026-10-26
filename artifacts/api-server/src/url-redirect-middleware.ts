@@ -46,6 +46,19 @@ function normalizeSegmentCase(segment: string): string {
   );
 }
 
+function recoverEncodedRouteSegment(segment: string): string | undefined {
+  if (!/%25/i.test(segment)) return;
+  let decoded = segment;
+  for (let depth = 0; depth < 3; depth++) {
+    try { decoded = decodeURIComponent(decoded); } catch { return; }
+    // Only known route names may be decoded repeatedly, never station slugs,
+    // encoded separators, arbitrary input or API/auth payloads.
+    if (GLOBAL_REVERSE_URL_TRANSLATIONS.has(decoded)) return decoded;
+    if (!decoded.includes('%')) return;
+  }
+  return undefined;
+}
+
 // Old English path segments that need redirects
 const OLD_ENGLISH_PATHS = [
   'station',
@@ -271,6 +284,16 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
       params.delete('lang');
       const remaining = params.toString();
       queryString = remaining ? '?' + remaining : '';
+    }
+  }
+
+  let recoveredRouteEncoding = false;
+  if ((req.method === 'GET' || req.method === 'HEAD') && segments.length >= 2
+      && SEO_LANGUAGES.some(language => language.enabled && language.code === segments[0].toLowerCase())) {
+    const recovered = recoverEncodedRouteSegment(segments[1]);
+    if (recovered) {
+      segments[1] = recovered;
+      recoveredRouteEncoding = true;
     }
   }
 
@@ -508,6 +531,7 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
   }
 
   // ---- Final: compare and emit ONE 301 if anything changed ----
+  if (recoveredRouteEncoding) segments[1] = encodeURIComponent(segments[1]);
   const newPath = '/' + segments.join('/');
   if (newPath === urlPath && queryString === originalQueryString) {
     return next();
