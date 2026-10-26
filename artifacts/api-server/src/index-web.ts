@@ -984,8 +984,11 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="yandex-verification" content="2af3c8203c89a3d9" />
+    <meta name="yandex-verification" content="57c83c6ab08ec3ba" />
     ${prodTags.recovery}
     ${seoRenderer.generateHtmlHead(seoTags, seoData.language, seoData.translations || {}, seoData.cleanPath, seoData.pageData?.station, seoData.urlTranslations, seoData.pageData)}
+    <link rel="icon" type="image/vnd.microsoft.icon" sizes="64x64" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="manifest" href="/manifest.json">
