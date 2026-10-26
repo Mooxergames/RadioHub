@@ -76,6 +76,7 @@ import { IndexNowService } from "../services/indexnow";
 // Task #127: extracted to `utils/escape-xml.ts` so the integration test suite can
 // import & assert that every <loc> URL is escaped.
 import { escapeXml } from '../utils/escape-xml';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 
 /** A4 fix: image:image emit eligibility — only owned/verified hosts.
  * Architect 4 mandate: no arbitrary external favicon URLs. Allowed hosts:
@@ -111,7 +112,10 @@ function pickStationImage(station: any, baseUrl: string): string | null {
   ];
   for (const candidate of candidates) {
     const parsed = parseStationImageUrl(candidate);
-    if (parsed && isVerifiedImageHost(parsed)) return parsed.href;
+    if (parsed && isVerifiedImageHost(parsed)) {
+      const owned = normalizePublicStationLogoUrl(candidate);
+      return owned.startsWith('/station-logos/') ? `${baseUrl}${owned}` : parsed.href;
+    }
   }
   const favicon = parseStationImageUrl(station?.favicon);
   if (favicon) {
@@ -1448,8 +1452,8 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
 
       // Keep operational writes as cache invalidators, not public content dates.
       // Station.updatedAt also changes on health checks; there is no separate
-      // editorial timestamp yet. v3 excludes previously cached false lastmods.
-      const cacheKey = `sitemap:stations:xml-v3:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
+      // editorial timestamp yet. v4 also replaces cached S3 image URLs once.
+      const cacheKey = `sitemap:stations:xml-v4-owned-images:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
       if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
       const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
       if (cached) {

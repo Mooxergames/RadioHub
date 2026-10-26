@@ -832,6 +832,42 @@ test('image entries serialize owned logos and external proxy URLs without placeh
   } finally { sitemapReadRows = FAKE_STATION_DOCS; builderOverrides.getActiveStationChunk = null; fakeCacheStore.clear(); }
 });
 
+test('owned image URLs replace both old station XML and validators without freshness or membership churn', async () => {
+  fakeCacheStore.clear();
+  const oldXml = '<urlset><url><loc>https://themegaradio.com/en/station/station-one</loc><image:image><image:loc>https://old.example/logo.webp</image:loc></image:image></url></urlset>';
+  const oldKey = `sitemap:stations:xml-v3:en:1:${TEST_HASH}:v1-test:${NOW.getTime()}`;
+  fakeCacheStore.set(oldKey, { xml: oldXml, etag: '"old-s3-image-xml"', byteLength: Buffer.byteLength(oldXml) });
+  fakeCacheStore.set(`${oldKey}:validator`, { etag: '"old-s3-image-xml"' });
+  const paths = ['/station-logos/mangoradio_11ab228c/logo-256.webp',
+    '/station-logos/radio_12345678/variants/12345678-1234-1234-1234-123456789abc/logo-96.webp'];
+  sitemapReadRows = FAKE_STATION_DOCS.map((row, index) => ({ ...row,
+    name: index === 0 ? 'MANGO & Friends' : row.name,
+    logoAssets: { webp256: `https://megaradio-station-logos.s3.eu-north-1.amazonaws.com${paths[index]}` },
+  }));
+  try {
+    const response = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': '"old-s3-image-xml"' } });
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    const urls = (assertValidXml(body, 'owned image sitemap') as any).urlset.url;
+    assert.equal(urls.length, 2);
+    assert.equal(urls[0].loc, 'https://themegaradio.com/en/station/station-one');
+    assert.equal(urls[1].loc, 'https://themegaradio.com/en/station/station-two');
+    for (const [index, entry] of urls.entries()) {
+      assert.equal(entry['image:image']['image:loc'], `https://themegaradio.com${paths[index]}`);
+      assert.ok(entry['image:image']['image:title'].includes(sitemapReadRows[index].name));
+      assert.equal(entry.lastmod, undefined);
+    }
+    assert.equal(response.headers.get('last-modified'), null);
+    assert.notEqual(response.headers.get('etag'), '"old-s3-image-xml"');
+    const newKey = oldKey.replace('xml-v3:', 'xml-v4-owned-images:');
+    assert.ok(fakeCacheStore.has(newKey));
+    assert.ok(fakeCacheStore.has(`${newKey}:validator`));
+    assert.equal((fakeCacheStore.get(oldKey) as any).xml, oldXml, 'unrelated old cache is not globally purged');
+    const conditional = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': response.headers.get('etag')! } });
+    assert.equal(conditional.status, 304);
+  } finally { sitemapReadRows = FAKE_STATION_DOCS; fakeCacheStore.clear(); }
+});
+
 function countLocs(xml: string): number {
   return (xml.match(/<loc>/g) || []).length;
 }

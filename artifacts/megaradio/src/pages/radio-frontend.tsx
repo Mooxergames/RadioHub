@@ -24,6 +24,7 @@ import { communityDisplayName, communityFavoriteCount, communityLabels, type Com
 import { PublicProfileAvatar } from '@/components/ui/public-profile-avatar';
 import { MapPin, ChevronLeft, ChevronRight, ThumbsUp, Heart } from "lucide-react";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import './home-search.css';
 
 import { formatSearchVoteCount as formatVoteCount } from '@/lib/search-presentation';
@@ -1043,16 +1044,16 @@ export default function RadioFrontend({
                                 {/* Station Image - Apple style */}
                                 <div className="relative flex-shrink-0 size-[38px]">
                                   <OptimizedImage
-                                    src={
+                                    src={normalizePublicStationLogoUrl(
                                       // 1. Priority: Optimized logo assets
                                       station.logoAssets?.status === 'completed' && station.logoAssets?.folder && (station.logoAssets?.webp256 || station.logoAssets?.webp96 || station.logoAssets?.webp48)
-                                        ? ((() => { const v = (station.logoAssets.webp256 || station.logoAssets.webp96 || station.logoAssets.webp48)!; return v.startsWith('http') ? v : `/station-logos/${station.logoAssets.folder}/${v}`; })())
+                                        ? ((() => { const v = (station.logoAssets.webp256 || station.logoAssets.webp96 || station.logoAssets.webp48)!; return v.startsWith('http') || v.startsWith('/') ? v : `/station-logos/${station.logoAssets.folder}/${v}`; })())
                                         // 2. Local image path
                                         : station.localImagePath ? `/station-images/${station.localImagePath}` 
                                         // 3. External favicon
                                         : (station.favicon && station.favicon.trim() !== '' && station.favicon !== 'null' && station.favicon !== 'undefined') ? 
                                           decodeHtmlEntities(station.favicon) : ''
-                                    }
+                                    )}
                                     alt={`${station.name} favicon`}
                                     width={38}
                                     height={38}

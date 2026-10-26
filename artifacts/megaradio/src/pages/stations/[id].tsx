@@ -29,6 +29,7 @@ import StationLogo from "@/components/ui/station-logo";
 import { readStationBootstrap } from '@/lib/station-bootstrap';
 import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import AnimatedEqualizer from "@/components/ui/animated-equalizer";
 import { StarRating } from "@/components/star-rating";
@@ -1007,7 +1008,12 @@ export default function StationDetails() {
                                 decoding="async"
                                 height={56}
                                 width={56}
-                                src={(() => { const v = linkedStation.logoAssets?.webp256 || linkedStation.logoAssets?.webp96; return v ? (v.startsWith('http') ? v : `/station-logos/${linkedStation.logoAssets?.folder}/${v}`) : linkedStation.favicon || "/images/no-image.webp"; })()}
+                                src={(() => {
+                                  const value = linkedStation.logoAssets?.webp256 || linkedStation.logoAssets?.webp96;
+                                  return normalizePublicStationLogoUrl(value
+                                    ? (value.startsWith('http') || value.startsWith('/') ? value : `/station-logos/${linkedStation.logoAssets?.folder}/${value}`)
+                                    : linkedStation.favicon || '/images/no-image.webp');
+                                })()}
                                 alt={getStationImageAlt(linkedStation, language, t)}
                                 className="w-14 h-14 rounded object-cover"
                                 onError={(e) => {

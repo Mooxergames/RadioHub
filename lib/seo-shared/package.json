@@ -17,6 +17,7 @@
     "./station-page-copy": "./src/station-page-copy.ts",
     "./station-description-template": "./src/station-description-template.ts",
     "./station-image-alt": "./src/station-image-alt.ts",
+    "./station-logo-url": "./src/station-logo-url.ts",
     "./language-preference": "./src/language-preference.ts",
     "./seo-config": "./src/seo-config.ts",
     "./genre-seo-templates": "./src/genre-seo-templates.ts",

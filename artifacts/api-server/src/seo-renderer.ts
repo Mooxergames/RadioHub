@@ -2,6 +2,7 @@ import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguag
 import { buildDirectoryIndexSeo } from '@workspace/seo-shared/directory-index-seo';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
 import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
@@ -1988,13 +1989,15 @@ export class SeoRenderer {
    * home popular-stations grid and station detail page (DALGA 1).
    */
   private pickLogoUrl(station: any): string | null {
-    // 1) Prefer the processed logos — these live on our own S3 bucket, so they
-    //    always resolve 200 and need no proxy.
+    // Prefer processed logos; owned S3 objects use the stable same-origin path.
     const s3Candidates = [station?.logoAssets?.webp256, station?.logoAssets?.webp96];
     for (const c of s3Candidates) {
       if (typeof c === 'string') {
         const trimmed = c.trim();
-        if (trimmed && /^https?:\/\//i.test(trimmed)) return trimmed;
+        if (trimmed && /^https?:\/\//i.test(trimmed)) {
+          const owned = normalizePublicStationLogoUrl(c);
+          return owned === c ? trimmed : owned;
+        }
       }
     }
     // 2) Fallback: the station's RAW external favicon. Emitting it directly is
@@ -2009,6 +2012,8 @@ export class SeoRenderer {
     if (typeof fav === 'string') {
       const trimmed = fav.trim();
       if (trimmed && /^https?:\/\//i.test(trimmed)) {
+        const owned = normalizePublicStationLogoUrl(fav);
+        if (owned !== fav) return owned;
         const encoded = Buffer.from(trimmed, 'utf8')
           .toString('base64')
           .replace(/\+/g, '-')
@@ -3297,7 +3302,9 @@ export class SeoRenderer {
         // placeholder (or a relative local-disk filename) to Google.
         const stationLogoRaw =
           station.logoAssets?.webp256 || station.logoAssets?.webp96 || station.favicon || '';
-        const stationLogo = /^https?:\/\//i.test(stationLogoRaw) ? stationLogoRaw : null;
+        const ownedLogo = normalizePublicStationLogoUrl(stationLogoRaw);
+        const stationLogo = /^https?:\/\//i.test(stationLogoRaw)
+          ? (ownedLogo.startsWith('/station-logos/') ? `${baseDomain}${ownedLogo}` : stationLogoRaw) : null;
         const rawTags: any = station.tags;
         const stationGenres: string[] = (Array.isArray(rawTags)
           ? rawTags
@@ -3431,7 +3438,9 @@ export class SeoRenderer {
         stationData.logoAssets?.webp96 ||
         stationData.favicon ||
         '';
-      const stationLogo = /^https?:\/\//i.test(stationLogoRaw) ? stationLogoRaw : null;
+      const ownedLogo = normalizePublicStationLogoUrl(stationLogoRaw);
+      const stationLogo = /^https?:\/\//i.test(stationLogoRaw)
+        ? (ownedLogo.startsWith('/station-logos/') ? `${baseDomain}${ownedLogo}` : stationLogoRaw) : null;
       
       // broadcastDisplayName identifies the station. broadcastFrequency is emitted as a
       // structured BroadcastFrequencySpecification when we can parse a real

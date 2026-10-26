@@ -11,6 +11,7 @@ import { createServer as createHttpsServer } from "https";
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { forwardApiRequest } from './middleware/forward-api-request';
 import { publicImageProxyHeaders } from './middleware/public-image-headers';
+import { createStationLogoDelivery } from './middleware/station-logo-delivery';
 import { seedPostgresDefaultLanguages } from "./services/postgres-bootstrap";
 import { closePostgres, initializePostgres, getPostgresHealth, postgresAvailable } from "./postgres-runtime";
 import { performanceCache } from "./performance-cache";
@@ -517,19 +518,13 @@ app.use('/station-images', express.static(imagesPath, { etag: true, lastModified
 
 const stationLogosPath = path.resolve(process.cwd(), "station-logos");
 app.use('/station-logos', express.static(stationLogosPath, { etag: true, lastModified: true, setHeaders: (res) => { res.set({ 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff', 'Vary': 'Accept-Encoding' }); } }));
-// S3 fallback (2026-07-03 logo outage): production containers do NOT ship a
-// local station-logos/ directory — the S3 bucket is the real store, and the
-// frontend's <img srcSet> uses same-origin /station-logos/<folder>/<file>
-// paths. When express.static missed, the request fell through to the SPA
-// catch-all and answered 200 text/html, silently breaking EVERY station
-// logo. Nobody noticed for months because Cloudflare kept serving the old
-// immutable-cached bytes from edge; the first full cache purge exposed it
-// site-wide. Redirect misses to the bucket instead — same folder layout —
-// so the edge re-fills from S3. 302 + 1-day cache keeps us free to move
-// the bucket later without chasing pinned 301s.
+// Containers may lack local logo files. Processed WebPs are delivered from
+// the public bucket at the same stable path; legacy originals retain their
+// existing redirect fallback and never fall through to an HTML SPA shell.
 const STATION_LOGOS_S3_BASE =
   process.env.STATION_LOGOS_BASE_URL ||
   'https://megaradio-station-logos.s3.eu-north-1.amazonaws.com/station-logos';
+app.use('/station-logos', createStationLogoDelivery({ baseUrl: STATION_LOGOS_S3_BASE }));
 app.use('/station-logos', (req, res) => {
   // Path shape gate: exactly folder/file with safe characters — no
   // traversal, nothing smuggled into the bucket URL. Anything else is a

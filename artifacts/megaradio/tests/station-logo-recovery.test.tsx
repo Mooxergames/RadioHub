@@ -134,7 +134,7 @@ describe('station logo source recovery', () => {
     const img = screen.getByRole('img');
     expect(img).toHaveAttribute('width', '90'); expect(img).toHaveAttribute('height', '90');
     expect(img).toHaveAttribute('sizes', '(min-width: 768px) 90px, 70px'); expect(img).toHaveAttribute('loading', 'eager');
-    expect(img).toHaveAttribute('fetchpriority', 'high'); expect(img).toHaveAttribute('alt', 'Localized logo');
+    expect(img).toHaveAttribute('fetchpriority', 'high'); expect(img).toHaveAttribute('alt', 'Localized logo — Radio One');
     expect(img).toHaveClass('w-full', 'h-full', 'absolute', 'inset-0');
   });
   it.each([['xs', 24], ['sm', 32], ['md', 48], ['lg', 64], ['xl', 96], ['card', 90], ['player', 105], ['hero', 200]] as const)(
@@ -150,5 +150,79 @@ describe('station logo source recovery', () => {
     expect(img).toHaveAttribute('src', station.logoAssets.webp256);
     expect(img).not.toHaveAttribute('srcset');
     expect(img).not.toHaveAttribute('sizes');
+  });
+
+  const s3Base = 'https://megaradio-station-logos.s3.eu-north-1.amazonaws.com';
+  const folder = 'radio-one_11ab1234';
+  const variant = '00192c50-142c-4a15-abc0-a2ef963cea1a';
+  const paths = {
+    webp48: `/station-logos/${folder}/variants/${variant}/logo-48.webp`,
+    webp96: `/station-logos/${folder}/variants/${variant}/logo-96.webp`,
+    webp256: `/station-logos/${folder}/logo-256.webp`,
+  };
+  const publicStation = { ...station, logoAssets: {
+    webp48: s3Base + paths.webp48, webp96: s3Base + paths.webp96, webp256: s3Base + paths.webp256,
+  } };
+
+  it('normalizes stored responsive S3 keys without requiring folder/status or inventing filenames', () => {
+    expect(getStationLogoUrl(publicStation, 48)).toBe(paths.webp48);
+    expect(hasOptimizedLogo(publicStation)).toBe(true);
+    render(<StationLogo station={publicStation} size="card" />);
+    const image = screen.getByRole('img');
+    expect(image).toHaveAttribute('src', paths.webp96);
+    expect(image).toHaveAttribute('srcset', `${paths.webp48} 48w, ${paths.webp96} 96w, ${paths.webp256} 256w`);
+    expect(image).toHaveAttribute('sizes', '90px');
+    expect(publicStation.logoAssets.webp96).toBe(s3Base + paths.webp96);
+  });
+
+  it('does not retry a normalized S3 logo through its mirrored favicon after all sizes fail', () => {
+    const mirrored = { ...publicStation, favicon: publicStation.logoAssets.webp256 };
+    render(<StationLogo station={mirrored} size="hero" />);
+    const image = screen.getByRole('img');
+    expect(image).toHaveAttribute('src', paths.webp256);
+    fireEvent.error(image); expect(image).toHaveAttribute('src', paths.webp96);
+    fireEvent.error(image); expect(image).toHaveAttribute('src', paths.webp48);
+    fireEvent.error(image);
+    expect(screen.getByRole('img', { name: station.name }).tagName).toBe('DIV');
+    expect(getStationLogoUrl(mirrored)).toBe('/images/no-image.webp');
+  });
+
+  it('preserves stored originals and legacy paths after normalized processed sizes fail', () => {
+    const original = `${s3Base}/station-logos/${folder}/original.png`;
+    render(<StationLogo station={{ ...publicStation, localImagePath: 'old.png',
+      logoAssets: { webp256: publicStation.logoAssets.webp256, original }, favicon: '/favicon.png' }} />);
+    const image = screen.getByRole('img');
+    expect(image).toHaveAttribute('src', paths.webp256);
+    expect(image).not.toHaveAttribute('srcset');
+    fireEvent.error(image); expect(image).toHaveAttribute('src', original);
+    fireEvent.error(image); expect(image).toHaveAttribute('src', '/station-images/old.png');
+    fireEvent.error(image); expect(image).toHaveAttribute('src', '/favicon.png');
+  });
+
+  it('keeps exact same-origin responsive failures separate from a working preferred src', () => {
+    render(<StationLogo station={publicStation} size="card" />);
+    const image = screen.getByRole('img') as HTMLImageElement;
+    Object.defineProperty(image, 'currentSrc', { configurable: true, value: new URL(paths.webp256, location.origin).href });
+    fireEvent.error(image);
+    expect(image).toHaveAttribute('src', paths.webp96);
+    expect(image).not.toHaveAttribute('srcset');
+    expect(hasRecentStationLogoFailure(paths.webp256)).toBe(true);
+    expect(hasRecentStationLogoFailure(paths.webp96)).toBe(false);
+    Object.defineProperty(image, 'currentSrc', { configurable: true, value: new URL(paths.webp96, location.origin).href });
+    fireEvent.load(image);
+    expect(hasRecentStationLogoFailure(paths.webp256)).toBe(true);
+  });
+
+  it('shares normalized failure keys across cards for only the existing 30-second TTL', () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const first = render(<StationLogo station={publicStation} size="hero" />);
+    fireEvent.error(screen.getByRole('img'));
+    first.unmount();
+    const second = render(<StationLogo station={{ ...publicStation, _id: 'other' }} size="hero" />);
+    expect(screen.getByRole('img')).toHaveAttribute('src', paths.webp96);
+    second.unmount();
+    clock.mockReturnValue(31001);
+    render(<StationLogo station={publicStation} size="hero" />);
+    expect(screen.getByRole('img')).toHaveAttribute('src', paths.webp256);
   });
 });
