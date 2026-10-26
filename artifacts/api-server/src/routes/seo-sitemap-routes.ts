@@ -903,6 +903,8 @@ Disallow: /api/admin/
 Disallow: /api/auth/
 Disallow: /api/user/
 Disallow: /api/users/
+Allow: /api/users/search$
+Allow: /api/users/search?page=1&limit=20&sortBy=recent_favorites$
 Disallow: /api/sync/
 Disallow: /api/test/
 Disallow: /api/payments/
@@ -1000,6 +1002,8 @@ Disallow: /api/admin/
 Disallow: /api/auth/
 Disallow: /api/user/
 Disallow: /api/users/
+Allow: /api/users/search$
+Allow: /api/users/search?page=1&limit=20&sortBy=recent_favorites$
 Disallow: /api/sync/
 Disallow: /api/test/
 Disallow: /api/payments/
@@ -1080,6 +1084,8 @@ Disallow: /api/admin/
 Disallow: /api/auth/
 Disallow: /api/user/
 Disallow: /api/users/
+Allow: /api/users/search$
+Allow: /api/users/search?page=1&limit=20&sortBy=recent_favorites$
 Disallow: /api/sync/
 Disallow: /api/test/
 Disallow: /api/payments/

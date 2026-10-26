@@ -102,6 +102,55 @@ test('manifest and unrelated/missing static assets keep their existing robots po
   }
 });
 
+for (const pathname of [
+  '/images/hero-bg-430w.webp', '/images/about-frame.png',
+  '/uploads/genres/discoverable/genre-dfd155a5-8ea0-47f6-8c09-d3ba856c4853.png',
+]) {
+  test(`public static image is indexable without changing pixels, validators or errors: ${pathname}`, async () => {
+    const bytes = await readFile(path.join(publicDirectory, pathname));
+    const initial = await fetch(baseUrl + pathname);
+    const etag = initial.headers.get('etag');
+    assert.equal(initial.status, 200);
+    assert.equal(initial.headers.get('x-robots-tag'), null);
+    assert.match(initial.headers.get('content-type') || '', /^image\//);
+    assert.ok(etag);
+    assert.deepEqual(Buffer.from(await initial.arrayBuffer()), bytes);
+    for (const method of ['GET', 'HEAD']) {
+      const response = await fetch(baseUrl + pathname, { method });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('x-robots-tag'), null);
+      assert.equal(response.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+      assert.equal((await response.arrayBuffer()).byteLength, method === 'HEAD' ? 0 : bytes.length);
+      const conditional = await fetch(baseUrl + pathname, { method,
+        headers: { 'If-None-Match': etag, 'Cache-Control': 'max-age=0' } });
+      assert.equal(conditional.status, 304);
+      assert.equal(conditional.headers.get('x-robots-tag'), null);
+      assert.equal(conditional.headers.get('etag'), etag);
+    }
+    const partial = await fetch(baseUrl + pathname, { headers: { Range: 'bytes=0-7' } });
+    assert.equal(partial.status, 206);
+    assert.equal(partial.headers.get('x-robots-tag'), null);
+    assert.deepEqual(Buffer.from(await partial.arrayBuffer()), bytes.subarray(0, 8));
+    for (const [headers, expected] of [[{ 'If-Match': '"not-the-image"' }, 412],
+      [{ Range: `bytes=${bytes.length + 1}-` }, 416]] as const) {
+      const failure = await fetch(baseUrl + pathname, { headers });
+      assert.equal(failure.status, expected);
+      assert.equal(failure.headers.get('x-robots-tag'), 'noindex, follow');
+      await failure.arrayBuffer();
+    }
+  });
+}
+
+test('missing public images and private/account paths never gain the image exception', async () => {
+  for (const pathname of ['/images/missing.png', '/uploads/genres/missing.png',
+    '/uploads/private/missing.png', '/admin/missing.png']) {
+    const response = await fetch(baseUrl + pathname);
+    assert.equal(response.status, 404);
+    assert.equal(response.headers.get('x-robots-tag'), 'noindex, follow');
+    await response.arrayBuffer();
+  }
+});
+
 test('both site HTML templates declare the same real ICO and PNG with truthful dimensions', async () => {
   for (const filename of ['../../megaradio/index.html', '../src/index-web.ts']) {
     const source = await readFile(path.resolve(import.meta.dirname, filename), 'utf8');
