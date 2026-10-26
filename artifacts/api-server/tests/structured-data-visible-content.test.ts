@@ -112,6 +112,129 @@ function extractSchemasOfType(head: string, type: string): any[] {
 
 const DOMAIN = 'https://themegaradio.com';
 
+test('station schemas never infer frequency or physical address/geo from catalog tags and geography', async () => {
+  const { generateRadioStationSchema, getSchemaCountry } = await import('@workspace/seo-shared/structured-data');
+  const renderer = new SeoRenderer();
+  for (const tags of ['FM', 'AM', 'FM 102.5', 'FM102,5', 'AM 1010', 'pop,FM 102.5', ['FM 102.5', 'news']]) {
+    const station = { _id: 'unverified-studio', name: 'TrueCASE FM', slug: 'truecase-fm', tags,
+      country: 'Unknown', countryCode: 'DE', state: 'Berlin', geoLat: '52.52', geoLong: '13.405',
+      homepage: 'https://station.example/', description: 'Actual station description.',
+      totalRatings: 12, averageRating: 4.25 };
+    const seoTags = { title: station.name, description: station.description, domain: DOMAIN };
+    const data = renderer.generateStructuredData(seoTags, 'tr', {}, '/station/truecase-fm', station,
+      new Map(), { pageType: 'station', popularStations: [station] });
+    const service = data.page.find(schema => schema['@type'] === 'RadioBroadcastService');
+    const rated = data.page.find(schema => schema['@type'] === 'RadioStation');
+    const listService = data.page.find(schema => schema['@type'] === 'ItemList').itemListElement[0].item;
+    const shared = generateRadioStationSchema(station, 'themegaradio.com', 'tr');
+    const country = getSchemaCountry(station, 'tr');
+    for (const schema of [service, listService, shared]) {
+      assert.equal(schema.broadcastFrequency, undefined, String(tags));
+      assert.equal(schema.broadcaster.name, station.name);
+      assert.equal(schema.broadcaster.address, undefined);
+      assert.equal(schema.broadcaster.location, undefined);
+      assert.equal(schema.broadcaster.geo, undefined);
+      assert.equal(schema.address, undefined);
+      assert.equal(schema.geo, undefined);
+      assert.equal(typeof schema.areaServed === 'string' ? schema.areaServed : schema.areaServed.name, country?.name);
+      assert.ok(schema.category.includes(Array.isArray(tags) ? tags[0] : tags.split(',')[0]), 'tags remain category data');
+    }
+    assert.equal(rated, undefined, 'no verified physical business exists for a LocalBusiness companion');
+    assert.equal(service.aggregateRating.ratingValue, 4.3);
+    assert.equal(service.aggregateRating.ratingCount, 12);
+    assert.equal(service.broadcaster.url, station.homepage);
+    assert.equal(service.description, station.description);
+  }
+  for (const station of [
+    { country: 'Unknown' }, { country: 'N/A', countryCode: 'ZZ' }, {},
+  ]) {
+    assert.equal(generateRadioStationSchema({ name: 'Unknown Country FM', ...station }, 'themegaradio.com').areaServed, undefined);
+  }
+});
+
+test('SSR OG dimensions follow known image changes and disappear for custom or external images', () => {
+  const renderer = new SeoRenderer();
+  const seoTags = { title: 'Fixture', description: 'Fixture description', domain: DOMAIN };
+  for (const fixture of [
+    { image: `${DOMAIN}/api/og-image`, width: 1200, height: 630 },
+    { image: `${DOMAIN}/images/logo-icon.webp`, width: 194, height: 180 },
+    { image: `${DOMAIN}/images/custom.webp`, width: undefined, height: undefined },
+    { image: 'https://external.example/api/og-image', width: undefined, height: undefined },
+    { image: 'https://external.example/images/logo-icon.webp', width: undefined, height: undefined },
+  ]) {
+    const head = renderer.generateHtmlHead({ ...seoTags, ogImage: fixture.image });
+    assert.ok(head.includes(`<meta property="og:image" content="${fixture.image}">`));
+    for (const dimension of ['width', 'height'] as const) {
+      const values = [...head.matchAll(new RegExp(`<meta property="og:image:${dimension}" content="([^"]*)">`, 'g'))].map(match => match[1]);
+      assert.deepEqual(values, fixture[dimension] === undefined ? [] : [String(fixture[dimension])]);
+    }
+  }
+  const detailHead = renderer.generateHtmlHead(seoTags, 'en', {}, '/station/fixture', { slug: 'fixture', name: 'Fixture' });
+  assert.ok(detailHead.includes(`<meta property="og:image" content="${DOMAIN}/api/og-image/fixture">`));
+  assert.ok(detailHead.includes('<meta property="og:image:width" content="1200">'));
+});
+
+test('all14 SSR country display and list image alts use localized country identity without changing station case', async () => {
+  const { getStationCountryName, SITEMAP_PRIORITY_LANGUAGES } = await import('@workspace/seo-shared/seo-config');
+  const { getStationImageAlt } = await import('@workspace/seo-shared/station-image-alt');
+  const { getStationRelatedHeading } = await import('@workspace/seo-shared/station-page-copy');
+  const renderer = new SeoRenderer();
+  const translate = (_key: string, fallback: string) => fallback;
+  for (const language of SITEMAP_PRIORITY_LANGUAGES.universal14) {
+    for (const geography of [
+      { country: 'Unknown', countryCode: 'ZZ' }, { country: 'Unknown', countryCode: 'DE' },
+      { country: undefined, countryCode: 'TR' },
+      { country: 'The United States Of America', countryCode: 'US' },
+      { country: 'The United Kingdom Of Great Britain And Northern Ireland', countryCode: 'GB' },
+    ]) {
+      const station = { name: 'mIXedCASE $& Radio', slug: 'mixedcase-radio', ...geography,
+        favicon: 'https://station.example/logo.webp', tags: 'pop', descriptions: {} };
+      const country = getStationCountryName(station, language);
+      const alt = escapeHtml(getStationImageAlt(station, language, translate));
+      const seoTags = { title: station.name, description: 'Station summary', domain: DOMAIN };
+      const body = (pageType: string) => renderer.generateHtmlBody({ pageType, language, translations: {}, seoTags,
+        stationData: pageType === 'station' ? station : undefined, urlTranslations: new Map(),
+        cleanPath: pageType === 'station' ? '/station/mixedcase-radio' : `/${pageType}`,
+        additionalData: { popularStations: [station], catalogStations: [station], country: 'Germany',
+          regionName: 'Germany', genreName: 'Pop', crossLinks: { sameCountry: [{ name: 'Neighbor', slug: 'neighbor' }] } } });
+      for (const pageType of ['home', 'station', 'genres', 'regions', 'stations']) {
+        const html = body(pageType);
+        assert.ok(html.includes(`alt="${alt}"`), `${language}/${pageType}/${geography.countryCode}: localized alt`);
+        assert.doesNotMatch(html, /Unknown|>ZZ</);
+      }
+      const detail = body('station');
+      assert.ok(detail.includes(`<figcaption>${escapeHtml(station.name)}${country ? ` — ${escapeHtml(country)}` : ''}</figcaption>`));
+      if (country) {
+        assert.ok(detail.includes(`<h2>${escapeHtml(getStationRelatedHeading(language, 'country', country))}</h2>`));
+        assert.ok(detail.includes(`:</strong> ${escapeHtml(country)}</p>`));
+      } else {
+        assert.doesNotMatch(detail, /related-stations--country/);
+      }
+    }
+  }
+});
+
+test('all14 name-prefix related links have a neutral localized heading, never an ownership claim', async () => {
+  const { SITEMAP_PRIORITY_LANGUAGES } = await import('@workspace/seo-shared/seo-config');
+  const { getStationRelatedHeading } = await import('@workspace/seo-shared/station-page-copy');
+  const renderer = new SeoRenderer();
+  const headings = new Set<string>();
+  for (const language of SITEMAP_PRIORITY_LANGUAGES.universal14) {
+    const heading = getStationRelatedHeading(language, 'country', '');
+    headings.add(heading);
+    const body = renderer.generateHtmlBody({ pageType: 'station', language,
+      translations: { same_publisher_stations: 'More channels from UNVERIFIED_OWNER' },
+      stationData: { name: 'Independent Radio', slug: 'independent-radio' },
+      seoTags: { title: 'Independent Radio', description: 'Summary', domain: DOMAIN },
+      urlTranslations: new Map([[`${language}:station`, 'localized-station']]),
+      additionalData: { crossLinks: { publisherBrand: 'UNVERIFIED_OWNER', samePublisher: [{ name: 'Neighbor', slug: 'neighbor' }] } } });
+    assert.ok(body.includes(`<h2>${escapeHtml(heading)}</h2>`), language);
+    assert.ok(body.includes(`href="/${language}/localized-station/neighbor"`), 'crawlable links remain');
+    assert.doesNotMatch(body, /More channels from|UNVERIFIED_OWNER/);
+  }
+  assert.equal(headings.size, 14);
+});
+
 test('SSR H1 emits special characters as text exactly once, including already literal entity text', async () => {
   const { buildGenreSeo } = await import('@workspace/seo-shared/genre-seo-templates');
   const { generateLocalizedStationTitle } = await import('@workspace/seo-shared/seo-config');
@@ -216,10 +339,7 @@ test('SSR and SPA share identical structured-data objects across all 14 indexabl
     for (const invalidOrSuperseded of ['keywords', 'additionalProperty', 'isAccessibleForFree', 'area']) {
       assert.equal(invalidOrSuperseded in stationSchema, false, `${language}: Service must not emit ${invalidOrSuperseded}`);
     }
-    assert.deepEqual(stationSchema.broadcastFrequency.broadcastFrequencyValue, {
-      '@type': 'QuantitativeValue', value: 102.5, unitText: 'MHz',
-    });
-    assert.equal('frequencyUnit' in stationSchema.broadcastFrequency, false);
+    assert.equal('broadcastFrequency' in stationSchema, false, 'numeric free-form tags are not frequency evidence');
     assert.equal(data.page.find(schema => schema['@type'] === 'WebPage')?.isAccessibleForFree, true);
     assert.equal(data.page.find(schema => schema['@type'] === 'WebPage')?.inLanguage, language);
     assert.doesNotThrow(() => JSON.stringify(data), 'payload must be JSON serializable');
@@ -257,9 +377,7 @@ test('all14 station locales share honest rating aggregates, visible localized la
     const schemas = schema(station);
     assert.deepEqual(schemas.find(item => item['@type'] === 'RadioBroadcastService').aggregateRating, expected);
     const radio = schemas.find(item => item['@type'] === 'RadioStation');
-    assert.equal(radio.name, station.name);
-    assert.deepEqual(radio.aggregateRating, expected);
-    assert.equal(radio.address.addressCountry, 'DE');
+    assert.equal(radio, undefined, 'catalog country does not verify a physical broadcaster business');
     const label = getStationPageCopy(language).listenerRating;
     labels.add(label);
     for (const override of [undefined, '', '  ', 'listener_rating', 'Listener rating']) {
@@ -270,11 +388,12 @@ test('all14 station locales share honest rating aggregates, visible localized la
     assert.ok(body(station, { listener_rating: custom }).includes(`<strong>${escapeHtml(custom)}:</strong> ★ 4.3 / 5 · 3`));
     for (const country of ['Unknown', 'N/A', '', undefined]) {
       const withoutGeography = schema({ ...station, country, countryCode: undefined });
-      assert.equal(withoutGeography.some(item => item['@type'] === 'RadioStation'), false, `${language}: absent geography`);
+      assert.equal(withoutGeography.some(item => item['@type'] === 'RadioStation'), false, `${language}: no inferred physical business`);
       assert.deepEqual(withoutGeography.find(item => item['@type'] === 'RadioBroadcastService').aggregateRating, expected);
     }
     const codeOnly = schema({ ...station, country: undefined, countryCode: 'TR' });
-    assert.equal(codeOnly.find(item => item['@type'] === 'RadioStation')?.address.addressCountry, 'TR');
+    assert.equal(codeOnly.some(item => item['@type'] === 'RadioStation'), false);
+    assert.equal(codeOnly.find(item => item['@type'] === 'RadioBroadcastService')?.areaServed, new Intl.DisplayNames([language], { type: 'region' }).of('TR'));
     for (const [totalRatings, averageRating] of [[0, 0], [1, 5], [2, 5], [3, 0], [3, 6], [3, Number.NaN]]) {
       const unrated = { ...station, totalRatings, averageRating };
       assert.equal(schema(unrated).some(item => item.aggregateRating), false, `${language}: invalid or insufficient real ratings`);

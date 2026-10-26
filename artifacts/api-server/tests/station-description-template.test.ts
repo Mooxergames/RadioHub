@@ -7,7 +7,7 @@ import { getIndexableLanguagesForStation } from '../src/seo/junk-station-rules';
 test('catalogue summaries contain supplied facts without inventing editorial or popularity claims', () => {
   const summary = buildTemplateDescription({ name: 'News Radio', country: 'Austria', state: 'Vienna',
     tags: 'news, talk', language: 'German', votes: 100000, bitrate: 320, codec: 'MP3', homepage: 'https://example.test/' });
-  assert.match(summary.full, /News Radio is listed as a radio station in Vienna, Austria/);
+  assert.match(summary.full, /News Radio is listed as a radio station\. Catalogue region: Vienna, Austria/);
   assert.match(summary.full, /Catalogue tags: news, talk/);
   assert.match(summary.full, /Reported broadcast language: German/);
   assert.match(summary.full, /Listed stream format: 320 kbps MP3/);
@@ -21,10 +21,19 @@ test('sparse metadata stays sparse instead of being expanded with filler', () =>
   assert.deepEqual(buildTemplateDescription({ name: '  ' }), { full: '', meta: '' });
 });
 
+test('catalogue regions are labels, not verified studios, and unknown countries do not become facts', () => {
+  for (const country of ['Unknown', 'unknown', 'N/A', 'null', 'ZZ']) {
+    assert.deepEqual(buildTemplateDescription({ name: 'Sparse Radio', country }), { full: '', meta: '' });
+  }
+  const known = buildTemplateDescription({ name: 'Fixture Radio', country: 'Unknown', countryCode: 'DE', codec: 'MP3' });
+  assert.match(known.full, /Catalogue region: Germany\./);
+  assert.doesNotMatch(known.full, /Unknown|broadcasting from|studio/i);
+});
+
 test('location and tags are not duplicated and invalid numeric facts are omitted', () => {
   const summary = buildTemplateDescription({ name: 'Test Radio', state: ' Austria ', country: 'austria',
     tags: 'news; talk, news', bitrate: NaN });
-  assert.match(summary.full, /in Austria\./);
+  assert.match(summary.full, /Catalogue region: Austria\./);
   assert.match(summary.full, /Catalogue tags: news, talk\./);
   assert.doesNotMatch(summary.full, /Austria, austria|NaN|stream format/);
 });

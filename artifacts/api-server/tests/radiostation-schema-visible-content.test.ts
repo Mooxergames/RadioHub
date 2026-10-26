@@ -122,9 +122,7 @@ function extractRadioStationSchema(head: string): any {
 }
 
 function extractLocalBusinessSchema(head: string): any {
-  // Compact RadioStation (LocalBusiness subtype) companion — the
-  // review-snippet carrier added 2026-07-03. Only emitted when the station
-  // has >=3 REAL listener ratings and a country.
+  // Regression guard: catalogue geography cannot verify a LocalBusiness.
   return extractJsonLdBlocks(head).filter(
     (b) =>
       b &&
@@ -162,18 +160,12 @@ test('official station links use the homepage, never the audio stream, across lo
 //    the known per-station block. Mirrors the FAQPage/BreadcrumbList scans.
 // ===========================================================================
 
-test('source-scan: per-station RadioBroadcastService + LocalBusiness JSON-LD live behind the `if (stationData)` guard', () => {
+test('source-scan: per-station service is guarded and no unverified LocalBusiness companion is emitted', () => {
   const fileUrl = new URL('../src/seo-renderer.ts', import.meta.url);
   const src = readFileSync(fileURLToPath(fileUrl), 'utf8');
 
-  // 2026-07-03: two per-station emissions exist now —
-  //   1. `radioStationSchema` (primary, @type RadioBroadcastService since
-  //      2026-05-12), and
-  //   2. `localRadioStationSchema` (compact @type RadioStation /
-  //      LocalBusiness companion carrying the real AggregateRating).
-  // Both assignments must sit inside the `if (stationData)` block. The
-  // lookback window is wide because the block spans ~250 lines of
-  // frequency-parsing / description-sourcing code before the assignments.
+  // The service assignment must remain station-scoped. Ratings alone never
+  // establish the physical business required by the removed companion.
   const scan = (name: string, typeLiteral: string) => {
     const declPattern = new RegExp(
       `(?<![A-Za-z0-9_])${name}\\s*=\\s*\\{[\\s\\S]{0,2000}?["']@type["']\\s*:\\s*["']${typeLiteral}["']`,
@@ -200,7 +192,7 @@ test('source-scan: per-station RadioBroadcastService + LocalBusiness JSON-LD liv
   };
 
   scan('radioStationSchema', 'RadioBroadcastService');
-  scan('localRadioStationSchema', 'RadioStation');
+  assert.doesNotMatch(src, /["']@type["']\s*:\s*["']RadioStation["']/);
 });
 
 // ===========================================================================
@@ -411,8 +403,7 @@ for (const c of STATION_CASES) {
 
 // ===========================================================================
 // 1b. Real-rating companions (2026-07-03): with >=3 genuine listener ratings
-//     the head must emit (a) aggregateRating on the RadioBroadcastService,
-//     (b) the compact RadioStation/LocalBusiness carrier, and (c) the
+//     the head must emit aggregateRating on the RadioBroadcastService and the
 //     speakable WebPage; the body must show the rating line. Below the
 //     threshold NONE of the rating markup may appear (fabricated-rating
 //     regression guard).
@@ -438,7 +429,7 @@ function renderStationPage(stationData: any) {
   return { head, body };
 }
 
-test('station with >=3 real ratings emits AggregateRating + LocalBusiness carrier + visible rating line', () => {
+test('station with >=3 real ratings preserves service ratings and visible rating line without a physical business claim', () => {
   const { head, body } = renderStationPage({
     _id: 's-rated', name: 'Rated FM', slug: 'rated-fm', country: 'Germany',
     countryCode: 'DE', tags: 'pop', description: 'Great music from Berlin.',
@@ -452,9 +443,9 @@ test('station with >=3 real ratings emits AggregateRating + LocalBusiness carrie
   assert.equal(service.aggregateRating.ratingCount, 12);
 
   const locals = extractLocalBusinessSchema(head);
-  assert.equal(locals.length, 1, 'expected exactly one RadioStation #localbusiness block');
-  assert.equal(locals[0].aggregateRating.ratingValue, 4.3);
-  assert.equal(locals[0].address?.addressCountry, 'DE');
+  assert.equal(locals.length, 0, 'catalog country cannot verify a physical studio business');
+  assert.equal(service.broadcaster.address, undefined);
+  assert.equal(service.areaServed, 'Germany', 'service coverage remains available');
 
   // Google review-snippet policy: the aggregate rating must be VISIBLE.
   assert.ok(
