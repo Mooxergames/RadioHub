@@ -53,6 +53,7 @@ test("eight new native trend articles have fixed dates, substantive text and thr
     const article = content.articles.find(article => article.id === id);
     assert.ok(article, id);
     assert.equal(article.faq.length, 3);
+    assert.ok(article.description.length <= 160, `${id}: description exceeds the SSR limit`);
     assert.equal(blogMetadata(id).publishedAt, published);
     assert.equal(blogMetadata(id).updatedAt, published);
     assert.equal(MARKET_BLOG_MANIFEST[id].market, market);
