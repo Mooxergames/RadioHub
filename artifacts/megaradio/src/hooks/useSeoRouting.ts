@@ -33,9 +33,8 @@ export function useSeoRouting() {
       const normResult = normalizeUrlForLanguage(location, urlLanguage);
       if (normResult.needsRedirect) {
         logger.log(`🔄 Cross-language URL normalization: ${location} → ${normResult.normalized}`);
-        // Use replace to avoid adding to history stack
-        window.history.replaceState(null, '', normResult.normalized);
-        setLocation(normResult.normalized);
+        const normalizedUrl = `${normResult.normalized}${window.location.search}${window.location.hash}`;
+        setLocation(normalizedUrl, { replace: true });
       }
     }
   }, [location, urlLanguage, setLocation]);

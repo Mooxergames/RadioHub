@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { verifiedLegacyStationAlias } from '../src/seo/verified-legacy-station-alias';
+import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 
 const reads: string[] = [];
 let rows = new Map<string, Record<string, any>>();
 let slugRows: any[] = [];
+mock.module('../src/performance-cache', { namedExports: {
+  performanceCache: { getUrlTranslations: async () => new Map() },
+} });
 mock.module('../src/postgres-runtime', { namedExports: { getPostgresPool: () => ({
   query: async (_sql: string, values: string[]) => {
     reads.push(values[0]);
@@ -19,6 +24,7 @@ mock.module('../src/data/postgres-seo-indexing-store', { namedExports: {
 mock.module('../src/services/precomputed-cities', { namedExports: { PrecomputedCitiesService: { getSupportedCountries: () => [] } } });
 const { getStationByIdentifier } = await import('../src/data/station-read-store');
 const { loadSlugExistence, hasStationSlug, getCanonicalStationSlug, getRedirectableStationSlug } = await import('../src/seo/slug-existence');
+const { urlRedirectMiddleware } = await import('../src/url-redirect-middleware');
 
 beforeEach(async () => {
   reads.length = 0;
@@ -26,6 +32,37 @@ beforeEach(async () => {
   slugRows = [];
   await loadSlugExistence();
 });
+
+for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+  test(`${language}: warm alias cache keeps station/sta identity redirects localized for GET and HEAD`, async () => {
+    slugRows = [{ _id: 'alias-target', slug: 'canonical-fm', name: 'Canonical FM', noIndex: false,
+      url: 'https://stream.example.invalid/live', slugAliases: ['station', 'sta'] }];
+    await loadSlugExistence();
+    const detail = URL_TRANSLATIONS[language]?.station || 'station';
+    const query = '?utm_source=a%26b&x=%23';
+    for (const alias of ['station', 'sta']) {
+      for (const method of ['GET', 'HEAD']) {
+        const path = `/${language}/${detail}/${alias}`;
+        let location: string | undefined;
+        let status: number | undefined;
+        let nextCalled = false;
+        const request = { path, originalUrl: `${path}${query}`, query: {}, headers: {}, method };
+        const response = {
+          setHeader: () => {},
+          redirect: (code: number, target: string) => { status = code; location = target; },
+        };
+        await urlRedirectMiddleware(request as any, response as any, () => { nextCalled = true; });
+        assert.equal(status, 301);
+        assert.equal(decodeURI(location!), `/${language}/${detail}/canonical-fm${query}`);
+        assert.equal(nextCalled, false);
+        const target = `/${language}/${detail}/canonical-fm`;
+        await urlRedirectMiddleware({ ...request, path: target, originalUrl: `${target}${query}` } as any,
+          response as any, () => { nextCalled = true; });
+        assert.equal(nextCalled, true, 'canonical target must not redirect again');
+      }
+    }
+  });
+}
 
 test('only individually reviewed historical spellings are eligible', () => {
   assert.equal(verifiedLegacyStationAlias('kpissfm-2'), 'kpiss-fm-2');

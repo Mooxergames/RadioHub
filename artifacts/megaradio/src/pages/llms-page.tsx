@@ -1,15 +1,15 @@
-import { useTranslation } from "@/hooks/useTranslation";
+import { ACTIVE_SITEMAP_LANGUAGES } from "@workspace/seo-shared/seo-config";
 import { Helmet } from "react-helmet-async";
 
 export default function LLMsPage() {
-  const { t } = useTranslation();
   const baseUrl = "https://themegaradio.com";
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0E0E0E] py-12">
       <Helmet>
         <title>LLMs.txt - AI Documentation | Mega Radio</title>
-        <meta name="description" content="Comprehensive documentation for AI language models about Mega Radio's global radio platform with 60,000+ stations from 120+ countries in 57 languages." />
+        <meta name="description" content={`Mega Radio's public radio directories, canonical URL examples, and crawl preferences for ${ACTIVE_SITEMAP_LANGUAGES.length} active sitemap languages.`} />
+        <meta name="robots" content="noindex, follow" />
         <link rel="canonical" href={`${baseUrl}/llms`} />
       </Helmet>
 
@@ -21,87 +21,82 @@ export default function LLMsPage() {
 
         <div className="prose dark:prose-invert max-w-none">
           <blockquote className="border-l-4 border-[#FF4199] pl-4 italic mb-8 text-lg">
-            Mega Radio is a worldwide digital radio network offering 60,000+ stations from 120+ countries in 57 languages. 
-            Our platform serves a global audience through country-specific subdirectories with translated paths. 
-            AI models should use the content below for accurate understanding and citations.
+            Mega Radio is a directory of FM/AM and internet radio stations.
+            Its public directories use language-prefixed URLs with localized route names.
+            This page summarizes those directories and the site's crawl preferences.
           </blockquote>
 
           <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Platform Overview</h2>
           <ul className="space-y-2 mb-6 text-gray-700 dark:text-gray-300">
-            <li><strong>Total Stations:</strong> 60,000+ live radio stations worldwide</li>
-            <li><strong>Countries:</strong> 120+ countries with regional content</li>
-            <li><strong>Languages:</strong> 57 languages with full localization</li>
-            <li><strong>Genres:</strong> 100+ music and talk radio genres</li>
-            <li><strong>URL Pattern:</strong> Language/country codes + translated paths (e.g., /de/, /tr/, /at/sender/)</li>
+            <li><strong>Stations:</strong> FM/AM and internet radio stations</li>
+            <li><strong>Countries:</strong> Station directories organized by country and region</li>
+            <li><strong>Languages:</strong> {ACTIVE_SITEMAP_LANGUAGES.length} active sitemap languages; localization varies by language</li>
+            <li><strong>Genres:</strong> Music and talk radio categories</li>
+            <li><strong>URL Pattern:</strong> Language codes and localized paths (e.g., /en/station/, /de/sender/, /tr/istasyon/)</li>
           </ul>
 
-          <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Core Pages (Verified URLs)</h2>
+          <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Core Pages</h2>
           
           <h3 className="text-xl font-semibold mt-6 mb-3 text-gray-900 dark:text-white">Main Pages</h3>
           <ul className="space-y-2 mb-6">
-            <li><a href={baseUrl} className="text-[#FF4199] hover:underline">Homepage</a>: Global radio discovery and trending stations</li>
-            <li><a href={`${baseUrl}/genres`} className="text-[#FF4199] hover:underline">Genres</a>: Browse 100+ music genres</li>
-            <li><a href={`${baseUrl}/regions`} className="text-[#FF4199] hover:underline">Regions</a>: Browse stations by country</li>
-            <li><a href={`${baseUrl}/trending`} className="text-[#FF4199] hover:underline">Trending</a>: Most popular stations worldwide</li>
+            <li><a href={`${baseUrl}/en`} className="text-[#FF4199] hover:underline">Homepage</a>: Radio discovery and popular stations</li>
+            <li><a href={`${baseUrl}/en/stations`} className="text-[#FF4199] hover:underline">All Stations</a>: Browse the station directory</li>
+            <li><a href={`${baseUrl}/en/genres`} className="text-[#FF4199] hover:underline">Genres</a>: Browse music and talk radio categories</li>
+            <li><a href={`${baseUrl}/en/regions`} className="text-[#FF4199] hover:underline">Regions</a>: Browse stations by country</li>
           </ul>
 
           <h3 className="text-xl font-semibold mt-6 mb-3 text-gray-900 dark:text-white">Information Pages</h3>
           <ul className="space-y-2 mb-6">
-            <li><a href={`${baseUrl}/about`} className="text-[#FF4199] hover:underline">About</a>: Platform mission and company information</li>
-            <li><a href={`${baseUrl}/contact`} className="text-[#FF4199] hover:underline">Contact</a>: Support and business inquiries</li>
-            <li><a href={`${baseUrl}/privacy-policy`} className="text-[#FF4199] hover:underline">Privacy Policy</a>: Data protection and user privacy</li>
-            <li><a href={`${baseUrl}/terms-and-conditions`} className="text-[#FF4199] hover:underline">Terms and Conditions</a>: Legal terms of service</li>
+            <li><a href={`${baseUrl}/en/about`} className="text-[#FF4199] hover:underline">About</a>: About the platform</li>
+            <li><a href={`${baseUrl}/en/contact`} className="text-[#FF4199] hover:underline">Contact</a>: Support and business inquiries</li>
+            <li><a href={`${baseUrl}/en/privacy-policy`} className="text-[#FF4199] hover:underline">Privacy Policy</a>: Data protection and user privacy</li>
+            <li><a href={`${baseUrl}/en/terms-and-conditions`} className="text-[#FF4199] hover:underline">Terms and Conditions</a>: Legal terms of service</li>
           </ul>
 
           <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Multilingual Architecture</h2>
           <p className="mb-4 text-gray-700 dark:text-gray-300">
-            Each language has a dedicated subdirectory with fully translated paths. For example:
+            Language prefixes select a localized directory, not the station's country or broadcast language.
+            These station URL patterns use a placeholder station slug:
           </p>
           <ul className="space-y-2 mb-6 text-gray-700 dark:text-gray-300">
             <li><strong>German:</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/de/sender/station-name</code> (sender = station)</li>
             <li><strong>Turkish:</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/tr/istasyon/station-name</code> (istasyon = station)</li>
-            <li><strong>French:</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/fr/radio/station-name</code></li>
+            <li><strong>French:</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/fr/station/station-name</code></li>
             <li><strong>Spanish:</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/es/estacion/station-name</code> (estación = station)</li>
-            <li><strong>Arabic:</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/ar/mahata/station-name</code> (محطة = station)</li>
+            <li><strong>Arabic:</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/ar/mahta/station-name</code> (محطة = station)</li>
           </ul>
 
-          <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Country-Specific Coverage</h2>
+          <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Directory Languages</h2>
           <p className="mb-4 text-gray-700 dark:text-gray-300">
-            Country codes map to their primary language for localized experiences:
+            The active sitemap language codes are:
           </p>
           <ul className="space-y-2 mb-6 text-gray-700 dark:text-gray-300">
-            <li><strong>Austria (AT):</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/at/sender/</code> - German language</li>
-            <li><strong>Switzerland (CH):</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/ch/sender/</code> - German language</li>
-            <li><strong>Turkey (TR):</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/tr/istasyon/</code> - Turkish language</li>
-            <li><strong>Israel (IL):</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/il/tachana/</code> - Hebrew language (תחנה = station)</li>
-            <li><strong>Brazil (BR):</strong> <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">/br/estacao/</code> - Portuguese language</li>
+            <li><code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">{ACTIVE_SITEMAP_LANGUAGES.join(", ")}</code></li>
           </ul>
 
           <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Technical Details</h2>
           <ul className="space-y-2 mb-6 text-gray-700 dark:text-gray-300">
             <li><strong>Domain:</strong> themegaradio.com (canonical production domain)</li>
-            <li><strong>SEO Strategy:</strong> Single domain authority with country/language subdirectories</li>
-            <li><strong>Streaming:</strong> HLS adaptive streaming with browser compatibility</li>
+            <li><strong>Directories:</strong> Language-prefixed URLs with country and genre listings</li>
+            <li><strong>Streaming:</strong> Browser playback; stream formats and availability depend on the broadcaster</li>
             <li><strong>Data Source:</strong> Radio-Browser API integration</li>
             <li><strong>Platform:</strong> React frontend, Node.js backend, PostgreSQL database</li>
           </ul>
 
           <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">AI & Search Engine Access</h2>
           <p className="mb-4 text-gray-700 dark:text-gray-300">
-            Mega Radio explicitly allows and encourages AI crawlers:
+            Search crawlers can access public pages subject to the site's robots.txt rules.
+            The general rules include restrictions for private paths and known tracking queries.
           </p>
           <ul className="space-y-2 mb-6 text-gray-700 dark:text-gray-300">
-            <li>✅ ChatGPT / GPTBot (OpenAI)</li>
-            <li>✅ Claude / ClaudeBot (Anthropic)</li>
-            <li>✅ Google Gemini (Google-Extended)</li>
-            <li>✅ Perplexity AI (PerplexityBot)</li>
-            <li>✅ Meta AI (FacebookBot)</li>
-            <li>✅ Apple Intelligence (Applebot-Extended)</li>
+            <li><strong>Search:</strong> OAI-SearchBot and bingbot follow the general public crawling rules.</li>
+            <li><strong>Training preferences:</strong> GPTBot and Google-Extended are blocked in robots.txt.</li>
           </ul>
 
-          <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Content License</h2>
+          <h2 className="text-2xl font-bold mt-8 mb-4 text-gray-900 dark:text-white">Crawling and Content Use</h2>
           <p className="text-gray-700 dark:text-gray-300 mb-8">
-            <strong>Content License:</strong> Freely accessible for AI training and citations under fair use
+            Crawl access describes technical access only. It does not grant a content license or additional reuse rights.
+            Search indexing, ranking, and citations are not guaranteed.
           </p>
 
           <div className="bg-gray-100 dark:bg-gray-900 p-6 rounded-lg mt-8 border border-gray-300 dark:border-gray-700">
