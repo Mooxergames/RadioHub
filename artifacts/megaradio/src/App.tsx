@@ -1299,7 +1299,7 @@ function App() {
   // Keep both language and writing direction aligned with SSR after SPA switches.
   useEffect(() => {
     const { language } = getLanguageFromPath(location);
-    syncDocumentLocale(language);
+    syncDocumentLocale(language, location);
   }, [location]);
   
   return (
