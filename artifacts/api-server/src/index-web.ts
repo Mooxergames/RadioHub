@@ -10,6 +10,8 @@ import { createServer } from "http";
 import { createServer as createHttpsServer } from "https";
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { forwardApiRequest } from './middleware/forward-api-request';
+import { publicImageProxyHeaders } from './middleware/public-image-headers';
+import { createStationLogoDelivery } from './middleware/station-logo-delivery';
 import { seedPostgresDefaultLanguages } from "./services/postgres-bootstrap";
 import { closePostgres, initializePostgres, getPostgresHealth, postgresAvailable } from "./postgres-runtime";
 import { performanceCache } from "./performance-cache";
@@ -24,6 +26,7 @@ import { SeoRenderer, getSeoRenderStats } from './seo-renderer';
 import { markSeoTemporarilyUnavailable } from './seo/temporary-unavailable';
 import { parseSeoCatalogPage } from './seo/catalog-pagination';
 import { sendSeoNotFound } from './seo/send-seo-not-found';
+import { buildPublicSeoRouteMatchers, collectSeoTranslations, decodePublicSeoPath } from './seo/public-route-matchers';
 import { buildPublicRoutePreloads } from './seo/frontend-asset-preloads';
 import { renderStationBootstrap } from './seo/station-bootstrap';
 import { renderTranslationBootstrap } from './seo/translation-bootstrap';
@@ -515,19 +518,13 @@ app.use('/station-images', express.static(imagesPath, { etag: true, lastModified
 
 const stationLogosPath = path.resolve(process.cwd(), "station-logos");
 app.use('/station-logos', express.static(stationLogosPath, { etag: true, lastModified: true, setHeaders: (res) => { res.set({ 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff', 'Vary': 'Accept-Encoding' }); } }));
-// S3 fallback (2026-07-03 logo outage): production containers do NOT ship a
-// local station-logos/ directory — the S3 bucket is the real store, and the
-// frontend's <img srcSet> uses same-origin /station-logos/<folder>/<file>
-// paths. When express.static missed, the request fell through to the SPA
-// catch-all and answered 200 text/html, silently breaking EVERY station
-// logo. Nobody noticed for months because Cloudflare kept serving the old
-// immutable-cached bytes from edge; the first full cache purge exposed it
-// site-wide. Redirect misses to the bucket instead — same folder layout —
-// so the edge re-fills from S3. 302 + 1-day cache keeps us free to move
-// the bucket later without chasing pinned 301s.
+// Containers may lack local logo files. Processed WebPs are delivered from
+// the public bucket at the same stable path; legacy originals retain their
+// existing redirect fallback and never fall through to an HTML SPA shell.
 const STATION_LOGOS_S3_BASE =
   process.env.STATION_LOGOS_BASE_URL ||
   'https://megaradio-station-logos.s3.eu-north-1.amazonaws.com/station-logos';
+app.use('/station-logos', createStationLogoDelivery({ baseUrl: STATION_LOGOS_S3_BASE }));
 app.use('/station-logos', (req, res) => {
   // Path shape gate: exactly folder/file with safe characters — no
   // traversal, nothing smuggled into the bucket URL. Anything else is a
@@ -605,6 +602,7 @@ const streamServiceProxy = createProxyMiddleware({
   // The destination needs the full /api/image|stream path. The mount wrappers
   // below restore req.originalUrl after Express strips the mounted prefix.
   on: {
+    proxyRes: publicImageProxyHeaders,
     error: (err: any, _req: any, res: any) => {
       console.error('❌ Stream-service proxy error:', err?.message || err);
       try {
@@ -714,48 +712,13 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   // Warm the cache at startup so the first SSR request doesn't pay the IO.
   getProdAssetTags();
 
-  const { URL_TRANSLATIONS: seoUrlTranslations } = await import('@workspace/seo-shared/url-translations');
-  function collectSeoTranslations(englishKey: string): string[] {
-    const vals = new Set<string>();
-    vals.add(englishKey);
-    for (const lang of Object.keys(seoUrlTranslations)) {
-      const val = (seoUrlTranslations as any)[lang]?.[englishKey];
-      if (val) vals.add(val);
-    }
-    return Array.from(vals).map(v => v.replace(/[.*+?${}()|[\]\\]/g, '\\$&'));
-  }
-
-  const seoStationPluralAlts = collectSeoTranslations('stations');
-  const seoStationSingularAlts = collectSeoTranslations('station');
-  const combinedSet = new Set<string>(seoStationPluralAlts.concat(seoStationSingularAlts));
-  const seoStationAllAlts = Array.from(combinedSet);
-  const seoGenreAlts = collectSeoTranslations('genres');
-  const seoAboutAlts = collectSeoTranslations('about');
-  const seoContactAlts = collectSeoTranslations('contact');
-  const seoPrivacyAlts = collectSeoTranslations('privacy-policy');
   const seoRegionAlts = collectSeoTranslations('regions');
-  // Bing SEO: include /search, /faq, /terms-and-conditions, /applications in
-  // SEO eligibility so SSR returns proper <h1> + 150+ char meta description
-  // for those previously-bare paths (Bing flagged terms specifically).
-  const seoSearchAlts = collectSeoTranslations('search');
-  const seoFaqAlts = collectSeoTranslations('faq');
-  const seoTermsAlts = collectSeoTranslations('terms-and-conditions');
-  const seoApplicationsAlts = collectSeoTranslations('applications');
+  const seoGenreAlts = collectSeoTranslations('genres');
+  const seoStationSingularAlts = collectSeoTranslations('station');
+  const seoStationPluralAlts = collectSeoTranslations('stations');
 
   const SEO_PRECOMPILED_REGEX = {
-    stationPage: new RegExp(`^\\/([a-z]{2}\\/)?(?:${seoStationAllAlts.join('|')})\\/`, 'u'),
-    homepage: /^\/([a-z]{2}\/?)?$/,
-    regionsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoRegionAlts.join('|')})(\\/.*)?$`, 'u'),
-    genresPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoGenreAlts.join('|')})\\/?(.*)$`, 'u'),
-    aboutPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoAboutAlts.join('|')})\\/?$`, 'u'),
-    contactPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoContactAlts.join('|')})\\/?$`, 'u'),
-    privacyPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoPrivacyAlts.join('|')})\\/?$`, 'u'),
-    countryPage: /^\/([a-z]{2}\/?)?country\/.+$/u,
-    stationsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoStationAllAlts.join('|')})\\/?$`, 'u'),
-    searchPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoSearchAlts.join('|')})\\/?(\\?.*)?$`, 'u'),
-    faqPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoFaqAlts.join('|')})\\/?$`, 'u'),
-    termsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoTermsAlts.join('|')})\\/?$`, 'u'),
-    applicationsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoApplicationsAlts.join('|')})\\/?$`, 'u'),
+    ...buildPublicSeoRouteMatchers(),
     botDetect: /\b(googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegram|skype|pinterestbot|redditbot|crawler|spider|seobility|semrush|ahrefs|mozbot|majestic|screaming|frog|nutch|fastcrawler|genieo|demandbase|gptbot|chatgpt-user|ccbot|anthropic-ai|claude-web|bytespider|perplexitybot|applebot|cohere-ai)\b/i
   };
 
@@ -793,17 +756,13 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   app.use(langIneligibilityRedirectMiddleware);
 
   app.use(async (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     const url = req.originalUrl;
     const userAgent = req.get('user-agent') || '';
 
-    // P0 fix: decodeURIComponent throws URIError on malformed escapes (e.g.
-    // %E0%A4%A) and would crash the entire SSR worker. Trap and fall back to
-    // raw URL — broken sequences just won't match SEO routes.
-    let cleanUrlForMatching: string;
-    try {
-      cleanUrlForMatching = decodeURIComponent(url.split('?')[0].split('#')[0]);
-    } catch {
-      cleanUrlForMatching = url.split('?')[0].split('#')[0];
+    const cleanUrlForMatching = decodePublicSeoPath(url);
+    if (cleanUrlForMatching === null) {
+      return sendSeoNotFound(res, '<!doctype html><title>Not found</title><h1>Not found</h1>');
     }
 
     const isStationPage = SEO_PRECOMPILED_REGEX.stationPage.test(cleanUrlForMatching);
@@ -819,9 +778,10 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
     const isFaqPage = SEO_PRECOMPILED_REGEX.faqPage.test(cleanUrlForMatching);
     const isTermsPage = SEO_PRECOMPILED_REGEX.termsPage.test(cleanUrlForMatching);
     const isApplicationsPage = SEO_PRECOMPILED_REGEX.applicationsPage.test(cleanUrlForMatching);
-    const isBlogPage = /^\/(?:[a-z]{2}\/)?blog(?:\/|$)/.test(cleanUrlForMatching);
+    const isUsersPage = SEO_PRECOMPILED_REGEX.usersPage.test(cleanUrlForMatching);
+    const isBlogPage = SEO_PRECOMPILED_REGEX.blogPage.test(cleanUrlForMatching);
 
-    const isSeoEligiblePage = isBlogPage || isStationPage || isHomepage || isRegionsPage || isGenresPage || isAboutPage || isContactPage || isPrivacyPage || isCountryPage || isStationsPage || isSearchPage || isFaqPage || isTermsPage || isApplicationsPage;
+    const isSeoEligiblePage = isBlogPage || isStationPage || isHomepage || isRegionsPage || isGenresPage || isAboutPage || isContactPage || isPrivacyPage || isCountryPage || isStationsPage || isSearchPage || isFaqPage || isTermsPage || isApplicationsPage || isUsersPage;
     const isBot = SEO_PRECOMPILED_REGEX.botDetect.test(userAgent);
 
     // CLOAKING FIX (2026-05-12): SSR is now served to ALL visitors on SEO

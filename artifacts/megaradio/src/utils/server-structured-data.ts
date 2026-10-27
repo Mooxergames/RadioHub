@@ -5,6 +5,43 @@ export interface ServerStructuredData {
 
 const selector = 'script[type="application/ld+json"][data-managed="seo-structured-data"]';
 
+function hasType(schema: Record<string, unknown>, type: string) {
+  return schema['@type'] === type || (Array.isArray(schema['@type']) && schema['@type'].includes(type));
+}
+
+function withoutStationList(schema: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (hasType(schema, 'ItemList')) return undefined;
+  const mainEntity = schema.mainEntity;
+  if (hasType(schema, 'CollectionPage') && mainEntity && typeof mainEntity === 'object'
+    && !Array.isArray(mainEntity) && hasType(mainEntity as Record<string, unknown>, 'ItemList')) {
+    const { mainEntity: _stationList, ...collection } = schema;
+    return collection;
+  }
+  return schema;
+}
+
+/** The genre UI owns its filtered/paginated stations, not the server's popular list. */
+export function withoutGenreStationLists(data: ServerStructuredData): ServerStructuredData {
+  if (!Array.isArray(data?.page) || !data.page.every(schema =>
+    schema && typeof schema === 'object' && !Array.isArray(schema))) return data;
+  return { ...data, page: data.page.flatMap(schema => {
+    const retained = withoutStationList(schema);
+    return retained ? [retained] : [];
+  }) };
+}
+
+export function clearGenreStationLists() {
+  document.querySelectorAll(`${selector}[data-schema-scope="page"]`).forEach(script => {
+    try {
+      const schema = JSON.parse(script.textContent || '{}');
+      if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return;
+      const retained = withoutStationList(schema);
+      if (!retained) script.remove();
+      else if (retained !== schema) script.textContent = JSON.stringify(retained);
+    } catch { /* Leave unrelated or malformed markup untouched. */ }
+  });
+}
+
 export function clearPageStructuredData() {
   document.querySelectorAll(`${selector}[data-schema-scope="page"]`).forEach(script => script.remove());
 }

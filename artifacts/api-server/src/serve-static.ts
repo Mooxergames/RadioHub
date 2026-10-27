@@ -9,10 +9,8 @@ import { isKnownSpaShellRoute } from './seo/spa-shell-route';
 // Immutable caching remains appropriate for the existing hashed assets only.
 export const HTML_CACHE_CONTROL = 'public, no-cache, max-age=0, must-revalidate';
 
-// These public brand images are referenced by the site's favicon/Organization
-// markup. The non-SEO SPA fallback's noindex must not leak onto their responses.
-// Keep this exact: unrelated assets, private routes and missing files retain
-// their existing indexing policy.
+// Public images must not inherit the non-SEO SPA shell's noindex. Unrelated
+// assets, private routes and missing files retain their existing policy.
 const PUBLIC_BRAND_IMAGES = new Set([
   'favicon.ico', 'favicon.svg', 'favicon.png', 'apple-touch-icon.png', 'header-logo-80w.webp',
   'logo-icon.webp', 'images/logo-icon.webp',
@@ -43,11 +41,12 @@ export function serveStatic(app: Express, distPath = path.resolve(import.meta.di
     );
   }
 
-  app.use(express.static(distPath, {
+  const staticFiles = express.static(distPath, {
     setHeaders(res, filePath) {
       if (filePath.endsWith('.html')) revalidateSuccessfulHtml(res);
       const relative = path.relative(distPath, filePath).split(path.sep).join('/');
-      if (PUBLIC_BRAND_IMAGES.has(relative)) {
+      if (PUBLIC_BRAND_IMAGES.has(relative)
+        || /^(?:images\/|uploads\/genres\/).+\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(relative)) {
         res.removeHeader('X-Robots-Tag');
       }
       if (['favicon.ico', 'favicon.png', 'favicon.svg'].includes(relative)) {
@@ -56,7 +55,18 @@ export function serveStatic(app: Express, distPath = path.resolve(import.meta.di
         res.setHeader('X-Content-Type-Options', 'nosniff');
       }
     },
-  }));
+  });
+  app.use((req, res, next) => {
+    const originalRobots = res.getHeader('X-Robots-Tag');
+    staticFiles(req, res, error => {
+      // setHeaders precedes conditional/range validation in express.static.
+      // A real image file can still become a 412/416 error, not an image.
+      if (error && !res.headersSent && originalRobots !== undefined) {
+        res.setHeader('X-Robots-Tag', originalRobots);
+      }
+      next(error);
+    });
+  });
 
   // Missing build chunks and genre uploads are files, not SPA navigations.
   // A 200 HTML shell at an image URL silently breaks the carousel and can

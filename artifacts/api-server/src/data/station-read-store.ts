@@ -41,7 +41,7 @@ function fromPostgres(row: Record<string, any> | undefined): any | null {
     ...stationVisibilityFields(row),
     geoLat: row.latitude, geoLong: row.longitude, hasLogo: row.has_logo,
     logoAssets: row.logo_assets, descriptions: row.descriptions || {},
-    manualEditFields: row.manual_edit_fields || {}, mediaGroupId: row.media_group_id,
+    manualEditFields: row.manual_edit_fields, mediaGroupId: row.media_group_id,
     isFeatured: row.is_featured, showInGlobalPopular: row.show_in_global_popular,
     noIndex: row.no_index, createdAt: row.created_at, updatedAt: row.updated_at,
   };

@@ -14,6 +14,7 @@ import { apiRequest } from '@/lib/queryClient';
 
 import type { GlobalPlayerState } from './useGlobalPlayer.shell';
 import { GlobalPlayerContext } from './useGlobalPlayer.shell';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 
 export { GlobalPlayerContext };
 
@@ -214,7 +215,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
             const encodedUrl = btoa(station.favicon).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
             return getStreamProxyUrl(`/api/image/${encodedUrl}`);
           }
-          return station.favicon;
+          return normalizePublicStationLogoUrl(station.favicon);
         }
         return '/images/logo-icon.webp';
       };

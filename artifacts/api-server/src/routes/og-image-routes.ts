@@ -12,11 +12,13 @@ export function registerOgImageRoutes(app: Express, deps: any) {
         const defaultImage = await getDefaultOgImage();
         res.setHeader('Content-Type', 'image/jpeg');
         res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.removeHeader('X-Robots-Tag');
         return void res.send(defaultImage);
       }
       
       res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.removeHeader('X-Robots-Tag');
       res.send(imageBuffer);
     } catch (error) {
       logger.error('OG Image generation error:', error);
@@ -29,6 +31,7 @@ export function registerOgImageRoutes(app: Express, deps: any) {
       const defaultImage = await getDefaultOgImage();
       res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.removeHeader('X-Robots-Tag');
       res.send(defaultImage);
     } catch (error) {
       logger.error('Default OG Image generation error:', error);

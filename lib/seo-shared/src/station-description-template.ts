@@ -20,7 +20,8 @@ const text = (value: unknown): string => typeof value === 'string' ? value.trim(
 export function buildTemplateDescription(station: TemplateStationInfo): { full: string; meta: string } {
   const name = text(station.name);
   if (!name) return { full: '', meta: '' };
-  const country = text(station.country);
+  const rawCountry = text(station.country);
+  const country = /^(unknown|n\/?a|none|null|undefined|global|worldwide|xx|zz)$/i.test(rawCountry) ? '' : rawCountry;
   const state = text(station.state);
   const location = [state, country].filter((value, index, values) => value
     && values.findIndex(part => part.toLowerCase() === value.toLowerCase()) === index).join(', ');
@@ -30,7 +31,8 @@ export function buildTemplateDescription(station: TemplateStationInfo): { full: 
   const bitrate = typeof station.bitrate === 'number' && Number.isFinite(station.bitrate) && station.bitrate > 0
     ? `${station.bitrate} kbps` : '';
   const format = [bitrate, codec].filter(Boolean).join(' ');
-  const sentences = [`${name} is listed as a radio station${location ? ` in ${location}` : ''}.`];
+  const sentences = [`${name} is listed as a radio station.`];
+  if (location) sentences.push(`Catalogue region: ${location}.`);
   if (tags.length) sentences.push(`Catalogue tags: ${tags.join(', ')}.`);
   if (language) sentences.push(`Reported broadcast language: ${language}.`);
   if (format) sentences.push(`Listed stream format: ${format}.`);
@@ -40,7 +42,7 @@ export function buildTemplateDescription(station: TemplateStationInfo): { full: 
       sentences.push(`Listed website: ${homepage.href}`);
     }
   } catch { /* Missing or malformed websites are not factual evidence. */ }
-  if (!location && sentences.length === 1) return { full: '', meta: '' };
+  if (sentences.length === 1) return { full: '', meta: '' };
   const meta = `${name}${location ? `, ${location}` : ''}${tags.length ? `: ${tags.slice(0, 3).join(', ')}` : ''}. Radio station information.`;
   return { full: sentences.join(' '), meta: meta.length <= 160 ? meta : meta.slice(0, 157).trimEnd() + '...' };
 }

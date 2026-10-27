@@ -1,3 +1,5 @@
+import { withReviewedDescriptions } from './reviewed-descriptions';
+
 export interface IndexingPilotProfile {
   id: string;
   slug: string;
@@ -165,6 +167,7 @@ export function matchingPilotProfile(station: any): IndexingPilotProfile | undef
 // Both SSR and the public detail API use the same immutable presentation.
 // Explicit administrator ownership takes precedence; all other locales survive.
 export function withPilotEditorial(station: any): any {
+  station = withReviewedDescriptions(station);
   const profile = matchingPilotProfile(station);
   if (!profile) return station;
   const manual = station.manualEditFields || {};

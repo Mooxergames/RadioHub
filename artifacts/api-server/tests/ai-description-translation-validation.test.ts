@@ -174,6 +174,11 @@ test('English generation and fallback prompts are consistent, metadata-bound and
       assert.match(prompt, /ONLY (?:the supplied station metadata|this supplied metadata)/);
       assert.match(prompt, /no required word count/);
       assert.match(prompt, /Do not (?:add facts from memory or )?invent schedules, presenters, request shows, local news/);
+      assert.match(prompt, /Catalogue country \(classification only\)/);
+      assert.match(prompt, /do not verify a studio, transmitter or physical broadcaster address/);
+      assert.match(prompt, /Do not say the station broadcasts from those places/);
+      assert.match(prompt, /do not establish common ownership or sister channels/);
+      assert.doesNotMatch(prompt, /Official website:|Stream quality:/);
       assert.doesNotMatch(prompt, /NEVER in English|not English|Do NOT use English|200-300|Froggy100\.3 "/);
     }
   }

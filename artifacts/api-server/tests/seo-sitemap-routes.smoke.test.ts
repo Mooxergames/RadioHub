@@ -832,6 +832,42 @@ test('image entries serialize owned logos and external proxy URLs without placeh
   } finally { sitemapReadRows = FAKE_STATION_DOCS; builderOverrides.getActiveStationChunk = null; fakeCacheStore.clear(); }
 });
 
+test('owned image URLs replace both old station XML and validators without freshness or membership churn', async () => {
+  fakeCacheStore.clear();
+  const oldXml = '<urlset><url><loc>https://themegaradio.com/en/station/station-one</loc><image:image><image:loc>https://old.example/logo.webp</image:loc></image:image></url></urlset>';
+  const oldKey = `sitemap:stations:xml-v3:en:1:${TEST_HASH}:v1-test:${NOW.getTime()}`;
+  fakeCacheStore.set(oldKey, { xml: oldXml, etag: '"old-s3-image-xml"', byteLength: Buffer.byteLength(oldXml) });
+  fakeCacheStore.set(`${oldKey}:validator`, { etag: '"old-s3-image-xml"' });
+  const paths = ['/station-logos/mangoradio_11ab228c/logo-256.webp',
+    '/station-logos/radio_12345678/variants/12345678-1234-1234-1234-123456789abc/logo-96.webp'];
+  sitemapReadRows = FAKE_STATION_DOCS.map((row, index) => ({ ...row,
+    name: index === 0 ? 'MANGO & Friends' : row.name,
+    logoAssets: { webp256: `https://megaradio-station-logos.s3.eu-north-1.amazonaws.com${paths[index]}` },
+  }));
+  try {
+    const response = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': '"old-s3-image-xml"' } });
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    const urls = (assertValidXml(body, 'owned image sitemap') as any).urlset.url;
+    assert.equal(urls.length, 2);
+    assert.equal(urls[0].loc, 'https://themegaradio.com/en/station/station-one');
+    assert.equal(urls[1].loc, 'https://themegaradio.com/en/station/station-two');
+    for (const [index, entry] of urls.entries()) {
+      assert.equal(entry['image:image']['image:loc'], `https://themegaradio.com${paths[index]}`);
+      assert.ok(entry['image:image']['image:title'].includes(sitemapReadRows[index].name));
+      assert.equal(entry.lastmod, undefined);
+    }
+    assert.equal(response.headers.get('last-modified'), null);
+    assert.notEqual(response.headers.get('etag'), '"old-s3-image-xml"');
+    const newKey = oldKey.replace('xml-v3:', 'xml-v4-owned-images:');
+    assert.ok(fakeCacheStore.has(newKey));
+    assert.ok(fakeCacheStore.has(`${newKey}:validator`));
+    assert.equal((fakeCacheStore.get(oldKey) as any).xml, oldXml, 'unrelated old cache is not globally purged');
+    const conditional = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': response.headers.get('etag')! } });
+    assert.equal(conditional.status, 304);
+  } finally { sitemapReadRows = FAKE_STATION_DOCS; fakeCacheStore.clear(); }
+});
+
 function countLocs(xml: string): number {
   return (xml.match(/<loc>/g) || []).length;
 }
@@ -871,6 +907,85 @@ test('/robots.txt returns text/plain 200 with Sitemap directive', async () => {
   );
   assert.match(body, /User-agent: \*/);
 });
+
+// Match the emitted ASCII rules without reordering queries or decoding reserved
+// separators. REP compares unreserved percent-encoded octets as their literals.
+function parseRobotsRules(body: string) {
+  const normalizeOctets = (value: string) => value.replace(/%([0-9a-f]{2})/gi, (_encoded, hex: string) => {
+    const character = String.fromCharCode(Number.parseInt(hex, 16));
+    return /^[A-Za-z0-9._~-]$/.test(character) ? character : `%${hex.toUpperCase()}`;
+  });
+  type Rule = { allow: boolean; matcher: RegExp; specificity: number };
+  const groups: Array<{ agents: string[]; rules: Rule[] }> = [];
+  let group: typeof groups[number] | undefined;
+  for (const line of body.split(/\r?\n/)) {
+    const directive = /^([^:]+):\s*(.*)$/.exec(line.split('#', 1)[0].trim());
+    if (!directive) continue;
+    const field = directive[1].trim().toLowerCase();
+    const value = directive[2].trim();
+    if (field === 'user-agent') {
+      if (!group || group.rules.length) { group = { agents: [], rules: [] }; groups.push(group); }
+      group.agents.push(value.toLowerCase());
+    } else if (group && value && (field === 'allow' || field === 'disallow')) {
+      const terminal = value.endsWith('$');
+      const pattern = normalizeOctets(terminal ? value.slice(0, -1) : value);
+      const source = pattern.split('*').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+      group.rules.push({ allow: field === 'allow', matcher: new RegExp(`^${source}${terminal ? '$' : ''}`),
+        specificity: Buffer.byteLength(pattern.replace(/\*/g, '')) });
+    }
+  }
+  return (path: string, userAgent: string): boolean => {
+    const agent = userAgent.toLowerCase();
+    const scored = groups.map(entry => ({ ...entry, score: Math.max(-1,
+      ...entry.agents.map(name => name === '*' ? 0 : agent.includes(name) ? name.length : -1)) }));
+    const best = Math.max(-1, ...scored.map(entry => entry.score));
+    const url = new URL(path, 'https://themegaradio.com');
+    const target = normalizeOctets(url.pathname + url.search);
+    const matching = scored.filter(entry => entry.score === best).flatMap(entry => entry.rules)
+      .filter(rule => rule.matcher.test(target));
+    const longest = Math.max(-1, ...matching.map(rule => rule.specificity));
+    return longest === -1 || matching.some(rule => rule.specificity === longest && rule.allow);
+  };
+}
+
+for (const userAgent of ['Googlebot', 'bingbot', 'Google-InspectionTool', 'Baiduspider', 'Sogou']) {
+  test(`robots allows only the two exact public discovery URLs for ${userAgent}`, async () => {
+    const response = await fetch(`${baseUrl}/robots.txt`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=86400');
+    const allows = parseRobotsRules(await response.text());
+    const firstPage = '/api/users/search?page=1&limit=20&sortBy=recent_favorites';
+    for (const path of [
+      '/api/users/search', firstPage,
+      '/api/users/search?%70age=1&limit=20&sortBy=recent_favorites',
+      '/api/users/se%61rch?page=1&limit=20&sortBy=recent_favorites',
+      '/api/users/search?page=1&limit=20&sortBy=%72ecent_favorites',
+    ]) {
+      assert.equal(allows(path, userAgent), true, `${userAgent} must fetch ${path}`);
+    }
+    for (const path of [
+      '/api/users/search?q=listener', '/api/users/search?search=listener',
+      `${firstPage}&q=listener`, `${firstPage}&q=`, `${firstPage}&search=listener`,
+      '/api/users/search?page=2&limit=20&sortBy=recent_favorites',
+      '/api/users/search?page=1&limit=50&sortBy=recent_favorites',
+      '/api/users/search?page=1&limit=20&sortBy=newest',
+      '/api/users/search?page=01&limit=20&sortBy=recent_favorites',
+      '/api/users/search?page=1&limit=20&sortBy=recent_favorites_extra',
+      '/api/users/search?limit=20&page=1&sortBy=recent_favorites',
+      '/api/users/search?sortBy=recent_favorites&page=1&limit=20',
+      '/api/users/search?page=1%26limit=20&sortBy=recent_favorites',
+      '/api/users/search?page=1%26limit%3D20%26sortBy%3Drecent_favorites',
+      `${firstPage}&page=1`, `${firstPage}&limit=20`, `${firstPage}&sortBy=recent_favorites`,
+      `${firstPage}&unknown=1`, `${firstPage}&`, `${firstPage}/private`,
+      '/api/users/search/', '/api/users/search/private', '/api/users/searching', '/api/users/search.json',
+      '/api/users/private-listener', '/api/users/private-listener/favorites',
+      '/api/user/favorites', '/api/auth/me', '/api/auth/token-session', '/api/admin/users',
+      '/en/profile', '/en/recommendations',
+    ]) {
+      assert.equal(allows(path, userAgent), false, `${userAgent} must not fetch ${path}`);
+    }
+  });
+}
 
 test('/sitemap.xml returns the sitemap-index XML directly (Task #128 contract)', async () => {
   const callsBefore = spaCalls;

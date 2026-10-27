@@ -128,6 +128,7 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
     // Also supports sortBy: newest|oldest|most_radios|least_radios|recent_favorites.
     // Accepts BOTH `q` and `search` for query (legacy compat).
     app.get("/api/users/search", async (req, res) => {
+        res.set('X-Robots-Tag', 'noindex, nofollow');
         try {
             const { q, search, page = 1, limit = 20, sortBy = 'newest' } = req.query;
             const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 50);

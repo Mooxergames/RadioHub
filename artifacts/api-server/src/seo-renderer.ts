@@ -1,7 +1,9 @@
-import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, SEO_LANGUAGES, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_LOGO_WORD, LOCALIZED_FLAG_WORD } from '@workspace/seo-shared/seo-config';
+import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, SEO_LANGUAGES, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { buildDirectoryIndexSeo } from '@workspace/seo-shared/directory-index-seo';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { getKnownOgImageDimensions } from '@workspace/seo-shared/og-image-metadata';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
 import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
@@ -279,6 +281,25 @@ export class SeoRenderer {
     if (customMetadata.noFollow) baseSeoTags.noFollow = customMetadata.noFollow;
     
     return baseSeoTags;
+  }
+
+  private finalizeSeoDirectives(seoTags: any, previousRobots = ''): any {
+    const directives = `${seoTags.robots || 'index, follow'},${previousRobots}`.split(',')
+      .map((directive: string) => directive.trim()).filter(Boolean);
+    const noIndex = seoTags.noIndex === true
+      || directives.some((directive: string) => /^(?:noindex|none)$/i.test(directive));
+    const noFollow = seoTags.noFollow === true
+      || directives.some((directive: string) => /^(?:nofollow|none)$/i.test(directive));
+
+    // Restrictive flags and tokens win; keep unrelated preview/archive limits.
+    return {
+      ...seoTags,
+      robots: [noIndex ? 'noindex' : 'index', noFollow ? 'nofollow' : 'follow',
+        ...new Set(directives.filter((directive: string) => !/^(?:index|noindex|follow|nofollow|all|none)$/i.test(directive))),
+      ].join(', '),
+      ...(noIndex ? { noIndex: true, hreflangs: [], ogLocaleAlternates: [] } : {}),
+      ...(noFollow ? { noFollow: true } : {}),
+    };
   }
   
   async renderStaticPage(url: string, domain: string = '', preferredLanguage?: string): Promise<StaticPageData> {
@@ -940,7 +961,9 @@ export class SeoRenderer {
       cleanPath === '/feedback' || cleanPath.startsWith('/feedback/') ||
       cleanPath === '/llms' || cleanPath.startsWith('/llms/') ||
       cleanPath === '/notifications' || cleanPath.startsWith('/notifications/') ||
-      cleanPath === '/profile' || cleanPath.startsWith('/profile/')
+      cleanPath === '/profile' || cleanPath.startsWith('/profile/') ||
+      // Profile details have no privacy-aware SSR contract.
+      cleanPath.startsWith('/users/')
     ) {
       // 2026-05-12 SEO audit: utility/account pages have no unique
       // public SEO content. Without an explicit branch they fell
@@ -952,7 +975,7 @@ export class SeoRenderer {
       // /users/ so the more general utility match wins for the
       // non-public surfaces.
       pageType = 'utility';
-    } else if (cleanPath === '/users' || cleanPath.startsWith('/users/') || cleanPath === '/users') {
+    } else if (cleanPath === '/users') {
       // 2026-05-12 SEO audit: previously /users had no pageType branch
       // and fell through to the home bucket, producing duplicate-title
       // audit errors (every locale's /users page reused meta_title).
@@ -1239,6 +1262,7 @@ export class SeoRenderer {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     let seoTags = await this.generateEnhancedSeoTags(pageType, language, translations, cleanPath, domain, stationData, additionalData, cleanUrl, localizedPath, urlTranslations);
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const initialRobots = seoTags.robots;
 
     // ---- ContentQuality safeguard (task #17 + architect P0) ---------------
     // 1) If the resolved station is junk (test feed, codec suffix, song name,
@@ -1427,7 +1451,7 @@ export class SeoRenderer {
     ) {
       try {
         const selfId = stationData._id;
-        const country = stationData.country;
+        const country = getStationCountryQuery(stationData);
         const primaryTag = (() => {
           const raw = Array.isArray(stationData.tags)
             ? stationData.tags
@@ -1450,7 +1474,7 @@ export class SeoRenderer {
           ],
         };
         if (selfId) baseFilter._id = { $ne: selfId };
-        const cardFields = ['name', 'slug', 'favicon', 'logoAssets', 'country', 'tags', 'votes'];
+        const cardFields = ['name', 'slug', 'favicon', 'logoAssets', 'country', 'countryCode', 'tags', 'votes'];
 
         const sameCountryQ: Promise<any[]> = country
           ? withSignal<any[]>(
@@ -1499,7 +1523,7 @@ export class SeoRenderer {
         ]);
 
         // Deduplicate across the lists so the same station never shows up
-        // twice. Publisher wins (most specific — sister channels), then
+        // twice. Name-prefix matches take precedence, then
         // city, then genre, then country (broadest). Final caps: 6/6/8/8.
         const seen = new Set<string>();
         const dedupe = (arr: any[], cap: number) => {
@@ -1579,6 +1603,9 @@ export class SeoRenderer {
       stationNotFound = true;
       seoTags = { ...seoTags, noIndex: true, robots: 'noindex, follow', hreflangs: [] };
     }
+    // Resolve after all quality guards and admin overrides, before caching or
+    // returning the same metadata to SSR and SPA navigation.
+    seoTags = this.finalizeSeoDirectives(seoTags, initialRobots);
 
     // Hydration must receive the same descriptions the HTML head emits.
     // Keep admin metadata precedence and all stored/full body text intact;
@@ -1784,6 +1811,9 @@ export class SeoRenderer {
       if (communitySeo.keywords) baseSeoTags.keywords = communitySeo.keywords;
       baseSeoTags.ogType = 'website';
 
+      // Personalised discovery keeps its existing crawl exclusion.
+      if (pageType === 'recommendations') baseSeoTags.noIndex = true;
+
       // A-Z letter pages (Task #11): every letter needs a UNIQUE title and
       // description or all 27 pages become a duplicate-title cluster. Insert
       // the letter label before the "| Mega Radio" brand suffix when present.
@@ -1941,7 +1971,7 @@ export class SeoRenderer {
       }
     }
 
-    return baseSeoTags;
+    return this.finalizeSeoDirectives(baseSeoTags);
   }
   
   private escapeHtml(input: string): string {
@@ -1960,13 +1990,15 @@ export class SeoRenderer {
    * home popular-stations grid and station detail page (DALGA 1).
    */
   private pickLogoUrl(station: any): string | null {
-    // 1) Prefer the processed logos — these live on our own S3 bucket, so they
-    //    always resolve 200 and need no proxy.
+    // Prefer processed logos; owned S3 objects use the stable same-origin path.
     const s3Candidates = [station?.logoAssets?.webp256, station?.logoAssets?.webp96];
     for (const c of s3Candidates) {
       if (typeof c === 'string') {
         const trimmed = c.trim();
-        if (trimmed && /^https?:\/\//i.test(trimmed)) return trimmed;
+        if (trimmed && /^https?:\/\//i.test(trimmed)) {
+          const owned = normalizePublicStationLogoUrl(c);
+          return owned === c ? trimmed : owned;
+        }
       }
     }
     // 2) Fallback: the station's RAW external favicon. Emitting it directly is
@@ -1981,6 +2013,8 @@ export class SeoRenderer {
     if (typeof fav === 'string') {
       const trimmed = fav.trim();
       if (trimmed && /^https?:\/\//i.test(trimmed)) {
+        const owned = normalizePublicStationLogoUrl(fav);
+        if (owned !== fav) return owned;
         const encoded = Buffer.from(trimmed, 'utf8')
           .toString('base64')
           .replace(/\+/g, '-')
@@ -2182,8 +2216,9 @@ export class SeoRenderer {
         }
         return buildDirectoryIndexSeo('regions', language, translations).h1;
       
+      case 'users':
       case 'stations':
-        return deriveH1FromTitle(buildCommunityPageSeo('stations', language, translations).title);
+        return deriveH1FromTitle(buildCommunityPageSeo(pageType, language, translations).title);
       
       case 'about':
         return deriveH1FromTitle(buildStaticPageSeo('about', language, translations).title);
@@ -2309,9 +2344,7 @@ export class SeoRenderer {
                   const stationUrl = `/${language}/${stationSegment}/${slug}`;
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   return `
                     <li>
                       <a href="${stationUrl}">
@@ -2424,9 +2457,9 @@ export class SeoRenderer {
                   const logo = this.pickLogoUrl(stationData);
                   if (!logo) return '';
                   const name = this.escapeHtml(stationData.name || 'Radio Station');
-                  const countryName = stationData.country ? getLocalizedCountryName(stationData.country, language) : '';
+                  const countryName = getStationCountryName(stationData, language);
                   const country = this.escapeHtml(countryName);
-                  const altText = getStationImageAlt({ ...stationData, country: countryName }, language, getLocalizedText);
+                  const altText = getStationImageAlt(stationData, language, getLocalizedText);
                   const caption = country ? `${name} — ${country}` : name;
                   return `
                 <figure class="station-logo">
@@ -2440,12 +2473,10 @@ export class SeoRenderer {
                 ${(() => {
                   const introTemplate = getStationPageCopy(language, translations).intro;
                   const stationName = stationData.name || 'Radio Station';
-                  const country = stationData.country
-                    ? getLocalizedCountryName(stationData.country, language)
-                    : 'around the world';
+                  const country = getStationCountryName(stationData, language);
                   const introText = introTemplate
-                    .replace(/\{STATION(?:_NAME)?\}/gi, stationName)
-                    .replace(/\{COUNTRY\}/g, country);
+                    .replace(/\{STATION(?:_NAME)?\}/gi, () => stationName)
+                    .replace(/\{COUNTRY\}/g, () => country);
                   return `<p class="station-intro">${this.escapeHtml(introText)}</p>`;
                 })()}
                 ${(() => {
@@ -2457,14 +2488,14 @@ export class SeoRenderer {
                     fullText = desc;
                   }
                   if (!fullText.trim() && typeof stationData.description === 'string') fullText = stationData.description;
-                  if (!fullText.trim() && language === 'en') fullText = buildTemplateDescription(stationData).full;
+                  if (!fullText.trim() && language === 'en') fullText = buildTemplateDescription({ ...stationData, country: getStationCountryName(stationData, language) }).full;
                   fullText = fullText
                     .replace(/^\s*\[TRANSLATED\s+FULL\s+DESCRIPTION\]\s*/i, '')
                     .replace(/^\s*\[TRANSLATED\s+META[^\]]*\]\s*/i, '')
                     .replace(/^\s*\[FULL\s+DESCRIPTION[^\]]*\]\s*/i, '')
                     .replace(/^\s*\[[^\]]*DESCRIPTION[^\]]*\]\s*/i, '')
                     .replace(/^\s*\[[^\]]*\]\s*/g, '')
-                    .replace(/\{STATION_NAME\}/g, stationData.name)
+                    .replace(/\{STATION_NAME\}/g, () => stationData.name)
                     .trim();
                   if (fullText && fullText.length > 300) {
                     // Preserve leading punctuation and a final fragment without
@@ -2492,9 +2523,7 @@ export class SeoRenderer {
                 ${(() => {
                   const outroTemplate = getStationPageCopy(language, translations).outro;
                   const stationName = stationData.name || 'Radio Station';
-                  const country = stationData.country
-                    ? getLocalizedCountryName(stationData.country, language)
-                    : 'around the world';
+                  const country = getStationCountryName(stationData, language);
                   const tagList = (stationData.tags || '')
                     .split(/[,;]/)
                     .map((t: string) => t.trim())
@@ -2503,9 +2532,9 @@ export class SeoRenderer {
                     .join(', ');
                   const genres = tagList || getLocalizedText('seo_live_radio', 'live radio');
                   const outroText = outroTemplate
-                    .replace(/\{STATION\}/g, stationName)
-                    .replace(/\{COUNTRY\}/g, country)
-                    .replace(/\{GENRES\}/g, genres);
+                    .replace(/\{STATION\}/g, () => stationName)
+                    .replace(/\{COUNTRY\}/g, () => country)
+                    .replace(/\{GENRES\}/g, () => genres);
                   return `<p class="station-outro">${this.escapeHtml(outroText)}</p>`;
                 })()}
                 
@@ -2528,8 +2557,8 @@ export class SeoRenderer {
                     return `
                   <p class="station-rating"><strong>${label}:</strong> ★ ${rounded} / 5 · ${rc}</p>`;
                   })()}
-                  ${stationData.country ? `
-                  <p><strong>${this.escapeHtml(getLocalizedText('country', 'Country'))}:</strong> ${this.escapeHtml(getLocalizedCountryName(stationData.country, language))}</p>
+                  ${getStationCountryName(stationData, language) ? `
+                  <p><strong>${this.escapeHtml(getLocalizedText('country', 'Country'))}:</strong> ${this.escapeHtml(getStationCountryName(stationData, language))}</p>
                   ` : ''}
                   ${stationData.tags ? `
                   <p><strong>${this.escapeHtml(getLocalizedText('genres', 'Genres'))}:</strong> ${stationData.tags.split(',').slice(0, 6).map((tag: string) => this.escapeHtml(tag.trim())).join(', ')}</p>
@@ -2577,25 +2606,16 @@ export class SeoRenderer {
                   };
                   const sections: string[] = [];
                   if (xl.samePublisher?.length) {
-                    // radio.at parity ("Zugehörige Sender"): sister channels
-                    // of the same brand family, matched by name prefix in
-                    // renderStaticPage. Rendered FIRST — most specific rail.
-                    const brand = xl.publisherBrand
-                      ? this.escapeHtml(String(xl.publisherBrand))
-                      : '';
-                    const heading = brand
-                      ? `${this.escapeHtml(getLocalizedText('same_publisher_stations', 'More channels from'))} ${brand}`
-                      : this.escapeHtml(getLocalizedText('related_stations', 'Related stations'));
+                    // Name-prefix matches do not establish common ownership.
+                    const heading = this.escapeHtml(getStationRelatedHeading(language, 'country', '', translations));
                     sections.push(`
                 <section class="related-stations related-stations--publisher">
                   <h2>${heading}</h2>
                   <ul>${xl.samePublisher.map(renderItem).join('')}</ul>
                 </section>`);
                   }
-                  if (xl.sameCountry?.length) {
-                    const localizedCountry = xl.countryName
-                      ? getLocalizedCountryName(xl.countryName, language)
-                      : '';
+                  if (xl.sameCountry?.length && getStationCountryName(stationData, language)) {
+                    const localizedCountry = getStationCountryName(stationData, language);
                     const heading = this.escapeHtml(getStationRelatedHeading(language, 'country', localizedCountry, translations));
                     sections.push(`
                 <section class="related-stations related-stations--country">
@@ -2686,9 +2706,7 @@ export class SeoRenderer {
                   const stationUrl = `/${language}/${stationSegment}/${slug}`;
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   return `
                     <li>
                       <a href="${stationUrl}">
@@ -2848,9 +2866,7 @@ export class SeoRenderer {
                   const stationUrl = `/${language}/${stationSegment}/${slug}`;
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   // Orphan-link fix (2026-07-01): previously `if (!logo) return ''`
                   // silently dropped every logo-less station from the country
                   // page — so those stations got ZERO internal in-links ("no
@@ -2887,7 +2903,6 @@ export class SeoRenderer {
                 ? seoTags.canonical
                 : buildLocalizedUrl(cleanPath || '/regions', language, undefined, urlTranslations)
               ).split('?')[0];
-              const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
               return `
             <section class="all-stations">
               <h2>${this.escapeHtml(getLocalizedText('all_stations', LOCALIZED_RADIO_STATIONS[language] || 'Radio Stations'))}</h2>
@@ -2897,8 +2912,7 @@ export class SeoRenderer {
                   const stationUrl = buildLocalizedUrl(`/station/${slug}`, language, undefined, urlTranslations);
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   return `
                     <li>
                       <a href="${stationUrl}">
@@ -3097,7 +3111,6 @@ export class SeoRenderer {
           const totalPages = (additionalData?.catalogTotalPages as number) || 1;
           const stationsBase = buildLocalizedUrl('/stations', language, undefined, urlTranslations);
           const genresHref = buildLocalizedUrl('/genres', language, undefined, urlTranslations);
-          const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
           // A-Z index (Task #11): letter pages get a letter-suffixed H1 and
           // paginate under their own base URL; the hub and every letter page
           // render the same 27-link A-Z rail so crawlers reach the full
@@ -3133,8 +3146,7 @@ export class SeoRenderer {
                   const stationUrl = buildLocalizedUrl(`/station/${slug}`, language, undefined, urlTranslations);
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   return `
                     <li>
                       <a href="${stationUrl}">
@@ -3268,18 +3280,15 @@ export class SeoRenderer {
         // placeholder (or a relative local-disk filename) to Google.
         const stationLogoRaw =
           station.logoAssets?.webp256 || station.logoAssets?.webp96 || station.favicon || '';
-        const stationLogo = /^https?:\/\//i.test(stationLogoRaw) ? stationLogoRaw : null;
+        const ownedLogo = normalizePublicStationLogoUrl(stationLogoRaw);
+        const stationLogo = /^https?:\/\//i.test(stationLogoRaw)
+          ? (ownedLogo.startsWith('/station-logos/') ? `${baseDomain}${ownedLogo}` : stationLogoRaw) : null;
         const rawTags: any = station.tags;
         const stationGenres: string[] = (Array.isArray(rawTags)
           ? rawTags
           : (typeof rawTags === 'string' ? rawTags.split(',') : [])
         ).map((t: any) => String(t).trim()).filter(Boolean).slice(0, 3);
-        // Address only requires SOME country signal — emit when either
-        // `countryCode` (preferred, ISO-3166 alpha-2) OR `country` (full
-        // name) is present. `areaServed` still needs the full country
-        // name so we keep it gated on `country`.
         const schemaCountry = getSchemaCountry(station, language);
-        const stationCountryForAddress = schemaCountry?.code || schemaCountry?.name;
         // 2026-05-12 SEO audit: each ItemList child also flipped from
         // RadioStation → RadioBroadcastService for the same reason as the
         // top-level station schema. `address` removed (not on Service);
@@ -3295,16 +3304,10 @@ export class SeoRenderer {
             "name": station.name,
             "url": stationUrl,
             ...(stationLogo && { "image": stationLogo }),
-            ...(stationCountryForAddress && {
-              "broadcaster": {
-                "@type": "Organization",
-                "name": station.name,
-                "address": {
-                  "@type": "PostalAddress",
-                  "addressCountry": stationCountryForAddress,
-                },
-              },
-            }),
+            "broadcaster": {
+              "@type": "Organization",
+              "name": station.name,
+            },
             ...(schemaCountry && {
               "areaServed": schemaCountry.name,
             }),
@@ -3371,19 +3374,10 @@ export class SeoRenderer {
     // RadioStation Schema for individual station pages
     // Prefix-all canonical + localized station segment for ALL languages (DALGA 2 W2.3 fix)
     let radioStationSchema: any = null;
-    // Rich-result companions (2026-07-03, radio.at parity):
-    //  • localRadioStationSchema — compact RadioStation (LocalBusiness subtype)
-    //    carrying the REAL AggregateRating. Google's review-snippet rich result
-    //    only supports LocalBusiness-family types, NOT BroadcastService, so the
-    //    stars can never come from radioStationSchema alone. Emitted ONLY when
-    //    ≥3 genuine ratings exist (collected via our own star widget) — never
-    //    fabricated from Radio-Browser `votes` (one-way likes, not stars; the
-    //    fabricated-rating cleanup of 2026-05 must not regress).
-    //  • stationWebPageSchema — WebPage with SpeakableSpecification pointing at
+    // stationWebPageSchema — WebPage with SpeakableSpecification pointing at
     //    the SSR body's <h1> and .station-intro (voice-assistant / AI-answer
     //    surface). speakable is only valid on Article/WebPage, hence the
     //    separate entity.
-    let localRadioStationSchema: any = null;
     let stationWebPageSchema: any = null;
     if (stationData) {
       const stationSegmentForRadioJsonLd = urlTranslations?.get(`${language}:station`) || 'station';
@@ -3402,36 +3396,11 @@ export class SeoRenderer {
         stationData.logoAssets?.webp96 ||
         stationData.favicon ||
         '';
-      const stationLogo = /^https?:\/\//i.test(stationLogoRaw) ? stationLogoRaw : null;
+      const ownedLogo = normalizePublicStationLogoUrl(stationLogoRaw);
+      const stationLogo = /^https?:\/\//i.test(stationLogoRaw)
+        ? (ownedLogo.startsWith('/station-logos/') ? `${baseDomain}${ownedLogo}` : stationLogoRaw) : null;
       
-      // broadcastDisplayName identifies the station. broadcastFrequency is emitted as a
-      // structured BroadcastFrequencySpecification when we can parse a real
-      // frequency from station tags (e.g. "FM 102.5"); otherwise we fall
-      // back to the simple "FM"/"AM" string. Listing a station in the
-      // directory does not establish affiliation with a MegaRadio network.
-      let parsedBroadcastFrequency: any = undefined;
-      const tagsForFreq = Array.isArray(stationData.tags) ? stationData.tags.join(',') : (stationData.tags || '');
-      if (tagsForFreq) {
-        const m = String(tagsForFreq).match(/(FM|AM)\s*([0-9]{2,4}(?:[.,][0-9]+)?)/i);
-        if (m) {
-          const band = m[1].toUpperCase();
-          const value = parseFloat(m[2].replace(',', '.'));
-          if (Number.isFinite(value)) {
-            parsedBroadcastFrequency = {
-              "@type": "BroadcastFrequencySpecification",
-              "broadcastFrequencyValue": {
-                "@type": "QuantitativeValue", "value": value,
-                "unitText": band === 'FM' ? 'MHz' : 'kHz',
-              },
-              "broadcastSignalModulation": band,
-            };
-          } else {
-            parsedBroadcastFrequency = band;
-          }
-        } else if (/\bFM\b/i.test(tagsForFreq) || /\bAM\b/i.test(tagsForFreq)) {
-          parsedBroadcastFrequency = /\bFM\b/i.test(tagsForFreq) ? 'FM' : 'AM';
-        }
-      }
+      // Free-form tags cannot verify a broadcast frequency, even with numbers.
 
       // Task #372: source the schema description from the SAME copy the
       // visible station body renders (descriptions[language].full > description)
@@ -3453,7 +3422,7 @@ export class SeoRenderer {
           .replace(/^\s*\[FULL\s+DESCRIPTION[^\]]*\]\s*/i, '')
           .replace(/^\s*\[[^\]]*DESCRIPTION[^\]]*\]\s*/i, '')
           .replace(/^\s*\[[^\]]*\]\s*/g, '')
-          .replace(/\{STATION_NAME\}/g, stationData.name || '')
+          .replace(/\{STATION_NAME\}/g, () => stationData.name || '')
           .trim();
         // Item 3 (re-audit 2026-06-20): localize the synthetic fallback per PAGE
         // language so a station without a per-language/base description doesn't
@@ -3473,8 +3442,7 @@ export class SeoRenderer {
       // broadcastLanguage (NOT in schema.org), genre (NOT on Service).
       // Tags use Service.category; keywords is not defined on Service. Keep
       // ["Music"] default so we never ship empty/missing taxonomy.
-      // Physical address moved off Service onto broadcaster Organization
-      // (Service has no `address` property — only `area`).
+      // Catalog geography is service coverage, not a physical address.
       const stationTagsForKeywords: string[] = (() => {
         const raw = Array.isArray(stationData.tags)
           ? stationData.tags
@@ -3494,19 +3462,12 @@ export class SeoRenderer {
         ...(stationData.homepage && { "url": stationData.homepage }),
       };
       const schemaCountry = getSchemaCountry(stationData, language);
-      if (schemaCountry) {
-        stationBroadcaster.address = {
-          "@type": "PostalAddress",
-          "addressCountry":
-            schemaCountry.code || schemaCountry.name,
-          ...(stationData.state && { "addressLocality": stationData.state }),
-        };
-      }
 
       // Bitrate/codec remain in the visible station details. additionalProperty
       // is not defined on Service; do not invent an identifier or product for it.
 
-      // REAL listener ratings only (see localRadioStationSchema note above).
+      // Real listener ratings remain on the broadcast service. A catalogue
+      // country does not verify a physical LocalBusiness or its address.
       // Denormalized onto the Station doc by POST /api/stations/:id/rate
       // (translation-admin-routes.ts → calculateStationRatingStats).
       const realRatingCount = Number((stationData as any).totalRatings || 0);
@@ -3536,7 +3497,6 @@ export class SeoRenderer {
         ...(schemaCountry && {
           "areaServed": schemaCountry.name,
         }),
-        ...(parsedBroadcastFrequency && { "broadcastFrequency": parsedBroadcastFrequency }),
         "broadcaster": stationBroadcaster,
         "potentialAction": {
           "@type": "ListenAction",
@@ -3555,38 +3515,9 @@ export class SeoRenderer {
         // BroadcastService describes the actual stream. The translated page's
         // language belongs on WebPage below; unknown broadcast language is omitted.
         ...(broadcastLanguages && { "inLanguage": broadcastLanguages }),
-        // aggregateRating IS schema.org-valid on Service (RadioBroadcastService
-        // extends Service). The rich-result-eligible copy lives on the
-        // LocalBusiness entity below; this one keeps the primary entity
-        // self-consistent for validators/AI crawlers.
+        // Preserve genuine ratings without asserting rich-result eligibility.
         ...(aggregateRatingSchema && { "aggregateRating": aggregateRatingSchema }),
       };
-
-      // Compact LocalBusiness entity: the review-snippet (SERP stars) carrier.
-      // Mirrors radio.at's station markup 1:1 (name, image, url, address,
-      // aggregateRating). Distinct @id + distinct @type from the
-      // RadioBroadcastService entity, so this is NOT the duplicate-entity
-      // pattern cleaned up on 2026-07-01 (that was two IDENTICAL types at the
-      // same @id). Requires a country for the LocalBusiness `address`
-      // recommendation — stations without one skip the entity.
-      if (aggregateRatingSchema && schemaCountry && !stationData.notFound) {
-        localRadioStationSchema = {
-          "@context": "https://schema.org",
-          "@type": "RadioStation",
-          "@id": `${stationUrl}#localbusiness`,
-          "name": stationData.name,
-          "description": schemaDescriptionSource,
-          "url": stationUrl,
-          ...(stationLogo && { "image": stationLogo }),
-          "address": {
-            "@type": "PostalAddress",
-            "addressCountry": schemaCountry.code || schemaCountry.name,
-            ...(stationData.state && { "addressLocality": stationData.state }),
-          },
-          "aggregateRating": aggregateRatingSchema,
-          ...(stationData.homepage && { "sameAs": stationData.homepage }),
-        };
-      }
 
       // Speakable WebPage (voice assistants / AI answers — radio.at parity).
       // cssSelector targets exist in the SSR body: the <h1> and the
@@ -3614,7 +3545,7 @@ export class SeoRenderer {
       page: [
         breadcrumbSchema,
         faqPageSchema,
-        ...(seoTags?.noIndex !== true ? [radioStationSchema, localRadioStationSchema, stationWebPageSchema, popularStationsSchema] : []),
+        ...(seoTags?.noIndex !== true ? [radioStationSchema, stationWebPageSchema, popularStationsSchema] : []),
         collectionPageSchema,
       ].filter(Boolean),
     };
@@ -3637,6 +3568,7 @@ export class SeoRenderer {
     if (seoTags.domain) ogDomain = seoTags.domain.replace(/^https?:\/\//, '');
     let ogImage = seoTags.ogImage || `https://${ogDomain}/api/og-image`;
     if (stationData?.slug) ogImage = `https://${ogDomain}/api/og-image/${stationData.slug}`;
+    const ogImageDimensions = getKnownOgImageDimensions(ogImage, `https://${ogDomain}`);
     const twitterImage = seoTags.twitterImage || ogImage;
 
     // SAFETY NET: cap descriptions at the same 160-character word boundary
@@ -3699,8 +3631,7 @@ export class SeoRenderer {
     <meta property="og:type" content="${safeOgType}">
     <meta property="og:url" content="${safeCanonical}">
     <meta property="og:image" content="${safeOgImage}">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    ${ogImageDimensions ? `<meta property="og:image:width" content="${ogImageDimensions.width}">\n    <meta property="og:image:height" content="${ogImageDimensions.height}">` : ''}
     <meta property="og:site_name" content="MegaRadio">
     <meta property="og:locale" content="${safeOgLocale}">
     ${(seoTags.ogLocaleAlternates || []).map((locale: string) => `<meta property="og:locale:alternate" content="${esc(locale)}">`).join('\n    ')}

@@ -17,7 +17,8 @@ test('temporary SSR failures preserve a usable SPA file with 503/no-store/Retry-
   // template. No production listener, credentials, external requests or writes.
   const webRoot = path.resolve(import.meta.dirname, '../../megaradio');
   app.use(express.static(webRoot));
-  app.use((_req, res) => res.sendFile(path.join(webRoot, 'index.html')));
+  // Keep a managed worktree's hidden parent directories out of the file URL.
+  app.use((_req, res) => res.sendFile('index.html', { root: webRoot }));
   const server = await new Promise<Server>((resolve) => {
     const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
   });

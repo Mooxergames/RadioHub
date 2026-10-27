@@ -29,7 +29,10 @@ import StationLogo from "@/components/ui/station-logo";
 import { readStationBootstrap } from '@/lib/station-bootstrap';
 import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
+import { getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
+import { getStationRelatedHeading } from '@workspace/seo-shared/station-page-copy';
 import AnimatedEqualizer from "@/components/ui/animated-equalizer";
 import { StarRating } from "@/components/star-rating";
 import { ListeningTimer } from "@/components/ui/listening-timer";
@@ -269,7 +272,9 @@ export default function StationDetails() {
 
   // Get detected country for similar stations filtering
   const detectedCountry = (locationData as any)?.location?.country;
-  const targetCountry = station?.country || detectedCountry;
+  const stationCountryName = getStationCountryName(station || {}, language);
+  const stationCountryQuery = getStationCountryQuery(station || {});
+  const targetCountry = stationCountryQuery || getStationCountryQuery({ country: detectedCountry });
 
   // Note: Auto-play removed to comply with browser autoplay policies
   // Users must manually click the play button to start playback
@@ -676,7 +681,7 @@ export default function StationDetails() {
                             </>
                           )
                         ) : (
-                          <span>{station.country}</span>
+                          <span>{stationCountryName}</span>
                         )}
                       </div>
                     </div>
@@ -866,7 +871,7 @@ export default function StationDetails() {
                       }
                       fullText = fullText.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').trim();
                       
-                      if (!fullText && language === 'en') fullText = buildTemplateDescription(station).full;
+                      if (!fullText && language === 'en') fullText = buildTemplateDescription({ ...station, country: stationCountryName }).full;
                       if (!fullText && language !== 'en') {
                         fullText = language === 'tr' 
                           ? `Şu anda ${station.name} dinliyorsunuz! – Mega Radio üzerinde binlerce radyo istasyonunu HD kalitede ücretsiz online dinleyin.`
@@ -906,7 +911,7 @@ export default function StationDetails() {
 
                   <div className="flex flex-wrap items-center gap-2 md:gap-3 py-3">
                     {/* Country Flag - Figma: 20x20, perfectly circular, no border - only show if countryCode exists */}
-                    {station.countryCode && station.countryCode.trim() !== '' && (
+                    {stationCountryName && station.countryCode && station.countryCode.trim() !== '' && (
                       <TooltipProvider delayDuration={200}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -923,7 +928,7 @@ export default function StationDetails() {
                               <img 
                                 src={`https://flagcdn.com/w80/${station.countryCode.toLowerCase()}.png`}
                                 srcSet={`https://flagcdn.com/w40/${station.countryCode.toLowerCase()}.png 1x, https://flagcdn.com/w80/${station.countryCode.toLowerCase()}.png 2x`}
-                                alt={station.country || 'Country'}
+                                alt={stationCountryName}
                                 width={20}
                                 height={20}
                                 loading="lazy"
@@ -949,7 +954,7 @@ export default function StationDetails() {
                               fontFamily: 'Ubuntu, sans-serif'
                             }}
                           >
-                            {station.country || 'Unknown'}
+                            {stationCountryName}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -1007,7 +1012,12 @@ export default function StationDetails() {
                                 decoding="async"
                                 height={56}
                                 width={56}
-                                src={(() => { const v = linkedStation.logoAssets?.webp256 || linkedStation.logoAssets?.webp96; return v ? (v.startsWith('http') ? v : `/station-logos/${linkedStation.logoAssets?.folder}/${v}`) : linkedStation.favicon || "/images/no-image.webp"; })()}
+                                src={(() => {
+                                  const value = linkedStation.logoAssets?.webp256 || linkedStation.logoAssets?.webp96;
+                                  return normalizePublicStationLogoUrl(value
+                                    ? (value.startsWith('http') || value.startsWith('/') ? value : `/station-logos/${linkedStation.logoAssets?.folder}/${value}`)
+                                    : linkedStation.favicon || '/images/no-image.webp');
+                                })()}
                                 alt={getStationImageAlt(linkedStation, language, t)}
                                 className="w-14 h-14 rounded object-cover"
                                 onError={(e) => {
@@ -1020,7 +1030,7 @@ export default function StationDetails() {
                                 {linkedStation.name}
                               </h3>
                               <p className="text-sm font-medium text-gray-300 truncate">
-                                {linkedStation.country}
+                                {getStationCountryName(linkedStation, language)}
                                 {linkedStation.state && linkedStation.state !== "" && (
                                   <span className="font-normal text-gray-400">, {linkedStation.state}</span>
                                 )}
@@ -1042,7 +1052,7 @@ export default function StationDetails() {
               <div>
                 <div className="py-6">
                   <h2 className="text-xl font-bold">
-                    {t('station_similar_radios', 'Similar Radios')}
+                    {getStationRelatedHeading(language, 'country', '', localeTranslations)}
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
@@ -1087,7 +1097,7 @@ export default function StationDetails() {
                             {similarStation.name}
                           </h3>
                           <p className="text-[15px] text-white" style={{ fontFamily: "'Ubuntu', system-ui, sans-serif", fontWeight: 300 }}>
-                            <span className="truncate">{similarStation.country && similarStation.country.length > 21 ? similarStation.country.substring(0, 21) + '...' : similarStation.country}</span>
+                            <span className="truncate">{getStationCountryName(similarStation, language)}</span>
                             {similarStation.state && similarStation.state !== "" && (
                               <span className="font-normal text-gray-400">, {similarStation.state}</span>
                             )}
@@ -1183,11 +1193,11 @@ export default function StationDetails() {
             )}
 
             {/* More from Country Section - Independent Loading with Skeleton */}
-            {(loadingCountry || (filteredCountryStations && filteredCountryStations.length > 0)) && (station as any)?.country && (
+            {stationCountryQuery && (loadingCountry || (filteredCountryStations && filteredCountryStations.length > 0)) && (
               <div>
                 <div className="py-6">
                   <h2 className="text-xl font-bold">
-                    {t('station_more_from_country', 'More from {country}', { country: (station as any).country })}
+                    {getStationRelatedHeading(language, 'country', stationCountryName, localeTranslations)}
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
@@ -1232,7 +1242,7 @@ export default function StationDetails() {
                             {countryStation.name}
                           </h3>
                           <p className="text-[15px] text-white" style={{ fontFamily: "'Ubuntu', system-ui, sans-serif", fontWeight: 300 }}>
-                            <span className="truncate">{countryStation.country && countryStation.country.length > 21 ? countryStation.country.substring(0, 21) + '...' : countryStation.country}</span>
+                            <span className="truncate">{getStationCountryName(countryStation, language)}</span>
                             {countryStation.state && countryStation.state !== "" && (
                               <span className="font-normal text-gray-400">, {countryStation.state}</span>
                             )}
@@ -1296,7 +1306,7 @@ export default function StationDetails() {
                         // Second click: go to /radios page with country filter
                         // CRITICAL: Separate path and query string - getLocalizedUrl only translates the path portion
                         const localizedPath = getLocalizedUrl('/radios');
-                        setLocation(`${localizedPath}?country=${encodeURIComponent((station as any).country)}`);
+                        setLocation(`${localizedPath}?country=${encodeURIComponent(stationCountryQuery)}`);
                       }
                     }}
                     className="px-6 py-3 rounded-[25px] bg-white/20 hover:bg-white/30 transition-colors whitespace-nowrap"

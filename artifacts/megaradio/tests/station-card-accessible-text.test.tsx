@@ -1,7 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { ensureStationNameInImageAlt, getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { LOCALIZED_LOGO_WORD, SITEMAP_PRIORITY_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
 const state = vi.hoisted(() => ({ language: 'en', translations: {} as Record<string, string>, isPlaying: false }));
@@ -75,13 +75,13 @@ describe('station card accessible text', () => {
     state.language = 'tr';
     state.translations.seo_station_logo_alt_with_country = '{NAME}: {country} ülkesinden {genre} radyosu';
     render(<StationCard station={{ ...station, name: "Test $& Radio" }} />);
-    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Test $& Radio: Germany ülkesinden rock radyosu');
+    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Test $& Radio: Almanya ülkesinden rock radyosu');
   });
   it('falls back to a complete localized image description for the exact corrupted legacy template', () => {
     state.language = 'ja';
     state.translations.seo_station_logo_alt_with_country = 'Listen to ${station.name} live from ${station.country} - ${station.genre ||';
     render(<StationCard station={station} />);
-    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Test Radio ロゴ — Germany');
+    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Test Radio ロゴ — ドイツ');
   });
   it.each([null, undefined, NaN, Infinity, -Infinity, -1, '', '1.2', false])('hides invalid distance %s', distance => {
     const { container } = render(<StationCard station={{ ...station, distance }} />);
@@ -112,7 +112,14 @@ describe('shared station image alt fallback', () => {
   it.each(['${name}', '   ', '${station.genre ||'])('rejects malformed placeholders %s', template => {
     expect(getStationImageAlt(station, 'en', () => template)).toBe('Test Radio logo — Germany');
   });
-  it('keeps valid custom text without requiring a placeholder', () => {
-    expect(getStationImageAlt(station, 'en', () => 'Official station artwork {HD}')).toBe('Official station artwork {HD}');
+  it('keeps custom words and appends only a missing station name', () => {
+    expect(getStationImageAlt(station, 'en', () => 'Official station artwork {HD}')).toBe('Official station artwork {HD} — Test Radio');
+    expect(getStationImageAlt(station, 'en', () => 'Official TEST RADIO artwork')).toBe('Official TEST RADIO artwork');
+  });
+  it('retains literal replacement characters, Unicode and quotes when ensuring the name', () => {
+    const name = 'Özel "Radio" $& $\'';
+    expect(getStationImageAlt({ name }, 'tr', () => 'Özel yayın {NAME}')).toBe(`Özel yayın ${name}`);
+    expect(ensureStationNameInImageAlt('Official artwork', name)).toBe(`Official artwork — ${name}`);
+    expect(ensureStationNameInImageAlt('', name)).toBe(name);
   });
 });
