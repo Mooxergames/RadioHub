@@ -33,6 +33,11 @@ import {
 } from "@workspace/seo-shared/blog-html";
 import { getLanguageFromPath } from "@workspace/seo-shared/seo-config";
 import {
+  generateOrganizationSchema,
+  generateWebSiteSchema,
+  generateDeveloperOrganizationSchema,
+} from "@workspace/seo-shared/structured-data";
+import {
   translateUrl,
   reverseTranslateUrl,
   normalizeUrlForLanguage,
@@ -464,6 +469,20 @@ test("SSR entrypoint renders every actual edition and rejects absent editions", 
       assert.ok(head.includes("BlogPosting"));
       assert.ok(head.includes("/blog.css"));
       assert.ok(!head.includes('themegaradio.com/zh-Hant-HK/'));
+      const structured = renderer.generateStructuredData(
+        result.seoTags,
+        result.language,
+        {},
+        result.cleanPath,
+        undefined,
+        undefined,
+        result.pageData.additionalData,
+      );
+      assert.deepEqual(structured.global, [
+        generateWebSiteSchema("themegaradio.com", locale, {}),
+        generateOrganizationSchema("themegaradio.com", locale, {}),
+        generateDeveloperOrganizationSchema(locale),
+      ]);
       assert.equal(
         result.seoTags?.canonical,
         `https://themegaradio.com/${locale}/blog/${id}`,
