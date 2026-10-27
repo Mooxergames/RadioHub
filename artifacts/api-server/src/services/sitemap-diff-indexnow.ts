@@ -26,7 +26,7 @@ import {
 import { IndexNowService } from './indexnow';
 import { getQualifiedLanguagesState, QualifiedLanguagesUnavailableError } from '../seo/qualified-languages';
 import { getIndexableLanguagesForStation } from '../seo/junk-station-rules';
-import { AZ_INDEX_KEYS } from '../seo/az-station-index';
+import { AZ_INDEX_KEYS, AZ_KEY_RE } from '../seo/az-station-index';
 
 // Mirror the route's MAIN_STATIC_PAGES list (kept in sync with
 // `MAIN_STATIC_PAGES` in `seo/sitemap-manifest-builder.ts` and the
@@ -203,6 +203,7 @@ export function computeStationsSitemapUrlsForChunk(args: {
   for (const id of stationIds) {
     const s = stationsById.get(String(id));
     if (!s || !s.slug) continue;
+    if (AZ_KEY_RE.test(s.slug.toLowerCase())) continue;
     const indexable = getIndexableLanguagesForStation(s, qualifiedLanguages as string[], s.completeDescriptionLanguages);
     if (!indexable.includes(language)) continue;
     const path = buildLocalizedUrl(`/station/${s.slug}`, language, undefined, translations);

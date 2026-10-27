@@ -19,12 +19,14 @@
  */
 import { test, mock, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import type { AddressInfo, Server } from 'node:net';
 import type { Server as HttpServer } from 'node:http';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { INDEXING_PILOT } from '../src/seo/indexing-pilot';
 import { MARKET_BLOG_MANIFEST, BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
+import { buildLocalizedUrl } from '../src/seo/url-helpers';
 
 /**
  * Task #194: assert XML well-formedness in addition to regex smoke
@@ -143,7 +145,7 @@ const builderOverrides: {
   getActiveStationChunk:
     | null
     | ((language: string, chunk: number) => Promise<{
-        stationIds: string[];
+        stationIds: readonly string[];
         maxUpdatedAt: Date;
         qualifiedLanguagesHash: string;
         version: string;
@@ -261,7 +263,7 @@ mock.module(new URL('../src/data/postgres-catalog-store.ts',import.meta.url).hre
   })},
 });
 const actualSeo=await import('../src/data/postgres-seo-indexing-store');
-let sitemapReadRows: any[] = FAKE_STATION_DOCS;
+let sitemapReadRows: readonly any[] = FAKE_STATION_DOCS;
 const sitemapReadBatches: string[][] = [];
 let manifestReadFails = false;
 let stationBatchReadFails = false;
@@ -298,8 +300,9 @@ mock.module(new URL('../src/performance-cache.ts', import.meta.url).href, {
 });
 
 const fakeCacheStore = new Map<string, unknown>();
+const fakeCacheReads: string[] = [];
 const FAKE_CACHE_MANAGER = {
-  get: async (k: string) => fakeCacheStore.get(k) ?? null,
+  get: async (k: string) => { fakeCacheReads.push(k); return fakeCacheStore.get(k) ?? null; },
   set: async (k: string, v: unknown) => {
     fakeCacheStore.set(k, v);
   },
@@ -534,6 +537,103 @@ test('large station sitemaps read bounded batches and retain manifest order, omi
     sitemapReadRows = FAKE_STATION_DOCS;
     builderOverrides.getActiveStationChunk = null;
   }
+});
+
+function azPublicationFixture() {
+  const descriptions = Object.freeze(Object.fromEntries(QUALIFIED_LANGS.map(lang => [lang,
+    Object.freeze({ full: `Station content in ${lang}`, meta: `Listen in ${lang}` }),
+  ])));
+  const makeRow = (id: string, slug: string, extra: Record<string, unknown> = {}) => Object.freeze({
+    ...FAKE_STATION_DOCS[0], _id: id, slug, name: `Fixture ${id}`, noIndex: false,
+    descriptions, completeDescriptionLanguages: Object.freeze([...QUALIFIED_LANGS]),
+    logoAssets: Object.freeze({ webp256: `https://cdn.themegaradio.com/${id}.webp` }), ...extra,
+  });
+  const keys = [...'abcdefghijklmnopqrstuvwxyz', '0-9'];
+  const reserved = [...keys, ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((slug, index) => makeRow(`az-reserved-${index}`, slug));
+  const normalSlugs = ['ab', 'bbc', 'npr', 'k-1', '0-90', 'genres', 'profile'];
+  const normals = normalSlugs.map((slug, index) => makeRow(`az-normal-${index}`, slug));
+  const rows = Object.freeze([
+    ...reserved, ...normals,
+    makeRow('excluded-noindex', 'noindex-radio', { noIndex: true }),
+    makeRow('excluded-junk', 'junk-radio', { url: '' }),
+    makeRow('excluded-redirect', 'redirect-radio', { redirectToSlug: 'bbc' }),
+    makeRow('excluded-numeric', '1234'),
+  ]);
+  return { keys, reserved, normals, normalSlugs, rows, ids: Object.freeze(rows.map(row => row._id)) };
+}
+
+test('old manifest IDs cannot emit A-Z station nodes or alternates in any locale, and diff URLs equal XML', async () => {
+  const { computeStationsSitemapUrlsForChunk } = await import('../src/services/sitemap-diff-indexnow');
+  const fixture = azPublicationFixture();
+  const before = structuredClone(fixture.rows);
+  const byId = new Map(fixture.rows.map(row => [row._id, row]));
+  const union: string[] = [];
+  const expectedUnion: string[] = [];
+  sitemapReadRows = fixture.rows;
+  builderOverrides.getActiveStationChunk = async () => ({ stationIds: fixture.ids, maxUpdatedAt: NOW, qualifiedLanguagesHash: TEST_HASH, version: 'old-az-manifest' });
+  fakeCacheStore.clear();
+  try {
+    for (const language of QUALIFIED_LANGS) {
+      const response = await fetch(`${baseUrl}/sitemap-stations-${language}-1.xml`);
+      assert.equal(response.status, 200, language);
+      const body = await response.text();
+      const entries = (assertValidXml(body, `${language} A-Z filtered XML`) as any).urlset.url;
+      const expected = fixture.normalSlugs.map(slug => 'https://themegaradio.com' + buildLocalizedUrl(`/station/${slug}`, language, undefined, new Map()));
+      assert.deepEqual(entries.map((entry: any) => entry.loc), expected, `${language}: normal manifest order and identity`);
+      assert.doesNotMatch(body, /az-reserved-|excluded-/);
+      for (const [index, entry] of entries.entries()) {
+        const links = entry['xhtml:link'];
+        const codes = new Set(links.map((link: any) => link['@_hreflang']));
+        for (const lang of QUALIFIED_LANGS) assert.ok(codes.has(lang), `${language}: normal ${fixture.normalSlugs[index]} lost ${lang}`);
+        assert.ok(codes.has('x-default'));
+        for (const link of links) {
+          const lang = link['@_hreflang'] === 'x-default' ? 'en' : link['@_hreflang'].split('-')[0];
+          assert.equal(link['@_href'], 'https://themegaradio.com' + buildLocalizedUrl(`/station/${fixture.normalSlugs[index]}`, lang, undefined, new Map()));
+        }
+      }
+      const diff = computeStationsSitemapUrlsForChunk({ language, qualifiedLanguages: QUALIFIED_LANGS, stationIds: fixture.ids,
+        stationsById: byId, translations: new Map(), baseUrl: 'https://themegaradio.com' });
+      assert.deepEqual(diff, entries.map((entry: any) => entry.loc).sort(), `${language}: diff helper and served XML must agree`);
+      union.push(...entries.map((entry: any) => entry.loc));
+      expectedUnion.push(...expected);
+    }
+    assert.equal(new Set(union).size, fixture.normalSlugs.length * 14);
+    assert.deepEqual(union.sort(), expectedUnion.sort());
+    assert.ok(fixture.rows.every(Object.isFrozen));
+    assert.deepEqual(fixture.rows, before, 'serve and diff must not mutate IDs, slug, noIndex or language fields');
+    assert.deepEqual(fixture.ids, fixture.rows.map(row => row._id));
+  } finally {
+    sitemapReadRows = FAKE_STATION_DOCS;
+    builderOverrides.getActiveStationChunk = null;
+    fakeCacheStore.clear();
+  }
+});
+
+test('all 14 main sitemaps retain 27 A-Z directory entries with reciprocal full locale and x-default clusters', async () => {
+  const keys = [...'abcdefghijklmnopqrstuvwxyz', '0-9'];
+  fakeCacheStore.clear();
+  try {
+    for (const language of QUALIFIED_LANGS) {
+      const response = await fetch(`${baseUrl}/sitemap-main-${language}.xml`);
+      assert.equal(response.status, 200);
+      const entries = (assertValidXml(await response.text(), `${language} main A-Z XML`) as any).urlset.url;
+      assert.equal(entries.length, 16 + 27);
+      for (const key of keys) {
+        const expected = new Map(QUALIFIED_LANGS.map(lang => [lang, 'https://themegaradio.com' + buildLocalizedUrl(`/stations/${key}`, lang, undefined, new Map())]));
+        const matches = entries.filter((entry: any) => entry.loc === expected.get(language));
+        assert.equal(matches.length, 1, `${language}: exactly one directory entry for ${key}`);
+        const links = matches[0]['xhtml:link'];
+        for (const lang of QUALIFIED_LANGS) {
+          const alternate = links.filter((link: any) => link['@_hreflang'] === lang);
+          assert.equal(alternate.length, 1);
+          assert.equal(alternate[0]['@_href'], expected.get(lang), `${language}/${key}: reciprocal directory target ${lang}`);
+        }
+        const fallback = links.filter((link: any) => link['@_hreflang'] === 'x-default');
+        assert.equal(fallback.length, 1);
+        assert.equal(fallback[0]['@_href'], `https://themegaradio.com/en/stations/${key}`);
+      }
+    }
+  } finally { fakeCacheStore.clear(); }
 });
 
 test('active but empty sitemap manifests are retryable, never a 200 empty index or a stale 304', async () => {
@@ -909,13 +1009,132 @@ test('owned image URLs replace both old station XML and validators without fresh
     }
     assert.equal(response.headers.get('last-modified'), null);
     assert.notEqual(response.headers.get('etag'), '"old-s3-image-xml"');
-    const newKey = oldKey.replace('xml-v3:', 'xml-v4-owned-images:');
+    const newKey = oldKey.replace('xml-v3:', 'xml-v5-az-safe-owned-images:');
     assert.ok(fakeCacheStore.has(newKey));
     assert.ok(fakeCacheStore.has(`${newKey}:validator`));
     assert.equal((fakeCacheStore.get(oldKey) as any).xml, oldXml, 'unrelated old cache is not globally purged');
     const conditional = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': response.headers.get('etag')! } });
     assert.equal(conditional.status, 304);
   } finally { sitemapReadRows = FAKE_STATION_DOCS; fakeCacheStore.clear(); }
+});
+
+function xmlCacheFixture(xml: string) {
+  return Object.freeze({ xml, etag: `"${createHash('sha256').update(xml).digest('hex')}"`, byteLength: Buffer.byteLength(xml) });
+}
+
+test('v5 ignores a prefilled v4 A-Z body and validator, returns changed XML 200, then validates the new body with 304', async () => {
+  const fixture = azPublicationFixture();
+  const rows = Object.freeze([fixture.normals[0], fixture.reserved.find(row => row.slug === 'k')!]);
+  const ids = Object.freeze(rows.map(row => row._id));
+  const suffix = `en:1:${TEST_HASH}:az-cache-migration:${NOW.getTime()}`;
+  const oldKey = `sitemap:stations:xml-v4-owned-images:${suffix}`;
+  const newKey = `sitemap:stations:xml-v5-az-safe-owned-images:${suffix}`;
+  const old = xmlCacheFixture('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>https://themegaradio.com/en/station/k</loc><xhtml:link rel="alternate" hreflang="de" href="https://themegaradio.com/de/sender/k"/></url><url><loc>https://themegaradio.com/en/station/ab</loc></url></urlset>');
+  fakeCacheStore.clear();
+  fakeCacheStore.set(oldKey, old);
+  fakeCacheStore.set(`${oldKey}:validator`, Object.freeze({ etag: old.etag }));
+  fakeCacheReads.length = 0;
+  sitemapReadRows = rows;
+  builderOverrides.getActiveStationChunk = async () => ({ stationIds: ids, maxUpdatedAt: NOW, qualifiedLanguagesHash: TEST_HASH, version: 'az-cache-migration' });
+  try {
+    const response = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': old.etag } });
+    assert.equal(response.status, 200, 'old v4 validator must not hide the changed representation');
+    const body = await response.text();
+    const entries = (assertValidXml(body, 'v5 cache migration XML') as any).urlset.url;
+    assert.deepEqual(entries.map((entry: any) => entry.loc), ['https://themegaradio.com/en/station/ab']);
+    assert.doesNotMatch(body, /az-reserved-|\/station\/k<|\/sender\/k"/);
+    assert.equal(response.headers.get('etag'), xmlCacheFixture(body).etag, 'ETag must remain a hash of XML, not the cache namespace');
+    assert.notEqual(response.headers.get('etag'), old.etag);
+    assert.equal(fakeCacheReads.includes(oldKey), false);
+    assert.equal(fakeCacheReads.includes(`${oldKey}:validator`), false);
+    assert.equal((fakeCacheStore.get(newKey) as any).xml, body);
+    assert.equal((fakeCacheStore.get(`${newKey}:validator`) as any).etag, response.headers.get('etag'));
+    assert.deepEqual(fakeCacheStore.get(oldKey), old, 'old cache entries are not mutated or globally purged');
+    const conditional = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': response.headers.get('etag')! } });
+    assert.equal(conditional.status, 304);
+    assert.equal(await conditional.text(), '');
+  } finally {
+    sitemapReadRows = FAKE_STATION_DOCS;
+    builderOverrides.getActiveStationChunk = null;
+    fakeCacheStore.clear();
+  }
+});
+
+test('an unchanged normal chunk still accepts its checksum ETag across the v4-to-v5 namespace change', async () => {
+  const fixture = azPublicationFixture();
+  const rows = Object.freeze([fixture.normals[0]]);
+  const ids = Object.freeze(rows.map(row => row._id));
+  const suffix = `en:1:${TEST_HASH}:unchanged-normal:${NOW.getTime()}`;
+  const oldKey = `sitemap:stations:xml-v4-owned-images:${suffix}`;
+  const newKey = `sitemap:stations:xml-v5-az-safe-owned-images:${suffix}`;
+  sitemapReadRows = rows;
+  builderOverrides.getActiveStationChunk = async () => ({ stationIds: ids, maxUpdatedAt: NOW, qualifiedLanguagesHash: TEST_HASH, version: 'unchanged-normal' });
+  fakeCacheStore.clear();
+  try {
+    const original = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`);
+    assert.equal(original.status, 200);
+    const body = await original.text();
+    const old = xmlCacheFixture(body);
+    assert.equal(original.headers.get('etag'), old.etag);
+    fakeCacheStore.clear();
+    fakeCacheStore.set(oldKey, old);
+    fakeCacheStore.set(`${oldKey}:validator`, Object.freeze({ etag: old.etag }));
+    fakeCacheReads.length = 0;
+    sitemapReadBatches.length = 0;
+    const conditional = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': old.etag } });
+    assert.equal(conditional.status, 304, 'namespace-only changes must not fabricate a changed representation');
+    assert.equal(await conditional.text(), '');
+    assert.equal(conditional.headers.get('etag'), old.etag);
+    assert.deepEqual(sitemapReadBatches, [[...ids]], 'v5 must recompute from rows, not reuse the v4 validator');
+    assert.equal(fakeCacheReads.includes(oldKey), false);
+    assert.equal(fakeCacheReads.includes(`${oldKey}:validator`), false);
+    assert.equal((fakeCacheStore.get(newKey) as any).xml, body);
+    assert.equal((fakeCacheStore.get(`${newKey}:validator`) as any).etag, old.etag);
+    const unconditional = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`);
+    assert.equal(unconditional.status, 200);
+    assert.equal(await unconditional.text(), body);
+    assert.equal(unconditional.headers.get('etag'), old.etag);
+    assert.equal(sitemapReadBatches.length, 1, 'warm v5 body does not read station rows again');
+  } finally {
+    sitemapReadRows = FAKE_STATION_DOCS;
+    builderOverrides.getActiveStationChunk = null;
+    fakeCacheStore.clear();
+  }
+});
+
+test('reserved-only old chunks return uncached 503 in all 14 locales even with old v4 validators', async () => {
+  const fixture = azPublicationFixture();
+  const ids = Object.freeze(fixture.reserved.map(row => row._id));
+  const before = structuredClone(fixture.reserved);
+  sitemapReadRows = fixture.reserved;
+  builderOverrides.getActiveStationChunk = async () => ({ stationIds: ids, maxUpdatedAt: NOW, qualifiedLanguagesHash: TEST_HASH, version: 'reserved-only' });
+  fakeCacheStore.clear();
+  try {
+    for (const language of QUALIFIED_LANGS) {
+      const suffix = `${language}:1:${TEST_HASH}:reserved-only:${NOW.getTime()}`;
+      const oldKey = `sitemap:stations:xml-v4-owned-images:${suffix}`;
+      const newKey = `sitemap:stations:xml-v5-az-safe-owned-images:${suffix}`;
+      const old = xmlCacheFixture(`<urlset><url><loc>https://themegaradio.com${buildLocalizedUrl('/station/k', language, undefined, new Map())}</loc></url></urlset>`);
+      fakeCacheStore.set(oldKey, old);
+      fakeCacheStore.set(`${oldKey}:validator`, Object.freeze({ etag: old.etag }));
+      fakeCacheReads.length = 0;
+      const response = await fetch(`${baseUrl}/sitemap-stations-${language}-1.xml`, { headers: { 'If-None-Match': old.etag } });
+      assert.equal(response.status, 503, language);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(response.headers.get('retry-after'), '120');
+      assert.match(await response.text(), /^Sitemap manifest building/);
+      assert.notEqual(response.headers.get('etag'), old.etag, 'a text error validator cannot validate the retired XML');
+      assert.equal(fakeCacheStore.has(newKey), false);
+      assert.equal(fakeCacheStore.has(`${newKey}:validator`), false);
+      assert.equal(fakeCacheReads.includes(oldKey), false);
+      assert.equal(fakeCacheReads.includes(`${oldKey}:validator`), false);
+    }
+    assert.deepEqual(fixture.reserved, before, 'reserved-only failure must not alter the source records');
+  } finally {
+    sitemapReadRows = FAKE_STATION_DOCS;
+    builderOverrides.getActiveStationChunk = null;
+    fakeCacheStore.clear();
+  }
 });
 
 function countLocs(xml: string): number {
