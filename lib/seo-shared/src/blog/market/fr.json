@@ -87,11 +87,11 @@
     "id": "rfi-journal-francais-facile-transcription",
     "title": "Journal en français facile : travailler l’écoute avec la transcription de RFI",
     "seoTitle": "Journal en français facile : utiliser la transcription RFI",
-    "description": "Préparez une séance d’écoute avec le Journal en français facile de RFI : compréhension globale, transcription synchronisée, vitesse et vocabulaire en contexte.",
+    "description": "Préparez une séance d’écoute avec le Journal en français facile de RFI : compréhension globale, transcription, réécoute et vocabulaire en contexte.",
     "primaryKeyword": "Journal en français facile transcription",
-    "secondaryKeywords": ["RFI apprendre le français", "journal RFI transcription synchronisée", "écoute français actualité"],
+    "secondaryKeywords": ["RFI apprendre le français", "journal RFI transcription et exercices", "écoute français actualité"],
     "imageAlt": "Illustration d’un microphone et d’ondes évoquant une émission parlée",
-    "intro": "Pour travailler l’écoute avec le Journal en français facile de RFI, écoutez d’abord un court passage sans texte, puis utilisez la transcription pour vérifier ce que vous avez compris. La brochure officielle présente un journal d’environ dix minutes, une transcription synchronisée et un réglage de vitesse. L’objectif n’est pas de traduire chaque mot, mais de comprendre une information et de repérer ce qui vous échappe.",
+    "intro": "Pour travailler l’écoute avec le Journal en français facile de RFI, écoutez d’abord un court passage sans texte, puis utilisez la transcription pour vérifier ce que vous avez compris. Le site officiel propose un journal d’environ dix minutes avec sa transcription et des exercices associés pour prolonger l’apprentissage. L’objectif n’est pas de traduire chaque mot, mais de comprendre une information et de repérer ce qui vous échappe.",
     "sections": [
       {
         "heading": "Commencer par une question de compréhension simple",
@@ -99,11 +99,11 @@
       },
       {
         "heading": "Utiliser la transcription comme outil de vérification",
-        "paragraphs": ["Reprenez le passage avec le texte. Cherchez d’abord les mots que vous pensiez avoir reconnus, puis les articulations : qui parle, ce qui s’est produit, où et quand. La transcription synchronisée permet de rapprocher texte et son ; elle ne doit pas devenir une obligation de lire sans jamais écouter. Comparez votre première compréhension avec les indices désormais visibles.", "Réécoutez ensuite une phrase sans regarder le texte. Repérez une liaison, une fin de mot ou une expression connue seulement à l’écrit. Conservez cette observation précise pour la prochaine séance."]
+        "paragraphs": ["Reprenez le passage avec le texte. Cherchez d’abord les mots que vous pensiez avoir reconnus, puis les articulations : qui parle, ce qui s’est produit, où et quand. Comparez le passage écouté avec sa transcription, sans supposer que le texte défile automatiquement avec l’audio. Cette lecture ne doit pas devenir une obligation de lire sans jamais écouter. Comparez votre première compréhension avec les indices désormais visibles.", "Réécoutez ensuite une phrase sans regarder le texte. Repérez une liaison, une fin de mot ou une expression connue seulement à l’écrit. Conservez cette observation précise pour la prochaine séance."]
       },
       {
-        "heading": "Régler la vitesse pour une difficulté identifiée",
-        "paragraphs": ["La vitesse réglable est utile si vous savez ce que vous cherchez à entendre. Ralentir tout le journal par réflexe peut simplement prolonger la séance. Essayez plutôt le réglage sur un passage difficile, puis revenez à une écoute moins assistée si cela vous convient. Aucun réglage ne garantit à lui seul une progression, et votre confort peut varier selon le sujet et la fatigue."],
+        "heading": "Réécouter un passage pour une difficulté identifiée",
+        "paragraphs": ["Reprenez une courte séquence si vous savez ce que vous cherchez à entendre. Si le lecteur que vous utilisez propose un réglage de vitesse, vous pouvez l’essayer sur ce passage, sans supposer que cette commande existe sur chaque page ou appareil. Ralentir tout le journal par réflexe peut simplement prolonger la séance. Revenez ensuite à une écoute moins assistée si cela vous convient. Aucun réglage ne garantit à lui seul une progression, et votre confort peut varier selon le sujet et la fatigue."],
         "items": ["Choisir un passage et une question de compréhension.", "Écouter une première fois sans consulter le texte.", "Vérifier avec la transcription ce qui manque.", "Réécouter une phrase en regardant moins le texte.", "Garder une expression avec son contexte, pas une liste de mots isolés."]
       },
       {
@@ -112,8 +112,8 @@
       }
     ],
     "faq": [
-      {"question": "La transcription suit-elle l’audio ?", "answer": "La brochure officielle décrit une transcription synchronisée sur le service RFI. Vérifiez le lecteur de l’édition choisie ; cela ne signifie pas que tout flux radio possède cette fonction."},
-      {"question": "Faut-il ralentir chaque édition ?", "answer": "Non. Réservez le réglage à une difficulté précise si cela vous aide. Vous pouvez comparer ensuite avec une écoute moins assistée, sans rechercher une vitesse prétendument idéale pour tous."},
+      {"question": "Où trouver la transcription du Journal en français facile ?", "answer": "Ouvrez l’édition choisie sur le site officiel de RFI et cherchez la rubrique Transcription. Comparez ce texte avec l’extrait écouté ; ne supposez pas qu’il défile automatiquement ni que le direct possède la même transcription."},
+      {"question": "Faut-il ralentir chaque édition ?", "answer": "Non. Si votre lecteur propose un réglage de vitesse, réservez-le à une difficulté précise si cela vous aide. Sinon, réécoutez un extrait plus court. Il n’existe pas de vitesse prétendument idéale pour tous."},
       {"question": "Dois-je comprendre tout le journal pour que la séance soit utile ?", "answer": "Non. Une compréhension globale ou une phrase mieux reconnue constitue déjà un objectif concret. Réduisez l’extrait si le sujet et la langue sont nouveaux en même temps."}
     ],
     "links": [
@@ -122,7 +122,10 @@
       {"route": "blog:radio-app-iphone-android", "label": "Préparer une écoute sur téléphone"},
       {"route": "search", "label": "Rechercher des stations francophones"}
     ],
-    "sources": [{"name": "RFI : brochure Le français facile avec RFI", "url": "https://s.francaisfacile.rfi.fr/media/display/492a1bbe-2e52-11ef-8329-005056a90284/RFI_fran%C3%A7ais_facile_BROCHURE_210x210-HD-PourAffichageEcran.pdf"}],
+    "sources": [
+      {"name": "RFI : Journal en français facile, éditions et transcriptions", "url": "https://francaisfacile.rfi.fr/fr/podcasts/journal-en-fran%C3%A7ais-facile/"},
+      {"name": "France Médias Monde : ressources pour apprendre le français", "url": "https://www.francemediasmonde.com/fr/nos-missions/jeunesse-et-education/"}
+    ],
     "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "radio-app-iphone-android"]
   }
 ]
