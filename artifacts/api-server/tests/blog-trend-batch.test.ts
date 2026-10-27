@@ -59,7 +59,7 @@ test("eight new native trend articles have fixed dates, substantive text and thr
     const prose = [article.intro, ...article.sections.flatMap(section => [...section.paragraphs, ...(section.items || [])]), ...article.faq.flatMap(faq => [faq.question, faq.answer])].join(" ");
     const words = [...new Intl.Segmenter(locale, { granularity: "word" }).segment(prose)].filter(part => part.isWordLike).length;
     assert.ok(words >= 600 && words <= 900, `${id}: ${words} words`);
-    assert.ok(article.sources && article.sources.length >= 2, id);
+    assert.ok(article.sources && article.sources.length >= 2 && article.sources.length <= 4, id);
     assert.ok(article.links.some(link => link.route.startsWith("station:")), id);
     for (const language of BLOG_LOCALES) assert.equal(blogAvailable(id, language), language === locale);
   }
