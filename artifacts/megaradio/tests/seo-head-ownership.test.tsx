@@ -152,6 +152,47 @@ describe('one owner for the initial SSR head and subsequent navigation', () => {
     expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
   });
 
+  it('accepts only blog 404 metadata, clears the old head, and restores a valid article head', async () => {
+    const view = render(<SeoPageWrapper><audio data-testid="player" /></SeoPageWrapper>);
+    const player = view.getByTestId('player');
+    state.location = '/en/blog/kral-fm-canli-dinle-sorunlari'; state.language = 'en';
+    view.rerender(<SeoPageWrapper><audio data-testid="player" /></SeoPageWrapper>);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({
+      seoTags: { title: '404 | MegaRadio', robots: 'noindex, follow', noIndex: true, hreflangs: [] },
+    }) }));
+    const payload = await state.options.at(-1).queryFn({signal: new AbortController().signal});
+    state.data.set(`/api/seo/page-data|${state.location}|en`, payload);
+    view.rerender(<SeoPageWrapper><audio data-testid="player" /></SeoPageWrapper>);
+    expect(document.title).toBe('404 | MegaRadio');
+    expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+    expect(document.querySelectorAll('link[hreflang], script[data-schema-scope="page"]')).toHaveLength(0);
+    expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
+    state.location = '/tr/blog/kral-fm-canli-dinle-sorunlari'; state.language = 'tr';
+    state.data.set(`/api/seo/page-data|${state.location}|tr`, {
+      seoTags: { title: 'Valid guide', robots: 'index, follow', canonical: `https://themegaradio.com${state.location}`,
+        hreflangs: [{hreflang: 'tr', url: `https://themegaradio.com${state.location}`}] },
+      structuredData: {global: [], page: [{'@type': 'BlogPosting', headline: 'Valid guide'}]},
+    });
+    view.rerender(<SeoPageWrapper><audio data-testid="player" /></SeoPageWrapper>);
+    expect(document.title).toBe('Valid guide');
+    expect(document.querySelectorAll('link[rel="canonical"], link[hreflang]')).toHaveLength(2);
+    expect(document.querySelectorAll('script[data-schema-scope="page"]')).toHaveLength(1);
+    expect(view.getByTestId('player')).toBe(player);
+    expect(document.getElementById('global-website')).not.toBeNull();
+  });
+
+  it('does not reinterpret blog 503 or unrelated route 404 as blog absence', async () => {
+    initialGuard = createInitialSsrHeadGuard(null);
+    state.location = '/en/blog/radio-data-usage'; state.language = 'en';
+    const view = render(<SeoPageWrapper><span>Guide</span></SeoPageWrapper>);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: false, status: 503}));
+    await expect(state.options.at(-1).queryFn({signal: new AbortController().signal})).rejects.toThrow('503');
+    state.location = '/en/about';
+    view.rerender(<SeoPageWrapper><span>About</span></SeoPageWrapper>);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: false, status: 404}));
+    await expect(state.options.at(-1).queryFn({signal: new AbortController().signal})).rejects.toThrow('404');
+  });
+
   it('replaces noindex/canonical/alternates with the current server contract in both navigation directions', () => {
     const view = render(<SeoPageWrapper><PageSeoHead pageType="station" stationData={null} /></SeoPageWrapper>);
     const targets = [

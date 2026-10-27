@@ -66,7 +66,7 @@ import {
 } from './seo/genre-whitelist';
 import { resolveFaqPageItems } from '@workspace/seo-shared/faq-schema';
 import { loadBlogContent, buildBlogSeo, buildBlogSchema } from '@workspace/seo-shared/blog';
-import { isBlogPath, parseBlogPath } from '@workspace/seo-shared/blog-manifest';
+import { isBlogPath, parseBlogPath, BLOG_LABELS, isBlogLocale, blogPath } from '@workspace/seo-shared/blog-manifest';
 import { renderBlogHtml } from '@workspace/seo-shared/blog-html';
 
 // SEO audit fix (2026-05-12) — per-language fallback labels used by the
@@ -352,13 +352,15 @@ export class SeoRenderer {
     // are needed to render these versioned articles.
     if (isBlogPath(cleanPath)) {
       const route = parseBlogPath(cleanUrl);
-      if (!route) return { language, cleanPath, translations: {}, urlTranslations: new Map(),
+      const missingBlog = (): StaticPageData => ({ language, cleanPath, translations: {}, urlTranslations: new Map(),
         seoTags: { title: '404 | MegaRadio', robots: 'noindex, follow', noIndex: true, hreflangs: [] },
-        pageData: { pageType: 'blog', httpNotFound: true, notFound: true } };
+        pageData: { pageType: 'blog', httpNotFound: true, notFound: true } });
+      if (!route) return missingBlog();
       const content = await loadBlogContent(route.locale);
       const blog = { locale: route.locale, content, article: content.articles.find(a => a.id === route.id) };
+      if (route.id && !blog.article) return missingBlog();
       const seoTags = buildBlogSeo(blog);
-      return { language: route.locale, cleanPath, translations: {}, urlTranslations: new Map(), seoTags,
+      return { language: seoTags.language || route.locale, cleanPath, translations: {}, urlTranslations: new Map(), seoTags,
         pageData: { pageType: 'blog', seoTags, blog, additionalData: { blog }, notFound: false } };
     }
     const pagination = parseSeoCatalogPage(url);
@@ -2491,6 +2493,7 @@ export class SeoRenderer {
 
             <nav class="footer-links">
               <ul>
+                ${isBlogLocale(language) ? `<li><a href="${blogPath(language)}">${this.escapeHtml(BLOG_LABELS[language])}</a></li>` : ''}
                 <li><a href="/${language}/${urlTranslations?.get(`${language}:about`) || 'about'}">${this.escapeHtml(getLocalizedText('nav_about', 'About Us'))}</a></li>
                 <li><a href="/${language}/${urlTranslations?.get(`${language}:contact`) || 'contact'}">${this.escapeHtml(getLocalizedText('nav_contact', 'Contact'))}</a></li>
                 <li><a href="/${language}/${urlTranslations?.get(`${language}:privacy-policy`) || 'privacy-policy'}">${this.escapeHtml(getLocalizedText('nav_privacy', 'Privacy Policy'))}</a></li>
@@ -3273,9 +3276,11 @@ export class SeoRenderer {
     // One locale-aware builder avoids SSR/client discrepancies and English
     // fallback prose. Identity and schema vocabulary stay stable across locales.
     const schemaDomain = new URL(baseDomain).host;
-    const websiteSchema = generateWebSiteSchema(schemaDomain, language, translations);
-    const organizationSchema = generateOrganizationSchema(schemaDomain, language, translations);
-    const visionGoOrgSchema = generateDeveloperOrganizationSchema(language);
+    // An article's BCP47 tag need not be a routable site locale (zh-Hant-HK).
+    const schemaLanguage = additionalData?.blog?.locale || language;
+    const websiteSchema = generateWebSiteSchema(schemaDomain, schemaLanguage, translations);
+    const organizationSchema = generateOrganizationSchema(schemaDomain, schemaLanguage, translations);
+    const visionGoOrgSchema = generateDeveloperOrganizationSchema(schemaLanguage);
     if (additionalData?.blog) return {
       global: [websiteSchema, organizationSchema, visionGoOrgSchema],
       page: buildBlogSchema(additionalData.blog),

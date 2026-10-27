@@ -1,0 +1,128 @@
+[
+  {
+    "id": "france-bleu-ici-radio-locale",
+    "title": "France Bleu devient ici : retrouver sa radio locale sans choisir la mauvaise station",
+    "seoTitle": "France Bleu devient ici : retrouver sa radio locale",
+    "description": "Retrouvez votre radio locale après le changement de nom France Bleu vers ici. Distinguez la station, sa matinale filmée et les contenus publiés en ligne.",
+    "primaryKeyword": "France Bleu devient ici radio locale",
+    "secondaryKeywords": ["retrouver France Bleu", "radio ici locale", "France Bleu nouveau nom"],
+    "imageAlt": "Illustration d’un microphone accompagné d’ondes et de signes de parole",
+    "intro": "France Bleu a changé de nom pour devenir ici le 6 janvier 2025 : ce changement ne signifie pas que votre radio locale a disparu. Pour la retrouver, associez le nom ici à celui de votre territoire, puis vérifiez la station sélectionnée. Le nom commun couvre une offre radio, télévision et numérique ; il ne désigne pas un unique flux sonore identique partout.",
+    "sections": [
+      {
+        "heading": "Retrouver le territoire derrière le nouveau nom",
+        "paragraphs": ["L’annonce officielle de Radio France porte sur le réseau de 44 radios locales. Votre meilleur indice reste donc le territoire que vous écoutiez, plutôt qu’un ancien habillage ou une couleur de logo. Notez le nom de l’ancienne locale, puis comparez les résultats portant le nouveau nom. Une page nationale parlant du réseau peut expliquer la marque sans être le lecteur de votre station.", "Si vous aviez enregistré un favori, regardez sa destination avant de le remplacer. Il peut encore mener à une page utile, à un ancien intitulé ou à un contenu précis plutôt qu’au direct. Le changement visible d’un titre ne suffit pas à expliquer un problème sonore. Commencez par identifier la page, puis examinez la lecture séparément."]
+      },
+      {
+        "heading": "Choisir la bonne locale plutôt qu’un résultat simplement proche",
+        "paragraphs": ["Un sujet concernant une ville voisine peut apparaître dans plusieurs résultats. Cela ne prouve pas que vous avez trouvé votre station habituelle. Vérifiez le nom complet et la zone indiquée sur la page. Pour une émission locale, le nom du présentateur ou du rendez-vous peut compléter la recherche, mais il ne remplace pas l’identification du territoire.", "Par exemple, une personne qui a déménagé peut vouloir conserver sa radio d’origine tout en découvrant celle de son nouveau lieu de vie. Les deux choix sont légitimes, mais mieux vaut les nommer distinctement dans ses favoris. Un simple raccourci intitulé 'ma radio' devient vite ambigu lorsque plusieurs locales sont ouvertes sur le même appareil."]
+      },
+      {
+        "heading": "Séparer le direct radio de la matinale filmée",
+        "paragraphs": ["La marque ici rassemble différents supports. Une vidéo de matinale, un article local et le direct radio ne sont pas trois présentations interchangeables de toute la journée d’antenne. Regardez ce que le lien promet réellement : voir une émission, lire une information ou écouter la station. Une vidéo datée peut rester intéressante sans représenter ce qui passe à cet instant."],
+        "items": ["Lire le nom complet de la locale.", "Identifier le format : direct radio, vidéo, article ou réécoute.", "Vérifier la date d’un contenu publié.", "Comparer le rendez-vous recherché avec la programmation actuelle.", "Enregistrer séparément la station et une émission particulière."]
+      },
+      {
+        "heading": "Conserver une recherche utile si le contenu n’apparaît pas",
+        "paragraphs": ["Pour une interview antérieure au changement, cherchez l’ancien nom et le nouveau avec le thème et la date approximative. Un résultat ancien peut orienter votre recherche, mais ne prouve pas que l’audio reste disponible.", "En cas de difficulté technique, précisez la locale, l’adresse consultée, l’heure et le message affiché. Cela permet de distinguer un mauvais choix de station d’un problème de lecteur. Ni le changement de marque ni la présence dans un annuaire ne garantissent l’accès depuis tous les pays et tous les réseaux. Le point de départ reste la page officielle de la locale recherchée."]
+      }
+    ],
+    "faq": [
+      {"question": "France Bleu a-t-elle fermé ou changé de nom ?", "answer": "Radio France présente ici comme le nouveau nom du réseau France Bleu depuis le 6 janvier 2025. Pour retrouver votre antenne, recherchez également son territoire."},
+      {"question": "Toutes les radios ici proposent-elles le même direct ?", "answer": "Il s’agit d’un réseau de locales, pas d’un seul lecteur national à supposer identique partout. Vérifiez la station et sa programmation au lieu de vous fier uniquement à la marque."},
+      {"question": "Une matinale filmée correspond-elle à toute la journée radio ?", "answer": "Non. Un rendez-vous filmé est un format particulier. Son accès ne décrit pas à lui seul l’ensemble de la programmation sonore de la locale."}
+    ],
+    "links": [
+      {"route": "blog:listen-to-radio-online", "label": "Chercher une station avec les bons indices"},
+      {"route": "blog:news-talk-radio-guide", "label": "Situer les informations et les entretiens"},
+      {"route": "blog:internet-radio-explained", "label": "Distinguer direct et contenu publié"},
+      {"route": "search", "label": "Rechercher une radio locale"}
+    ],
+    "sources": [{"name": "Radio France : France Bleu change de nom et devient ici", "url": "https://www.radiofrance.com/presse/france-bleu-change-de-nom-et-devient-ici"}],
+    "relatedIds": ["listen-to-radio-online", "news-talk-radio-guide", "internet-radio-explained"]
+  },
+  {
+    "id": "fip-tape-direct-differences",
+    "title": "FIP Tape ou FIP en direct : choisir un voyage musical que l’on peut retrouver",
+    "seoTitle": "FIP Tape ou FIP en direct : quelle écoute choisir ?",
+    "description": "Distinguez les FIP Tape du direct de FIP. Choisissez une sélection par artiste ou par thème sans la confondre avec l’archive complète de la radio.",
+    "primaryKeyword": "FIP Tape différence direct FIP",
+    "secondaryKeywords": ["FIP Tape artiste", "FIP sélection thématique", "FIP direct ou réécoute"],
+    "imageAlt": "Illustration d’un saxophone entouré de lignes musicales fluides",
+    "intro": "Choisissez FIP en direct pour rejoindre la programmation en cours, et une FIP Tape pour explorer une sélection musicale préparée autour d’un thème ou d’un artiste. Une Tape n’est pas nécessairement la copie de l’heure de radio que vous venez d’entendre. Cette différence aide à chercher un univers musical sans attendre qu’un morceau précis revienne dans le flux.",
+    "sections": [
+      {
+        "heading": "Définir ce que vous voulez retrouver",
+        "paragraphs": ["Vous cherchez peut-être une chanson entendue en voiture, une ambiance pour une soirée ou les influences d’un artiste. Pour le morceau entendu, notez surtout l’heure et les indices disponibles. Pour une sélection thématique, commencez par le thème. Pour un artiste, cherchez son nom avec FIP Tape plutôt que de supposer que toute la sélection sera sa discographie.", "Radio France décrit les Tape comme des podcasts musicaux conçus par les programmateurs autour de thèmes et d’artistes. L’intérêt éditorial est justement dans les rapprochements proposés. Une sélection consacrée à une personne peut donc être intéressante pour ses filiations musicales, pas seulement pour réécouter des titres que vous connaissez déjà."]
+      },
+      {
+        "heading": "Lire la promesse d’une sélection avant de l’écouter",
+        "paragraphs": ["Regardez le titre et le texte de présentation ensemble. Une formule évocatrice peut annoncer un hommage, un parcours d’influences ou une atmosphère, et non une compilation chronologique. Demandez-vous si vous souhaitez découvrir des liens ou simplement retrouver un morceau. Vous éviterez ainsi de juger une proposition éditoriale sur une attente qu’elle ne formulait pas.", "Pour comparer deux sélections, retenez un critère concret : place de la voix, enchaînement des morceaux, contraste des époques ou caractère de l’ensemble. Il n’est pas nécessaire de transformer ce choix en classement. Une sélection surprenante peut convenir à une écoute attentive sans être celle que vous souhaitez en fond sonore pendant un repas."]
+      },
+      {
+        "heading": "Ne pas prendre une Tape pour l’historique intégral du direct",
+        "paragraphs": ["Si vous avez aimé une suite de morceaux entendue à une heure précise, la présence d’une Tape au titre voisin ne prouve pas que cette suite y figure. La bonne question est : s’agit-il de la même proposition musicale ou simplement du même univers ? Utilisez les indications de la fiche et évitez de promettre à quelqu’un l’enregistrement exact d’un moment sans l’avoir identifié."],
+        "items": ["Préciser votre objectif : titre, ambiance ou artiste.", "Lire la description de la Tape choisie.", "Distinguer la sélection préparée du direct en cours.", "Noter le titre exact pour la retrouver plus tard.", "Vérifier la disponibilité de la fiche avant de la partager."]
+      },
+      {
+        "heading": "Construire un petit parcours d’écoute plutôt qu’une longue liste",
+        "paragraphs": ["Commencez avec une sélection et relevez un seul rapprochement qui vous intrigue. Vous pourrez ensuite chercher un autre programme, un artiste ou un genre à partir de ce détail. Cette méthode conserve le plaisir de la programmation humaine sans demander de connaître déjà tous les noms. Elle est plus personnelle qu’une accumulation de favoris jamais réécoutés.", "L’annonce officielle présente la réécoute comme une qualité du format ; elle ne permet pas de garantir que tout ancien lien restera accessible indéfiniment. Elle ne constitue pas non plus une autorisation de téléchargement ou de copie. Vérifiez les options réellement offertes par le service, ainsi que toute limitation affichée, notamment lorsque vous écoutez depuis un autre pays."]
+      }
+    ],
+    "faq": [
+      {"question": "Une FIP Tape est-elle une copie du direct ?", "answer": "Pas par définition. Radio France la présente comme une sélection éditoriale thématique ou centrée sur un artiste. Vérifiez sa description plutôt que d’y chercher automatiquement une heure précise du direct."},
+      {"question": "Une Tape consacrée à un artiste ne contient-elle que ses chansons ?", "answer": "Ne le supposez pas. La présentation officielle évoque aussi les influences et les sources d’inspiration. La fiche permet de comprendre l’angle de la sélection."},
+      {"question": "Puis-je promettre qu’une ancienne Tape sera toujours disponible ?", "answer": "Non. Contrôlez le lien au moment de le recommander. Une annonce de lancement n’est pas une garantie permanente d’accès à chaque contenu."}
+    ],
+    "links": [
+      {"route": "blog:jazz-radio-guide", "label": "Explorer les couleurs du jazz à la radio"},
+      {"route": "blog:blues-radio-guide", "label": "Écouter les passerelles entre styles"},
+      {"route": "blog:internet-radio-explained", "label": "Comprendre direct et écoute à la demande"},
+      {"route": "search", "label": "Chercher des radios musicales"}
+    ],
+    "sources": [{"name": "Radio France : présentation des FIP Tape", "url": "https://www.radiofrance.com/presse/fip-tape-mieux-quune-playlist-une-bande-son-thematique-re-ecoutable-linfini?page=1"}],
+    "relatedIds": ["jazz-radio-guide", "blues-radio-guide", "internet-radio-explained"]
+  },
+  {
+    "id": "rfi-journal-francais-facile-transcription",
+    "title": "Journal en français facile : travailler l’écoute avec la transcription de RFI",
+    "seoTitle": "Journal en français facile : utiliser la transcription RFI",
+    "description": "Préparez une séance d’écoute avec le Journal en français facile de RFI : compréhension globale, transcription synchronisée, vitesse et vocabulaire en contexte.",
+    "primaryKeyword": "Journal en français facile transcription",
+    "secondaryKeywords": ["RFI apprendre le français", "journal RFI transcription synchronisée", "écoute français actualité"],
+    "imageAlt": "Illustration d’un microphone et d’ondes évoquant une émission parlée",
+    "intro": "Pour travailler l’écoute avec le Journal en français facile de RFI, écoutez d’abord un court passage sans texte, puis utilisez la transcription pour vérifier ce que vous avez compris. La brochure officielle présente un journal d’environ dix minutes, une transcription synchronisée et un réglage de vitesse. L’objectif n’est pas de traduire chaque mot, mais de comprendre une information et de repérer ce qui vous échappe.",
+    "sections": [
+      {
+        "heading": "Commencer par une question de compréhension simple",
+        "paragraphs": ["Choisissez un sujet dont vous connaissez un peu le contexte, sans exiger de vous comprendre immédiatement toute l’édition. Après un premier passage, essayez de répondre à une seule question : de quel événement parle-t-on ? Notez quelques mots reconnus, même s’ils ne forment pas une phrase complète. Cette trace vous permettra de distinguer ce que vous avez entendu de ce que vous avez deviné.", "Si vous découvrez également le sujet, séparez la difficulté linguistique de la difficulté d’actualité. Un nom d’institution inconnu peut gêner la compréhension davantage qu’une phrase rapide. Pour une séance courte, mieux vaut éclaircir un passage précis que recommencer tout le journal sans savoir pourquoi vous vous perdez au même endroit."]
+      },
+      {
+        "heading": "Utiliser la transcription comme outil de vérification",
+        "paragraphs": ["Reprenez le passage avec le texte. Cherchez d’abord les mots que vous pensiez avoir reconnus, puis les articulations : qui parle, ce qui s’est produit, où et quand. La transcription synchronisée permet de rapprocher texte et son ; elle ne doit pas devenir une obligation de lire sans jamais écouter. Comparez votre première compréhension avec les indices désormais visibles.", "Réécoutez ensuite une phrase sans regarder le texte. Repérez une liaison, une fin de mot ou une expression connue seulement à l’écrit. Conservez cette observation précise pour la prochaine séance."]
+      },
+      {
+        "heading": "Régler la vitesse pour une difficulté identifiée",
+        "paragraphs": ["La vitesse réglable est utile si vous savez ce que vous cherchez à entendre. Ralentir tout le journal par réflexe peut simplement prolonger la séance. Essayez plutôt le réglage sur un passage difficile, puis revenez à une écoute moins assistée si cela vous convient. Aucun réglage ne garantit à lui seul une progression, et votre confort peut varier selon le sujet et la fatigue."],
+        "items": ["Choisir un passage et une question de compréhension.", "Écouter une première fois sans consulter le texte.", "Vérifier avec la transcription ce qui manque.", "Réécouter une phrase en regardant moins le texte.", "Garder une expression avec son contexte, pas une liste de mots isolés."]
+      },
+      {
+        "heading": "Terminer par un petit réemploi plutôt que tout mémoriser",
+        "paragraphs": ["Résumez le sujet en deux phrases avec vos propres mots. Si vous hésitez, revenez uniquement au passage nécessaire. Un exercice associé peut ensuite aider à vérifier un point précis ; choisissez-le selon ce que vous voulez travailler, sans transformer chaque écoute en une longue série de tâches. Une séance reste utile même si vous n’avez pas compris tous les détails.", "Le mot 'facile' ne signifie pas que tout thème convient à chaque débutant. Ajustez la longueur de l’extrait et gardez les noms propres ou les chiffres difficiles pour une seconde étape. Les outils décrits appartiennent au service de RFI, pas à tout lecteur radio. Vérifiez leur présence sur la page utilisée et ne supposez pas que le direct possède automatiquement la même transcription."]
+      }
+    ],
+    "faq": [
+      {"question": "La transcription suit-elle l’audio ?", "answer": "La brochure officielle décrit une transcription synchronisée sur le service RFI. Vérifiez le lecteur de l’édition choisie ; cela ne signifie pas que tout flux radio possède cette fonction."},
+      {"question": "Faut-il ralentir chaque édition ?", "answer": "Non. Réservez le réglage à une difficulté précise si cela vous aide. Vous pouvez comparer ensuite avec une écoute moins assistée, sans rechercher une vitesse prétendument idéale pour tous."},
+      {"question": "Dois-je comprendre tout le journal pour que la séance soit utile ?", "answer": "Non. Une compréhension globale ou une phrase mieux reconnue constitue déjà un objectif concret. Réduisez l’extrait si le sujet et la langue sont nouveaux en même temps."}
+    ],
+    "links": [
+      {"route": "blog:news-talk-radio-guide", "label": "Écouter un journal avec son contexte"},
+      {"route": "blog:internet-radio-explained", "label": "Séparer une édition enregistrée du direct"},
+      {"route": "blog:radio-app-iphone-android", "label": "Préparer une écoute sur téléphone"},
+      {"route": "search", "label": "Rechercher des stations francophones"}
+    ],
+    "sources": [{"name": "RFI : brochure Le français facile avec RFI", "url": "https://s.francaisfacile.rfi.fr/media/display/492a1bbe-2e52-11ef-8329-005056a90284/RFI_fran%C3%A7ais_facile_BROCHURE_210x210-HD-PourAffichageEcran.pdf"}],
+    "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "radio-app-iphone-android"]
+  }
+]

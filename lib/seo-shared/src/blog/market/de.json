@@ -1,0 +1,132 @@
+[
+  {
+    "id": "orf-sound-sendung-nachhoeren",
+    "title": "ORF Sound: Eine verpasste Radiosendung gezielt wiederfinden",
+    "seoTitle": "ORF Sound: Verpasste Radiosendungen wiederfinden",
+    "description": "Finde verpasste ORF-Radioinhalte anhand von Sender, Datum und Thema. Unterscheide Livestream, einzelne Beiträge und Sendungen zum Nachhören.",
+    "primaryKeyword": "ORF Sound Sendung nachhören",
+    "secondaryKeywords": ["Radio Wien Sendung verpasst", "ORF Radio Nachhören", "ORF Sound Beiträge finden"],
+    "imageAlt": "Illustration eines Smartphones mit Kopfhörern zum Radiohören",
+    "intro": "Eine verpasste ORF-Radiosendung findest du leichter, wenn du zuerst Sender und Ausstrahlungstag bestimmst und erst danach nach dem Thema suchst. In ORF Sound sind Livehören und Nachhören unterschiedliche Wege. Die aktuelle Radio-Wien-Erklärung nennt 30 Tage zum Nachhören. Prüfe trotzdem die konkrete Fundstelle, statt daraus ein unbegrenztes Archiv für jeden Inhalt abzuleiten.",
+    "sections": [
+      {
+        "heading": "Aus einer Erinnerung eine brauchbare Suche machen",
+        "paragraphs": ["Notiere zunächst, was du tatsächlich weißt: Radio Wien oder ein anderes ORF-Programm, ungefährer Tag, Tageszeit und ein markantes Thema. 'Das Interview über Pflanzen' ist weniger eindeutig als ein Thema zusammen mit Sender und Datum. Auch ein erinnerter Gast kann helfen. Eine vermutete Schreibweise des Namens sollte aber nicht zum einzigen Suchkriterium werden.", "Überlege außerdem, ob du den Beitrag im laufenden Radio oder als bereits ausgewählten Podcast gehört hast. Das verändert den Ausgangspunkt. Wer eine kurze Meldung nachhören möchte, braucht nicht unbedingt eine komplette mehrstündige Sendung. Wer dagegen die musikalische Gestaltung sucht, sollte sich nicht mit einem herausgelösten Gespräch zufriedengeben."]
+      },
+      {
+        "heading": "Beitrag und ganze Sendung bewusst unterscheiden",
+        "paragraphs": ["Lies bei einem Treffer Überschrift, Beschreibung und angezeigte Dauer zusammen. Eine ähnliche Überschrift kann einen Ausschnitt, eine spätere Fortsetzung oder eine andere Ausgabe bezeichnen. Starte nicht mehrere Treffer gleichzeitig, sondern vergleiche ihre Angaben. So lässt sich ein Gespräch wiederfinden, ohne es allein am ersten gesprochenen Satz erkennen zu müssen.", "ORF Wien beschreibt sowohl einzelne Beiträge als auch ganze Musiksendungen zum Nachhören. Das bedeutet nicht, dass jede Seite dieselbe Aufteilung besitzt. Suche bei einem unvollständigen Treffer nach der zugehörigen Sendung. Halte dir vor Augen, dass eine Zusammenfassung oder ein Text zur Sendung nicht zwangsläufig die gesuchte vollständige Audiofassung enthält."]
+      },
+      {
+        "heading": "Zeitfenster und Merkliste nicht verwechseln",
+        "paragraphs": ["Eine Merkliste erleichtert das Wiederfinden, verlängert aber nicht automatisch die Bereitstellung. Die Radio-Wien-Seite erklärt das Sammeln von Sendungen und Beiträgen in einer Liste. Behandle diese Liste als Orientierung zu veröffentlichten Inhalten, nicht als persönliche dauerhafte Kopie. Wenn ein Beitrag wichtig ist, notiere zusätzlich Titel und Ausstrahlungsdatum, damit ein fehlender Listeneintrag nicht jede Spur beseitigt."],
+        "items": ["Sender und Ausstrahlungstag vor der Suche festhalten.", "Dauer und Beschreibung des gefundenen Audios abgleichen.", "Die Verfügbarkeit am konkreten Inhalt prüfen.", "Gemerkte Sendungen rechtzeitig hören und Titel separat notieren."]
+      },
+      {
+        "heading": "Bei fehlenden Treffern den nächsten Schritt wählen",
+        "paragraphs": ["Suche zunächst etwas breiter: ohne Gastnamen, mit einem benachbarten Tag oder nur nach dem Sendungstitel. Deine Erinnerung kann die Uhrzeit des Hörens mit der ursprünglichen Ausstrahlung vermischen. Wenn du im Ausland hörst, kann auch die Anzeige der lokalen Uhrzeit verwirren. Eine erfolglose Suchanfrage beweist weder eine technische Störung noch die dauerhafte Entfernung eines Formats.", "Für eine Nachfrage beim Sender sind Thema, Datum und vermutete Sendung hilfreicher als ein allgemeines 'Wo ist das Interview?'. Browserzugang und App sind ebenfalls getrennt zu betrachten: Die offizielle Erklärung nennt beide, verspricht damit jedoch keine identische Bedienung auf jedem Gerät. Zugriff und einzelne Inhalte können von technischen Voraussetzungen und Verfügbarkeit abhängen."]
+      }
+    ],
+    "faq": [
+      {"question": "Kann ich auch ganze Musiksendungen nachhören?", "answer": "ORF Wien nennt solche Sendungen ausdrücklich. Ob die gesuchte Ausgabe vorliegt, erkennst du an ihrer eigenen Seite; eine allgemeine Beschreibung ersetzt diese Prüfung nicht."},
+      {"question": "Brauche ich zwingend eine App?", "answer": "Die Radio-Wien-Erklärung nennt auch Sound im Webbrowser. Prüfe den jeweiligen Zugang auf deinem Gerät, bevor du für einen einzelnen Beitrag eine zusätzliche App installierst."},
+      {"question": "Bleibt eine gemerkte Sendung für immer erhalten?", "answer": "Davon solltest du nicht ausgehen. Merken und dauerhaft speichern sind unterschiedliche Dinge. Maßgeblich bleibt die Bereitstellung des Inhalts beim Anbieter."}
+    ],
+    "links": [
+      {"route": "blog:internet-radio-explained", "label": "Livestream und Abrufinhalt unterscheiden"},
+      {"route": "blog:radio-app-iphone-android", "label": "Browser und App unterwegs vergleichen"},
+      {"route": "blog:news-talk-radio-guide", "label": "Interviews und Nachrichten einordnen"},
+      {"route": "search", "label": "Nach einem Radiosender suchen"}
+    ],
+    "sources": [{"name": "ORF Wien: Streamen und nachhören auf Sound", "url": "https://wien.orf.at/studio/stories/3278368/"}],
+    "relatedIds": ["internet-radio-explained", "radio-app-iphone-android", "news-talk-radio-guide"]
+  },
+  {
+    "id": "deutschlandfunk-kultur-nova-unterschied",
+    "title": "Deutschlandfunk, Kultur oder Nova: Welches Programm passt zu deiner Frage?",
+    "seoTitle": "Deutschlandfunk, Kultur und Nova: Die Unterschiede",
+    "description": "Vergleiche Deutschlandfunk, Deutschlandfunk Kultur und Nova nach Höranlass, Inhalt und Empfang, statt drei verschiedene Programme zu verwechseln.",
+    "primaryKeyword": "Deutschlandfunk Kultur Nova Unterschied",
+    "secondaryKeywords": ["Deutschlandradio Programme", "Dlf Kultur oder Nova", "Deutschlandfunk Sender auswählen"],
+    "imageAlt": "Illustration eines Mikrofons mit Schallwellen für gesprochenes Radioprogramm",
+    "intro": "Deutschlandfunk, Deutschlandfunk Kultur und Deutschlandfunk Nova sind drei verschiedene Programme unter dem Dach von Deutschlandradio. Für aktuelle Einordnung ist Deutschlandfunk ein Ausgangspunkt, für Kultur und Radiokunst Kultur, für eine Verbindung aus Information, Wissen und Pop Nova. Entscheidend ist jedoch dein konkreter Höranlass: Eine passende Sendung kann nützlicher sein als die pauschale Wahl eines Lieblingssenders.",
+    "sections": [
+      {
+        "heading": "Vom Informationsbedarf statt vom ähnlich klingenden Namen ausgehen",
+        "paragraphs": ["Wenn du ein aktuelles Thema verstehen möchtest, formuliere zuerst deine Frage. Suchst du eine kurze Übersicht, ein längeres Gespräch oder eine Untersuchung einzelner Hintergründe? Die offizielle Beschreibung des Deutschlandfunks betont aktuelle Information und vertiefende Einordnung. Daraus folgt nicht, dass jede beliebige Minute dieselbe Art von Inhalt bietet. Ein laufendes Konzert ist kein Fehler im Stream.", "Notiere für eine Suche deshalb Thema und gewünschte Form. 'Interview zur Energiepolitik' führt zu einer anderen Auswahl als 'Nachrichten jetzt'. Ein Beitrag zum späteren Hören und das aktuelle Radioprogramm erfüllen unterschiedliche Aufgaben. Wer nur einen bestimmten Gesprächspartner hören möchte, sollte zuerst nach diesem Beitrag suchen und nicht auf eine Wiederholung im Livestream warten."]
+      },
+      {
+        "heading": "Kulturprogramm und Wissensbegleitung vergleichen",
+        "paragraphs": ["Deutschlandfunk Kultur beschreibt unter anderem Hörspiele, Lesungen und Konzertaufnahmen als Teil seines Angebots. Nova verbindet laut eigenem Profil Information und Wissen mit Musik. Diese Schwerpunkte sind keine Altersvorschrift und keine Qualitätsrangliste. Du musst weder ein bestimmtes Vorwissen mitbringen noch dich dauerhaft für einen der Sender entscheiden.", "Für einen ruhigen Abend könnte ein angekündigtes Hörspiel der passendere Fund sein; bei einer Fahrt vielleicht ein Gespräch über eine Alltagsfrage. Lies jeweils die Beschreibung, statt aus dem Sendernamen automatisch Länge oder Tonfall abzuleiten. Auch beim Kulturprogramm gibt es aktuelle Einordnung, und ein Wissensgespräch muss nicht trocken klingen. Die konkrete Ausgabe bleibt der bessere Vergleichsmaßstab."]
+      },
+      {
+        "heading": "Das Programm mit dem tatsächlichen Empfangsweg abgleichen",
+        "paragraphs": ["Ein Name im Verzeichnis ist nicht dasselbe wie ein empfangbarer UKW-Sender an deinem Standort. Nova nennt digitale Empfangswege; ein reines UKW-Gerät kann daraus nicht durch eine andere Suche einen digitalen Empfänger machen. Im Browser braucht die Wiedergabe dagegen eine funktionierende Verbindung. Entscheide deshalb getrennt, welchen Inhalt du willst und womit du ihn hören kannst."],
+        "items": ["Den vollständigen Programmnamen überprüfen.", "Für einen Termin die aktuelle Programmübersicht lesen.", "Beim vorhandenen Gerät zwischen UKW, DAB+ und Internet unterscheiden.", "Bei einem Einzelbeitrag nach Titel und Datum statt nach Frequenz suchen."]
+      },
+      {
+        "heading": "Eine kleine Auswahl für verschiedene Situationen anlegen",
+        "paragraphs": ["Statt alle drei Streams dauerhaft gegeneinander zu bewerten, ordne einige konkrete Funde nach Zweck: kurze Orientierung, ausführliches Thema, Literatur oder musikalische Begleitung. Notiere, warum ein Fund passt. Das verhindert, dass du beim nächsten Mal wieder bei einer langen ungeordneten Senderliste beginnst. Programmbezeichnungen sind dabei zuverlässiger als ein zufällig erinnerter Moderationssatz.", "Ein Vergleich muss nicht am selben Tag zu einem endgültigen Gewinner führen. Hörzeit, Aufmerksamkeit und Thema verändern, was für dich funktioniert. Prüfe vor einer längeren Sitzung auch mobile Daten und Audioausgang. Keine der allgemeinen Programmbeschreibungen garantiert weltweiten Zugriff, die Verfügbarkeit jeder Aufnahme oder eine unveränderte Sendereihenfolge."]
+      }
+    ],
+    "faq": [
+      {"question": "Ist Deutschlandradio ein einzelner Livestream?", "answer": "Nein. Deutschlandradio ist hier der gemeinsame institutionelle Rahmen. Deutschlandfunk, Kultur und Nova haben eigene Programme; du musst den gewünschten Kanal auswählen."},
+      {"question": "Welches Programm nennt Hörspiele und Lesungen?", "answer": "Das offizielle Profil von Deutschlandfunk Kultur führt diese Formen auf. Für ein bestimmtes Werk brauchst du trotzdem dessen aktuelle Sendungs- oder Beitragsseite."},
+      {"question": "Kann ich Nova mit einem reinen UKW-Radio hören?", "answer": "Das offizielle Nova-Profil nennt digitale Wege wie DAB+ und Livestream. Ein ausschließlich für UKW ausgelegter Empfänger wird durch eine gespeicherte Internetadresse nicht internetfähig."}
+    ],
+    "links": [
+      {"route": "blog:news-talk-radio-guide", "label": "Nachrichten und Gespräche bewusst auswählen"},
+      {"route": "blog:internet-radio-explained", "label": "Empfangswege verstehen"},
+      {"route": "blog:listen-to-radio-online", "label": "Einen passenden Stream finden"},
+      {"route": "search", "label": "Programme von Deutschlandradio suchen"}
+    ],
+    "sources": [
+      {"name": "Deutschlandradio: Deutschlandfunk", "url": "https://www.deutschlandradio.de/deutschlandfunk-112.html"},
+      {"name": "Deutschlandradio: Deutschlandfunk Kultur", "url": "https://www.deutschlandradio.de/deutschlandfunk-kultur-106.html"},
+      {"name": "Deutschlandradio: Deutschlandfunk Nova", "url": "https://www.deutschlandradio.de/deutschlandfunk-nova-106.html"}
+    ],
+    "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "listen-to-radio-online"]
+  },
+  {
+    "id": "dab-plus-sender-fehlen",
+    "title": "DAB+-Sender fehlen nach dem Umzug: Suchlauf, Standort und Speicher prüfen",
+    "seoTitle": "DAB+-Sender fehlen nach Umzug: So prüfst du den Empfang",
+    "description": "Prüfe nach einem Umzug Standort, Antenne und Sendersuchlauf deines DAB+-Radios. Erfahre, warum alte Favoriten kein Beleg für aktuellen Empfang sind.",
+    "primaryKeyword": "DAB+ Sender fehlen nach Umzug",
+    "secondaryKeywords": ["DAB Sendersuchlauf", "Digitalradio Favorit stumm", "DAB Radio Standort Antenne"],
+    "imageAlt": "Illustration einer Weltkugel mit drahtlosen Verbindungssymbolen",
+    "intro": "Fehlen nach einem Umzug DAB+-Sender, prüfe zuerst den neuen Standort und starte anschließend einen vollständigen Sendersuchlauf nach Geräteanleitung. Eine alte Favoritentaste kann noch einen früheren Eintrag aufrufen, ohne dass dieser am neuen Ort empfangbar ist. Der folgende Ablauf betrifft den Funkempfang eines DAB+-Geräts, nicht einen WLAN-Stream mit demselben Sendernamen.",
+    "sections": [
+      {
+        "heading": "Alte Senderliste und neuen Empfang auseinanderhalten",
+        "paragraphs": ["Ein gespeicherter Programmname ist eine Erinnerung des Geräts, kein aktueller Empfangsnachweis. Wenn du beispielsweise von einem Bundesland in ein anderes ziehst, kann sich das regionale Angebot ändern. Prüfe zunächst, ob andere Programme hörbar sind und ob das Gerät tatsächlich im DAB-Modus steht. Bei Hybridgeräten führen ähnlich benannte Einträge möglicherweise über verschiedene Empfangswege.", "Schreibe auf, welche Programme fehlen und welche weiter funktionieren. Ein einzelner stummer Favorit ist eine andere Ausgangslage als ein vollständig leerer Suchlauf. Diese Unterscheidung hilft auch bei einer Nachfrage beim Hersteller. Sie verhindert, dass du ohne Anlass dein WLAN neu einrichtest, obwohl du gerade terrestrisches Digitalradio untersuchst."]
+      },
+      {
+        "heading": "Den Aufstellort vor dem nächsten Suchlauf prüfen",
+        "paragraphs": ["Der praktische Leitfaden von Digitalradio Büro Deutschland nennt Antenne und Aufstellort als wichtige Faktoren beim Suchlauf. Wähle für den Vergleich zunächst einen festen Platz. Wenn du gleichzeitig Zimmer, Antenne und Geräteeinstellung wechselst, weißt du später nicht, welche Änderung geholfen hat. Beachte bei fest eingebauten Anlagen die Herstellerhinweise, statt Anschlüsse auf Verdacht umzubauen.", "Ein anderer Platz im Raum kann einen Unterschied machen, ist aber keine Empfangsgarantie. Fensterplätze sind nicht automatisch an jeder Adresse besser. Notiere ein einfaches Ergebnis wie 'am bisherigen Platz kein Treffer, am Fenster mehrere Programme'. Das ist für die weitere Fehlersuche brauchbarer als eine unbelegte Aussage über die Versorgung der ganzen Stadt."]
+      },
+      {
+        "heading": "Suchlauf durchführen und Favoriten erst danach neu belegen",
+        "paragraphs": ["Suche in der Anleitung nach der vollständigen Programmsuche. Die Bezeichnung kann sich zwischen Geräten unterscheiden; eine einzige universelle Tastenfolge wäre irreführend. Lass den Vorgang abschließen und teste einen gefundenen Eintrag direkt aus der neuen Liste. Belege erst dann die Favoritentasten neu. So untersuchst du nicht versehentlich weiterhin einen alten Speichereintrag."],
+        "items": ["Aktuellen Modus und Antennenposition festhalten.", "Einen vollständigen Suchlauf laut Geräteanleitung starten.", "Gefundene Programme zunächst aus der Senderliste testen.", "Favoriten nach erfolgreichem Empfang neu zuordnen.", "Vor einem Werksreset eigene Einstellungen und Belegungen notieren."]
+      },
+      {
+        "heading": "Reset, Versorgungskarte und Internetalternative einordnen",
+        "paragraphs": ["Ein Werksreset ist mehr als ein neuer Suchlauf. Der offizielle Ratgeber weist darauf hin, dass gespeicherte Tastenbelegungen dabei verloren gehen. Nutze ihn nicht als reflexartigen ersten Schritt. Wenn ein Programmnamen weiter fehlt, vergleiche die regionale Empfangsprognose mit deiner Adresse und den Gerätevoraussetzungen. Eine Prognose ersetzt allerdings keine Messung im konkreten Gebäude.", "Ein Webstream desselben Senders kann eine andere Hörmöglichkeit sein, sofern er verfügbar ist und dein Gerät Internet unterstützt. Er beweist weder guten noch schlechten DAB+-Empfang. Trenne deshalb beide Ergebnisse auch in einer Supportanfrage. Bei mobilen Geräten oder im Auto kommen wechselnde Standorte hinzu; Einstellungen sollte man nur in einer geeigneten, sicheren Situation vornehmen."]
+      }
+    ],
+    "faq": [
+      {"question": "Warum bleibt ein gespeicherter Sender nach dem Umzug stumm?", "answer": "Der Favorit kann noch auf einen alten Eintrag verweisen. Aktualisiere die Liste und prüfe, ob das Programm am neuen Standort tatsächlich gefunden wird."},
+      {"question": "Löscht ein Werksreset meine Favoriten?", "answer": "Der offizielle Suchlauf-Ratgeber warnt vor dem Verlust der Speichertastenbelegung. Lies zusätzlich die Anleitung deines Modells und notiere wichtige Einstellungen vor einem Reset."},
+      {"question": "Beweist ein funktionierender Internetstream, dass DAB+ empfangbar ist?", "answer": "Nein. Internet und DAB+ verwenden unterschiedliche Wege. Das gleiche Programm kann online funktionieren, obwohl es dein DAB+-Gerät am Aufstellort nicht empfängt."}
+    ],
+    "links": [
+      {"route": "blog:internet-radio-explained", "label": "DAB+ und Internet nicht verwechseln"},
+      {"route": "blog:listen-to-radio-online", "label": "Eine verfügbare Onlinealternative suchen"},
+      {"route": "blog:radio-data-usage", "label": "Datenverbrauch beim Streamen abschätzen"},
+      {"route": "search", "label": "Einen Sender im Verzeichnis suchen"}
+    ],
+    "sources": [{"name": "Digitalradio Büro Deutschland: Sendersuchlauf leicht gemacht", "url": "https://www.dabplus.de/2024/07/05/sendersuchlauf-leicht-gemacht/"}],
+    "relatedIds": ["internet-radio-explained", "listen-to-radio-online", "radio-data-usage"]
+  }
+]

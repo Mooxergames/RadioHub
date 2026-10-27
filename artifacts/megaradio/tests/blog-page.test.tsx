@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BlogPage from "../src/pages/blog";
-import { BLOG_LOCALES } from "@workspace/seo-shared/blog-manifest";
+import { BLOG_LOCALES, MARKET_BLOG_MANIFEST, blogLanguage } from "@workspace/seo-shared/blog-manifest";
 import { loadBlogContent } from "@workspace/seo-shared/blog";
 
 vi.mock("../src/pages/not-found", () => ({
@@ -100,3 +100,34 @@ it("unknown guide and unavailable locale show a real not-found view, not duplica
   expect(view.getByText("Missing editorial page")).toBeVisible();
   expect(view.container.querySelector(".radio-journal-card")).toBeNull();
 });
+
+it("missing content is rejected independently of a valid catalog route; navigation back preserves the player", async () => {
+  const content = await loadBlogContent('tr');
+  client.setQueryData(['editorial-blog', 'tr'], { ...content, articles: content.articles.filter(a => a.id !== 'radio-data-usage') });
+  const view = mount('/tr/blog/radio-data-usage');
+  expect(view.getByText('Missing editorial page')).toBeVisible();
+  expect(view.container.querySelector('.radio-journal-card')).toBeNull();
+  const player = view.getByTestId('existing-player');
+  client.setQueryData(['editorial-blog', 'tr'], content);
+  await view.findByRole('heading', { level: 1, name: content.articles.find(a => a.id === 'radio-data-usage')!.title });
+  expect(view.getByTestId('existing-player')).toBe(player);
+});
+
+it("a market article does not invent translation links and a direct absent-locale URL stays missing", async () => {
+  const view = mount('/en/blog/kral-fm-canli-dinle-sorunlari');
+  expect(view.getByText('Missing editorial page')).toBeVisible();
+  expect(window.location.pathname).toBe('/en/blog/kral-fm-canli-dinle-sorunlari');
+});
+
+for (const [id, edition] of Object.entries(MARKET_BLOG_MANIFEST))
+  it(`renders only the actual market edition: ${edition.locale}/${id}`, async () => {
+    const content = await loadBlogContent(edition.locale);
+    const article = content.articles.find(a => a.id === id)!;
+    const view = mount(`/${edition.locale}/blog/${id}`);
+    await view.findByRole('heading', {level: 1, name: article.title});
+    expect(view.container.querySelector('main')).toHaveAttribute('lang', blogLanguage(edition.locale, article.id));
+    expect(view.container.querySelectorAll('.radio-journal-languages a')).toHaveLength(1);
+    for (const faq of article.faq) expect(view.getAllByText(faq.answer)[0]).toBeVisible();
+    for (const source of article.sources!) expect(view.getAllByRole('link', {name: source.name})
+      .some(link => link.getAttribute('href') === source.url)).toBe(true);
+  });

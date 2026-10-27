@@ -1,0 +1,90 @@
+[
+  {
+    "id": "raiplay-sound-podcast-offline",
+    "title": "RaiPlay Sound offline: Dove trovare i download e cosa controllare prima di partire",
+    "seoTitle": "RaiPlay Sound offline: Podcast, download e controlli",
+    "description": "Prepara i podcast di RaiPlay Sound per l’ascolto offline: distingui programmi seguiti e download, controlla l’episodio e verifica cosa è presente nell’app.",
+    "primaryKeyword": "RaiPlay Sound podcast offline",
+    "secondaryKeywords": ["RaiPlay Sound download", "I miei podcast Rai", "podcast Rai senza connessione"],
+    "imageAlt": "Illustrazione di uno smartphone accanto a un paio di cuffie",
+    "intro": "Per ascoltare un podcast di RaiPlay Sound offline, verifica che l’episodio sia effettivamente presente tra i download nell’app mobile: seguire un programma non equivale a scaricarlo. Le FAQ Rai collocano questi contenuti nella sezione I miei podcast e spiegano che l’account è condiviso con RaiPlay. Prima di partire, controlla l’episodio concreto anziché affidarti alla sola presenza del titolo nella tua raccolta.",
+    "sections": [
+      {
+        "heading": "Separa account, programma seguito ed episodio scaricato",
+        "paragraphs": ["Sono tre cose diverse: l’account identifica il tuo accesso, seguire un programma aiuta a ritrovarlo, mentre un download riguarda un contenuto disponibile per l’ascolto senza rete. Non dedurre il terzo passaggio dai primi due. Una copertina nella raccolta può essere un riferimento al programma e non la prova che ogni puntata sia già sul telefono.", "Se utilizzi già RaiPlay, le FAQ indicano la possibilità di usare lo stesso account su RaiPlay Sound. Prima di creare un nuovo profilo, controlla quindi quale accesso stai usando. Se cambi telefono, non dare per scontato che i file locali si trasferiscano insieme ai preferiti: verifica cosa risulta scaricato sul dispositivo con cui viaggerai."]
+      },
+      {
+        "heading": "Scegli l’episodio giusto prima di preparare il viaggio",
+        "paragraphs": ["Cerca titolo, data e numero della puntata. Una serie può includere edizioni simili oppure una sequenza narrativa: scaricare l’ultima uscita non significa aver scelto l’inizio della storia. Controlla anche la durata, così puoi decidere se preparare una puntata breve o una sessione più lunga. Il tempo disponibile è un criterio più utile del numero di copertine salvate.", "Per esempio, se vuoi ascoltare uno sceneggiato durante un viaggio in treno, annota l’ordine dei primi episodi. Se cerchi un’intervista precisa, confronta nome dell’ospite e descrizione. Non presumere che tutti i contenuti, le dirette o le registrazioni disponibili online offrano lo stesso comando di download. La verifica va fatta sul contenuto selezionato nell’app."]
+      },
+      {
+        "heading": "Controlla la preparazione sul dispositivo che porterai con te",
+        "paragraphs": ["Apri l’area dei download dell’app e controlla che la preparazione dell’episodio sia terminata. Una richiesta avviata non dimostra che il trasferimento sia completo. Per verificare l’ascolto offline, scegli un momento adatto prima della partenza, quando puoi ancora correggere un problema senza dipendere dalla connessione della stazione o del treno."],
+        "items": ["Confronta titolo e data con la puntata desiderata.", "Verifica il contenuto nell’area download dell’app mobile.", "Controlla che ci sia spazio sufficiente sul dispositivo.", "Prova l’episodio senza connessione prima di fare affidamento sull’ascolto offline.", "Separa un problema di file da un’uscita audio collegata alle cuffie sbagliate."]
+      },
+      {
+        "heading": "Gestisci gli imprevisti senza perdere una preparazione utile",
+        "paragraphs": ["Se una puntata non parte offline, torna a controllare proprio quella voce: non cancellare subito l’intera raccolta né reinstallare l’app come primo tentativo. Una nuova installazione potrebbe richiedere di preparare di nuovo i contenuti locali. Annota prima il titolo, l’eventuale messaggio e se lo stesso episodio funziona quando la rete è disponibile.", "Un download nell’app non è automaticamente un file esportabile né un permesso di ridistribuzione. Anche la disponibilità del contenuto può cambiare: consulta le indicazioni del servizio anziché inventare una scadenza valida per tutti. Queste funzioni appartengono a RaiPlay Sound, non a ogni applicazione radio. La diretta resta un’esperienza diversa dalla riproduzione di una puntata preparata in precedenza."]
+      }
+    ],
+    "faq": [
+      {"question": "Dove trovo i download di RaiPlay Sound?", "answer": "Le FAQ ufficiali li indicano in I miei podcast nell’app mobile. Controlla il contenuto sul dispositivo che userai, senza confondere la raccolta dei programmi seguiti con i file preparati offline."},
+      {"question": "Posso utilizzare l’account che ho già su RaiPlay?", "answer": "Le FAQ descrivono un account unico per RaiPlay e RaiPlay Sound. Prima di creare un altro profilo, verifica le credenziali e la modalità di accesso già utilizzate."},
+      {"question": "Seguire un podcast scarica automaticamente tutte le puntate?", "answer": "Non dedurlo dal solo pulsante Segui. Verifica quali episodi risultano effettivamente presenti nei download e se la preparazione è completa prima di scollegarti."}
+    ],
+    "links": [
+      {"route": "blog:radio-app-iphone-android", "label": "Preparare l’ascolto sul telefono"},
+      {"route": "blog:radio-data-usage", "label": "Stimare i dati usati dall’ascolto online"},
+      {"route": "blog:internet-radio-explained", "label": "Distinguere diretta e contenuto registrato"},
+      {"route": "search", "label": "Cercare una stazione radio"},
+      {"route": "applications", "label": "Scoprire le applicazioni di Mega Radio"}
+    ],
+    "sources": [{"name": "RaiPlay Sound: FAQ per creare e gestire l’account", "url": "https://www.raiplaysound.it/account/Faq-Crea-e-gestisci-il-tuo-Account-cb8a1d73-76d6-411b-acd9-8394531f9b64.html?s=ContentSet-8058f134-eb40-48c3-a039-3e443e9cb7b5"}],
+    "relatedIds": ["radio-app-iphone-android", "radio-data-usage", "internet-radio-explained"]
+  },
+  {
+    "id": "isoradio-traffico-diretta-podcast",
+    "title": "Isoradio e traffico: Quando serve la diretta e quando ascoltare un podcast",
+    "seoTitle": "Isoradio e traffico: Differenza tra diretta e podcast",
+    "description": "Scegli la diretta di Isoradio per seguire gli aggiornamenti e distinguila dai podcast: controlla data, tratto stradale e direzione dell’informazione.",
+    "primaryKeyword": "Isoradio traffico diretta o podcast",
+    "secondaryKeywords": ["Isoradio viabilità", "Isoradio aggiornamenti traffico", "Isoradio episodi registrati"],
+    "imageAlt": "Illustrazione di un microfono con onde sonore e motivi di voce",
+    "intro": "Per seguire aggiornamenti sul traffico, cerca la diretta di Isoradio; per un’intervista o un approfondimento già pubblicato, scegli la puntata e controllane la data. Un podcast sulla mobilità non descrive automaticamente la situazione stradale di adesso. Prima di decidere cosa ascoltare, separa quindi il bisogno di un’informazione attuale dal desiderio di approfondire un tema legato al viaggio.",
+    "sections": [
+      {
+        "heading": "Capisci se ti serve un aggiornamento o un racconto",
+        "paragraphs": ["La presentazione Rai della stagione 2026/27 descrive Isoradio come una programmazione di flusso che unisce informazioni di servizio, intrattenimento e musica. Non è quindi strano sentire un brano o una conversazione tra aggiornamenti. Questo non significa però che qualsiasi contenuto associato al marchio sia un bollettino attuale, né che ogni strada venga nominata nel momento in cui ti colleghi.", "Se vuoi sapere che cosa viene comunicato ora, parti dall’accesso alla diretta. Se ti interessa un’intervista sul lavoro degli autotrasportatori o un viaggio raccontato, cerca invece il contenuto tematico. Sono scelte entrambe sensate, ma non rispondono alla stessa domanda. Un titolo che contiene la parola 'traffico' non basta a renderle equivalenti."]
+      },
+      {
+        "heading": "Leggi data e contesto di una puntata registrata",
+        "paragraphs": ["Nei risultati di ricerca puoi trovare pagine recenti, registrazioni precedenti e approfondimenti che restano utili nel tempo. Guarda la data della puntata, non soltanto quella eventualmente mostrata dal motore di ricerca. Anche un contenuto interessante può descrivere una situazione superata. Per un’informazione contingente, il riferimento temporale deve essere parte della lettura, non un dettaglio finale.", "Un’intervista sulle abitudini di viaggio può avere valore anche mesi dopo; la descrizione di una coda richiede invece un altro tipo di aggiornamento. Se condividi una puntata, specifica che si tratta di un approfondimento registrato. Eviterai che chi riceve il link lo interpreti come una segnalazione in tempo reale solo perché riconosce il nome della stazione."]
+      },
+      {
+        "heading": "Ascolta tratto, direzione e momento dell’informazione",
+        "paragraphs": ["Quando un aggiornamento cita una strada, non fermarti al nome. Una notizia relativa alla direzione opposta può non riguardare il tuo percorso. Come esempio di lettura, cercare informazioni sulla A1 richiede di capire quale tratto e quale direzione siano descritti; questo esempio non è un avviso sul traffico attuale. Se hai perso parte del messaggio, non ricostruirla per supposizione."],
+        "items": ["Distingui la diretta da una puntata con data e durata.", "Ascolta il tratto stradale insieme alla direzione.", "Considera il momento a cui si riferisce l’informazione.", "Se manca un dettaglio, cerca una conferma aggiornata della fonte competente.", "Prepara player e uscita audio prima di metterti alla guida."]
+      },
+      {
+        "heading": "Prepara l’ascolto senza attribuirgli funzioni che non ha",
+        "paragraphs": ["RaiPlay Sound elenca Isoradio tra le dirette. Quel punto di accesso aiuta a distinguere la stazione dai singoli episodi, ma non garantisce ricezione internet ovunque, assenza di ritardi o aggiornamenti personalizzati per il tuo itinerario. Una radio non va descritta automaticamente come un navigatore capace di sapere dove ti trovi e quale deviazione ti convenga prendere.", "Controlla il collegamento alle cuffie o all’impianto dell’auto in un momento adatto, senza interagire con il telefono durante la guida. Se la riproduzione si interrompe, non dedurne che la strada sia libera o che non vi siano più comunicazioni. Un problema del player resta distinto dalla situazione sulla rete stradale. Il contenuto ascoltato va sempre letto con il proprio contesto temporale."]
+      }
+    ],
+    "faq": [
+      {"question": "Un podcast di Isoradio descrive il traffico di adesso?", "answer": "Non automaticamente. È un contenuto registrato: controlla la data e l’argomento. Per seguire gli aggiornamenti in onda cerca la diretta, senza trasformarla in una garanzia di informazione su ogni tratto."},
+      {"question": "Isoradio trasmette soltanto bollettini stradali?", "answer": "No. La presentazione Rai comprende anche musica e intrattenimento nella programmazione di flusso. Non ogni minuto ascoltato è un bollettino, anche se la viabilità resta parte del servizio."},
+      {"question": "Se il player è silenzioso, posso dedurre che non ci siano problemi sul percorso?", "answer": "No. La riproduzione audio non misura le condizioni della strada. Un’interruzione del collegamento non fornisce alcuna informazione affidabile sul tuo itinerario."}
+    ],
+    "links": [
+      {"route": "blog:news-talk-radio-guide", "label": "Valutare tempo e contesto delle informazioni"},
+      {"route": "blog:internet-radio-explained", "label": "Separare una diretta da una registrazione"},
+      {"route": "blog:radio-app-iphone-android", "label": "Controllare l’audio del telefono prima del viaggio"},
+      {"route": "search", "label": "Cercare una stazione radio"}
+    ],
+    "sources": [
+      {"name": "Rai RadioCorriereTV: offerta radiofonica 2026/2027", "url": "https://www.radiocorrieretv.rai.it/offerta-radio/"},
+      {"name": "RaiPlay Sound: accessi alle dirette radio", "url": "https://www.raiplaysound.it/"}
+    ],
+    "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "radio-app-iphone-android"]
+  }
+]

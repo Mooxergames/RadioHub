@@ -24,6 +24,7 @@ import type { AddressInfo, Server } from 'node:net';
 import type { Server as HttpServer } from 'node:http';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { INDEXING_PILOT } from '../src/seo/indexing-pilot';
+import { MARKET_BLOG_MANIFEST, BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
 
 /**
  * Task #194: assert XML well-formedness in addition to regex smoke
@@ -1522,16 +1523,45 @@ test('Task #344: sitemap-index defensively skips a station chunk numbered 0 (wou
   }
 });
 
-test('blog sitemap serves 140 translated articles and 14 indexes with validators', async () => {
+test('blog sitemap serves core editions plus actual market articles with editorial validators', async () => {
   const response = await fetch(`${baseUrl}/sitemap-blog.xml`);
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type') || '', /xml/);
   const parsed = assertValidXml(await response.text(), 'blog sitemap') as any;
-  assert.equal(parsed.urlset.url.length, 154);
-  assert.equal(parsed.urlset.url.filter((entry: any) => entry['image:image']).length, 140);
+  const marketCount = Object.keys(MARKET_BLOG_MANIFEST).length;
+  assert.equal(parsed.urlset.url.length, 154 + marketCount);
+  assert.equal(parsed.urlset.url.filter((entry: any) => entry['image:image']).length, 140 + marketCount);
+  assert.equal(response.headers.get('last-modified'), new Date(BLOG_SITEMAP_UPDATED).toUTCString());
+  const indexResponse = await fetch(`${baseUrl}/sitemap-index.xml`);
+  const index = assertValidXml(await indexResponse.text(), 'blog parent index') as any;
+  assert.equal(index.sitemapindex.sitemap.find((entry: any) => entry.loc.endsWith('/sitemap-blog.xml')).lastmod, BLOG_SITEMAP_UPDATED);
   const cached = await fetch(`${baseUrl}/sitemap-blog.xml`, { headers: { 'If-None-Match': response.headers.get('etag')! } });
   assert.equal(cached.status, 304);
   assert.ok((await (await fetch(`${baseUrl}/robots.txt`)).text()).includes('/sitemap-blog.xml'));
+});
+
+test('blog slim metadata uses actual editions, returns404 for absent locales and503 for failures', async () => {
+  const path = '/tr/blog/kral-fm-canli-dinle-sorunlari';
+  const valid = await fetch(`${baseUrl}/api/seo/page-data?url=${encodeURIComponent(path)}&slim=1`);
+  assert.equal(valid.status, 200);
+  const payload = await valid.json() as any;
+  assert.equal(payload.seoTags.canonical, `https://themegaradio.com${path}`);
+  assert.deepEqual(payload.seoTags.hreflangs.map((entry: any) => entry.hreflang), ['tr']);
+  assert.equal(payload.structuredData.page.find((entry: any) => entry['@type'] === 'BlogPosting').datePublished, '2026-10-27T00:00:00+01:00');
+  const absent = await fetch(`${baseUrl}/api/seo/page-data?url=/en/blog/kral-fm-canli-dinle-sorunlari&slim=1`);
+  assert.equal(absent.status, 404);
+  const missing = await absent.json() as any;
+  assert.equal(missing.seoTags.noIndex, true);
+  assert.equal(missing.seoTags.canonical, undefined);
+  assert.deepEqual(missing.seoTags.hreflangs, []);
+  const { SeoRenderer } = await import('../src/seo-renderer');
+  const failure = mock.method(SeoRenderer.prototype, 'renderStaticPage', async () => { throw new Error('Editorial chunk temporarily unavailable'); });
+  try {
+    const temporary = await fetch(`${baseUrl}/api/seo/page-data?url=${encodeURIComponent(path)}&slim=1`);
+    assert.equal(temporary.status, 503);
+    assert.equal(temporary.headers.get('cache-control'), 'no-store');
+    assert.ok(temporary.headers.get('retry-after'));
+  } finally { failure.mock.restore(); }
 });
 
 test('A clearly-unmatched path DOES fall through to the SPA catch-all (negative control)', async () => {

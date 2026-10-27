@@ -1,0 +1,180 @@
+[
+  {
+    "id": "npr-local-station-stream",
+    "title": "NPR live radio: Find your local station, not just a podcast feed",
+    "seoTitle": "NPR local station live stream: Find the right feed",
+    "description": "Find the NPR member station you meant to hear. Separate local live radio, individual stories and podcasts, then check the station's own schedule.",
+    "primaryKeyword": "NPR local station live stream",
+    "secondaryKeywords": ["NPR station versus podcast", "local public radio stream", "NPR station schedule"],
+    "imageAlt": "Illustration of a microphone and sound waves representing spoken radio",
+    "intro": "To hear your local NPR station live, identify the station by its name and city, then open its live feed rather than a podcast episode. An NPR story, an on-demand show and a member station's current broadcast are different listening choices. If the programme is not what you expected, check the station's schedule before treating the difference as a playback fault.",
+    "sections": [
+      {
+        "heading": "Start with the local station's identity",
+        "paragraphs": ["Write down the call letters or station name, the city and, if you know it, the programme you want. 'NPR live' does not tell a directory which local service you mean. A saved link from another state may explain unfamiliar local references without a playback fault.", "For Boston's WBUR, check that name rather than accept the first public-radio result. WBUR's own listening page distinguishes its live service from on-demand programmes and podcasts. Use that distinction as a way to read other station pages, not as a promise that every station offers exactly the same controls or apps."]
+      },
+      {
+        "heading": "Recognise a live feed before pressing play",
+        "paragraphs": ["Look for the station name and a clear live-listening label. A dated episode with a fixed running time is a different starting point from joining a continuing broadcast. A single story may be the item you wanted to revisit, but it will not necessarily include the surrounding programme, local introductions or later updates. Decide which of those you actually need.", "If you are trying to hear a guest mentioned by a friend, ask for the show title and date rather than just the network name. If you want today's local programme, begin with the station's current schedule. These two searches can lead to different pages even when they concern the same journalist. Playing both at once only makes identification harder."]
+      },
+      {
+        "heading": "Use the schedule to explain an unexpected programme",
+        "paragraphs": ["Match the listing to the station, day and stated time zone. When travelling, the time on your phone may not match the station's schedule. Also distinguish a programme's normal slot from a specific day's listing. A special broadcast can change what is heard; an old search snippet cannot establish what is on air now. The station's own explanation is the better place to investigate."],
+        "items": ["Confirm the full station name and location.", "Choose live radio or a dated recording deliberately.", "Read the schedule's date and time-zone information.", "Stop other players before comparing audio.", "Save the station page separately from a favourite episode."]
+      },
+      {
+        "heading": "Describe a playback problem without blaming the wrong service",
+        "paragraphs": ["If the correct feed will not start, compare it with the station's official player using the same device and connection. Note whether the page loads, an error appears or playback seems to begin without sound. Those observations are more useful than saying that 'NPR is down'. A directory, a station and a podcast publisher can involve different delivery paths.", "NPR's help centre lists questions about local streams and switching stations, while a station can explain its own service. Record the time and affected page when requesting help. Do not send passwords or private account details. A listed stream is not a guarantee of access from every country or network, and no audio playback test is implied by this guide."]
+      }
+    ],
+    "faq": [
+      {"question": "Why does another NPR station have a different programme?", "answer": "You may have selected a different local service or schedule. Check both station identities and the relevant day's listings rather than assuming all NPR-related feeds are interchangeable."},
+      {"question": "Does a podcast play what is on the station right now?", "answer": "Not necessarily. It is an on-demand recording. For the current station broadcast, choose its live feed and check the schedule."},
+      {"question": "Can I try the station directly instead of an aggregator?", "answer": "Where the station offers an official web player, that is a useful comparison point. WBUR is one example; availability and device support must be checked for the station you choose."}
+    ],
+    "links": [
+      {"route": "blog:news-talk-radio-guide", "label": "Choose news and discussion with context"},
+      {"route": "blog:internet-radio-explained", "label": "Understand live feeds and recordings"},
+      {"route": "blog:listen-to-radio-online", "label": "Work through an online listening check"},
+      {"route": "search", "label": "Find a local radio station"}
+    ],
+    "sources": [
+      {"name": "NPR Help: local streams and station switching", "url": "https://help.npr.org/"},
+      {"name": "WBUR: Ways to Listen", "url": "https://www.wbur.org/ways-to-listen"}
+    ],
+    "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "listen-to-radio-online"]
+  },
+  {
+    "id": "noaa-weather-radio-online-alerts",
+    "title": "NOAA Weather Radio online: Listening is not the same as an alert receiver",
+    "seoTitle": "NOAA Weather Radio online versus an alert receiver",
+    "description": "Understand the difference between an online NOAA audio relay and a weather-radio receiver. Check location and source without assuming automatic alerts.",
+    "primaryKeyword": "NOAA weather radio online vs weather radio",
+    "secondaryKeywords": ["NOAA audio relay", "weather radio SAME receiver", "NOAA stream limitations"],
+    "imageAlt": "Illustration of a microphone with sound waves for broadcast information",
+    "intro": "An online NOAA Weather Radio audio feed is not the same thing as a dedicated alert receiver. Hearing a forecast in a browser does not demonstrate that the browser will activate for a warning, keep working during a disruption or cover your location. Use this guide to identify what you are listening to, not as a replacement for official warning information or emergency instructions.",
+    "sections": [
+      {
+        "heading": "Identify the broadcast location, not just the NOAA name",
+        "paragraphs": ["A relay may carry information for a different area from the place where you are listening. Read the transmitter or office information supplied with the audio and compare it with the location mentioned in the forecast. A familiar state name is not enough to establish that every county or travel destination is covered. Do not infer local relevance from a directory category alone.", "For a trip, separate the place you are leaving from the place you are going. A feed saved at home can still play perfectly while being irrelevant to the destination. If the source does not identify the audio clearly, look for the relevant National Weather Service office's own information rather than guessing from an unfamiliar voice or a map pin."]
+      },
+      {
+        "heading": "Distinguish a receiver function from an audio recording",
+        "paragraphs": ["The NWS describes NOAA Weather Radio as a VHF service requiring a suitable receiver. It also explains SAME, which lets compatible receivers respond to selected geographic warning information. That is a receiver capability, not a feature automatically inherited by any website repeating the sound. An ordinary AM/FM-only radio is not made into a weather-band receiver by changing a station preset.", "The same distinction applies to a phone. A playing page shows that audio is arriving at that moment. It does not establish what will happen after the screen locks, the connection fails or the page is closed. Treat an app's claimed notification functions as separate claims requiring their own documentation; this article does not evaluate or endorse such functions."]
+      },
+      {
+        "heading": "Read an online relay's limits before relying on its sound",
+        "paragraphs": ["The NWS dissemination information points listeners towards local office pages for some audio links. That does not make every third-party feed an official NWS product. Check who operates the page, whether it explains the audio's origin and whether any delay or outage information is supplied. Absence of a displayed problem is not proof that the audio is current or complete."],
+        "items": ["Identify the originating office or transmitter where stated.", "Check that the described area matches your listening purpose.", "Separate page status from actual audio status.", "Read any relay limitations and update information.", "Consult official local warning information independently of the relay."]
+      },
+      {
+        "heading": "Interpret silence and stale audio cautiously",
+        "paragraphs": ["Silence can reflect the player, an audio route, the relay or another part of the delivery chain. It cannot establish that there are no warnings. Note any announced date, time and location, but do not invent an acceptable delay threshold or assume a repeating bulletin is automatically obsolete.", "For receiver-specific questions, use the manufacturer's instructions and official NWS receiver information. For an online problem, record the page and time without presenting the incident as proof of a transmitter failure. This is a factual listening comparison, not an equipment test, emergency plan or assurance that any service will deliver a safety alert to you."]
+      }
+    ],
+    "faq": [
+      {"question": "Will an online feed automatically wake me for a warning?", "answer": "You cannot assume that. NWS descriptions of alert activation concern suitable receivers; an ordinary streaming page does not establish equivalent automatic behaviour."},
+      {"question": "Does silence mean there are no active warnings?", "answer": "No. Silence is an audio observation, not a statement about conditions. Check official warning information for the relevant location."},
+      {"question": "Can a normal FM radio receive this service?", "answer": "NWS identifies dedicated weather-band reception requirements. An AM/FM-only receiver should not be assumed compatible; consult its actual specifications."}
+    ],
+    "links": [
+      {"route": "blog:news-talk-radio-guide", "label": "Check context in information broadcasts"},
+      {"route": "blog:internet-radio-explained", "label": "Separate broadcast and internet delivery"},
+      {"route": "blog:radio-app-iphone-android", "label": "Understand ordinary mobile playback limits"},
+      {"route": "search", "label": "Search the radio directory"}
+    ],
+    "sources": [
+      {"name": "National Weather Service: Description of NOAA Weather Radio", "url": "https://www.weather.gov/pbz/whatisnwr"},
+      {"name": "National Weather Service: Dissemination systems", "url": "https://www.weather.gov/dsb"}
+    ],
+    "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "radio-app-iphone-android"]
+  },
+  {
+    "id": "bbc-radio-outside-uk",
+    "title": "BBC radio outside the UK: What changed, and where to check access",
+    "seoTitle": "BBC radio outside the UK after BBC Sounds changed",
+    "description": "Check official BBC listening routes abroad after the Sounds change. Separate holiday access, live stations and on-demand programmes before troubleshooting.",
+    "primaryKeyword": "BBC radio outside UK after BBC Sounds",
+    "secondaryKeywords": ["BBC Sounds abroad", "BBC radio international directory", "BBC radio holiday listening"],
+    "imageAlt": "Illustration of a globe and wireless connection symbols",
+    "intro": "BBC Sounds closing for people living outside the UK did not mean that every BBC radio listening route disappeared. The BBC's international help page provides alternative arrangements and an official station directory. Start there, then distinguish permanent overseas listening from a UK resident's holiday access. A station being listed does not mean every programme or catch-up recording is available in your location.",
+    "sections": [
+      {
+        "heading": "Establish which access change applies to you",
+        "paragraphs": ["BBC Help dates the overseas Sounds closure to 21 July 2025. Its separate closure FAQ says UK listeners travelling abroad can continue using the app for around a month. These are different circumstances, not contradictory statements. Read the current help wording rather than assume an old installation or an existing bookmark overrides the service's conditions.", "For example, someone who has moved abroad should not plan around the same access as someone taking a short holiday. Before changing device settings, write down the service you opened and the message it displays. 'Sounds will not open' and 'this particular programme is unavailable' are different problems and need different checks."]
+      },
+      {
+        "heading": "Use the official international route for the station",
+        "paragraphs": ["The BBC's update links to a directory for live listening and explains that Radio 4 and World Service English remain available through BBC.com and the BBC app. Choose the station you want using that official guidance.", "If you are looking for a music station, avoid concluding that it has closed simply because it is not the first item shown on a general audio page. Locate its entry in the official directory. Keep that reference separate from any third-party directory result so you can compare the intended station identity without assuming that all delivery paths are equivalent."]
+      },
+      {
+        "heading": "Separate live listening from catching up",
+        "paragraphs": ["You might be able to join a station live yet not find the programme afterwards. Conversely, a podcast episode can be available even when the full broadcast version is not. The BBC explicitly notes that not all radio content will be offered internationally on demand. A search result containing a programme title is therefore not proof that its audio can be played from wherever you are."],
+        "items": ["Decide whether you want live radio or a named recording.", "Check your station against the official international directory.", "Read any content-specific availability message.", "For a recording, confirm the title and episode date.", "Keep the working official reference rather than an obsolete bookmark."]
+      },
+      {
+        "heading": "Troubleshoot without treating a restriction as a fault",
+        "paragraphs": ["First check whether the whole service is unavailable or only one item. Then note your device, location, connection type and exact message. A browser audio problem, an app access rule and a content restriction can look similar from the outside. Repeatedly reinstalling an app is unlikely to explain which of those categories applies. Use official support when the displayed explanation does not fit your situation.", "Do not assume that another listener's access proves what is available to you: their country, account circumstances or content choice may differ. Nor should an aggregator be described as guaranteeing unrestricted BBC access. This guide offers no location-bypass methods and makes no claim that a particular stream has been tested. Recheck official guidance before an extended trip because services and arrangements can change."]
+      }
+    ],
+    "faq": [
+      {"question": "Did BBC radio itself stop outside the UK?", "answer": "No blanket conclusion follows from the Sounds change. BBC Help describes alternative international listening arrangements and supplies a station directory; individual content availability still matters."},
+      {"question": "Can a UK resident use Sounds on holiday?", "answer": "The BBC closure FAQ currently describes around a month of app access abroad for UK listeners. Check its current conditions before travelling rather than treating that as unlimited overseas access."},
+      {"question": "Will every live programme also appear on demand?", "answer": "No. The BBC says not all radio content is offered internationally on demand. A live station entry and a playable catch-up episode are separate checks."}
+    ],
+    "links": [
+      {"route": "blog:internet-radio-explained", "label": "Understand stream availability"},
+      {"route": "blog:radio-app-iphone-android", "label": "Prepare your phone for listening"},
+      {"route": "blog:radio-data-usage", "label": "Plan mobile listening data"},
+      {"route": "search", "label": "Search for a station"},
+      {"route": "applications", "label": "Explore Mega Radio applications"}
+    ],
+    "sources": [
+      {"name": "BBC Help: Update on access to BBC Sounds outside the UK", "url": "https://help.bbc.com/hc/en-us/articles/42652680528659-Update-on-access-to-BBC-Sounds-outside-the-UK"},
+      {"name": "BBC Help: Information on Closure of BBC Sounds", "url": "https://help.bbc.com/hc/en-us/articles/42655683267091-Information-on-Closure-of-BBC-Sounds"}
+    ],
+    "relatedIds": ["internet-radio-explained", "radio-app-iphone-android", "radio-data-usage"]
+  },
+  {
+    "id": "premier-league-radio-commentary-uk",
+    "title": "Premier League radio commentary: How to check BBC and talkSPORT coverage",
+    "seoTitle": "Premier League radio commentary: BBC or talkSPORT?",
+    "description": "Find the right UK radio commentary for a Premier League fixture. Check broadcaster listings, changed kick-offs and the difference between updates and coverage.",
+    "primaryKeyword": "Premier League radio commentary BBC or talkSPORT",
+    "secondaryKeywords": ["Premier League live audio UK", "football radio commentary schedule", "BBC talkSPORT match coverage"],
+    "imageAlt": "Illustration of a microphone and broadcast sound waves",
+    "intro": "For Premier League radio commentary in the UK, check the specific fixture against BBC and talkSPORT listings rather than assume one station carries every match. The league's published UK audio agreement splits packages between those broadcasters for 2025/26 to 2028/29. That agreement explains the broad allocation; the current match listing is what you need when deciding where to listen today.",
+    "sections": [
+      {
+        "heading": "Start with the fixture, not a favourite station",
+        "paragraphs": ["Write down both teams, the match date and the latest kick-off time. Similar searches can surface previews, last season's meeting or post-match discussion instead of the fixture you mean. If a game has moved, discard the old listing before making a listening plan. The original weekend slot may no longer explain the broadcast arrangement you encounter.", "For a Saturday afternoon, do not interpret a station's football branding as a promise that it will describe your team's entire match. The league's agreement provides for two selected national audio matches within the Saturday 3pm window. There can be more games happening than those selections. Finding general football output is therefore not the same as finding full commentary on your fixture."]
+      },
+      {
+        "heading": "Read commentary, updates and discussion as different offers",
+        "paragraphs": ["A programme can mention your match frequently without providing continuous commentary. Look for explicit fixture names and descriptions such as commentary or live updates, and read them in context. A build-up show may lead into another game; a later phone-in may cover several results. Neither is a substitute if you wanted to follow each passage of play.", "Decide what matters to you before selecting a feed. Someone following the whole afternoon might prefer a programme moving between grounds. Someone unable to watch their own club may want one continuous account. That is a listening preference, not a ranking of broadcasters. Descriptions should let you make that choice without guessing from a show title alone."]
+      },
+      {
+        "heading": "Verify the broadcaster's actual listening instructions",
+        "paragraphs": ["Once a current listing identifies the commentary, follow the broadcaster's instructions for that event. A main channel, an additional service and an online event page should not be treated as interchangeable without confirmation. If the game is not where you expected, return to the listing rather than cycling blindly through channels. Keep a note of the exact service name."],
+        "items": ["Confirm teams, date and any revised kick-off.", "Check whether the listing promises commentary or only updates.", "Read the named channel or event-page instructions.", "Allow for pre-match coverage without confusing it with kick-off.", "Check location restrictions separately from the UK rights announcement."]
+      },
+      {
+        "heading": "Keep rights, playback and timing separate",
+        "paragraphs": ["The Premier League announcement concerns UK audio rights. It does not establish that the same stream is available abroad or that a third-party directory can deliver every commentary. A station's ordinary programme may also differ from an event-specific service. Use the event's own availability information instead of treating the existence of a station page as proof of match access.", "Audio and video can arrive at different times, so a score notification may spoil a moment before you hear it. There is no universal delay figure to promise here. If combining feeds is distracting, choose one account of the action. For a technical problem, report the specific event and listening route, not an unsupported claim that an entire broadcaster is offline."]
+      }
+    ],
+    "faq": [
+      {"question": "Is every Saturday 3pm match a national radio commentary?", "answer": "No. The published agreement describes two selected matches in that window. Check the current selections for your fixture rather than assuming every simultaneous game is carried."},
+      {"question": "Why might a rearranged match appear on another broadcaster?", "answer": "The agreement distinguishes match slots and displaced fixtures. The current broadcaster listing is more useful than applying the original kick-off slot to a rearranged game."},
+      {"question": "Do UK audio rights guarantee listening overseas?", "answer": "No. A UK rights announcement is not worldwide access evidence. Check the broadcaster's event-specific territorial information without assuming an aggregator removes restrictions."}
+    ],
+    "links": [
+      {"route": "blog:news-talk-radio-guide", "label": "Distinguish reporting, updates and discussion"},
+      {"route": "blog:internet-radio-explained", "label": "Understand live delivery and availability"},
+      {"route": "blog:radio-app-iphone-android", "label": "Check mobile audio before kick-off"},
+      {"route": "search", "label": "Search for radio stations"}
+    ],
+    "sources": [{"name": "Premier League: UK live audio rights for 2025/26 to 2028/29", "url": "https://www.premierleague.com/es/news/4165261"}],
+    "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "radio-app-iphone-android"]
+  }
+]

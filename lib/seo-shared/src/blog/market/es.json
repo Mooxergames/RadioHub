@@ -1,0 +1,89 @@
+[
+  {
+    "id": "radio-nacional-radio-5-diferencias",
+    "title": "Radio Nacional y Radio 5: Diferencias y cómo encontrar información territorial",
+    "seoTitle": "Radio Nacional y Radio 5: Diferencias y noticias locales",
+    "description": "Distingue RNE, Radio Nacional y Radio 5. Elige la cadena según lo que buscas y comprueba la señal territorial, el día y el horario de la información local.",
+    "primaryKeyword": "Radio Nacional y Radio 5 diferencias",
+    "secondaryKeywords": ["RNE emisoras", "Radio 5 información territorial", "Radio Nacional noticias locales"],
+    "imageAlt": "Ilustración de un micrófono con ondas y señales de voz",
+    "intro": "Radio Nacional y Radio 5 no son dos nombres de una misma señal. RTVE presenta Radio Nacional como cadena generalista y Radio 5 como información continua; ambas incluyen contenidos territoriales en determinados tramos. Para escoger, separa dos preguntas: qué tipo de programa quieres y de qué territorio necesitas información. Buscar solo «RNE en directo» puede dejar ambas sin resolver.",
+    "sections": [
+      {
+        "heading": "Distingue el grupo RNE de la cadena Radio Nacional",
+        "paragraphs": ["RNE reúne varias cadenas. En sus preguntas frecuentes, RTVE diferencia Radio Nacional, Radio Clásica, Radio 3, Ràdio 4, Radio 5 y Radio Exterior. Por tanto, encontrar el logotipo o el nombre del grupo no basta para identificar lo que vas a escuchar. Comprueba la denominación completa junto al reproductor o en la ficha del resultado.", "Piensa en el objetivo de la sesión. Para acompañarte con un programa generalista puedes empezar por Radio Nacional; para buscar información continua, por Radio 5. Eso no convierte una cadena en mejor que la otra ni garantiza que cualquier minuto incluya el asunto que te interesa. El programa concreto y su contexto siguen siendo importantes."]
+      },
+      {
+        "heading": "Busca tu territorio sin confundirlo con la señal general",
+        "paragraphs": ["RTVE indica que ambas cadenas ofrecen información autonómica o provincial en determinadas franjas. No deduzcas de ello que toda la jornada sea local ni que una única señal general represente cualquier provincia. Revisa qué territorio identifica la página que has abierto y si buscas la emisión actual o un boletín ya publicado.", "Por ejemplo, si necesitas información de tu provincia, añade su nombre a la búsqueda en vez de cambiar aleatoriamente entre cadenas. Un resultado de otra comunidad puede mencionar un tema parecido y aun así no responder a tu necesidad. Conviene conservar el enlace del espacio territorial correcto, no solo el de la portada de la emisora."]
+      },
+      {
+        "heading": "Comprueba fecha, horario y formato del resultado",
+        "paragraphs": ["Un boletín grabado ayer puede parecer actual cuando el tema sigue en las noticias. Lee la fecha y no te quedes con la posición que ocupa en el buscador. Si buscas un directo, la ficha debe llevarte a la señal correspondiente; si buscas un asunto ya tratado, una pieza o edición concreta puede resolverlo mejor. No necesitas esperar indefinidamente a que el tema reaparezca en antena."],
+        "items": ["Anota cadena y territorio por separado.", "Comprueba el día al que corresponde la programación.", "Distingue emisión en directo y boletín fechado.", "Lee cualquier indicación de horario y de zona horaria.", "Guarda el título del espacio territorial que te resulte útil."]
+      },
+      {
+        "heading": "Interpreta una diferencia de contenido antes de buscar una avería",
+        "paragraphs": ["Si dos accesos ofrecen contenido distinto, revisa primero si has abierto la misma cadena, territorio y modalidad. Una grabación y un directo pueden sonar diferentes sin que ninguno esté averiado. Tampoco debes atribuir un cambio de programa a una desconexión territorial sin consultar la información de la emisora. Es una hipótesis para comprobar, no una explicación automática.", "Cuando el problema sí sea técnico, apunta la página, la hora y lo que ocurre: no carga, aparece un aviso o hay reproducción sin sonido. Una comparación con el acceso oficial debe hacerse de uno en uno para evitar audios superpuestos. La presencia de una emisora en un directorio no garantiza que cualquier vía funcione en todos los países, redes o dispositivos."]
+      }
+    ],
+    "faq": [
+      {"question": "¿RNE y Radio Nacional significan exactamente lo mismo?", "answer": "RNE es el conjunto de cadenas descrito por RTVE; Radio Nacional es una de ellas. Lee el nombre completo del canal para saber qué señal has seleccionado."},
+      {"question": "¿Radio 5 solo contiene información de ámbito estatal?", "answer": "No. RTVE señala que también incluye contenidos territoriales en determinadas franjas. Comprueba la edición o señal que corresponde al territorio buscado."},
+      {"question": "¿Puedo encontrar información territorial en ambas cadenas?", "answer": "Sí, según las preguntas frecuentes de RTVE. Eso no significa que cada acceso emita información local a cualquier hora; consulta programación, territorio y fecha."}
+    ],
+    "links": [
+      {"route": "blog:news-talk-radio-guide", "label": "Escuchar noticias y entrevistas con contexto"},
+      {"route": "blog:listen-to-radio-online", "label": "Buscar una emisora por nombre y ubicación"},
+      {"route": "blog:internet-radio-explained", "label": "Distinguir un directo de un audio publicado"},
+      {"route": "search", "label": "Buscar cadenas de radio"}
+    ],
+    "sources": [{"name": "RTVE: Preguntas frecuentes sobre RNE y sus emisoras", "url": "https://amp.rtve.es/rtve/20260211/preguntas-frecuentes-sobre-rne/16930309.shtml"}],
+    "relatedIds": ["news-talk-radio-guide", "listen-to-radio-online", "internet-radio-explained"]
+  },
+  {
+    "id": "conciertos-radio-3-archivo",
+    "title": "Los conciertos de Radio 3: Cómo encontrar una actuación sin confundirla con el directo",
+    "seoTitle": "Los conciertos de Radio 3: Buscar una actuación grabada",
+    "description": "Encuentra una actuación de Los conciertos de Radio 3 por artista y fecha; distingue la grabación publicada, la radio en directo y las convocatorias de público.",
+    "primaryKeyword": "Los conciertos de Radio 3 archivo",
+    "secondaryKeywords": ["Radio 3 conciertos grabados", "buscar actuación Radio 3", "Radio 3 directo o concierto"],
+    "imageAlt": "Ilustración de una guitarra eléctrica con motivos musicales",
+    "intro": "Para encontrar una actuación de Los conciertos de Radio 3, busca el nombre del artista y comprueba la ficha fechada de la grabación. Abrir la radio en directo no inicia el concierto que recuerdas. También conviene separar las actuaciones publicadas de las convocatorias para asistir como público: son páginas con finalidades distintas aunque compartan el nombre del ciclo.",
+    "sections": [
+      {
+        "heading": "Decide si buscas una actuación o la emisión de ahora",
+        "paragraphs": ["La página oficial de Radio 3 presenta el directo junto a contenidos publicados y un apartado de conciertos. Si recuerdas un grupo concreto, comienza por ese dato. Si lo que quieres es descubrir qué está sonando ahora, el directo es otro camino. La coincidencia de marca no convierte ambos accesos en el mismo contenido ni en una reproducción a la carta.", "Añade alguna pista útil: una canción que se mencionaba, una fecha aproximada o el nombre completo del grupo. Evita fijarte solo en una miniatura, porque un artista puede aparecer en entrevistas, noticias y actuaciones diferentes. El título de la ficha y su descripción ayudan a decidir si has llegado al concierto o a una conversación sobre él."]
+      },
+      {
+        "heading": "Usa la fecha como contexto, no como única identidad",
+        "paragraphs": ["La fecha visible puede referirse a publicación o emisión; no debe interpretarse automáticamente como el día en que los músicos tocaron. Para distinguir dos resultados, compara además artista, título, duración y descripción. Si hay varias actuaciones del mismo grupo, una pista del repertorio será más precisa que una memoria aproximada del año.", "Por ejemplo, si alguien te recomienda una actuación que acaba de descubrir, eso no demuestra que se haya grabado esta semana. Pídele el enlace o una canción reconocible. Antes de compartirla con otra persona, vuelve a abrir la ficha elegida y confirma que el encabezado coincide. Así no conviertes una recomendación concreta en un enlace genérico a la emisora."]
+      },
+      {
+        "heading": "Lee qué formato ofrece realmente la ficha",
+        "paragraphs": ["Un concierto puede aparecer dentro de una oferta audiovisual. Mira si el acceso publicado es vídeo, audio u otro contenido relacionado, sin prometer una versión descargable o una pista independiente por canción. Una duración visible tampoco asegura que coincida con todo lo interpretado en el estudio. Describe lo que la ficha ofrece, no una versión imaginada del concierto."],
+        "items": ["Comprueba artista y nombre del ciclo.", "Lee fecha, duración y descripción del resultado.", "Distingue vídeo, audio y noticia sobre la actuación.", "Si hay varias versiones, contrasta las pistas del repertorio.", "Revisa la disponibilidad antes de recomendar el enlace."]
+      },
+      {
+        "heading": "Separa la escucha del proceso para asistir como público",
+        "paragraphs": ["RTVE publica convocatorias específicas para participar como público en grabaciones. Una convocatoria con formulario, dirección o fechas no es el archivo del concierto. Si ya buscas una actuación publicada, regresa a su ficha. Si quieres acudir a una futura grabación, lee esa convocatoria vigente y no reutilices las condiciones de otra edición.", "No confundas tampoco una fecha anunciada con una garantía de publicación inmediata. Asistencia, grabación y difusión son momentos distintos. El acceso a una ficha antigua puede cambiar y no demuestra disponibilidad en todos los países. Esta guía propone un método de búsqueda; no afirma que se haya probado la reproducción de cada actuación ni que exista un archivo completo e inmutable."]
+      }
+    ],
+    "faq": [
+      {"question": "¿El directo de Radio 3 reproduce el concierto que busco?", "answer": "No necesariamente. El directo sigue la programación en curso. Para una actuación concreta, busca su ficha por artista y las pistas que recuerdes."},
+      {"question": "¿La fecha de la ficha es siempre la de grabación?", "answer": "No la des por supuesta. Puede identificar publicación o emisión. Busca una indicación explícita y compara otros datos de la actuación."},
+      {"question": "¿Tengo que inscribirme como público para abrir una grabación publicada?", "answer": "La convocatoria de público es un proceso distinto. Las condiciones de acceso de una ficha publicada se comprueban en esa ficha, no en el formulario de asistencia."}
+    ],
+    "links": [
+      {"route": "blog:rock-radio-guide", "label": "Descubrir programas de rock según tu gusto"},
+      {"route": "blog:internet-radio-explained", "label": "Separar radio en directo y contenidos grabados"},
+      {"route": "blog:listen-to-radio-online", "label": "Afinar una búsqueda de radio"},
+      {"route": "search", "label": "Buscar emisoras musicales"}
+    ],
+    "sources": [
+      {"name": "RTVE: Radio 3, directo y conciertos", "url": "https://www.rtve.es/radio/radio-3/"},
+      {"name": "RTVE: Convocatorias de público de Los conciertos de Radio 3", "url": "https://www.rtve.es/play/noticias/20260911/publico-conciertos-radio-3/17221963.shtml"}
+    ],
+    "relatedIds": ["rock-radio-guide", "internet-radio-explained", "listen-to-radio-online"]
+  }
+]

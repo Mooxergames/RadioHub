@@ -72,6 +72,7 @@ export default function BlogPage() {
       </main>
     );
   const article = content.articles.find((item) => item.id === route.id);
+  if (route.id && !article) return <NotFound />;
   return (
     <div
       onClick={onClick}
