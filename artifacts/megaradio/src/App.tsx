@@ -118,6 +118,7 @@ import { TranslationProvider, useTranslation } from "@/hooks/useTranslation";
 import { FavoriteStateProvider } from "@/hooks/useFavoriteState";
 import { COUNTRY_TO_CODE } from "@workspace/seo-shared/seo-config";
 import { getSeoRouteCandidates } from '@/lib/seo-route-candidates';
+import { isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 
 import { URL_TRANSLATIONS } from "@workspace/seo-shared/url-translations";
 
@@ -224,7 +225,7 @@ function AdminRouterContent() {
   );
 }
 
-function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: string; onCountryChange?: (country: string, isManual?: boolean) => void }) {
+export function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: string; onCountryChange?: (country: string, isManual?: boolean) => void }) {
   const { cleanPath, englishPath, currentLanguage } = useSeoRouting();
   const [location, setLocation] = useLocation();
 
@@ -358,21 +359,8 @@ function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: 
     // Austria radios with URL parameter support like GitHub example
     if (pathToUse === '/radios/austria') return <LazyRoutes.AustriaRadiosPage />;
 
-    // Bare /stations is the SEO-eligible public catalog hub (SSR renders a
-    // paginated station list). The SPA previously had no branch for it, so it
-    // hydrated to <NotFound/> — a 404 flash for users AND, worse, Googlebot's
-    // rendered view showed a 404 for a page we want indexed. Reuse the existing
-    // public Radios listing (the same station-grid UI as /radios) so the
-    // rendered page is real station content, not a 404. Must precede the
-    // '/stations/' detail check below.
-    if (pathToUse === '/stations') return <LazyRoutes.Radios selectedCountry={selectedCountry} onCountryChange={onCountryChange} />;
-
-    // A-Z station index pages (/stations/a … /stations/0-9 and the singular
-    // reverse-translated form). SSR renders the crawlable letter list; on
-    // hydration the SPA shows the same station-grid UI as the /stations hub.
-    // Must precede the station-detail checks below or the letter would be
-    // treated as a (nonexistent) station slug and hydrate to a 404.
-    if (pathToUse.match(/^\/stations?\/(?:0-9|[a-z])$/)) return <LazyRoutes.Radios selectedCountry={selectedCountry} onCountryChange={onCountryChange} />;
+    // Match the wrapper's server-backed catalog before station detail routes.
+    if (isStationDirectoryPath(pathToUse)) return <LazyRoutes.StationDirectory />;
 
     // CRITICAL FIX: Station routing - handle BOTH English and translated paths
     // Support both /station/ and /stations/ formats without redirect (avoids losing country code)

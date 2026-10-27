@@ -1,5 +1,6 @@
 import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, SEO_LANGUAGES, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { buildDirectoryIndexSeo } from '@workspace/seo-shared/directory-index-seo';
+import { isStationDirectoryPath, isStationDirectoryData, type StationDirectoryData } from '@workspace/seo-shared/station-directory';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { getKnownOgImageDimensions } from '@workspace/seo-shared/og-image-metadata';
@@ -2262,6 +2263,47 @@ export class SeoRenderer {
       default:
         return getLocalizedText('hero_worlds_best_radio') || FALLBACK_TEXTS.hero_worlds_best_radio;
     }
+  }
+
+  buildStationDirectoryData(source: {
+    language: string; cleanPath: string; translations?: Record<string, string>;
+    seoTags?: any; urlTranslations?: Map<string, string>; pageData?: Record<string, any>;
+  }): StationDirectoryData | undefined {
+    const data = source.pageData;
+    if (!isStationDirectoryPath(source.cleanPath) || data?.pageType !== 'stations'
+      || data.httpNotFound || data.stationDbError || data.hubReadFailed
+      || !Array.isArray(data.catalogStations) || data.catalogStations.length > 60) return undefined;
+    const translations = source.translations || {};
+    const localizedText = (key: string, fallback: string) => translations[key]?.trim() || fallback;
+    const localUrl = (path: string) => buildLocalizedUrl(path, source.language, undefined, source.urlTranslations);
+    const letter = matchAzIndexPath(source.cleanPath);
+    const base = localUrl(letter ? `/stations/${letter}` : '/stations');
+    const currentPage = data.catalogPage;
+    const totalPages = data.catalogTotalPages;
+    if (!Number.isSafeInteger(currentPage) || currentPage < 1
+      || !Number.isSafeInteger(totalPages) || totalPages < currentPage) return undefined;
+    const h1 = this.getH1Text('stations', source.language, translations, source.seoTags, undefined, data.additionalData);
+    const result: StationDirectoryData = {
+      h1: letter ? `${h1 || 'Radio Stations'} — ${azDisplayLabel(letter)}` : (h1 || 'Radio Stations'),
+      letter, currentPage, totalPages,
+      navLabel: localizedText('stations_az_nav', 'Radio stations A to Z'),
+      paginationLabel: localizedText('pagination', 'Pagination'),
+      stations: data.catalogStations.map((station: LeanStationCard) => ({
+        href: localUrl(`/station/${station.slug || station._id}`),
+        name: station.name || 'Radio Station',
+        logoUrl: this.pickLogoUrl(station),
+        alt: getStationImageAlt(station, source.language, localizedText),
+      })),
+      letters: AZ_INDEX_KEYS.map(key => ({
+        label: azDisplayLabel(key), href: localUrl(`/stations/${key}`), current: key === letter,
+      })),
+      pages: seoCatalogPageLinks(currentPage, totalPages).map(page => ({
+        page, href: page === 1 ? base : `${base}?page=${page}`, current: page === currentPage,
+        ...(page === currentPage - 1 ? { rel: 'prev' as const }
+          : page === currentPage + 1 ? { rel: 'next' as const } : {}),
+      })),
+    };
+    return isStationDirectoryData(result) ? result : undefined;
   }
 
   generateHtmlBody(pageData: { pageType: string; language: string; translations: Record<string, string>; seoTags?: any; stationData?: any; additionalData?: any; urlTranslations?: Map<string, string>; cleanPath?: string }): string {

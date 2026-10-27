@@ -6,9 +6,10 @@ import { updateOgImageDimensions } from '@/utils/og-image-dimensions';
 interface SeoHeadProps {
   seoData: SeoMetaTags;
   structuredData?: ServerStructuredData;
+  clearCanonical?: boolean;
 }
 
-export function SeoHead({ seoData, structuredData }: SeoHeadProps) {
+export function SeoHead({ seoData, structuredData, clearCanonical = false }: SeoHeadProps) {
   useEffect(() => {
     // Update document title
     if (seoData.title) {
@@ -101,7 +102,9 @@ export function SeoHead({ seoData, structuredData }: SeoHeadProps) {
     updateMetaTag('twitter:image', absoluteTwitterImage);
     
     // Canonical URL
-    if (seoData.canonical) {
+    if (clearCanonical) {
+      document.querySelectorAll('link[rel="canonical"]').forEach(link => link.remove());
+    } else if (seoData.canonical) {
       updateLinkTag('canonical', seoData.canonical);
     }
     
@@ -118,7 +121,7 @@ export function SeoHead({ seoData, structuredData }: SeoHeadProps) {
     }
     
     if (structuredData) applyServerStructuredData(structuredData);
-  }, [seoData, structuredData]);
+  }, [seoData, structuredData, clearCanonical]);
 
   return null; // This component doesn't render anything visible
 }

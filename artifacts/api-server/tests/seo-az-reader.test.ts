@@ -4,6 +4,7 @@ import express from 'express';
 import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
 import { markSeoTemporarilyUnavailable } from '../src/seo/temporary-unavailable';
+import { isStationDirectoryData, isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 
 const cache = new Map<string, any>();
 const writes: { key: string; options: any }[] = [];
@@ -40,6 +41,45 @@ const domain = 'https://themegaradio.com';
 const body = (page: any, lang: string) => renderer.generateHtmlBody({ pageType: 'stations', language: lang,
   translations: {}, additionalData: page.pageData.additionalData, seoTags: page.seoTags, urlTranslations: page.urlTranslations });
 
+test('bounded directory DTO keeps the exact SSR selection, localized links, H1 and pagination in all14 languages', async () => {
+  for (const lang of ACTIVE_SITEMAP_LANGUAGES) for (const key of ['a', 'z', '0-9']) {
+    const base = buildLocalizedUrl(`/stations/${key}`, lang, undefined, new Map());
+    const page = await renderer.renderStaticPage(base + '?page=2', domain);
+    const directory = renderer.buildStationDirectoryData(page)!;
+    assert.ok(isStationDirectoryData(directory));
+    assert.equal(directory.currentPage, 2);
+    assert.equal(directory.totalPages, 3);
+    assert.equal(directory.stations.length, 60);
+    assert.equal(directory.letters.length, 27);
+    assert.equal(directory.pages.length, 3);
+    assert.deepEqual(directory.stations.map(item => item.href), page.pageData.catalogStations.map((station: any) =>
+      buildLocalizedUrl(`/station/${station.slug}`, lang, undefined, new Map())));
+    assert.deepEqual(Object.keys(directory.stations[0]).sort(), ['alt', 'href', 'logoUrl', 'name']);
+    assert.ok(!JSON.stringify(directory).includes('https://fixture.invalid/live'));
+    assert.ok(body(page, lang).includes(`<h1>${directory.h1}</h1>`));
+    assert.deepEqual(directory.pages.map(item => [item.href, item.rel]), [[base, 'prev'], [base + '?page=2', undefined], [base + '?page=3', 'next']]);
+  }
+});
+
+test('directory projection cannot turn errors, missing results or detail paths into a successful list', async () => {
+  const source = await renderer.renderStaticPage('/en/stations/z', domain);
+  assert.ok(renderer.buildStationDirectoryData(source));
+  for (const patch of [{ stationDbError: true }, { hubReadFailed: true }, { httpNotFound: true },
+    { catalogStations: undefined }, { catalogStations: Array(61).fill(source.pageData.catalogStations[0]) }]) {
+    assert.equal(renderer.buildStationDirectoryData({ ...source, pageData: { ...source.pageData, ...patch } }), undefined);
+  }
+  for (const cleanPath of ['/radios', '/station/z-fm', '/stations/z-fm', '/stations/z/extra']) {
+    assert.equal(isStationDirectoryPath(cleanPath), false);
+    assert.equal(renderer.buildStationDirectoryData({ ...source, cleanPath }), undefined);
+  }
+  for (const cleanPath of ['/stations', '/station/z', '/stations/z', '/stations/0-9']) assert.ok(isStationDirectoryPath(cleanPath));
+  const page51 = renderer.buildStationDirectoryData({ ...source, pageData: { ...source.pageData, catalogPage: 51, catalogTotalPages: 1000 } })!;
+  assert.equal(page51.currentPage, 51);
+  assert.ok(page51.pages.length <= 50);
+  assert.ok(page51.pages.some(item => item.page === 50 && item.rel === 'prev'));
+  assert.ok(page51.pages.some(item => item.page === 52 && item.rel === 'next'));
+});
+
 test('Z/digits are nonempty with pagination; A/M and localized canonical/hreflang keep first/middle/last membership', async () => {
   for (const key of ['a', 'm', 'z', '0-9']) for (const lang of ['en', 'tr', 'de']) {
     const base = buildLocalizedUrl(`/stations/${key}`, lang, undefined, new Map());
@@ -69,10 +109,14 @@ test('beyond-last and huge are 404 evidence, invalid pages never call the reader
     assert.equal(result.seoTags.noIndex, true); assert.deepEqual(result.seoTags.hreflangs, []);
   }
   const before = reads.length;
-  for (const page of ['0', '-1', '1.5', 'NaN', 'Infinity', '9007199254740992', '2junk']) {
+  for (const page of ['', '0', '-1', '1.5', 'NaN', 'Infinity', '9007199254740992', '2junk', '2&page=3']) {
     assert.equal((await renderer.renderStaticPage(`/en/stations/z?page=${page}`, domain)).pageData.httpNotFound, true);
   }
   assert.equal(reads.length, before);
+  const leadingZero = await renderer.renderStaticPage('/en/stations/z?page=02', domain);
+  assert.equal(leadingZero.pageData.catalogPage, 2);
+  assert.equal(leadingZero.pageData.httpNotFound, undefined);
+  assert.equal(renderer.buildStationDirectoryData(leadingZero)?.currentPage, 2);
 });
 
 test('real public cache/page cache reuse, 60s deadline and single-flight survive language aliases and expiry', async t => {
