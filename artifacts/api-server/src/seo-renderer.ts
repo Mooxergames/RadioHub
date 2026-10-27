@@ -9,11 +9,12 @@ import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailab
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
 import { pgSeoCatalog } from './data/postgres-seo-read-store';
+import { readAzStationPage } from './data/postgres-az-station-store';
 import { pgStoredGenreBySlug } from './data/postgres-taxonomy-store';
 import { pgSeoMetadata } from './data/postgres-content-store';
 import { pgLocalization } from './data/postgres-localization-store';
 import { getHomeGenreNavigation } from './services/home-genre-navigation';
-import { AZ_INDEX_KEYS, azDisplayLabel, azSlugBounds, matchAzIndexPath } from './seo/az-station-index';
+import { AZ_INDEX_KEYS, azDisplayLabel, matchAzIndexPath } from './seo/az-station-index';
 import { isMissingSeoCatalogPage, isSeoCatalogPath, parseSeoCatalogPage, seoCatalogPageLinks } from './seo/catalog-pagination';
 import { regionRouteExistence, canonicalRegionPath } from './seo/region-route-existence';
 import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from './seo/verified-legacy-station-alias';
@@ -887,29 +888,18 @@ export class SeoRenderer {
       // EVERY indexable station whose slug starts with the letter — unlike
       // the hub below (top-2000 precomputed pool), this walks the whole
       // catalogue so the entire long tail gets a crawlable in-link. The
-      // filter is a pure string range on the unique {slug:1} index (see
-      // azSlugBounds) and the sort rides the same index — no regex, no
-      // in-memory sort (2026-05-14 incident rule). Results are health-aware,
+      // reader requires the matching C-collated slug/id index before reading
+      // the ASCII range. Results follow the shared visibility policy,
       // cached at most60s per (letter, page), with concurrent misses coalesced.
       pageType = 'stations';
       additionalData.azLetter = azLetter;
       try {
         const PAGE_SIZE = 60;
         const page = pagination.page;
-        const { gte, lt } = azSlugBounds(azLetter);
         const { publicStationCache } = await import('./public-station-cache');
         const azData = await publicStationCache.getOrSetSingleFlight(
           `az-index:${azLetter}:${page}`,
-          async () => {
-            // Count the indexed range before any OFFSET. A manufactured huge
-            // page must not force a full range scan, and real page51 must not
-            // silently reuse page50 just because of the old SSR clamp.
-            const total = await pgSeoCatalog().count({ slug: { $gte: gte, $lt: lt }, isListVisible: true, noIndex: { $ne: true } });
-            if (page > Math.max(1, Math.ceil(total / PAGE_SIZE))) return { docs: [], total };
-            const docs = await pgSeoCatalog().find(
-              { slug: { $gte: gte, $lt: lt }, isListVisible: true, noIndex: { $ne: true } }, { sort: { slug: 1 }, offset: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE });
-            return { docs, total };
-          },
+          () => readAzStationPage(azLetter, page, PAGE_SIZE),
           { ttl: 60 },
         );
         const catalog = ((azData?.docs as any[]) || [])

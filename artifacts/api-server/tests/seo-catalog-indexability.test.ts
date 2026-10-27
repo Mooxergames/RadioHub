@@ -23,6 +23,11 @@ mock.module('../src/public-station-cache', { namedExports: { publicStationCache:
 mock.module('../src/data/postgres-seo-read-store', { namedExports: { pgSeoCatalog: () => ({
   find: async (filter: any) => { stationFilters.push(filter); return (await catalogRead()).stations; }, count: async () => totalPages * 60,
 }) } });
+mock.module('../src/data/postgres-az-station-store', { namedExports: { readAzStationPage: async (_key: string, page: number, pageSize: number) => {
+  if (readFails) throw Error('temporary catalogue failure');
+  const total = totalPages * pageSize;
+  return { docs: page > totalPages ? [] : (await catalogRead()).stations, total };
+} } });
 mock.module('../src/services/precomputed-stations', { namedExports: { PrecomputedStationsService: { getGlobalStations: catalogRead, getCountryStationsByName: catalogRead } } });
 mock.module('../src/services/precomputed-genres', { namedExports: { PrecomputedGenresService: {} } });
 mock.module('../src/data/postgres-content-store', { namedExports: { pgSeoMetadata: async () => null } });
@@ -55,7 +60,7 @@ test('public SSR grids exclude confirmed local unavailability without hiding pro
     assert.ok(body.includes('source-flagged-fm'), path);
     assert.ok(body.includes('unknown-fm'), path);
   }
-  assert.ok(stationFilters.length >= 3);
+  assert.ok(stationFilters.length >= 2);
   assert.ok(stationFilters.every(filter => filter.isListVisible === true && !Object.hasOwn(filter, 'lastCheckOk')),
     'raw SSR collection reads push confirmed visibility filtering into SQL without treating provider flags as proof');
 });
