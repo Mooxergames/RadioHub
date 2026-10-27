@@ -461,6 +461,55 @@ test('absent catalogue slices expose404 and noindex in both slim navigation and 
   } finally { render.mock.restore(); }
 });
 
+test('slim directory responses expose only bounded public fields and use the same localized renderer data', async () => {
+  const { SeoRenderer } = await import('../src/seo-renderer');
+  const fixture = {
+    language: 'de', cleanPath: '/stations/z', translations: { secret_dictionary: 'not part of slim DTO' },
+    seoTags: { title: 'Alle Radiosender', canonical: 'https://themegaradio.com/de/sender/z?page=2' },
+    urlTranslations: new Map<string, string>(),
+    pageData: { pageType: 'stations', catalogPage: 2, catalogTotalPages: 3,
+      catalogStations: [{ _id: 'fixture-id', slug: 'z-fm', name: 'Z FM', country: 'Germany',
+        url: 'https://fixture.invalid/live', internalNotes: 'must not leak' }] },
+  };
+  const render = mock.method(SeoRenderer.prototype, 'renderStaticPage', async () => fixture);
+  try {
+    const response = await fetch(`${baseUrl}/api/seo/page-data?url=%2Fde%2Fsender%2Fz%3Fpage%3D2&slim=1`);
+    assert.equal(response.status, 200);
+    const payload = await response.json() as any;
+    assert.deepEqual(Object.keys(payload).sort(), ['cleanPath', 'language', 'seoTags', 'stationDirectory', 'structuredData']);
+    assert.equal(payload.stationDirectory.currentPage, 2);
+    assert.deepEqual(payload.stationDirectory.stations.map((station: any) => station.href), ['/de/sender/z-fm']);
+    assert.deepEqual(Object.keys(payload.stationDirectory.stations[0]).sort(), ['alt', 'href', 'logoUrl', 'name']);
+    assert.equal(payload.stationDirectory.letters.length, 27);
+    assert.deepEqual(payload.stationDirectory.pages.map((page: any) => page.href),
+      ['/de/sender/z', '/de/sender/z?page=2', '/de/sender/z?page=3']);
+    assert.ok(!JSON.stringify(payload.stationDirectory).includes('must not leak'));
+    assert.ok(!JSON.stringify(payload.stationDirectory).includes('fixture.invalid'));
+    assert.ok(!JSON.stringify(payload).includes('not part of slim DTO'));
+    assert.deepEqual(render.mock.calls[0].arguments, ['/de/sender/z?page=2', 'https://themegaradio.com']);
+  } finally { render.mock.restore(); }
+});
+
+test('missing or failed directory payloads are retryable503, never synthetic empty200', async () => {
+  const { SeoRenderer } = await import('../src/seo-renderer');
+  const fixture: any = { language: 'en', cleanPath: '/stations/z', translations: {},
+    seoTags: { title: 'Incomplete catalogue' }, pageData: { pageType: 'stations' } };
+  const render = mock.method(SeoRenderer.prototype, 'renderStaticPage', async () => fixture);
+  try {
+    for (const pageData of [{ pageType: 'stations' }, { pageType: 'stations', hubReadFailed: true },
+      { pageType: 'stations', stationDbError: true }]) {
+      fixture.pageData = pageData;
+      const response = await fetch(`${baseUrl}/api/seo/page-data?url=/en/stations/z&slim=1`);
+      assert.equal(response.status, 503);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(response.headers.get('retry-after'), '60');
+      const payload = await response.json() as any;
+      assert.equal(payload.stationDirectory, undefined);
+      assert.equal(payload.seoTags, undefined);
+    }
+  } finally { render.mock.restore(); }
+});
+
 test('large station sitemaps read bounded batches and retain manifest order, omissions and XML validity', async () => {
   const ids = Array.from({ length: 1201 }, (_, n) => `batch-${1200 - n}`);
   sitemapReadRows = ids.map((_id, n) => ({ ...FAKE_STATION_DOCS[0], _id, slug: `${_id}-radio`, noIndex: n === 500 }));

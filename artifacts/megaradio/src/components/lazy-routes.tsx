@@ -65,6 +65,7 @@ export const BlogPage = lazy(() => import("@/pages/blog"));
 // Genres - can be lazy loaded
 export const GenresPage = lazy(() => import("@/pages/genres"));
 export const Radios = lazy(() => import("@/pages/radios"));
+export const StationDirectory = lazy(() => import("@/pages/StationDirectory"));
 
 // Station requests
 export const RequestStation = lazy(() => import("@/pages/request-station"));

@@ -33,6 +33,7 @@
     "./home-seo-templates": "./src/home-seo-templates.ts",
     "./home-hero-copy": "./src/home-hero-copy.ts",
     "./directory-index-seo": "./src/directory-index-seo.ts",
+    "./station-directory": "./src/station-directory.ts",
     "./community-page-seo-templates": "./src/community-page-seo-templates.ts",
     "./url-translations": "./src/url-translations.ts",
     "./country-name-translations": "./src/country-name-translations.ts",

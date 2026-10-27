@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { mobileAppLinkPaths } from '../seo/mobile-app-links';
+import { isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 import crypto from 'crypto';
 import { buildBlogSitemap } from '../seo/blog-sitemap';
 import { INDEXING_PILOT, matchingPilotProfile, type IndexingPilotProfile } from '../seo/indexing-pilot';
@@ -463,7 +464,7 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
       const fullDomain = getProductionDomain(req.get('host'));
 
       const seoData = await seoRenderer.renderStaticPage(url, fullDomain);
-      if (seoData.pageData?.stationDbError) {
+      if (seoData.pageData?.stationDbError || seoData.pageData?.hubReadFailed) {
         markSeoTemporarilyUnavailable(res);
         res.json({ error: 'SEO metadata temporarily unavailable' });
         return;
@@ -473,9 +474,16 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
       // SSR, not duplicate translation dictionaries or full station records.
       // The admin SEO preview retains the full response without slim=1.
       if (String(req.query.slim || '') === '1') {
+        const stationDirectory = seoRenderer.buildStationDirectoryData(seoData);
+        if (isStationDirectoryPath(seoData.cleanPath) && !seoData.pageData?.httpNotFound && !stationDirectory) {
+          markSeoTemporarilyUnavailable(res);
+          res.json({ error: 'Station directory temporarily unavailable' });
+          return;
+        }
         res.json({
           language: (seoData as any).language,
           cleanPath: (seoData as any).cleanPath,
+          ...(stationDirectory ? { stationDirectory } : {}),
           seoTags: normalizeSeoTitleTags(seoData.seoTags),
           structuredData: seoRenderer.generateStructuredData(
             seoData.seoTags, seoData.language, seoData.translations || {},
