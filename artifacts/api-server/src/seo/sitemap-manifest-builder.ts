@@ -8,7 +8,7 @@ import { getQualifiedLanguagesState, QualifiedLanguagesUnavailableError } from '
 import { getIndexableLanguagesForStation } from './junk-station-rules';
 import { isWhitelistedGenreSlug, MIN_STATIONS_FOR_GENRE_INDEX } from './genre-whitelist';
 import { RESERVED_GENRE_SLUGS } from './reserved-genre-slugs';
-import { AZ_INDEX_KEYS } from './az-station-index';
+import { AZ_INDEX_KEYS, AZ_KEY_RE } from './az-station-index';
 import { canonicalizeCountry, countrySlug, getRegionSlugForCountry } from '@workspace/seo-shared/country-regions';
 
 // Re-export so other modules importing from the manifest builder still
@@ -131,6 +131,8 @@ async function buildStationBuckets(qualifiedLanguages: string[]): Promise<{
   const consume = async (ids: string[]) => {
     for (const stationDoc of await pgSitemapStationBatch(ids)) {
       const station = stationDoc as StationLite;
+      // These slugs resolve to A-Z directories, not station-detail pages.
+      if (AZ_KEY_RE.test((station.slug ?? '').toLowerCase())) continue;
       const indexableLangs = getIndexableLanguagesForStation(station as any, qualifiedLanguages, station.completeDescriptionLanguages);
       if (indexableLangs.length === 0) continue;
       const entry = {

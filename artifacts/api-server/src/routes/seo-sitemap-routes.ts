@@ -51,7 +51,7 @@ import CacheManager, { CacheKeys } from "../cache";
 import { getBaseUrl } from "./shared-utils";
 import { loadSitemapTranslations } from "../utils/sitemap-translations";
 import { sendSitemapGone } from "../seo/send-sitemap-gone";
-import { AZ_INDEX_KEYS } from "../seo/az-station-index";
+import { AZ_INDEX_KEYS, AZ_KEY_RE } from "../seo/az-station-index";
 import { canonicalizeCountry, countrySlug, getRegionSlugForCountry } from "@workspace/seo-shared/country-regions";
 import {
   getCachedQualifiedLanguages,
@@ -1457,8 +1457,9 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
 
       // Keep operational writes as cache invalidators, not public content dates.
       // Station.updatedAt also changes on health checks; there is no separate
-      // editorial timestamp yet. v4 also replaces cached S3 image URLs once.
-      const cacheKey = `sitemap:stations:xml-v4-owned-images:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
+      // editorial timestamp yet. v5 excludes directory identities from old
+      // manifests while retaining owned image URLs.
+      const cacheKey = `sitemap:stations:xml-v5-az-safe-owned-images:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
       if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
       const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
       if (cached) {
@@ -1483,6 +1484,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       for (const objId of batchIds) {
         const station = byId.get(String(objId));
         if (!station || !station.slug) continue; // station deleted between build and serve — skip
+        if (AZ_KEY_RE.test(station.slug.toLowerCase())) continue;
 
         // Defensive double-check: re-run the indexability gate at serve time
         // so a freshly-flagged junk/noIndex station never leaks into XML.
