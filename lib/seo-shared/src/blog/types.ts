@@ -28,7 +28,10 @@ export const BLOG_IDS = [
   "news-talk-radio-guide",
   "80s-90s-radio-guide",
 ] as const;
-export type BlogId = (typeof BLOG_IDS)[number];
+export type CoreBlogId = (typeof BLOG_IDS)[number];
+export type BlogId =
+  | CoreBlogId
+  | keyof typeof import("./market-manifest").MARKET_BLOG_MANIFEST;
 export interface BlogArticle {
   id: BlogId;
   title: string;
@@ -37,6 +40,10 @@ export interface BlogArticle {
   primaryKeyword: string;
   secondaryKeywords: string[];
   imageAlt: string;
+  imageId?: CoreBlogId;
+  sources?: Array<{ name: string; url: string }>;
+  relatedIds?: BlogId[];
+  market?: string;
   intro: string;
   sections: Array<{ heading: string; paragraphs: string[]; items?: string[] }>;
   faq: Array<{ question: string; answer: string }>;
@@ -47,6 +54,8 @@ export interface BlogArticle {
       | "regions"
       | "applications"
       | "search"
+      | `blog:${BlogId}`
+      | "station:kral-fm"
       | `genre:${string}`;
     label: string;
   }>;

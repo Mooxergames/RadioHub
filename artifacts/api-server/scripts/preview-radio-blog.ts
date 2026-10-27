@@ -7,7 +7,7 @@ import {
   buildBlogSeo,
   buildBlogSchema,
 } from "@workspace/seo-shared/blog";
-import { parseBlogPath } from "@workspace/seo-shared/blog-manifest";
+import { blogPath, parseBlogPath } from "@workspace/seo-shared/blog-manifest";
 import { renderBlogHtml } from "@workspace/seo-shared/blog-html";
 const app = express();
 app.use(
@@ -17,6 +17,14 @@ app.use(
 );
 app.get("/", (_req, res) => {
   res.redirect("/en/blog");
+});
+app.get("/__preview/mobile", (req, res) => {
+  const route = parseBlogPath(String(req.query.path || "/tr/blog"));
+  if (!route) {
+    res.status(404).send("Editorial preview: page not found");
+    return;
+  }
+  res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Editorial mobile preview</title><style>body{margin:0;background:#333}iframe{display:block;width:375px;height:812px;border:0;margin:12px auto;background:#0e0e0e}</style></head><body><iframe title="375px editorial preview" src="${blogPath(route.locale, route.id)}"></iframe></body></html>`);
 });
 app.get(/.*/, async (req, res) => {
   const route = parseBlogPath(req.path);
@@ -30,6 +38,10 @@ app.get(/.*/, async (req, res) => {
     content,
     article: content.articles.find((a) => a.id === route.id),
   };
+  if (route.id && !page.article) {
+    res.status(404).send("Editorial preview: page not found");
+    return;
+  }
   const seo = buildBlogSeo(page);
   const escape = (s: string) =>
     s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

@@ -4,7 +4,7 @@ import { isStationDirectoryPath } from '@workspace/seo-shared/station-directory'
 import crypto from 'crypto';
 import { buildBlogSitemap } from '../seo/blog-sitemap';
 import { INDEXING_PILOT, matchingPilotProfile, type IndexingPilotProfile } from '../seo/indexing-pilot';
-import { BLOG_UPDATED } from '@workspace/seo-shared/blog-manifest';
+import { BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
 import { pgReportStationDebugLog, pgListStationDebugLogs } from '../data/postgres-station-debug-store';
 import { pgActiveManifests, pgSeoGenres, pgTouchSitemapStations, pgSitemapStationDiagnostics, pgSitemapStationBatch, SITEMAP_STATION_READ_BATCH_SIZE } from '../data/postgres-seo-indexing-store';
 import { markSeoTemporarilyUnavailable } from '../seo/temporary-unavailable';
@@ -1251,7 +1251,7 @@ Sitemap: ${baseUrl}/sitemap-blog.xml`;
   // Language-specific main sitemap route — manifest-driven (refactored 2026-04-30)
   const blogSitemap = cacheSitemapXml(buildBlogSitemap());
   app.get('/sitemap-blog.xml', (req, res) => {
-    sendSitemapXml(req, res, blogSitemap, 'public, max-age=600, s-maxage=600', new Date(BLOG_UPDATED));
+    sendSitemapXml(req, res, blogSitemap, 'public, max-age=600, s-maxage=600', new Date(BLOG_SITEMAP_UPDATED));
   });
 
   app.get("/sitemap-main-:lang.xml", async (req, res) => {
@@ -1742,7 +1742,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
   </sitemap>`);
       };
 
-      emitEntry(`${baseUrl}/sitemap-blog.xml`, BLOG_UPDATED);
+      emitEntry(`${baseUrl}/sitemap-blog.xml`, BLOG_SITEMAP_UPDATED);
       // Pilot station reads must not add a failure to the main index.
       if (qualifiedLanguages.includes('en')) {
         for (const country of ['at', 'tr']) emitEntry(`${baseUrl}/sitemap-pilot-en-${country}.xml`);

@@ -5,9 +5,12 @@ import type {
   BlogId,
 } from "./types";
 import {
-  BLOG_LOCALES,
-  BLOG_PUBLISHED,
-  BLOG_UPDATED,
+  blogAlternates,
+  blogAvailable,
+  blogMetadata,
+  blogLanguage,
+  isCoreBlogId,
+  isSafeBlogSource,
   BLOG_LABELS,
   blogPath,
   blogImage,
@@ -15,8 +18,8 @@ import {
 import type { SeoMetaTags } from "../seo-config";
 export type { BlogArticle, BlogLocaleContent } from "./types";
 
-// Explicit dynamic imports allow Vite to emit 14 lazy chunks instead of adding
-// the entire multilingual library to the player / homepage JavaScript bundle.
+// Explicit per-locale imports keep core and market article bodies out of the
+// player / homepage JavaScript bundle.
 const loaders = {
   en: () => import("./locales/en.json"),
   de: () => import("./locales/de.json"),
@@ -33,10 +36,113 @@ const loaders = {
   ko: () => import("./locales/ko.json"),
   hi: () => import("./locales/hi.json"),
 };
+const marketLoaders = {
+  en: () => import("./market/en.json"),
+  de: () => import("./market/de.json"),
+  tr: () => import("./market/tr.json"),
+  fr: () => import("./market/fr.json"),
+  es: () => import("./market/es.json"),
+  pt: () => import("./market/pt.json"),
+  it: () => import("./market/it.json"),
+  ru: () => import("./market/ru.json"),
+  ar: () => import("./market/ar.json"),
+  he: () => import("./market/he.json"),
+  zh: () => import("./market/zh.json"),
+  ja: () => import("./market/ja.json"),
+  ko: () => import("./market/ko.json"),
+  hi: () => import("./market/hi.json"),
+};
+const text = (value: unknown): value is string =>
+  typeof value === "string" && !!value.trim();
+const object = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object" && !Array.isArray(value);
+const strings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(text);
+
+export function validateMarketArticles(
+  locale: BlogLocale,
+  articles: unknown,
+): asserts articles is BlogArticle[] {
+  if (!Array.isArray(articles))
+    throw new Error(`Invalid blog array: ${locale}`);
+  const seen = new Set<string>();
+  for (const article of articles) {
+    if (
+      !object(article) ||
+      !text(article.id) ||
+      !blogAvailable(article.id, locale) ||
+      isCoreBlogId(article.id) ||
+      seen.has(article.id)
+    )
+      throw new Error(`Invalid market blog edition: ${locale}`);
+    seen.add(article.id);
+    if (
+      ![
+        article.title,
+        article.seoTitle,
+        article.description,
+        article.primaryKeyword,
+        article.imageAlt,
+        article.intro,
+      ].every(text) ||
+      !strings(article.secondaryKeywords) ||
+      !Array.isArray(article.sections) ||
+      !article.sections.length ||
+      article.sections.some(
+        (section) =>
+          !object(section) ||
+          !text(section.heading) ||
+          !strings(section.paragraphs) ||
+          !section.paragraphs.length ||
+          (section.items !== undefined && !strings(section.items)),
+      ) ||
+      !Array.isArray(article.faq) ||
+      !article.faq.length ||
+      article.faq.some(
+        (faq) => !object(faq) || !text(faq.question) || !text(faq.answer),
+      ) ||
+      !Array.isArray(article.links) ||
+      !article.links.length ||
+      article.links.some(
+        (link) => !object(link) || !text(link.route) || !text(link.label),
+      ) ||
+      (article.relatedIds !== undefined &&
+        (!strings(article.relatedIds) ||
+          article.relatedIds.some((id) => !blogAvailable(id, locale)))) ||
+      (article.market !== undefined && !text(article.market))
+    )
+      throw new Error(`Invalid blog content shape: ${locale}/${article.id}`);
+    if (
+      article.imageId !== undefined &&
+      article.imageId !== blogMetadata(article.id).imageId
+    )
+      throw new Error(`Blog image mapping mismatch: ${locale}/${article.id}`);
+    if (
+      !Array.isArray(article.sources) ||
+      !article.sources.length ||
+      article.sources.some(
+        (source) =>
+          !source ||
+          typeof source.name !== "string" ||
+          !source.name.trim() ||
+          typeof source.url !== "string" ||
+          !isSafeBlogSource(source.url),
+      )
+    )
+      throw new Error(`Invalid blog sources: ${locale}/${article.id}`);
+  }
+}
 export async function loadBlogContent(
   locale: BlogLocale,
 ): Promise<BlogLocaleContent> {
-  return (await loaders[locale]()).default as BlogLocaleContent;
+  const [core, market] = await Promise.all([
+    loaders[locale](),
+    marketLoaders[locale](),
+  ]);
+  const content = core.default as BlogLocaleContent;
+  const articles: unknown = market.default;
+  validateMarketArticles(locale, articles);
+  return { ...content, articles: [...articles, ...content.articles] };
 }
 export interface BlogPageData {
   locale: BlogLocale;
@@ -53,6 +159,9 @@ export function buildBlogSeo({
   const description = article?.description || content.ui.description;
   const canonical = origin + blogPath(locale, article?.id);
   const image = origin + blogImage(article?.id || "listen-to-radio-online");
+  const language = blogLanguage(locale, article?.id);
+  const market =
+    article && !isCoreBlogId(article.id) ? blogMetadata(article.id) : undefined;
   const ogLocales: Record<BlogLocale, string> = {
     en: "en_US",
     de: "de_DE",
@@ -73,7 +182,7 @@ export function buildBlogSeo({
     title,
     description,
     canonical,
-    language: locale,
+    language,
     domain: "themegaradio.com",
     robots: "index, follow, max-image-preview:large",
     noIndex: false,
@@ -82,22 +191,14 @@ export function buildBlogSeo({
     ogUrl: canonical,
     ogType: article ? "article" : "website",
     ogImage: image,
-    ogLocale: ogLocales[locale],
+    ogLocale:
+      market && "market" in market
+        ? `${locale}_${market.market}`
+        : ogLocales[locale],
     twitterTitle: title,
     twitterDescription: description,
     twitterImage: image,
-    hreflangs: [
-      ...BLOG_LOCALES.map((lang) => ({
-        lang,
-        hreflang: lang,
-        url: origin + blogPath(lang, article?.id),
-      })),
-      {
-        lang: "x-default",
-        hreflang: "x-default",
-        url: origin + blogPath("en", article?.id),
-      },
-    ],
+    hreflangs: blogAlternates(article?.id),
   };
 }
 export function blogBreadcrumbs({ locale, content, article }: BlogPageData) {
@@ -154,9 +255,9 @@ export function buildBlogSchema(page: BlogPageData): object[] {
       mainEntityOfPage: { "@type": "WebPage", "@id": url },
       headline: article.title,
       description: article.description,
-      inLanguage: locale,
-      datePublished: BLOG_PUBLISHED,
-      dateModified: BLOG_UPDATED,
+      inLanguage: blogLanguage(locale, article.id),
+      datePublished: blogMetadata(article.id).publishedAt,
+      dateModified: blogMetadata(article.id).updatedAt,
       image: {
         "@type": "ImageObject",
         url: origin + blogImage(article.id),

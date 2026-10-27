@@ -157,6 +157,25 @@ it('same-locale and unsupported choices do not navigate or fetch', () => {
   expect(fetchDictionary).not.toHaveBeenCalled();
 });
 
+it('an explicit language choice for an absent blog edition goes to its index without article query/hash', async () => {
+  window.history.replaceState({}, '', '/tr/blog/kral-fm-canli-dinle-sorunlari?ref=guide#section-2');
+  const view = mount(1);
+  const existing = view.container.querySelector('a');
+  await act(async () => { routing.changeLanguage('de'); });
+  expect(window.location.pathname).toBe('/de/blog');
+  expect(window.location.search).toBe('');
+  expect(window.location.hash).toBe('');
+  expect(view.container.querySelector('a')).toBe(existing);
+});
+
+it('core blog translations preserve their real article identity and fragment', async () => {
+  window.history.replaceState({}, '', '/de/blog/radio-data-usage#section-2');
+  mount(1);
+  await act(async () => { routing.changeLanguage('en'); });
+  expect(window.location.pathname).toBe('/en/blog/radio-data-usage');
+  expect(window.location.hash).toBe('#section-2');
+});
+
 it('blocked Safari preferences do not break URLs or cause repeated automatic reads', () => {
   const storage = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError'); });
   const cookie = vi.spyOn(Document.prototype, 'cookie', 'get').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError'); });

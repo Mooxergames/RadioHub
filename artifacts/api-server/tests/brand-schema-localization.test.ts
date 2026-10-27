@@ -65,8 +65,9 @@ test('Turkish values remain Turkish and same-locale admin descriptions are prese
 
 test('server HTML and client page-data use the same global schema builders', () => {
   const source = readFileSync(new URL('../src/seo-renderer.ts', import.meta.url), 'utf8');
-  assert.match(source, /generateOrganizationSchema\(schemaDomain, language, translations\)/);
-  assert.match(source, /generateWebSiteSchema\(schemaDomain, language, translations\)/);
-  assert.match(source, /generateDeveloperOrganizationSchema\(language\)/);
+  assert.match(source, /const schemaLanguage = additionalData\?\.blog\?\.locale \|\| language;/);
+  assert.match(source, /generateOrganizationSchema\(schemaDomain, schemaLanguage, translations\)/);
+  assert.match(source, /generateWebSiteSchema\(schemaDomain, schemaLanguage, translations\)/);
+  assert.match(source, /generateDeveloperOrganizationSchema\(schemaLanguage\)/);
   assert.doesNotMatch(source, /Vienna-based software studio|"alternateName": "Mega Radio - Free Online Radio"/);
 });

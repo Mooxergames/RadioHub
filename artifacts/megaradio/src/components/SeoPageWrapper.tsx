@@ -24,6 +24,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   const routePath = (englishPath || '').split(/[?#]/)[0];
   const isGenreDetail = /^\/genres\/.+/.test(routePath);
   const isDirectory = isStationDirectoryPath(routePath);
+  const isBlog = /^\/[a-z]{2}\/blog(?:\/|$)/.test(location);
   // Wouter decodes paths/search. Catalog validation and cache identity must
   // retain their original encoding, parameter order and duplicate parameters.
   const fullUrl = isDirectory && typeof window !== 'undefined'
@@ -52,7 +53,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
     placeholderData: undefined,
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/seo/page-data?url=${encodeURIComponent(fullUrl)}&slim=1`, { signal });
-      if (!response.ok && !(isDirectory && response.status === 404)) {
+      if (!response.ok && !((isDirectory || isBlog) && response.status === 404)) {
         throw new Error(`SEO page data unavailable (${response.status})`);
       }
       const payload: SeoPagePayload = await response.json();
@@ -61,6 +62,13 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
       }
       if (isDirectory && response.status === 404 && !payload?.seoTags) {
         throw new Error('Station directory error metadata unavailable');
+      }
+      if (isBlog && response.status === 404) {
+        if (!payload?.seoTags?.noIndex || !payload.seoTags.robots?.includes('noindex')) {
+          throw new Error('Blog error metadata unavailable');
+        }
+        return { ...payload, httpStatus: 404, seoTags: { ...payload.seoTags, canonical: undefined, hreflangs: [] },
+          structuredData: { global: payload.structuredData?.global || [], page: [] } };
       }
       return { ...payload, httpStatus: response.status === 404 ? 404 : 200 };
     },
@@ -77,9 +85,9 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
       <StationDirectoryContext.Provider value={{ active: isDirectory, language: currentLanguage, query }}>
         {/* Never replace a complete SSR head with homepage translation keys or
             the previous route's tags while the current request is pending. */}
-        {(!ssrHeadAlreadyCorrect || (isDirectory && seoData?.httpStatus === 404)) && seoData?.seoTags
+        {(!ssrHeadAlreadyCorrect || ((isDirectory || isBlog) && seoData?.httpStatus === 404)) && seoData?.seoTags
           && <SeoHead key={fullUrl} seoData={seoData.seoTags} structuredData={structuredData}
-            clearCanonical={isDirectory && seoData.httpStatus === 404} />}
+            clearCanonical={(isDirectory || isBlog) && seoData.httpStatus === 404} />}
         {children}
       </StationDirectoryContext.Provider>
     </ServerSeoHeadContext.Provider>

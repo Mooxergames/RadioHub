@@ -7,6 +7,7 @@ import { getBrowserLanguage, saveBrowserLanguage, syncBrowserLanguageFromUrl } f
 import { prefetchNavigationTranslations } from '@/lib/translation-navigation-prefetch';
 import { getExplicitLanguageFromPath } from '@workspace/seo-shared/language-preference';
 import { logger } from '@/lib/logger';
+import { parseBlogPath, isBlogLocale, blogAvailable, blogPath } from '@workspace/seo-shared/blog-manifest';
 
 // Language-prefixed URLs are authoritative; country selection is a content filter.
 export function useSeoRouting() {
@@ -95,7 +96,9 @@ export function useSeoRouting() {
     
     // Build new URL: /{newLanguage}/{translatedPath}
     // Handle root path (homepage) case
-    const newPath = translatedPath === '/' 
+    const sourceBlog = parseBlogPath(location);
+    const missingBlogEdition = sourceBlog?.id && isBlogLocale(newLanguage) && !blogAvailable(sourceBlog.id, newLanguage);
+    const newPath = missingBlogEdition && isBlogLocale(newLanguage) ? blogPath(newLanguage) : translatedPath === '/'
       ? `/${newLanguage}` 
       : `/${newLanguage}${translatedPath}`;
     
@@ -105,7 +108,7 @@ export function useSeoRouting() {
     // current session mounted instead of reloading the entire document.
     // Warm only the chosen locale, without delaying navigation on the network.
     void prefetchNavigationTranslations(queryClient, newLanguage);
-    setLocation(`${newPath}${window.location.search}${window.location.hash}`);
+    setLocation(missingBlogEdition ? newPath : `${newPath}${window.location.search}${window.location.hash}`);
   };
   
   // Function to navigate with language prefix preservation (for SEO URLs)
