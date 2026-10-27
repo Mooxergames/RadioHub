@@ -3,10 +3,10 @@
 ## Publication inventory
 
 The original ten IDs keep their fourteen complete editions, URLs and September
-25 publication/update timestamps. Forty additional IDs have exactly one edition
+25 publication/update timestamps. Forty-eight additional IDs have exactly one edition
 each, registered in `lib/seo-shared/src/blog/market-manifest.ts`. The resulting
-inventory is 180 article URLs and 14 locale indexes, not 40 times 14 articles.
-`BLOG_IDS` remains the ten bitmap/core IDs; `BLOG_ARTICLE_IDS` includes all fifty
+inventory is 188 article URLs and 14 locale indexes, not a Cartesian locale expansion.
+`BLOG_IDS` remains the ten bitmap/core IDs; `BLOG_ARTICLE_IDS` includes all fifty-eight
 IDs. Enumerate actual editions with `blogIdsForLocale`, never a Cartesian product.
 `BLOG_SITEMAP_PATHS` has no external consumers and is not an availability matrix.
 
@@ -35,7 +35,10 @@ logo, screenshot or photograph that does not exist. If an advisory `imageId` is
 provided, it must agree with the manifest before release.
 
 Internal routes are `home`, `genres`, `regions`, `applications`, `search`, a safe
-single `genre:<slug>`, `blog:<available-id>`, or the verified `station:kral-fm`.
+single `genre:<slug>`, `blog:<available-id>`, or an exact member of the verified
+`BLOG_STATION_SLUGS` list in `types.ts`. This closed list preserves `kral-fm` and
+adds only the seven station identities checked for the trend articles. Membership
+is checked at runtime before the existing locale path translator is called.
 No arbitrary path/URL, unverified station slug or `region:` route is accepted.
 Related IDs and blog links must exist in the article's locale. English core IDs
 remain the stable IDs in all languages. No external request is made by a loader.
@@ -74,11 +77,20 @@ See [Google updates](https://developers.google.com/search/updates) and the
 
 Run catalog/blog SEO, sitemap smoke, blog page, head ownership and routing tests
 under Node 24, then library/API/frontend typechecks and production builds. Check
-all 194 URLs against actual content, all 520 unavailable market/locale pairs,
+all 202 URLs against actual content, all 624 unavailable market/locale pairs,
 dates, sources, bitmap existence, FAQ text and schema/head parity. The content
 owner reviews alt-text/image meaning and claim/source accuracy; automated URL
 parity alone cannot prove either. Main owns authenticated GSC, live HTTP checks,
 publication and release. This technical task does not commit, push or deploy.
+
+The October 27 trend batch adds de/AT culture, road and astronomy topics,
+de/DE football topics, one fr/FR clock-change guide, and two en/GB/US listening
+guides. Only those eight records take the separately frozen batch timestamp;
+the older forty market records retain midnight dates. A checked-in regression
+fixture from main `f59ec5889` protects all 180 older article objects, their
+metadata and relative order without network or Git access during tests. New
+articles have three FAQs and topic-specific primary sources; source access and
+event/audio rights require editorial checks beyond word-count assertions.
 
 Future scheduled publication needs one shared availability snapshot and explicit
 invalidation of startup sitemap/HTML caches. Do not make only the route or only

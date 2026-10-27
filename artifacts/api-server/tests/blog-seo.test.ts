@@ -289,13 +289,13 @@ test("editorial sitemap preserves 140 editions and lists only actual market edit
 });
 
 test("every unavailable market/locale combination is rejected, without English fallbacks", () => {
-  assert.equal(Object.keys(MARKET_BLOG_MANIFEST).length, 40);
+  assert.equal(Object.keys(MARKET_BLOG_MANIFEST).length, 48);
   assert.equal(
     BLOG_LOCALES.reduce(
       (sum, locale) => sum + blogIdsForLocale(locale).length,
       0,
     ),
-    180,
+    188,
   );
   for (const [id, edition] of Object.entries(MARKET_BLOG_MANIFEST)) {
     for (const locale of BLOG_LOCALES) {
@@ -321,10 +321,12 @@ test("topic images exist, have explicit correct dimensions, and stay lightweight
 });
 
 test("unsafe sources, duplicate editions and unregistered content cannot enter the catalog", async () => {
-  const core = (await loadBlogContent("en")).articles[0];
+  const sample = (await loadBlogContent("tr")).articles.find(
+    article => article.id === "kral-fm-canli-dinle-sorunlari",
+  );
+  assert.ok(sample);
   const article = {
-    ...core,
-    id: "kral-fm-canli-dinle-sorunlari" as const,
+    ...sample,
     sources: [{ name: "Reference", url: "https://example.org/reference" }],
   };
   assert.doesNotThrow(() => validateMarketArticles("tr", [article]));

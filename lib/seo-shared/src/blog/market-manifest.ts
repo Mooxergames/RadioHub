@@ -1,23 +1,50 @@
 import type { BlogLocale, CoreBlogId } from "./types";
 
+const TREND_PUBLISHED = "2026-10-27T07:46:55+01:00";
+
 function edition(
   locale: BlogLocale,
   market: string,
   imageId: CoreBlogId,
   languageTag?: "zh-Hant-HK",
+  publishedAt = "2026-10-27T00:00:00+01:00",
 ) {
   return Object.freeze({
     locale,
     market,
     imageId,
     languageTag,
-    publishedAt: "2026-10-27T00:00:00+01:00",
-    updatedAt: "2026-10-27T00:00:00+01:00",
+    publishedAt,
+    updatedAt: publishedAt,
   });
 }
 
 // Each key is one market-specific article, not a promise of 14 translations.
 export const MARKET_BLOG_MANIFEST = Object.freeze({
+  "9-plaetze-9-schaetze-2026-radio-oesterreich": edition(
+    "de", "AT", "listen-to-radio-online", undefined, TREND_PUBLISHED,
+  ),
+  "vignette-2027-oesterreich-verkehrsradio": edition(
+    "de", "AT", "radio-app-iphone-android", undefined, TREND_PUBLISHED,
+  ),
+  "vollmond-oktober-2026-radio-wissenschaft": edition(
+    "de", "AT", "news-talk-radio-guide", undefined, TREND_PUBLISHED,
+  ),
+  "ballon-dor-2026-radio-ergebnisse": edition(
+    "de", "DE", "news-talk-radio-guide", undefined, TREND_PUBLISHED,
+  ),
+  "dfb-pokal-2026-27-live-radio": edition(
+    "de", "DE", "news-talk-radio-guide", undefined, TREND_PUBLISHED,
+  ),
+  "changement-heure-hiver-2026-radio-reveil": edition(
+    "fr", "FR", "radio-app-iphone-android", undefined, TREND_PUBLISHED,
+  ),
+  "wind-up-radio-uk-emergency-kit": edition(
+    "en", "GB", "listen-to-radio-online", undefined, TREND_PUBLISHED,
+  ),
+  "world-series-2026-radio-audio": edition(
+    "en", "US", "news-talk-radio-guide", undefined, TREND_PUBLISHED,
+  ),
   "kral-fm-canli-dinle-sorunlari": edition(
     "tr",
     "TR",

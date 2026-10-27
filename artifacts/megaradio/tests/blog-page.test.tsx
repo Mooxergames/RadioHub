@@ -73,6 +73,21 @@ it("guide and language changes use SPA navigation and preserve the existing play
       .sort(),
   ).toEqual(["en", "tr"]);
 });
+for (const [locale, id, stationPath] of [
+  ["de", "vollmond-oktober-2026-radio-wissenschaft", "/de/sender/deutschlandfunk"],
+  ["fr", "changement-heure-hiver-2026-radio-reveil", "/fr/station/france-inter"],
+  ["en", "wind-up-radio-uk-emergency-kit", "/en/station/bbc-radio-4"],
+] as const)
+  it(`trend station navigation preserves the existing player: ${locale}`, async () => {
+    const content = await loadBlogContent(locale);
+    const article = content.articles.find(article => article.id === id)!;
+    const view = mount(`/${locale}/blog/${id}`);
+    await view.findByRole("heading", { level: 1, name: article.title });
+    const player = view.getByTestId("existing-player");
+    fireEvent.click(view.container.querySelector(`a[href="${stationPath}"]`)!);
+    await waitFor(() => expect(window.location.pathname).toBe(stationPath));
+    expect(view.getByTestId("existing-player")).toBe(player);
+  });
 it("modified clicks and table-of-contents anchors are not hijacked", async () => {
   const view = mount("/en/blog/radio-data-usage");
   await view.findByRole("heading", { level: 1, name: /data/i });

@@ -13,7 +13,7 @@ export type { BlogId, BlogLocale, CoreBlogId } from "./types";
 // Change only when editorial content changes, never on a request or catalog sync.
 export const BLOG_PUBLISHED = "2026-09-25T00:00:00+02:00";
 export const BLOG_UPDATED = "2026-09-25T00:00:00+02:00";
-export const BLOG_REVISION = "radio-guides-2026-10-27-v2";
+export const BLOG_REVISION = "radio-guides-2026-10-27-trends-v3";
 export const BLOG_ARTICLE_IDS: readonly BlogId[] = Object.freeze([
   ...BLOG_IDS,
   ...(Object.keys(MARKET_BLOG_MANIFEST) as Array<

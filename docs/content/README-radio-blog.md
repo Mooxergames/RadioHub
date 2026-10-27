@@ -1,6 +1,6 @@
 # MegaRadio radio guides: editorial and developer handoff
 
-The original 10 topics keep their 14 complete language editions (140 article URLs). An additional 40 market-specific articles are published only in their actual language editions: 180 article URLs plus 14 language-specific indexes, or 194 editorial sitemap entries. The market publication contract is in `2026-10-market-blog-contract.md`.
+The original 10 topics keep their 14 complete language editions (140 article URLs). An additional 48 market-specific articles are published only in their actual language editions: 188 article URLs plus 14 language-specific indexes, or 202 editorial sitemap entries. This includes the original 40 market guides and eight independently researched trend guides. The market publication contract is in `2026-10-market-blog-contract.md`.
 
 ## Contents and locations
 
@@ -15,7 +15,7 @@ Public routes on deployment:
 
 - `/{locale}/blog` — guide index
 - `/{locale}/blog/{stable-article-id}` — complete localized article
-- `/sitemap-blog.xml` — 180 articles + 14 indexes; also linked from the main sitemap index and robots.txt
+- `/sitemap-blog.xml` — 188 articles + 14 indexes; also linked from the main sitemap index and robots.txt
 
 Core article IDs stay constant across their translated editions. Market article IDs have only their explicitly published locale. The locale prefix is authoritative; country/preference cookies do not replace article language. Unsupported locales, invalid IDs and unavailable editions return a 404 instead of a duplicate English article or blog index. Explicitly changing language may instead open the selected language's blog index when the article has no equivalent edition.
 
@@ -25,7 +25,7 @@ Core article IDs stay constant across their translated editions. Market article 
 - Self-canonical per actual edition. Core articles retain 14 reciprocal hreflang links plus English x-default; market articles advertise only their published equivalent editions, with no invented English fallback. Query parameters do not create new canonical articles.
 - Localized BlogPosting, BreadcrumbList and collection-page schema. Schema headline, description, language, illustration caption and dates match visible content.
 - Visible, specific FAQs remain useful reader content; Google discontinued FAQ rich results in May 2026. No FAQPage schema, AI citation promise or fake ratings are added. Google decides whether to index, rank or show enhanced results.
-- Edition-specific versioned dates change only on substantive editorial changes, not each catalog sync. New publication dates do not retimestamp the unchanged original 140 articles. Reconcile the first publication date if release is delayed to another date.
+- Edition-specific versioned dates change only on substantive editorial changes, not each catalog sync. The trend batch preserves all 180 previous editions and advances only the eight new article dates and their de/fr/en index dates. Reconcile the first publication date if release is delayed to another date.
 - Localized React and SSR homepage footer discovery links; standalone editorial sitemap does not wait for station DB or translation job readiness.
 - SPA navigation retains the existing global player; table-of-contents, modified-click and external-link browser behavior is preserved.
 

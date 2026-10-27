@@ -14,7 +14,7 @@ import {
   blogPath,
   blogImage,
 } from "./manifest";
-import type { BlogArticle, BlogLocale } from "./types";
+import { BLOG_STATION_SLUGS, type BlogArticle, type BlogLocale } from "./types";
 const esc = (value: string) =>
   value.replace(
     /[&<>"']/g,
@@ -32,8 +32,9 @@ export function blogExplorePath(
     return blogAvailable(id, locale) ? blogPath(locale, id) : null;
   }
   if (route.startsWith("station:")) {
-    return route === "station:kral-fm"
-      ? `/${locale}${translateUrl("/station/kral-fm", locale)}`
+    const slug = route.slice(8);
+    return (BLOG_STATION_SLUGS as readonly string[]).includes(slug)
+      ? `/${locale}${translateUrl(`/station/${slug}`, locale)}`
       : null;
   }
   if (
