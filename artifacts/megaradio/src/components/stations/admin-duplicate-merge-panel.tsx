@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Clock3, Loader2, Merge, RefreshCw, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Clock3, Loader2, Merge, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -13,13 +14,14 @@ function dateLabel(value: string | null | undefined) {
   return new Date(value).toLocaleString();
 }
 
-export default function AdminDuplicateMergePanel({ onApplied }: { onApplied?: () => void } = {}) {
+export default function AdminDuplicateMergePanel({ onApplied, bulkActionTarget }: { onApplied?: () => void; bulkActionTarget?: HTMLElement | null } = {}) {
   const auth = useAdminAuth();
   const account = auth.isAuthenticated && auth.isAdmin ? auth.user?.username || null : null;
   const merge = useAdminDuplicateMerge(account);
   const client = useQueryClient();
   const [confirmationId, setConfirmationId] = useState<string | null>(null);
   const notified = useRef(new Set<string>());
+  const panel = useRef<HTMLElement>(null);
   const callback = useRef(onApplied); callback.current = onApplied;
   const job = merge.job;
 
@@ -35,7 +37,15 @@ export default function AdminDuplicateMergePanel({ onApplied }: { onApplied?: ()
   const confirmReady = merge.canApply && confirmationId === merge.preview?.jobId;
   const results = job?.results;
   return (
-    <section aria-labelledby="safe-duplicate-merge-heading" className="rounded-xl border bg-card p-4 text-card-foreground sm:p-5" data-testid="safe-duplicate-merge">
+    <section ref={panel} aria-labelledby="safe-duplicate-merge-heading" className="scroll-mt-20 border-y bg-card p-4 text-card-foreground sm:p-5" data-testid="safe-duplicate-merge">
+      {bulkActionTarget && createPortal(<Button size="sm" className="text-xs" data-testid="button-merge-all-duplicates"
+        disabled={!account || (!merge.ready && !merge.canApply && !merge.busy)}
+        title={merge.busy ? 'View the running catalogue job' : merge.canApply ? 'Review and merge all verified groups' : 'Preview all groups before merging'}
+        onClick={() => {
+          panel.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+          if (merge.canApply) setConfirmationId(merge.preview!.jobId);
+          else if (merge.ready) void merge.start();
+        }}><Merge aria-hidden="true" className="mr-2 h-4 w-4" />Merge All</Button>, bulkActionTarget)}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-3xl space-y-1">
           <h2 id="safe-duplicate-merge-heading" className="flex items-center gap-2 text-base font-semibold"><ShieldCheck aria-hidden="true" className="h-5 w-5 text-primary" />Merge across the catalogue</h2>
@@ -66,10 +76,11 @@ export default function AdminDuplicateMergePanel({ onApplied }: { onApplied?: ()
             <span className="text-xs text-muted-foreground">{job.progress.groupsProcessed.toLocaleString()} / {job.progress.totalGroups.toLocaleString()} groups checked</span>
           </div>
           {job.status === 'running' && <><Progress aria-label="Catalogue merge progress" value={Math.max(0, Math.min(100, job.progress.percentage))} /><p className="text-xs text-muted-foreground">{job.progress.currentStep}. You can leave this page; the server continues and progress is restored when you return.</p></>}
+          {job.dryRun && job.status === 'running' && <Button size="sm" variant="outline" disabled={merge.pending} onClick={() => void merge.cancelPreview()}><X aria-hidden="true" className="mr-2 h-4 w-4" />Cancel preview</Button>}
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              ['Candidates', results.totalGroups], ['Eligible', results.eligibleGroups], ['Skipped for review', results.skippedGroups],
-              [job.dryRun ? 'Duplicate records to combine' : 'Groups merged', job.dryRun ? results.totalStationsToDelete : results.mergedGroups],
+              ['Candidates', results.totalGroups], [job.dryRun ? 'Eligible' : 'Groups merged', job.dryRun ? results.eligibleGroups : results.mergedGroups], ['Skipped for review', results.skippedGroups],
+              [job.dryRun ? 'Duplicate records to combine' : 'Duplicate records combined', job.dryRun ? results.totalStationsToDelete : results.totalStationsDeleted],
             ].map(([label, value]) => <div key={label} className="min-w-0 border-l-2 pl-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{Number(value).toLocaleString()}</dd></div>)}
           </dl>
           {job.dryRun && job.status === 'completed' && results.eligibleGroups === 0 && <p className="text-sm text-muted-foreground">No groups are eligible for automatic merging. Review the remaining candidates individually.</p>}

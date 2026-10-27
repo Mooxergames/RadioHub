@@ -57,9 +57,9 @@ beforeEach(async () => {
   await pool.query("UPDATE stations SET last_check_ok=true WHERE id='private-history'");
   const source = { resetPasswordToken: 'fixture-token-hash', resetPasswordExpires: new Date(Date.now() + 60000).toISOString(),
     recentlyPlayedStations: [{ stationId: 'private-history' }], notificationSettings: { favorites: true, nowPlaying: true, newStations: false, recommendations: false } };
-  await pool.query(`INSERT INTO users(id,username,email,slug,password_hash,is_public_profile,source)
-    VALUES ('owner','listener','owner@example.test','listener-slug','old-hash',true,$1),
-    ('other','other','other@example.test','other-slug','unrelated',false,'{}')`, [JSON.stringify(source)]);
+  await pool.query(`INSERT INTO users(id,username,email,slug,password_hash,is_public_profile,status,source)
+    VALUES ('owner','listener','owner@example.test','listener-slug','old-hash',true,'active',$1),
+    ('other','other','other@example.test','other-slug','unrelated',false,'active','{}')`, [JSON.stringify(source)]);
   await pool.query(`INSERT INTO auth_tokens VALUES('owner-token','owner',false),('other-token','other',false);
     INSERT INTO user_sessions VALUES ('direct','{"userId":"owner"}'),('nested','{"user":{"userId":"owner"}}'),
     ('passport','{"passport":{"user":"owner"}}'),('other','{"userId":"other"}')`);
@@ -119,6 +119,13 @@ test('all four public HTTP routes recheck privacy before serving warm caches', {
   for (const path of paths) assert.equal((await fetch(`${base}/profile/listener-slug${path}`)).status, 200);
   assert.equal(cache.size, 4);
   await users.pgUpdateUser('owner', { isPublicProfile: false });
+  for (const path of paths) assert.equal((await fetch(`${base}/profile/listener-slug${path}`)).status, 404);
+});
+test('inactive public accounts cannot expose profiles through warm HTTP caches', { skip: !connectionString }, async () => {
+  const paths = ['', '/favorites', '/full', '/recently-played'];
+  for (const path of paths) assert.equal((await fetch(`${base}/profile/listener-slug${path}`)).status, 200);
+  await pool.query("UPDATE users SET status='suspended' WHERE id='owner'");
+  for (const value of ['owner', 'listener-slug', 'listener']) assert.equal(await engagement.pgPublicProfileCacheIdentity(value), null);
   for (const path of paths) assert.equal((await fetch(`${base}/profile/listener-slug${path}`)).status, 404);
 });
 test('profile revisions bypass obsolete cached public content without evicting unrelated entries', { skip: !connectionString }, async () => {

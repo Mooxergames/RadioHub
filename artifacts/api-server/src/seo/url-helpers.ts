@@ -1,11 +1,3 @@
-/**
- * Side-effect-free URL helpers used by the SEO renderer AND its
- * regression tests. Kept in a separate module so the test suite can
- * import them without booting the full renderer (which registers
- * setInterval handles for event-loop monitoring and pulls in Mongoose).
- *
- * Task #127: extracted from `seo-renderer.ts` for soft-404 fixes.
- */
 
 import { FALLBACK_SEGMENT_TRANSLATIONS } from '@workspace/seo-shared/seo-config';
 import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
@@ -142,18 +134,6 @@ export interface RouteShapeResult {
   reason?: 'unknown-continent' | 'bad-country-slug' | 'bad-city-slug' | 'extra-segments' | 'empty';
 }
 
-/**
- * Task #127: validate the slug shape of a `/regions/...` or `/country/...`
- * path BEFORE running the expensive Mongoose lookups. Splits cleanly so
- * the continent whitelist applies ONLY to `/regions/<continent>/...` —
- * applying it to `/country/<country>` would false-404 every valid country
- * page (the original v1 fix had this regression).
- *
- * Pure function: no I/O, no module-level side effects. Safe to unit-test.
- *
- * @param cleanPath URL path with the language prefix already stripped.
- *                  Examples: `/regions/europe/germany`, `/country/germany`.
- */
 export function validateRegionRouteShape(cleanPath: string): RouteShapeResult {
   const isRegionsRoute = cleanPath.startsWith('/regions');
   const isCountryRoute = cleanPath.startsWith('/country');

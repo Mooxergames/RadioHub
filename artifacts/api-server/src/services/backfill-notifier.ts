@@ -186,7 +186,7 @@ function summarizeSlowdowns(
   return [
     `Weekly backfill PHASE SLOWDOWN (trigger=${run.trigger}) — ${slowdowns.length} phase${slowdowns.length === 1 ? '' : 's'} much slower than recent baseline:`,
     ...lines,
-    `Investigate before this becomes a stuck/failing run — upstream throttling, Mongo pressure, or a country with a sudden flood of un-hydrated stations are the usual culprits.`,
+    `Investigate upstream throttling, database pressure, or a sudden increase in unprocessed stations before this becomes a failing run.`,
   ].join('\n');
 }
 

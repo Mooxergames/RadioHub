@@ -30,8 +30,9 @@ test('review snapshot normalizes dates/nulls and excludes ratings/translations/c
 });
 test('reviewed recovery permits historical health flags, never manual/non-health/redirect exclusions', () => {
   assert.doesNotThrow(() => assertRecoverableStation(row()));
+  assert.doesNotThrow(() => assertRecoverableStation({ ...row(), slug: 'radio-aac' }));
   for (const change of [{ noIndex: false }, { lastCheckOk: true }, { manualEditFields: { noIndex: true } },
-    { redirectToSlug: 'original' }, { slug: '1234' }, { slug: 'test-stream' }, { slug: 'radio-aac' },
+    { redirectToSlug: 'original' }, { slug: '1234' }, { slug: 'test-stream' },
     { url: '' }, { name: '' }, { automaticNoIndex: { active: true, reason: 'duplicate-of:radio' } }]) {
     assert.throws(() => assertRecoverableStation({ ...row(), ...change }));
   }

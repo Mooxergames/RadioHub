@@ -152,6 +152,31 @@ describe('one owner for the initial SSR head and subsequent navigation', () => {
     expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
   });
 
+  it('replaces noindex/canonical/alternates with the current server contract in both navigation directions', () => {
+    const view = render(<SeoPageWrapper><PageSeoHead pageType="station" stationData={null} /></SeoPageWrapper>);
+    const targets = [
+      { path: '/de/sender/station-b', language: 'de', robots: 'noindex, follow', alternates: [] },
+      { path: '/en/station/station-c', language: 'en', robots: 'index, follow', alternates: [
+        { hreflang: 'en', url: 'https://themegaradio.com/en/station/station-c' },
+        { hreflang: 'x-default', url: 'https://themegaradio.com/en/station/station-c' },
+      ] },
+    ];
+    for (const target of targets) {
+      state.location = target.path; state.language = target.language;
+      state.data.set(`/api/seo/page-data|${target.path}|${target.language}`, { seoTags: {
+        title: 'Current station', canonical: `https://themegaradio.com${target.path}`,
+        robots: target.robots, hreflangs: target.alternates,
+      } });
+      view.rerender(<SeoPageWrapper><PageSeoHead pageType="station" stationData={null} /></SeoPageWrapper>);
+      expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+      expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `https://themegaradio.com${target.path}`);
+      expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', target.robots);
+      expect([...document.querySelectorAll('link[hreflang]')].map(link => ({
+        hreflang: link.getAttribute('hreflang'), url: link.getAttribute('href'),
+      }))).toEqual(target.alternates);
+    }
+  });
+
   it('replaces station A with station B schema and then a listing, preserving global and third-party nodes', () => {
     const globalNode = document.getElementById('global-website');
     const thirdParty = document.getElementById('third-party-schema');

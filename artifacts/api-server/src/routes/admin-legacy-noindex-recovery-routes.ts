@@ -1,10 +1,40 @@
 import express, { type Express, type RequestHandler } from 'express';
+import { once } from 'node:events';
 import { pgApplyLegacyNoindexRecovery, pgPreviewLegacyNoindexRecovery } from '../data/postgres-legacy-noindex-recovery';
+import { RECOVERY_REVIEW_CSV_HEADER } from '../seo/legacy-noindex-recovery';
 
 export function registerAdminLegacyNoindexRecoveryRoutes(app: Express, requireAdmin: RequestHandler, dependencies = {
   pgApplyLegacyNoindexRecovery, pgPreviewLegacyNoindexRecovery,
 }) {
   const json = express.json({ limit: '32kb' });
+  app.get('/api/admin/seo-noindex-recovery/review.csv', requireAdmin, async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    if (Object.keys(req.query).length) return void res.status(400).json({ error: 'Unexpected review parameters' });
+    const controller = new AbortController();
+    const disconnected = () => { if (!res.writableFinished) controller.abort(); };
+    res.on('close', disconnected);
+    let started = false;
+    try {
+      await dependencies.pgPreviewLegacyNoindexRecovery({ signal: controller.signal, onReviewRow: async (csv, signal) => {
+        signal?.throwIfAborted();
+        if (!started) {
+          res.type('text/csv');
+          res.set('Content-Disposition', 'attachment; filename="station-noindex-record-review.csv"');
+          res.write(RECOVERY_REVIEW_CSV_HEADER); started = true;
+        }
+        if (!res.write(csv)) await once(res, 'drain', { signal });
+      } });
+      if (!started) {
+        res.type('text/csv');
+        res.set('Content-Disposition', 'attachment; filename="station-noindex-record-review.csv"');
+        res.write(RECOVERY_REVIEW_CSV_HEADER);
+      }
+      res.end();
+    } catch (error: any) {
+      if (res.headersSent) res.destroy();
+      else res.status(error?.code === 'RECOVERY_BUSY' ? 409 : 503).json({ error: 'Review could not complete safely. Retry the download.' });
+    } finally { res.off('close', disconnected); }
+  });
   const validObject = (body: unknown): body is Record<string, unknown> => Boolean(body) && typeof body === 'object' && !Array.isArray(body);
   const errors: Record<string, { status: number; message: string }> = {
     RECOVERY_INVALID: { status: 400, message: 'Select 1–100 distinct station IDs from the current preview.' },
@@ -15,8 +45,9 @@ export function registerAdminLegacyNoindexRecoveryRoutes(app: Express, requireAd
     app.post(`/api/admin/seo-noindex-recovery/${action}`, requireAdmin, json, async (req, res) => {
       res.set('Cache-Control', 'private, no-store');
       const body = req.body ?? {};
-      const allowed = action === 'apply' ? ['previewId', 'stationIds'] : [];
+      const allowed = action === 'apply' ? ['previewId', 'stationIds'] : ['afterId'];
       if (Object.keys(req.query).length || !validObject(body) || Object.keys(body).some(key => !allowed.includes(key)) ||
+          (action === 'preview' && body.afterId !== undefined && (typeof body.afterId !== 'string' || !body.afterId || body.afterId.length > 200)) ||
           (action === 'apply' && (typeof body.previewId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.previewId) ||
             !Array.isArray(body.stationIds) || body.stationIds.length < 1 || body.stationIds.length > 100 ||
             body.stationIds.some(id => typeof id !== 'string' || !id || id.length > 200) ||
@@ -28,7 +59,7 @@ export function registerAdminLegacyNoindexRecoveryRoutes(app: Express, requireAd
       res.on('close', disconnected);
       try {
         const result = action === 'preview'
-          ? await dependencies.pgPreviewLegacyNoindexRecovery({ signal: controller.signal })
+          ? await dependencies.pgPreviewLegacyNoindexRecovery({ signal: controller.signal, ...(body.afterId ? { afterId: body.afterId as string } : {}) })
           : await dependencies.pgApplyLegacyNoindexRecovery({ previewId: body.previewId as string,
             stationIds: body.stationIds as string[], signal: controller.signal,
             actor: String((req.user as any)?._id || (req.user as any)?.id || 'authenticated-admin') });

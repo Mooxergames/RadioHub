@@ -166,8 +166,10 @@ test('verified existing legacy station exact and alias routes reach English cano
 test('exact GSC fm-100 alias and excluded/missing records keep warm/cold terminal policies without false404', async () => {
   for (const [patch, expected] of [
     [{ noIndex: true, lastCheckOk: false }, 200],
-    [{ noIndex: true, lastCheckOk: true }, 410],
+    [{ noIndex: true, lastCheckOk: true }, 200],
+    [{ noIndex: true, lastCheckOk: undefined }, 200],
     [{ noIndex: true, lastCheckOk: false, manualEditFields: { noIndex: true } }, 410],
+    [{ noIndex: true, lastCheckOk: true, manualEditFields: { noIndex: true } }, 410],
     [{ noIndex: false, url: '' }, 410],
     [null, 410],
   ] as const) {
@@ -177,7 +179,7 @@ test('exact GSC fm-100 alias and excluded/missing records keep warm/cold termina
       slugCacheReady = ready; pageCache.clear();
       const result = await followLocal('/af/station/fm-100');
       assert.equal(result.response.status, expected);
-      if (expected === 200) assert.equal(result.body.noIndex, true, 'offline informational page stays noindex');
+      if (expected === 200) assert.equal(result.body.noIndex, true, 'historical informational page stays noindex');
       outcomes.push({ chain: result.chain, body: result.body });
     }
     assert.deepEqual(outcomes[0], outcomes[1], 'excluded and missing identities do not enter shortcut');

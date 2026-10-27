@@ -74,7 +74,7 @@ for (const [reason, targetSlug, patch] of [
   ['unset indexability', 'canonical-fm', { noIndex: undefined }],
   ['null indexability', 'canonical-fm', { noIndex: null }],
   ['missing stream', 'canonical-fm', { url: '' }],
-  ['codec duplicate', 'canonical-fm-aac', {}],
+  ['stored codec duplicate', 'canonical-fm-aac', { noIndex: true }],
   ['test feed', 'canonical-test-stream', {}],
   ['numeric slug', '12345', {}],
   ['negative numeric slug', '-12345', {}],
@@ -97,6 +97,14 @@ for (const [reason, targetSlug, patch] of [
     assert.equal(pageCache.size, 0);
   });
 }
+
+test('an indexable canonical may carry a format label without becoming a rejected redirect target', async () => {
+  fixtures.set('slug:duplicate-fm', { ...base, redirectToSlug: 'canonical-fm-aac' });
+  fixtures.set('slug:canonical-fm-aac', { ...destination, slug: 'canonical-fm-aac' });
+  const result = await renderer.renderStaticPage(sourceUrl, 'https://themegaradio.com');
+  assert.equal(result.pageData.redirectTo, '/en/station/canonical-fm-aac');
+  assert.equal(result.pageData.stationIsJunk, undefined);
+});
 
 test('a self-redirect cannot fall through into another redirect to the same URL', async () => {
   fixtures.set('slug:duplicate-fm', { ...base, noIndex: false, redirectToSlug: base.slug });
@@ -141,6 +149,18 @@ test('a retained offline destination remains valid when it is explicitly indexab
   const result = await renderer.renderStaticPage(sourceUrl, 'https://themegaradio.com');
   assert.equal(result.pageData.redirectTo, '/en/station/canonical-fm');
   assert.deepEqual(reads, ['slug:duplicate-fm', 'slug:canonical-fm']);
+});
+
+test('an English-only canonical is reached in one hop from an ineligible localized copy or historical alias', async () => {
+  fixtures.set('slug:canonical-fm', { ...destination, descriptions: { en: destination.descriptions.en } });
+  for (const input of ['/ar/mahta/duplicate-fm', '/fr/station/duplicate-fm', '/ar/mahta/old-copy']) {
+    fixtures.set('alias:old-copy', { ...base });
+    const result = await renderer.renderStaticPage(input, 'https://themegaradio.com');
+    assert.equal(result.pageData.redirectTo, '/en/station/canonical-fm');
+    const final = await renderer.renderStaticPage(result.pageData.redirectTo, 'https://themegaradio.com');
+    assert.equal(final.pageData.redirectTo, undefined);
+    assert.notEqual(final.seoTags.noIndex, true);
+  }
 });
 
 test('a target database outage is uncached and retryable, then recovers to a validated redirect', async () => {

@@ -64,23 +64,35 @@ describe('PostgreSQL public sitemap and playback diagnostics',{skip:!connectionS
     const [station]=await pgCatalog().insertMany([{_id:stationId,stationuuid:randomUUID(),name:'Berlin & Music',slug:'berlin-music',url:'https://stream.example.invalid/live',
       country:'Germany',countryCode:'DE',language:'German',languageCodes:'de',bitrate:128,lastCheckOk:true,noIndex:false,favicon:'https://themegaradio.com/logos/berlin.webp'}]);
     await pool.query("INSERT INTO genres(id,name,slug,is_discoverable,station_count) VALUES($1,'Pop','pop',true,25)",[genreId]);
-    for(const [type,ids] of [['main',['/','tc:europe/germany']],['genres',[genreId]],['stations',[stationId]]] as const){
-      const row=await seo.pgWriteBuildingManifest({type,language:'en',version:`offline-${type}`,qualifiedLanguagesHash:state.hash,qualifiedLanguages:state.languages,
-        chunks:[{chunk:1,stationIds:ids,urlCount:ids.length,maxUpdatedAt:station.updatedAt}],totalUrls:ids.length});
-      await seo.pgActivateManifest(row.id,type,'en');
+    // The index requires a completed snapshot for every qualified language;
+    // other locales may legitimately have no eligible pages in this fixture.
+    for(const language of state.languages){
+      for(const [type,englishIds] of [['main',['/','tc:europe/germany']],['genres',[genreId]],['stations',[stationId]]] as const){
+        const ids=language==='en'?englishIds:[];
+        const row=await seo.pgWriteBuildingManifest({type,language,version:`offline-${type}-${language}`,qualifiedLanguagesHash:state.hash,qualifiedLanguages:state.languages,
+          chunks:ids.length?[{chunk:1,stationIds:ids,urlCount:ids.length,maxUpdatedAt:station.updatedAt}]:[],totalUrls:ids.length});
+        await seo.pgActivateManifest(row.id,type,language);
+      }
     }
     const index=await fetch(`${base}/sitemap-index.xml`);assert.equal(index.status,200);const indexXml=await index.text();
     assert.match(indexXml,/sitemap-stations-en-1\.xml/);assert.match(indexXml,/sitemap-genres-en\.xml/);
+    assert.equal(index.headers.get('last-modified'),null);
+    assert.doesNotMatch(indexXml,/<loc>[^<]*sitemap-genres-en\.xml<\/loc>\s*<lastmod>/);
     const stations=await fetch(`${base}/sitemap-stations-en-1.xml`);assert.equal(stations.status,200);assert.match(stations.headers.get('content-type')||'',/xml/);
     const xml=await stations.text();assert.match(xml,/berlin-music/);assert.match(xml,/Berlin &amp; Music/);assert.match(xml,/hreflang="en"/);
     const etag=stations.headers.get('etag');assert.ok(etag);
     assert.equal((await fetch(`${base}/sitemap-stations-en-1.xml`,{headers:{'If-None-Match':etag!}})).status,304);
     assert.equal((await fetch(`${base}/sitemap-stations-en-2.xml`)).status,410);
-    const genres=await fetch(`${base}/sitemap-genres-en.xml`);assert.equal(genres.status,200);assert.match(await genres.text(),/pop/);
+    const genres=await fetch(`${base}/sitemap-genres-en.xml`);assert.equal(genres.status,200);
+    const genreXml=await genres.text();assert.match(genreXml,/pop/);assert.doesNotMatch(genreXml,/<lastmod>/);
+    assert.equal(genres.headers.get('last-modified'),null);
+    const genreEtag=genres.headers.get('etag');assert.ok(genreEtag);
+    await pool.query("UPDATE genres SET station_count=station_count+1,updated_at=now()+interval '1 day' WHERE id=$1",[genreId]);
+    assert.equal((await fetch(`${base}/sitemap-genres-en.xml`,{headers:{'If-None-Match':genreEtag!}})).status,304);
     const main=await fetch(`${base}/sitemap-main-en.xml`);assert.equal(main.status,200);assert.match(await main.text(),/germany/);
     const legacyIndex=await fetch(`${base}/sitemap-en.xml`);assert.equal(legacyIndex.status,200);assert.match(await legacyIndex.text(),/sitemap-stations-en-1/);
     const stats=await fetch(`${base}/api/admin/sitemap/manifest-stats`,{headers:{'x-offline-admin':'allowed'}});assert.equal(stats.status,200);
-    const body=await stats.json() as any;assert.equal(body.totalActive,3);assert.equal(body.stationDiag.collectionName,'stations');assert.equal(body.stationDiag.totalDocs,1);
+    const body=await stats.json() as any;assert.equal(body.totalActive,state.languages.length*3);assert.equal(body.stationDiag.collectionName,'stations');assert.equal(body.stationDiag.totalDocs,1);
   });
   it('coordinates station lastmod maintenance with the provider sync lock and leaves content unchanged',async()=>{
     const leader=await pool.connect();await leader.query("SELECT pg_advisory_lock(hashtext('radiohub-provider-sync'))");
@@ -116,14 +128,28 @@ describe('PostgreSQL public sitemap and playback diagnostics',{skip:!connectionS
     const unknown=await renderer.renderStaticPage('/en/station/unknown-native-station','https://themegaradio.com');
     assert.equal(unknown.pageData?.notFound,true);
   });
-  it('preserves single-hop aliases while refusing to redirect an alias onto a junk station',async()=>{
+  it('preserves single-hop aliases while refusing to redirect onto a manually excluded station',async()=>{
     const {SeoRenderer}=await import('../src/seo-renderer');const renderer=new SeoRenderer();
     await pgCatalog().update({slug:'berlin-music'},{$set:{slugAliases:['legacy-berlin']}});
     const alias=await renderer.renderStaticPage('/en/station/legacy-berlin','https://themegaradio.com');
     assert.equal(alias.pageData?.redirectTo,'/en/station/berlin-music');
-    await pgCatalog().insertMany([{stationuuid:randomUUID(),name:'Pink Noise',slug:'pink-noise',slugAliases:['legacy-noise'],url:'https://stream.example.invalid/noise',noIndex:true}]);
+    await pgCatalog().insertMany([{stationuuid:randomUUID(),name:'Pink Noise',slug:'pink-noise',slugAliases:['legacy-noise'],url:'https://stream.example.invalid/noise',noIndex:true,manualEditFields:{noIndex:true}}]);
     const junk=await renderer.renderStaticPage('/en/station/legacy-noise','https://themegaradio.com');
     assert.equal(junk.pageData?.stationIsJunk,true);assert.equal(junk.pageData?.redirectTo,undefined);
+  });
+  it('keeps native historical positive-health noindex information instead of treating a retained record as removed',async()=>{
+    const {SeoRenderer}=await import('../src/seo-renderer');const renderer=new SeoRenderer();
+    await pgCatalog().insertMany([{_id:'retained-information',stationuuid:randomUUID(),name:'Retained Radio',slug:'retained-radio',
+      url:'https://stream.example.invalid/retained',noIndex:true,lastCheckOk:true,
+      descriptions:{en:{full:'Retained original station information',meta:'Retained station summary'}}}]);
+    const page=await renderer.renderStaticPage('/en/station/retained-radio','https://themegaradio.com');
+    assert.equal(page.pageData?.stationIsJunk,false);assert.equal(page.pageData?.notFound,false);
+    assert.equal(page.seoTags.noIndex,true);assert.deepEqual(page.seoTags.hreflangs,[]);
+    assert.equal(page.seoTags.canonical,'https://themegaradio.com/en/station/retained-radio');
+    assert.equal(page.pageData?.station.descriptions.en.full,'Retained original station information');
+    const retained=await pgCatalog().findById('retained-information');
+    assert.equal(retained?.noIndex,true);assert.equal(retained?.lastCheckOk,true);
+    assert.equal(retained?.manualEditFields?.noIndex,undefined);
   });
   it('loads native slug/alias/country/city existence and uses real tag rankings in llms.txt',async()=>{
     await pgCatalog().update({slug:'berlin-music'},{$set:{tags:'pop, rock',state:'Berlin'}});
@@ -155,25 +181,65 @@ describe('PostgreSQL public sitemap and playback diagnostics',{skip:!connectionS
     await pgCatalog().insertMany([{_id:stationId,stationuuid:randomUUID(),name:'Projection Radio',slug:'projection-radio',
       url:'https://stream.example.invalid/projection',country:'Turkey',countryCode:'TR',language:'Turkish',languageCodes:'tr,es',
       tags:'pop, news',lastCheckOk:false,lastCheckOkTime:new Date('2026-01-01T00:00:00Z'),lastCheckTime:new Date('2026-01-02T00:00:00Z'),
-      descriptions:{de:{full:'Beschreibung',meta:'Kurzbeschreibung'},ja:{full:'詳細',meta:'説明'},fr:{full:'',meta:'Incomplete'}},
+      descriptions:{de:{full:'Beschreibung '.repeat(20_000),meta:'Kurzbeschreibung'},ja:{full:'詳細',meta:'説明'},fr:{full:'',meta:'Incomplete'}},
       logoAssets:{webp256:'https://cdn.themegaradio.com/projection.webp'},upstreamDiagnosticPayload:'x'.repeat(100_000)}]);
     const full=await pgCatalog().findOne({_id:stationId});
     const [slim]=await seo.pgSitemapStationBatch([stationId,'missing-native-id']);
     assert.ok(full);assert.ok(slim);
-    for(const field of ['_id','slug','name','url','homepage','tags','bitrate','country','countryCode','language','languageCodes','descriptions','noIndex','lastCheckOk','lastCheckTime','updatedAt','logoAssets','favicon']) {
+    for(const field of ['_id','slug','name','url','homepage','tags','bitrate','country','countryCode','language','languageCodes','noIndex','lastCheckOk','lastCheckTime','updatedAt','logoAssets','favicon']) {
       assert.deepEqual(slim[field]??null,full![field]??null,`projection parity: ${field}`);
     }
     assert.equal(new Date(slim.lastCheckOkTime).toISOString(),new Date(full!.lastCheckOkTime).toISOString());
     assert.equal(slim.source,undefined);assert.equal(slim.upstreamDiagnosticPayload,undefined);
-    assert.ok(JSON.stringify(slim).length<JSON.stringify(full).length/10);
+    assert.equal(slim.descriptions,undefined);assert.deepEqual(slim.completeDescriptionLanguages,['de','ja']);
+    assert.ok(JSON.stringify(slim).length<JSON.stringify(full).length/100);
     const {getIndexableLanguagesForStation}=await import('../src/seo/junk-station-rules');
     const languages=['en','tr','es','de','ja','fr'];
-    assert.deepEqual(getIndexableLanguagesForStation(slim,languages),getIndexableLanguagesForStation(full!,languages));
+    assert.deepEqual(getIndexableLanguagesForStation(slim,languages,slim.completeDescriptionLanguages),getIndexableLanguagesForStation(full!,languages));
     await pgCatalog().update({_id:stationId},{$set:{lastCheckOk:true}});
     const [healthySlim]=await seo.pgSitemapStationBatch([stationId]);
     const healthyFull=await pgCatalog().findOne({_id:stationId});
-    assert.deepEqual(getIndexableLanguagesForStation(healthySlim,languages),getIndexableLanguagesForStation(healthyFull!,languages));
-    assert.ok(getIndexableLanguagesForStation(healthySlim,languages).includes('ja'));
-    assert.equal(getIndexableLanguagesForStation(healthySlim,languages).includes('fr'),false);
+    assert.deepEqual(getIndexableLanguagesForStation(healthySlim,languages,healthySlim.completeDescriptionLanguages),getIndexableLanguagesForStation(healthyFull!,languages));
+    assert.ok(getIndexableLanguagesForStation(healthySlim,languages,healthySlim.completeDescriptionLanguages).includes('ja'));
+    assert.equal(getIndexableLanguagesForStation(healthySlim,languages,healthySlim.completeDescriptionLanguages).includes('fr'),false);
+  });
+  it('compact description presence matches JavaScript trim and rejects malformed fields without changing stored prose',async()=>{
+    const stationId=randomUUID();
+    await pgCatalog().insertMany([{_id:stationId,stationuuid:randomUUID(),name:'Presence Radio',slug:'presence-radio',countryCode:'US',url:'https://stream.example.invalid/live',noIndex:false}]);
+    const {getIndexableLanguagesForStation}=await import('../src/seo/junk-station-rules');
+    const samples=[null,[], 'Legacy string', {full:123,meta:'Valid'}, {full:{text:'Invalid'},meta:'Valid'},
+      {full:'\t\u00a0\u3000\ufeff',meta:'Valid'}, {full:'\u0085',meta:'Valid'}, {full:'Valid',meta:'\r\n'}, {full:' Valid ',meta:' Summary '}];
+    for(const sample of samples){
+      const descriptions={DE:sample};
+      await pool.query('UPDATE stations SET descriptions=$2::jsonb WHERE id=$1',[stationId,JSON.stringify(descriptions)]);
+      const full=await pgCatalog().findOne({_id:stationId});const [slim]=await seo.pgSitemapStationBatch([stationId]);
+      assert.deepEqual(getIndexableLanguagesForStation(slim,['en','de'],slim.completeDescriptionLanguages),getIndexableLanguagesForStation(full!,['en','de']));
+      assert.deepEqual((await pgCatalog().findOne({_id:stationId}))!.descriptions,descriptions);
+      assert.equal(slim.descriptions,undefined);
+    }
+    const untrusted={name:'Source Radio',slug:'source-radio',url:'https://stream.example.invalid/live',countryCode:'US',completeDescriptionLanguages:['de']};
+    assert.deepEqual(getIndexableLanguagesForStation(untrusted,['en','de']),['en']);
+  });
+  it('serves both pinned pilot cohorts from native rows and removes newly excluded identities before conditional304',async()=>{
+    const {INDEXING_PILOT}=await import('../src/seo/indexing-pilot');
+    await pgCatalog().insertMany(INDEXING_PILOT.map(profile=>({_id:profile.id,stationuuid:randomUUID(),name:profile.slug,slug:profile.slug,
+      country:profile.countryCode==='AT'?'Austria':'Turkey',countryCode:profile.countryCode,url:'https://stream.example.invalid/live',
+      homepage:profile.homepage,lastCheckOk:true,noIndex:false,isListVisible:true})));
+    for(const country of ['at','tr']){
+      const response=await fetch(`${base}/sitemap-pilot-en-${country}.xml`);assert.equal(response.status,200);
+      const xml=await response.text();assert.equal((xml.match(/<loc>/g)||[]).length,10);assert.doesNotMatch(xml,/<lastmod>/);
+      for(const profile of INDEXING_PILOT.filter(profile=>profile.countryCode===country.toUpperCase()))assert.ok(xml.includes(`/en/station/${profile.slug}</loc>`));
+      const etag=response.headers.get('etag');assert.ok(etag);
+      assert.equal((await fetch(`${base}/sitemap-pilot-en-${country}.xml`,{headers:{'If-None-Match':etag!}})).status,304);
+    }
+    const before=await fetch(`${base}/sitemap-pilot-en-at.xml`);const etag=before.headers.get('etag');assert.ok(etag);
+    await pgCatalog().update({_id:INDEXING_PILOT[0].id},{$set:{isListVisible:false}});
+    const hidden=await fetch(`${base}/sitemap-pilot-en-at.xml`,{headers:{'If-None-Match':etag!}});assert.equal(hidden.status,200);
+    const hiddenXml=await hidden.text();assert.equal((hiddenXml.match(/<loc>/g)||[]).length,9);assert.ok(!hiddenXml.includes(`/en/station/${INDEXING_PILOT[0].slug}</loc>`));
+    await pgCatalog().update({_id:INDEXING_PILOT[1].id},{$set:{noIndex:true}});
+    const excluded=await fetch(`${base}/sitemap-pilot-en-at.xml`);assert.equal(excluded.status,200);
+    const excludedXml=await excluded.text();assert.equal((excludedXml.match(/<loc>/g)||[]).length,8);assert.ok(!excludedXml.includes(`/en/station/${INDEXING_PILOT[1].slug}</loc>`));
+    const index=await fetch(`${base}/sitemap-index.xml`);assert.equal(index.status,200);
+    const indexXml=await index.text();assert.match(indexXml,/sitemap-pilot-en-at\.xml/);assert.match(indexXml,/sitemap-pilot-en-tr\.xml/);
   });
 });

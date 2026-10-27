@@ -25,3 +25,18 @@ test('production build contexts include the frontend manifest that owns the work
     );
   }
 });
+
+for (const service of ['api', 'web', 'proxy']) {
+  test(`${service} frozen install includes manifest-only applications without their sources`, () => {
+    const docker = read(`Dockerfile.${service}`);
+    const install = docker.search(/^RUN pnpm install --frozen-lockfile\b/m);
+    assert.ok(install >= 0);
+    const context = docker.slice(0, install);
+    const ignored = read('.dockerignore');
+    for (const app of ['mockup-sandbox', 'megaradio-investor-deck']) {
+      assert.match(context, new RegExp(`^COPY artifacts/${app}/package\\.json\\s+\\./artifacts/${app}/\\s*$`, 'm'));
+      assert.ok(ignored.includes(`artifacts/${app}/*\n!artifacts/${app}/package.json`), `${app} must expose only its manifest`);
+      assert.doesNotMatch(ignored, new RegExp(`^artifacts/${app}$`, 'm'), 'an excluded parent prevents the manifest exception');
+    }
+  });
+}

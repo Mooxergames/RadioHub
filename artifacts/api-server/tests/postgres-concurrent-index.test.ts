@@ -30,6 +30,8 @@ test('a successful prior build is reused when recording its checksum was interru
   const f = fixture(definition); await applyConcurrentIndexMigration(f.client, spec);
   assert.ok(!f.calls.some(call => /^(CREATE|DROP)/.test(call.sql)));
   assert.deepEqual(f.calls.at(-1)?.values, ['60s']);
+  assert.match(f.calls.find(call => call.sql.startsWith('SELECT i.indisvalid'))!.sql,
+    /c\.relname=\$1 AND c\.relnamespace=\(SELECT relnamespace FROM pg_class WHERE oid=\$2::regclass\)/);
 });
 test('only a matching invalid owned index is dropped concurrently and rebuilt before completion', async () => {
   const f = fixture({ ...definition, valid: false, ready: false });
@@ -40,7 +42,8 @@ test('only a matching invalid owned index is dropped concurrently and rebuilt be
   assert.ok(!f.calls.some(call => /^(BEGIN|COMMIT)/.test(call.sql)));
 });
 test('a same-name index with a different owner table, expression or operator class is never replaced', async () => {
-  for (const change of [{ correct_table: false }, { expression: 'lower(name)' }, { operator_class: 'text_ops' }, { no_predicate: false }]) {
+  for (const change of [{ correct_table: false }, { expression: 'lower(name)' }, { operator_class: 'text_ops' },
+    { no_predicate: false }, { method: 'btree' }, { unique: true }, { keys: 2 }]) {
     const f = fixture({ ...definition, ...change });
     await assert.rejects(applyConcurrentIndexMigration(f.client, spec), /unexpected definition/);
     assert.ok(!f.calls.some(call => /^(CREATE|DROP)/.test(call.sql)));

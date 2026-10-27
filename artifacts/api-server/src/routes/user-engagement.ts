@@ -219,7 +219,6 @@ async function resolveCurrentUserId(req: any): Promise<string | null> {
     }
     return null;
 }
-// Helper: resolve target userId - accepts ObjectId OR slug
 async function resolveTargetUserId(param: string): Promise<string | null> {
     return pgResolveUserId(param);
 }

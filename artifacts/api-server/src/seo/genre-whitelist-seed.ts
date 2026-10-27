@@ -1,17 +1,3 @@
-/**
- * Static genre whitelist + alias seed — split out of `genre-whitelist.ts`
- * (task #114) so both that module and `genre-whitelist-store.ts` can
- * import the seed without forming an import cycle.
- *
- * The seed is the safety floor — even if Mongo is unreachable, the
- * lookup helpers in `genre-whitelist.ts` still resolve against this
- * set/map. See `genre-whitelist.ts` for the design background and the
- * sitemap/SSR consequences of (non-)whitelisted slugs.
- */
-
-/** Minimum number of indexable popular stations required for a genre page
- * to be eligible for indexing / sitemap inclusion. Backed by Agent C §0:
- * pages with no popular-stations grid are reliably soft-404'd by Google. */
 export const MIN_STATIONS_FOR_GENRE_INDEX = 6;
 
 export const GENRE_WHITELIST_SEED: ReadonlySet<string> = new Set<string>([

@@ -28,7 +28,6 @@ export interface UserWriteInput {
 }
 
 export function newPublicUserId(): string {
-  // Retain the existing 24-hex public ID contract without depending on MongoDB.
   return crypto.randomBytes(12).toString("hex");
 }
 

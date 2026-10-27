@@ -21,6 +21,7 @@ import StationControlButtonGroup from "@/components/ui/station-control-button-gr
 import MusicServiceIcon from "@/components/ui/music-service-icon";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StationStreamAvailability } from '@/components/StationStreamAvailability';
+import { StationArticle } from '@/components/stations/station-article';
 import shareIcon from "@assets/sharebutton.png";
 import bgGradient from "@assets/bg-gradient.lossless.png";
 import nosignalIcon from "@assets/nosignal.png";
@@ -28,6 +29,7 @@ import StationLogo from "@/components/ui/station-logo";
 import { readStationBootstrap } from '@/lib/station-bootstrap';
 import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import AnimatedEqualizer from "@/components/ui/animated-equalizer";
 import { StarRating } from "@/components/star-rating";
 import { ListeningTimer } from "@/components/ui/listening-timer";
@@ -212,12 +214,19 @@ export default function StationDetails() {
     }
   }, [stationSlug, stationId, setLocation]);
 
-  const { data: station, isLoading: stationLoading, error, refetch: refetchStation } = useQuery<any>({
+  const bootstrapStation = useMemo(() => readStationBootstrap(identifier, language), [identifier, language]);
+  const { data: apiStation, isLoading: stationLoading, error, refetch: refetchStation } = useQuery<any>({
     queryKey: [`/api/station/${identifier}`],
     ...stationQueryFreshness,
-    placeholderData: () => readStationBootstrap(identifier, language),
+    placeholderData: bootstrapStation,
     enabled: !!identifier,
   });
+  // Query placeholder data disappears on error. Keep the matching SSR article
+  // through transient enrichment failures, without seeding the complete cache
+  // or reviving a station rejected by an authoritative client-error response.
+  const apiStatus = Number(error?.message.match(/^(\d{3}):/)?.[1]);
+  const canUseBootstrap = !(apiStatus >= 400 && apiStatus < 500 && apiStatus !== 408 && apiStatus !== 429);
+  const station = apiStation ?? (canUseBootstrap ? bootstrapStation : undefined);
   const stationRatings = useStationRatings(station?._id, user?._id);
 
   // Task #371: publish the station name into the layout breadcrumb so the
@@ -834,23 +843,31 @@ export default function StationDetails() {
                     {t('station_about_station', 'About the station')}
                   </div>
                   <div className="mb-2 w-full text-white">
-                    {/* About text with responsive char limit: 145 for mobile/tablet, 470 for desktop */}
+                    {/* Keep the complete article in the DOM; only its visual height is clamped. */}
                     {(() => {
                       let fullText = '';
                       
                       if (station.descriptions) {
-                        const desc = station.descriptions[language] || station.descriptions['en'];
+                        const desc = station.descriptions[language];
                         if (desc) {
-                          if (typeof desc === 'object' && desc.full) {
+                          if (typeof desc === 'object' && typeof desc.full === 'string') {
                             fullText = desc.full;
                           } else if (typeof desc === 'string') {
                             fullText = desc;
                           }
-                          fullText = fullText.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').trim();
                         }
                       }
+                      // SSR uses this legacy article when the locale has no
+                      // description; prefer it to unrelated English/default copy.
+                      if (!fullText.trim() && typeof station.description === 'string') fullText = station.description;
+                      if (!fullText.trim()) {
+                        const english = station.descriptions?.en;
+                        fullText = typeof english === 'string' ? english : typeof english?.full === 'string' ? english.full : '';
+                      }
+                      fullText = fullText.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').trim();
                       
-                      if (!fullText) {
+                      if (!fullText && language === 'en') fullText = buildTemplateDescription(station).full;
+                      if (!fullText && language !== 'en') {
                         fullText = language === 'tr' 
                           ? `Şu anda ${station.name} dinliyorsunuz! – Mega Radio üzerinde binlerce radyo istasyonunu HD kalitede ücretsiz online dinleyin.`
                           : t('default_station_about', `You are now listening to ${station.name}! – Listen to thousands of radio stations in HD quality online for free on Mega Radio.`, {
@@ -858,49 +875,14 @@ export default function StationDetails() {
                             });
                       }
                       
-                      const mobileCharLimit = 145;
-                      const desktopCharLimit = 470;
-                      const needsMobileTruncation = fullText.length > mobileCharLimit;
-                      const needsDesktopTruncation = fullText.length > desktopCharLimit;
-                      
-                      if (isAboutExpanded) {
-                        return <p>{fullText}</p>;
-                      }
-                      
-                      const mobileTruncatedText = fullText.slice(0, mobileCharLimit).trim() + '...';
-                      const desktopTruncatedText = fullText.slice(0, desktopCharLimit).trim() + '...';
-                      
                       return (
-                        <>
-                          {/* Mobile/Tablet: 145 char limit */}
-                          <p className="md:hidden">
-                            {needsMobileTruncation ? (
-                              <>
-                                {mobileTruncatedText}{' '}
-                                <button 
-                                  onClick={() => setIsAboutExpanded(true)}
-                                  className="text-[#FF4199] hover:underline font-medium"
-                                >
-                                  {t('general_more', 'more')}
-                                </button>
-                              </>
-                            ) : fullText}
-                          </p>
-                          {/* Desktop: 470 char limit */}
-                          <p className="hidden md:block">
-                            {needsDesktopTruncation ? (
-                              <>
-                                {desktopTruncatedText}{' '}
-                                <button 
-                                  onClick={() => setIsAboutExpanded(true)}
-                                  className="text-[#FF4199] hover:underline font-medium"
-                                >
-                                  {t('general_more', 'more')}
-                                </button>
-                              </>
-                            ) : fullText}
-                          </p>
-                        </>
+                        <StationArticle
+                          text={fullText}
+                          expanded={isAboutExpanded}
+                          onExpandedChange={setIsAboutExpanded}
+                          moreLabel={t('general_more', 'more')}
+                          lessLabel={t('faq_show_less', 'less')}
+                        />
                       );
                     })()}
                   </div>
@@ -1090,8 +1072,10 @@ export default function StationDetails() {
                           alt={getStationImageAlt(similarStation, language, t)}
                         />
                       </div>
-                      <button 
+                      <Link
+                        href={getLocalizedUrl(`/station/${similarStation.slug || similarStation._id}`)}
                         onClick={(e) => {
+                          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                           e.preventDefault();
                           e.stopPropagation();
                           handleStationCardPlay(similarStation);
@@ -1116,7 +1100,7 @@ export default function StationDetails() {
                             </div>
                           )}
                         </div>
-                      </button>
+                      </Link>
                       <div className="ml-auto flex items-center gap-2">
                         {/* Favorite Button - Mobile Only - Figma: 40x40, border 1.6px, transparent bg, icon 22.4px */}
                         <div className="md:hidden">
@@ -1233,8 +1217,10 @@ export default function StationDetails() {
                           alt={getStationImageAlt(countryStation, language, t)}
                         />
                       </div>
-                      <button 
+                      <Link
+                        href={getLocalizedUrl(`/station/${countryStation.slug || countryStation._id}`)}
                         onClick={(e) => {
+                          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                           e.preventDefault();
                           e.stopPropagation();
                           handleStationCardPlay(countryStation);
@@ -1259,7 +1245,7 @@ export default function StationDetails() {
                             </div>
                           )}
                         </div>
-                      </button>
+                      </Link>
                       <div className="ml-auto flex items-center gap-2">
                         {/* Favorite Button - Mobile Only - Figma: 40x40, border 1.6px, transparent bg, icon 22.4px */}
                         <div className="md:hidden">

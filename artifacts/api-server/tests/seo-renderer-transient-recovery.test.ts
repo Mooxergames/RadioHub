@@ -4,6 +4,7 @@ import { ACTIVE_SITEMAP_LANGUAGES, generateLanguageUrls, getLanguageFromPath, tr
 import { getIndexableLanguagesForStation, isStationIndexableInLanguage } from '../src/seo/junk-station-rules';
 import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
+import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { getLocalizedCountryName, getLocalizedRegionName } from '@workspace/seo-shared/country-name-translations';
 
 const pageCache = new Map<string, any>();
@@ -17,6 +18,8 @@ let customMetadata: Record<string, any> | null = null;
 let mergedAlias: Record<string, any> | null = null;
 let exactLookupFixtures: Map<string, any> | null = null;
 let qualifiedLanguages = ['en'];
+let relatedReads: Array<{ filter: any; options: any }> = [];
+let relatedCards: any[] = [];
 const station = { _id: 'test-station', name: 'Recovery FM', slug: 'recovery-fm', url: 'https://stream.example.invalid/live', country: 'Germany', tags: 'pop', lastCheckOk: true };
 mock.module('../src/performance-cache', { namedExports: { performanceCache: {
   getPageData: (key: string) => pageCache.get(key),
@@ -34,7 +37,10 @@ mock.module('../src/data/postgres-seo-read-store', { namedExports: { pgSeoCatalo
     }
     return missing ? null : { ...station, ...stationOverrides, noIndex };
   },
-  find: async () => [], count: async () => 0, groupCount: async () => [],
+  find: async (filter: any, options: any) => {
+    relatedReads.push({ filter, options });
+    return relatedCards;
+  }, count: async () => 0, groupCount: async () => [],
   findMergedAlias: async () => mergedAlias,
 }) } });
 mock.module('../src/data/postgres-content-store', { namedExports: { pgSeoMetadata: async () => customMetadata } });
@@ -106,6 +112,28 @@ beforeEach(() => {
   stationOverrides = {}; qualifiedLanguages = ['en']; customMetadata = null;
   mergedAlias = null;
   exactLookupFixtures = null;
+  relatedReads = [];
+  relatedCards = [];
+});
+
+test('station cross-links read compact native cards, retaining identity, visibility and ranking filters', async () => {
+  stationOverrides = { state: 'Berlin' };
+  relatedCards = [{ _id: 'related', name: 'Related Radio', slug: 'related-radio', country: 'Germany', isListVisible: true }];
+  const result = await renderer.renderStaticPage(url, 'https://themegaradio.com');
+  assert.equal(result.pageData.station.name, 'Recovery FM');
+  assert.equal(relatedReads.length, 3);
+  for (const { filter, options } of relatedReads) {
+    assert.deepEqual(options.fields, ['name', 'slug', 'favicon', 'logoAssets', 'country', 'tags', 'votes']);
+    assert.equal(filter.noIndex.$ne, true);
+    assert.equal(filter.isListVisible, true);
+    assert.equal(filter._id.$ne, 'test-station');
+    assert.deepEqual(options.sort, { votes: -1 });
+  }
+  assert.deepEqual(relatedReads.map(read => read.options.limit), [8, 6, 7]);
+  assert.deepEqual(result.pageData.additionalData.crossLinks.samePublisher.map((row: any) => row.slug), ['related-radio']);
+  const body = renderer.generateHtmlBody({ pageType: 'station', stationData: result.pageData.station,
+    additionalData: result.pageData.additionalData, language: 'en', translations: {}, seoTags: result.seoTags });
+  assert.ok(body.includes('/en/station/related-radio'));
 });
 
 for (const language of ACTIVE_SITEMAP_LANGUAGES) {
@@ -213,7 +241,7 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
 }
 
 test('verified legacy alias repair never bypasses an excluded target or guesses a missing record', async () => {
-  exactLookupFixtures = new Map([['alias:kpiss-fm-2', { ...station, slug: 'kpiss-fm', noIndex: true }]]);
+  exactLookupFixtures = new Map([['alias:kpiss-fm-2', { ...station, slug: 'kpiss-fm', noIndex: true, manualEditFields: { noIndex: true } }]]);
   const excluded = await renderer.renderStaticPage('/en/station/kpissfm-2', 'https://themegaradio.com');
   assert.equal(excluded.pageData?.stationIsJunk, true);
   assert.equal(excluded.pageData?.redirectTo, undefined);
@@ -303,7 +331,8 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
     test(`${language}: retained duplicate alias ${alias} redirects directly to its indexable final target`, async () => {
       exactLookupFixtures = new Map([
         [`alias:${alias}`, { ...station, slug: sourceSlug, noIndex: true, redirectToSlug: targetSlug }],
-        [`slug:${targetSlug}`, { ...station, slug: targetSlug, noIndex: false }],
+        [`slug:${targetSlug}`, { ...station, slug: targetSlug, noIndex: false,
+          descriptions: Object.fromEntries(ACTIVE_SITEMAP_LANGUAGES.map(lang => [lang, { full: `Full ${lang}`, meta: `Meta ${lang}` }])) }],
       ]);
       const detail = URL_TRANSLATIONS[language]?.station || 'station';
       const result = await renderer.renderStaticPage(`/${language}/${detail}/${alias}`, 'https://themegaradio.com');
@@ -380,7 +409,8 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
     };
     exactLookupFixtures = new Map([
       ['slug:radio-eurodance-classic', source],
-      [`slug:${source.redirectToSlug}`, { ...station, slug: source.redirectToSlug, noIndex: false }],
+      [`slug:${source.redirectToSlug}`, { ...station, slug: source.redirectToSlug, noIndex: false,
+        descriptions: Object.fromEntries(ACTIVE_SITEMAP_LANGUAGES.map(lang => [lang, { full: `Full ${lang}`, meta: `Meta ${lang}` }])) }],
     ]);
     const detail = URL_TRANSLATIONS[language]?.station || 'station';
     const result = await renderer.renderStaticPage(`/${language}/${detail}/${source.slug}`, 'https://themegaradio.com');
@@ -406,10 +436,22 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
 
 test('merged aliases never bypass an explicit junk target decision', async () => {
   missing = true;
-  mergedAlias = { ...station, noIndex: true };
+  mergedAlias = { ...station, noIndex: true, manualEditFields: { noIndex: true } };
   const result = await renderer.renderStaticPage('/tr/istasyon/old-uuid', 'https://themegaradio.com');
   assert.equal(result.pageData?.redirectTo, undefined);
   assert.equal(result.pageData?.stationIsJunk, true);
+});
+
+test('a persisted alias may retain a live historical noindex information page without claiming indexing approval', async () => {
+  missing = true;
+  mergedAlias = { ...station, noIndex: true, lastCheckOk: true };
+  const alias = await renderer.renderStaticPage('/en/station/old-uuid', 'https://themegaradio.com');
+  assert.equal(alias.pageData?.redirectTo, '/en/station/recovery-fm');
+  pageCache.clear(); missing = false; noIndex = true; stationOverrides = { lastCheckOk: true };
+  const target = await renderer.renderStaticPage('/en/station/recovery-fm', 'https://themegaradio.com');
+  assert.equal(target.pageData?.stationIsJunk, false);
+  assert.equal(target.seoTags.noIndex, true);
+  assert.deepEqual(target.seoTags.hreflangs, []);
 });
 
 test('transient PostgreSQL placeholder is not permanent junk and the next request re-reads recovered data', async () => {
@@ -446,6 +488,7 @@ test('real missing stations and explicit noIndex quality decisions retain perman
   assert.equal(unknown.pageData?.notFound, true);
   assert.equal(unknown.pageData?.stationDbError, undefined);
   pageCache.clear(); missing = false; noIndex = true;
+  stationOverrides = { manualEditFields: { noIndex: true } };
   const excluded = await renderer.renderStaticPage(url, 'https://themegaradio.com');
   assert.equal(excluded.pageData?.stationIsJunk, true);
   assert.equal(excluded.seoTags.noIndex, true);
@@ -491,6 +534,17 @@ test('actual localized SSR station routes retain the same reciprocal fourteen-la
     assert.equal(page.pageData?.pageType, 'station');
     assert.equal(new URL(page.seoTags.canonical).href, new URL(entry.url).href);
     assert.deepEqual(page.seoTags.hreflangs.map((item: any) => ({ ...item, url: new URL(item.url).href })), expected, entry.lang);
+  }
+});
+
+test('English station HTML retains a factual article without waiting for fourteen translations or crashing on malformed prose', async () => {
+  for (const descriptions of [{}, { en: { full: ' \u00a0', meta: '' } }, { en: { full: 42, meta: false } }]) {
+    pageCache.clear(); stationOverrides = { descriptions };
+    const page = await renderer.renderStaticPage('/en/station/recovery-fm', 'https://themegaradio.com');
+    assert.notEqual(page.seoTags.noIndex, true);
+    const body = renderer.generateHtmlBody({ pageType: 'station', language: 'en', translations: {},
+      stationData: page.pageData.station, seoTags: page.seoTags });
+    assert.ok(body.includes(buildTemplateDescription(station).full));
   }
 });
 
@@ -547,12 +601,16 @@ test('unknown legacy offline noindex keeps rich localized200 data without reinde
     assert.ok(!body.includes('id="station-stream-unavailable"'), 'an unverified source flag is not a confirmed outage');
   }
   for (const extra of [{ manualEditFields: { noIndex: true } }, { manualEditFields: { noIndex: false } },
-    { slug: 'radio-test-stream' }, { slug: 'radio-aac' }, { slug: '-1234' }]) {
+    { slug: 'radio-test-stream' }, { slug: '-1234' }]) {
     pageCache.clear(); stationOverrides = { ...stationOverrides, manualEditFields: undefined, slug: 'recovery-fm', ...extra };
     const page = await renderer.renderStaticPage(`/en/station/${stationOverrides.slug}`, 'https://themegaradio.com');
     assert.equal(page.pageData.stationIsJunk, true);
     assert.equal(page.seoTags.noIndex, true);
   }
+  pageCache.clear(); stationOverrides = { ...stationOverrides, manualEditFields: undefined, slug: 'radio-aac' };
+  const formatPage = await renderer.renderStaticPage('/en/station/radio-aac', 'https://themegaradio.com');
+  assert.equal(formatPage.pageData.stationIsJunk, false);
+  assert.equal(formatPage.seoTags.noIndex, true, 'the stored legacy flag still requires explicit review');
   pageCache.clear(); stationOverrides = { lastCheckOk: false, redirectToSlug: 'original-fm' };
   exactLookupFixtures = new Map([
     ['slug:recovery-fm', { ...station, ...stationOverrides, noIndex }],
@@ -561,6 +619,29 @@ test('unknown legacy offline noindex keeps rich localized200 data without reinde
   const duplicate = await renderer.renderStaticPage(url, 'https://themegaradio.com');
   assert.match(duplicate.pageData.redirectTo, /original-fm$/);
 });
+
+for (const lastCheckOk of [true, undefined]) {
+  test(`legacy noindex with stream health ${lastCheckOk} is not evidence of a permanently removed page`, async () => {
+    noIndex = true; qualifiedLanguages = [...ACTIVE_SITEMAP_LANGUAGES];
+    stationOverrides = { lastCheckOk, descriptions: Object.fromEntries(qualifiedLanguages.map(lang => [lang,
+      { full: `Retained station information ${lang}`, meta: `Retained summary ${lang}` }])) };
+    const entries = generateLanguageUrls('/station/recovery-fm', 'https://themegaradio.com', 'en', undefined, undefined, qualifiedLanguages);
+    for (const entry of entries.filter(item => item.lang !== 'x-default')) {
+      const page = await renderer.renderStaticPage(new URL(entry.url).pathname, 'https://themegaradio.com');
+      assert.equal(page.pageData.stationIsJunk, false);
+      assert.equal(page.pageData.notFound, false);
+      assert.equal(page.pageData.redirectTo, undefined);
+      assert.equal(page.pageData.station.noIndex, true, 'identity review remains required');
+      assert.equal(page.seoTags.noIndex, true);
+      assert.deepEqual(page.seoTags.hreflangs, []);
+      assert.deepEqual(getIndexableLanguagesForStation(page.pageData.station, qualifiedLanguages), []);
+      assert.equal(new URL(page.seoTags.canonical).href, new URL(entry.url).href);
+      const body = renderer.generateHtmlBody({ pageType: 'station', language: entry.lang, translations: {},
+        stationData: page.pageData.station, seoTags: page.seoTags });
+      assert.ok(body.includes(stationOverrides.descriptions[entry.lang].full));
+    }
+  });
+}
 
 const escapeHead = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 test('page-data and HTML emit identical bounded descriptions without shortening stored body content', async () => {

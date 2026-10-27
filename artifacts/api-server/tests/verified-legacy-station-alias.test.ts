@@ -203,7 +203,8 @@ test('legacy-locale shortcuts require actual non-excluded exact/alias identities
   ];
   await loadSlugExistence();
   for (const identifier of ['valid-fm', 'old-valid-fm', 'OLD-VALID-FM']) assert.equal(getRedirectableStationSlug(identifier), 'valid-fm');
-  for (const identifier of ['dzhem-fm', 'fm-100', 'format-mp3', 'old-format', '1234', 'numeric-brand',
+  for (const identifier of ['format-mp3', 'old-format']) assert.equal(getRedirectableStationSlug(identifier), 'format-mp3');
+  for (const identifier of ['dzhem-fm', 'fm-100', '1234', 'numeric-brand',
     'explicit-redirect', 'redirect-alias', 'missing', '__proto__']) assert.equal(getRedirectableStationSlug(identifier), null, identifier);
   assert.equal(hasStationSlug('fm-100'), true, 'excluded identity remains available to the existing SSR policy');
   slugRows = [{ ...valid, noIndex: true }]; await loadSlugExistence();

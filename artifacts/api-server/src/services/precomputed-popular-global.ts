@@ -87,7 +87,7 @@ export class PrecomputedPopularGlobalService {
         { fields: Object.keys(POPULAR_PROJECTION), limit: ranked.length },
       ) : [];
       const byId = new Map(hydrated.map(station => [station._id, station]));
-      // Drop codec-suffix / test-feed / song-name junk that the DB-level
+      // Drop actual test-feed/empty-identity junk that the DB-level
       // noIndex filter can't catch (these stations resolve to 410 Gone on
       // their station pages, so linking to them creates broken internal links).
       const gated = ranked.map(station => byId.get(station._id)).filter(Boolean)

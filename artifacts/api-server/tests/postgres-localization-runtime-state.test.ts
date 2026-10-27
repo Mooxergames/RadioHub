@@ -181,13 +181,28 @@ describe('PostgreSQL localization runtime state and settings', { skip: !process.
     const key = await localization.createKey({ key: 'seo_title', defaultValue: 'Title' });
     await localization.upsertTranslation({ keyId: key._id, language: 'de', value: 'Titel' });
     const state = await qualified.getQualifiedLanguagesState();
-    assert.deepEqual([...state.languages].sort(), ['de', 'en']);
+    assert.deepEqual(state.languages, ['en', 'de']);
     const lkg = await localization.getQualifiedLanguagesLkg('qualified_languages');
     assert.equal(lkg.hash, state.hash);
     await qualified.invalidateQualifiedLanguages(); cache.clear();
     const boot = await qualified.initializeQualifiedLanguages();
     assert.equal(boot.source, 'lkg');
-    assert.deepEqual([...boot.languages].sort(), ['de', 'en']);
+    assert.deepEqual(boot.languages, ['en', 'de']);
+  });
+  it('normalizes a persisted legacy language order without rewriting its metadata', async () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 60_000);
+    await localization.saveQualifiedLanguagesLkg({ key: 'qualified_languages', languages: ['fr', 'en', 'de'],
+      hash: 'stored-language-set', source: 'computed', computedAt: now, expiresAt });
+    const state = await qualified.initializeQualifiedLanguages();
+    assert.equal(state.source, 'lkg');
+    assert.deepEqual(state.languages, ['en', 'de', 'fr']);
+    assert.equal(state.hash, 'stored-language-set');
+    const stored = await localization.getQualifiedLanguagesLkg('qualified_languages');
+    assert.deepEqual(stored.languages, ['fr', 'en', 'de']);
+    assert.equal(stored.hash, state.hash);
+    assert.equal(stored.computedAt.getTime(), now.getTime());
+    assert.equal(stored.expiresAt.getTime(), expiresAt.getTime());
   });
   it('rejects expired LKGs, retains identity on refresh, and fails closed when SQL is unavailable', async () => {
     const now = new Date();

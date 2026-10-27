@@ -70,6 +70,80 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
     assert.ok(await catalog.findOne({ _id: extra._id }));
     assert.equal(await store.createApply(preview), apply);
   });
+  it('cancels only active previews, never a merge, and cannot apply partial results', async () => {
+    await add('Cancel'); await add('Cancel');
+    const cancelled = await store.createPreview(); await store.cancelPreview(cancelled);
+    assert.equal((await store.getJob(cancelled))!.status, 'failed');
+    await assert.rejects(store.createApply(cancelled), { status: 409 });
+    await assert.rejects(store.cancelPreview(cancelled), { status: 409 });
+    await assert.rejects(store.cancelPreview('invalid'), { status: 400 });
+    const preview = await store.createPreview(); await finish(preview);
+    await assert.rejects(store.cancelPreview(preview), { status: 409 });
+    const apply = await store.createApply(preview);
+    await assert.rejects(store.cancelPreview(apply), { status: 409 });
+    assert.equal((await finish(apply)).results.totalStationsDeleted, 1);
+  });
+
+  it('previews and applies disjoint safe subsets inside a mixed name group, leaving unmatched IDs untouched', async () => {
+    const a = await add('Mixed'); const b = await add('Mixed');
+    const c = await add('Mixed', { url: 'https://other.invalid/live' }); const d = await add('Mixed', { url: 'https://other.invalid/live' });
+    const leftover = await add('Mixed', { url: 'https://unmatched.invalid/live' });
+    const preview = await store.createPreview(), planned = await finish(preview);
+    assert.equal(planned.results.totalGroups, 3); assert.equal(planned.results.eligibleGroups, 2);
+    assert.equal(planned.results.skippedGroups, 1); assert.equal(planned.results.totalStationsToDelete, 2);
+    const rows = (await fixture.pool.query('SELECT station_ids FROM station_duplicate_job_groups WHERE job_id=$1', [preview])).rows;
+    assert.equal(new Set(rows.flatMap(row => row.station_ids)).size, 5);
+    assert.equal(rows.reduce((sum, row) => sum + row.station_ids.length, 0), 5);
+    const applied = await finish(await store.createApply(preview));
+    assert.equal(applied.results.mergedGroups, 2); assert.equal(applied.results.totalStationsDeleted, 2);
+    assert.equal(await catalog.count(), 3); assert.ok(await catalog.findOne({ _id: leftover._id }));
+    for (const [loser, survivor] of [[a,b],[c,d]]) {
+      const alias = (await fixture.pool.query('SELECT station_id FROM station_merge_aliases WHERE alias=$1', [loser._id])).rows[0];
+      assert.equal(alias.station_id, survivor._id);
+    }
+  });
+
+  it('a fully partitioned mixed group has no duplicate or phantom skipped members', async () => {
+    await add('Two streams'); await add('Two streams');
+    await add('Two streams', { url: 'https://other.invalid/live' }); await add('Two streams', { url: 'https://other.invalid/live' });
+    const planned = await finish(await store.createPreview());
+    assert.equal(planned.results.totalGroups, 2); assert.equal(planned.results.eligibleGroups, 2);
+    assert.equal(planned.results.skippedGroups, 0); assert.equal(planned.progress.groupsProcessed, 2);
+  });
+
+  it('automatic discovery merges exact subsets even when the same name has other endpoints', async () => {
+    await add('Mixed auto'); await add('Mixed auto');
+    await add('Mixed auto', { url: 'https://other.invalid/live' }); await add('Mixed auto', { url: 'https://other.invalid/live' });
+    const unrelated = await add('Mixed auto', { url: 'https://unmatched.invalid/live' });
+    await fixture.pool.query('UPDATE station_duplicate_merge_control SET next_auto_at=$1', [now]);
+    await store.runCycle(advance());
+    const applied = await finish((await store.getStatus()).latestApply!.jobId);
+    assert.equal(applied.results.totalGroups, 2); assert.equal(applied.results.mergedGroups, 2);
+    assert.equal(applied.results.totalStationsDeleted, 2); assert.equal(await catalog.count(), 3);
+    assert.ok(await catalog.findOne({ _id: unrelated._id }));
+  });
+  it('retains the open canonical even when an excluded clone has more votes; manual exclusions and redirects stay separate', async () => {
+    const open = await add('Open canonical', { noIndex: false, votes: 1 });
+    const excluded = await add('Open canonical', { noIndex: true, votes: 9999 });
+    await add('Manual exclusion'); await add('Manual exclusion', { noIndex: true, manualEditFields: { noIndex: true } });
+    await add('Existing redirect'); await add('Existing redirect', { noIndex: true, redirectToSlug: 'different-target' });
+    const preview = await store.createPreview(), planned = await finish(preview);
+    assert.equal(planned.results.eligibleGroups, 1); assert.equal(planned.results.skippedGroups, 2);
+    const applied = await finish(await store.createApply(preview));
+    assert.equal(applied.results.totalStationsDeleted, 1);
+    const survivor = await catalog.findOne({ _id: open._id });
+    assert.equal(survivor?.noIndex, false); assert.equal(survivor?.votes, 10000);
+    assert.equal(await catalog.findOne({ _id: excluded._id }), null);
+    assert.equal((await fixture.pool.query('SELECT station_id FROM station_merge_aliases WHERE alias=$1', [excluded._id])).rows[0].station_id, open._id);
+  });
+  it('revalidates a newly protected SEO decision between preview and apply', async () => {
+    await add('New manual fence'); const changed = await add('New manual fence');
+    const preview = await store.createPreview(); await finish(preview);
+    await fixture.pool.query(`UPDATE stations SET no_index=true,manual_edit_fields='{"noIndex":true}' WHERE id=$1`, [changed._id]);
+    const job = await finish(await store.createApply(preview));
+    assert.equal(job.results.skippedGroups, 1); assert.equal(job.results.totalStationsDeleted, 0);
+    assert.equal(await catalog.count(), 2);
+  });
 
   it('revalidates changed URLs and missing preview members before merging', async () => {
     await add('Changed'); const changed = await add('Changed');

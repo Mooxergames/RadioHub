@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
-import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, recoveryEndpoint, type RecoveryStation } from '../src/seo/legacy-noindex-recovery';
+import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, recoveryEndpoint, recoveryReviewCsv, type RecoveryStation } from '../src/seo/legacy-noindex-recovery';
 import { LegacyNoindexRecoveryStore } from '../src/data/postgres-legacy-noindex-recovery';
 
 const now = Date.parse('2026-09-17T12:00:00Z');
@@ -12,7 +12,7 @@ const station = (patch: Partial<RecoveryStation> = {}): RecoveryStation => ({
   stationuuid: `00000000-0000-4000-8000-${createHash('sha256').update(patch.id || 'station-a').digest('hex').slice(0, 12)}`,
   noIndex: true, redirectToSlug: null, manualEditFields: {}, automaticNoIndex: null,
   lastCheckOk: true, lastCheckTime: new Date(now - 60_000), lastCheckOkTime: new Date(now - 60_000).toISOString(),
-  completeLanguageCount: 14, rowVersion: '1000', sourceIsObject: true, journalIsObject: true, ...patch,
+  completeLanguageCount: 14, englishContentComplete: true, rowVersion: '1000', sourceIsObject: true, journalIsObject: true, ...patch,
 });
 const owned = { owner: 'radiohub-junk-policy', version: 1, active: true, reason: 'duplicate-of:old-target' };
 function assess(row: RecoveryStation, peers: RecoveryStation[] = []) {
@@ -39,18 +39,49 @@ test('recovery requires provider identity and complete unique content, never jus
     [{ automaticNoIndex: { ...owned, reason: 'stream-dead-30d' } }, 'other-provenance'],
     [{ automaticNoIndex: { ...owned, active: false } }, 'other-provenance'],
     [{ slug: '' }, 'missing-slug'], [{ slug: '-123' }, 'numeric-slug'],
-    [{ slug: 'example-mp3' }, 'junk:codec-suffix:-mp3'], [{ name: '' }, 'junk:empty-name'],
+    [{ name: 'Keyword '.repeat(30) }, 'ambiguous-long-identity'],
+    [{ slug: 'example-test-stream' }, 'junk:test-feed:test-stream'], [{ name: '' }, 'junk:empty-name'],
     [{ stationuuid: 'synthetic-legacy-id' }, 'missing-provider-uuid'],
     [{ stationuuid: '00000000-0000-0000-0000-000000000000' }, 'missing-provider-uuid'],
-    [{ country: '' }, 'missing-country-identity'], [{ countryCode: null }, 'missing-country-identity'],
     [{ name: '---' }, 'missing-country-identity'], [{ url: 'ftp://example.invalid/live' }, 'ambiguous-stream-endpoint'],
     [{ url: 'http:example.invalid/live' }, 'ambiguous-stream-endpoint'],
     [{ urlResolved: 'https://user:password@example.invalid' }, 'ambiguous-stream-endpoint'],
     [{ manualEditFields: { lastCheckOk: true } }, 'manual-provider-evidence'],
     [{ manualEditFields: { url: true } }, 'manual-provider-evidence'],
-    [{ completeLanguageCount: 13 }, 'incomplete-descriptions'],
+    [{ englishContentComplete: false }, 'incomplete-english-description'],
   ];
   for (const [patch, expected] of cases) assert.equal(assess(station(patch)).reason, expected, JSON.stringify(patch));
+});
+
+test('retired format/genre rules require the same complete unique identity checks and explicit apply', () => {
+  for (const reason of ['codec-suffix:-mp3', 'song-or-program-name:\\bremix\\b', 'test-feed:pink-noise', 'test-feed:white-noise']) {
+    const row = station({ name: 'Remix Radio MP3', slug: 'remix-radio-mp3', automaticNoIndex: { ...owned, reason } });
+    assert.equal(assess(row).candidate?.evidence.provenance, 'owned-retired-name-heuristic');
+    assert.equal(assess({ ...row, completeLanguageCount: 1 }).reason, 'eligible');
+    assert.equal(assess({ ...row, englishContentComplete: false }).reason, 'incomplete-english-description');
+    assert.equal(assess({ ...row, manualEditFields: { noIndex: true } }).reason, 'manual-protection');
+    assert.equal(assess({ ...row, name: 'Radio Test Stream', slug: 'radio-test-stream' }).reason, 'junk:test-feed:test-stream');
+    assert.equal(assess(row, [station({ id: 'peer', name: row.name, slug: 'remix-radio' })])
+      .candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(row, [station({ id: 'peer', name: 'Different Radio', slug: 'remix-radio' })]).reason, 'plausible-identity-peer');
+    for (const provenance of [{ ...owned, reason, owner: 'other' }, { ...owned, reason, active: false }, { ...owned, reason, version: 2 }]) {
+      assert.equal(assess({ ...row, automaticNoIndex: provenance }).reason, 'other-provenance');
+    }
+  }
+});
+
+test('record review distinguishes historical provenance, guards, truncated hints and verified targets without writes', () => {
+  const row = station({ name: '=Example Radio', completeLanguageCount: 0, englishContentComplete: false });
+  const index = createRecoveryIdentityIndex();
+  index.add(row);
+  index.add(station({ id: 'target', name: row.name, slug: 'canonical', noIndex: false }));
+  const before = structuredClone(row), csv = recoveryReviewCsv(row, index, now);
+  assert.match(csv, /"'=Example Radio"/);
+  assert.match(csv, /"incomplete-english-description"/);
+  assert.match(csv, /"target","canonical","false","canonical"/);
+  assert.deepEqual(row, before);
+  for (let n = 0; n < 20; n++) index.add(station({ id: `peer-${n}`, name: row.name, slug: `variant-${n}` }));
+  assert.match(recoveryReviewCsv(row, index, now), /"11","true"/);
 });
 
 test('complete localized articles never qualify an exact color-bar test signal for noindex recovery', () => {
@@ -81,30 +112,41 @@ test('offline, stale and unknown health qualify only through complete unique con
     assert.equal(result.candidate?.evidence.recoveryBasis, 'complete-unique-information-page');
     assert.equal(result.candidate?.lastCheckOkTime, successfulDate);
     assert.deepEqual(row, before, 'classification never changes health or metadata');
-    assert.equal(assess(station({ ...patch, completeLanguageCount: 13 })).reason, 'incomplete-descriptions');
+    assert.equal(assess(station({ ...patch, completeLanguageCount: 1 })).reason, 'eligible');
+    assert.equal(assess(station({ ...patch, englishContentComplete: false })).reason, 'incomplete-english-description');
     assert.equal(assess(station({ ...patch, manualEditFields: { noIndex: true } })).reason, 'manual-protection');
-    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug' })]).reason, 'plausible-identity-peer');
+    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug' })])
+      .candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(row, [station({ id: 'peer', slug: 'different-slug', countryCode: 'AT' })]).reason, 'plausible-identity-peer');
   }
 });
 
-test('whole-catalog identity peers include indexed rows, redirects, punctuation variants and missing-country ambiguity', () => {
+test('name, format and country ambiguity alone cannot block a valid English information page', () => {
   const row = station();
   const peer = (patch: Partial<RecoveryStation> = {}) => station({ id: 'peer', slug: 'unique-peer-slug', noIndex: false,
     url: 'https://other.example.invalid/live', lastCheckOk: false, ...patch });
   for (const other of [peer(), peer({ name: 'Éxample-RADIO' }), peer({ country: '', countryCode: null }),
-    peer({ country: 'Deutschland', countryCode: null }), peer({ redirectToSlug: 'elsewhere' }),
-    peer({ name: 'Different brand', country: 'France', countryCode: 'FR', urlResolved: row.url }),
-    peer({ name: 'Other brand', country: 'France', countryCode: 'FR', url: row.url + '#player' }),
-    peer({ name: 'Other brand', country: 'France', countryCode: 'FR', slug: row.slug })]) {
-    assert.equal(assess(row, [other]).reason, 'plausible-identity-peer');
+    peer({ country: 'Deutschland', countryCode: null }), peer({ redirectToSlug: 'elsewhere' })]) {
+    assert.equal(assess(row, [other]).reason, 'eligible');
   }
+  assert.equal(assess(station({ country: 'Unknown', countryCode: '' })).reason, 'eligible');
+  assert.equal(assess(station({ country: null, countryCode: null, completeLanguageCount: 1 })).reason, 'eligible');
   assert.equal(assess(row, [peer({ country: 'France', countryCode: 'FR' })]).reason, 'eligible');
   assert.equal(assess(station({ automaticNoIndex: owned }), [peer({ name: 'Renamed station', slug: 'old-target' })]).reason, 'plausible-identity-peer');
   for (const other of [peer({ name: 'Other Brand', slug: 'example-radio-2' }),
     peer({ name: 'Other Brand', slug: '1024-example-radio' }),
-    peer({ name: 'Other Brand', slug: 'example-radio-mp3' }),
-    peer({ name: 'Other Brand', slugAliases: ['example-radio'] }),
+    peer({ name: 'Other Brand', slug: 'example-radio-mp3' })]) assert.equal(assess(row, [other]).reason, 'eligible');
+  for (const other of [peer({ name: 'Different brand', country: 'France', countryCode: 'FR', urlResolved: row.url }),
+    peer({ name: 'Other brand', country: 'France', countryCode: 'FR', url: row.url + '#player' }),
+    peer({ name: 'Other brand', country: 'France', countryCode: 'FR', slug: row.slug }),
     peer({ name: 'Other Brand', stationuuid: row.stationuuid.toUpperCase() })]) assert.equal(assess(row, [other]).reason, 'plausible-identity-peer');
+  assert.equal(assess(row, [peer({ name: 'Other Brand', slugAliases: ['example-radio'] })]).reason, 'eligible',
+    'a shadowed legacy alias cannot supersede the real native URL owner');
+  for (const slug of ['example-radio-mp3-192', 'example-radio-aac-plus-1', 'example-radio-mp3',
+    'example-radio-128kb-mp3', 'example-radio-128k-aac', 'example-radio-64kbs-aac', 'example-radio-320-kbps-mp3']) {
+    assert.equal(assess(station({ name: 'Other Brand MP3', slug }), [peer({ name: 'Other Brand', slug: 'example--radio' })]).reason,
+      'eligible', 'format/name resemblance without shared identity is not proof of a duplicate');
+  }
 });
 
 test('stream identity retains actual path/query/protocol, rejects credentials and normalizes URL syntax', () => {
@@ -113,6 +155,39 @@ test('stream identity retains actual path/query/protocol, rejects credentials an
   assert.notEqual(recoveryEndpoint('https://stream.example.invalid/Live?a=1'), recoveryEndpoint('https://stream.example.invalid/live?a=1'));
   assert.notEqual(recoveryEndpoint('https://stream.example.invalid/live?a=1'), recoveryEndpoint('https://stream.example.invalid/live?a=2'));
   for (const input of ['', 'http:stream.example.invalid', 'ftp://stream.example.invalid', 'https://user:secret@stream.example.invalid']) assert.equal(recoveryEndpoint(input), null);
+});
+
+test('only the complete unsuffixed canonical can recover when a closed exact-identity group is entirely noindex', () => {
+  const primary = station();
+  const duplicate = station({ id: 'duplicate', slug: 'example-radio-1', completeLanguageCount: 0,
+    url: 'https://new.example.invalid/live', urlResolved: primary.url,
+    automaticNoIndex: { ...owned, reason: 'duplicate-of:example-radio' } });
+  const result = assess(primary, [duplicate]);
+  assert.equal(result.reason, 'eligible');
+  assert.equal(result.candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.equal(result.candidate?.evidence.identityPeers, 1);
+  assert.deepEqual(result.candidate?.evidence.excludedDuplicateIds, ['duplicate']);
+  assert.deepEqual(result.peerEvidence, [duplicate]);
+  assert.equal(assess({ ...duplicate, completeLanguageCount: 14 }, [primary]).reason, 'plausible-identity-peer');
+  for (const patch of [{ noIndex: false }, { redirectToSlug: 'elsewhere' }, { manualEditFields: { noIndex: true } },
+    { manualEditFields: [] }, { manualEditFields: { url: true } }, { name: 'Example-Radio' },
+    { countryCode: 'AT' }, { state: 'Vienna' }, { stationuuid: 'unknown' },
+    { slug: 'example-radio-11' }, { slug: 'different-slug' }]) {
+    assert.equal(assess(station({ state: 'Berlin' }), [{ ...duplicate, ...patch }]).reason,
+      'plausible-identity-peer', JSON.stringify(patch));
+  }
+  const outsider = station({ id: 'outsider', name: 'Other Brand', slug: 'outside', noIndex: false,
+    url: duplicate.url, countryCode: 'AT', country: 'Austria' });
+  assert.equal(assess(primary, [duplicate, outsider]).reason, 'plausible-identity-peer', 'the peer closure includes the duplicate secondary endpoint');
+  assert.equal(assess(primary, [duplicate, { ...outsider, url: 'https://outside.invalid', slugAliases: ['example-radio-1'] }]).reason,
+    'plausible-identity-peer', 'alias ownership conflicts remain protected');
+});
+
+test('oversized slug families remain blocked without scanning every peer for each canonical', { timeout: 5000 }, () => {
+  const index = createRecoveryIdentityIndex();
+  for (let n = 0; n < 20_000; n++) index.add(station({ id: String(n), name: `Broadcaster ${n}`,
+    slug: `broadcaster-${n}`, noIndex: true, url: `https://example.invalid/channel/${n}` }));
+  assert.deepEqual(index.cityEvidenceIds(), []);
 });
 
 function fixture(initial = [station()], invalidate: (slugs: string[]) => Promise<boolean> = async () => true) {
@@ -140,7 +215,10 @@ function fixture(initial = [station()], invalidate: (slugs: string[]) => Promise
           if (candidatesFetched) return { rows: [] }; candidatesFetched = true; return { rows: structuredClone(rows.filter(row => row.noIndex)) };
         }
         if (sql.startsWith('SELECT') && sql.includes('FROM stations s WHERE')) return { rows: structuredClone(rows.filter(row => parameters[0].includes(row.id))) };
-        if (sql.startsWith('SELECT') && sql.includes('FROM stations s')) return { rows: structuredClone(rows) };
+        if (sql.startsWith('SELECT') && sql.includes('FROM stations s')) {
+          if (simulatedError) { client.emit('error', new Error('connection died')); return { rows: [] }; }
+          return { rows: structuredClone(rows) };
+        }
         if (sql.startsWith('UPDATE stations')) { client.wrote = true; return { rows: rows.filter(row => parameters[0].includes(row.id)).map(row => ({ id: row.id })) }; }
         if (sql === 'COMMIT') {
           if (client.wrote && commitAckError) client.emit('error', new Error('Socket ended alongside COMMIT acknowledgement'));
@@ -180,7 +258,7 @@ test('explicit apply locks before rereading all peers, rechecks selected evidenc
   const queries = f.queries.slice(offset);
   const lock = queries.findIndex(sql => sql.startsWith('LOCK TABLE'));
   const selected = queries.findIndex(sql => sql.includes('FOR UPDATE'));
-  const identity = queries.findIndex(sql => sql.startsWith('SELECT') && sql.includes('FROM stations s') && !sql.includes('WHERE'));
+  const identity = queries.findIndex(sql => sql.startsWith('SELECT') && /FROM stations s\s*$/.test(sql));
   const update = queries.findIndex(sql => sql.startsWith('UPDATE stations'));
   assert.ok(lock >= 0 && selected > lock && identity > selected && update > identity);
   assert.match(queries[lock], /SHARE ROW EXCLUSIVE MODE NOWAIT/);
@@ -202,6 +280,28 @@ test('stale flags, metadata/content version, deleted row and newly inserted inde
     await assert.rejects(f.store.apply({ previewId: preview.previewId, stationIds: ['station-a'] }), { code: 'RECOVERY_STALE' });
     assert.equal(f.queries.at(-1), 'ROLLBACK'); assert.ok(!f.queries.some(sql => sql.startsWith('UPDATE')));
   }
+});
+
+test('canonical recovery rechecks peer metadata and membership, journals evidence and never updates the duplicates', async () => {
+  const primary = station(), duplicate = station({ id: 'duplicate', slug: 'example-radio-1', completeLanguageCount: 0 });
+  for (const next of [[primary, { ...duplicate, noIndex: false }],
+    [primary, { ...duplicate, manualEditFields: { noIndex: true } }],
+    [primary, { ...duplicate, state: 'Berlin' }],
+    [primary, duplicate, station({ id: 'second', slug: 'example-radio-2' })]]) {
+    const f = fixture([primary, duplicate]), preview = await f.store.preview();
+    assert.equal(preview.totalCandidates, 1);
+    f.setRows(next);
+    await assert.rejects(f.store.apply({ previewId: preview.previewId, stationIds: [primary.id] }), { code: 'RECOVERY_STALE' });
+    assert.ok(!f.queries.some(sql => sql.startsWith('UPDATE')));
+  }
+  const f = fixture([primary, duplicate]), preview = await f.store.preview();
+  const result = await f.store.apply({ previewId: preview.previewId, stationIds: [primary.id] });
+  assert.equal(result.restored, 1);
+  const update = f.queries.findIndex(sql => sql.startsWith('UPDATE'));
+  assert.deepEqual(f.values[update][0], [primary.id]);
+  const evidence = JSON.parse(f.values[update][4]);
+  assert.equal(evidence[0].evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.deepEqual(evidence[0].evidence.excludedDuplicateIds, [duplicate.id]);
 });
 
 test('unreviewed IDs, empty/duplicate/oversize selections are rejected before obtaining any write connection', async () => {
@@ -230,6 +330,35 @@ test('candidate cap bounds server snapshots and only returned candidates can be 
   await assert.rejects(f.store.apply({ previewId: report.previewId, stationIds: ['s-104'] }), { code: 'RECOVERY_INVALID' });
 });
 
+test('review cursor reaches later candidates without clearing skipped exclusions or bypassing explicit selection', async () => {
+  const rows = Array.from({ length: 105 }, (_, i) => station({ id: `item-${String(i).padStart(3, '0')}`,
+    name: `Brand ${i}`, slug: `brand${i}`, url: `https://stream${i}.example.invalid` }));
+  const f = fixture(rows), first = await f.store.preview();
+  assert.equal(first.nextCursor, 'item-099');
+  const next = await f.store.preview({ afterId: first.nextCursor });
+  assert.equal(next.totalCandidates, 105); assert.equal(next.totalNoIndex, 105);
+  assert.deepEqual(next.candidates.map(row => row.id), rows.slice(100).map(row => row.id));
+  assert.equal(next.nextCursor, undefined);
+  await assert.rejects(f.store.apply({ previewId: next.previewId, stationIds: ['item-000'] }), { code: 'RECOVERY_INVALID' });
+  assert.ok(!f.queries.some(query => query.startsWith('UPDATE')));
+  await assert.rejects(f.store.preview({ afterId: '' }), { code: 'RECOVERY_INVALID' });
+});
+
+test('record export covers every excluded row beyond the selectable candidate cap and aborts backpressure safely', async () => {
+  const rows = Array.from({ length: 105 }, (_, i) => station({ id: `s-${i}`, name: `Brand ${i}`, slug: `brand${i}`, url: `https://stream${i}.example.invalid` }));
+  const f = fixture(rows), csv: string[] = [];
+  const result = await f.store.preview({ onReviewRow: async row => { csv.push(row); } });
+  assert.equal(result.totalNoIndex, 105); assert.equal(csv.length, 105);
+  assert.match(csv.at(-1)!, /"s-104"/);
+  assert.ok(!f.queries.some(query => query.startsWith('UPDATE')));
+  const controller = new AbortController();
+  await assert.rejects(f.store.preview({ signal: controller.signal, onReviewRow: async (_row, signal) => {
+    const wait = new Promise<void>((_resolve, reject) => signal!.addEventListener('abort', () => reject(signal!.reason), { once: true }));
+    controller.abort(); await wait;
+  } }), { code: 'RECOVERY_INTERRUPTED' });
+  assert.equal(f.clients.at(-1).discarded, true);
+});
+
 test('an acknowledged COMMIT stays successful when the socket emits an error alongside its result', async () => {
   const f = fixture(), preview = await f.store.preview(); f.failAlongsideCommitAck();
   const result = await f.store.apply({ previewId: preview.previewId, stationIds: ['station-a'] });
@@ -249,4 +378,207 @@ test('postcommit cache rejection or a stuck cache never loses the successful mut
     assert.ok(Date.now() - startedAt < 2000, 'cache response wait is bounded independently of database safety deadline');
     assert.equal(f.queries.at(-1), 'COMMIT'); assert.ok(f.clients.every(client => client.released));
   }
+});
+
+test('exact duplicate repair selects an English-ready open canonical without deleting or opening the copy', () => {
+  const source = station({ slug: 'old-copy', lastCheckOk: false });
+  const target = station({ id: 'target', slug: 'example-radio', noIndex: false, completeLanguageCount: 1 });
+  const result = assess(source, [target]);
+  assert.equal(result.candidate?.redirectToSlug, target.slug);
+  assert.equal(result.candidate?.evidence.recoveryBasis, 'verified-duplicate-redirect');
+  assert.deepEqual(result.peerEvidence, [target]);
+  assert.equal(source.noIndex, true);
+  for (const patch of [{ name: 'Other Brand' }, { url: source.url + '?channel=other' },
+    { url: 'https://other.invalid/live', urlResolved: source.url }, { noIndex: true },
+    { noIndex: undefined }, { englishContentComplete: false }, { redirectToSlug: 'third' },
+    { slug: '12345' }, { slug: 'bad slug' }]) {
+    assert.equal(assess(source, [{ ...target, ...patch }]).candidate?.redirectToSlug, undefined, JSON.stringify(patch));
+  }
+  assert.equal(assess({ ...source, manualEditFields: { noIndex: true } }, [target]).reason, 'manual-protection');
+});
+
+test('duplicate repair rejects chains and ambiguous targets and does not truncate endpoint evidence behind name hints', () => {
+  const source = station({ slug: 'old-copy' });
+  const target = station({ id: 'target', slug: 'example-radio', noIndex: false });
+  const incoming = station({ id: 'incoming', slug: 'earlier-copy', name: 'Old title',
+    url: 'https://other.invalid/live', redirectToSlug: source.slug });
+  assert.equal(assess(source, [target, incoming]).candidate, undefined);
+  assert.equal(assess(source, [target, { ...target, id: 'slug-collision' }]).candidate, undefined);
+  assert.equal(assess(source, [{ ...target, slug: 'candidate-a' }, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate?.redirectToSlug,
+    'candidate-a', 'equivalent open information pages choose one stable target');
+  assert.equal(assess(source, [target, { ...target, id: 'target-b', slug: 'candidate-b' }]).candidate?.redirectToSlug, target.slug);
+  const index = createRecoveryIdentityIndex();
+  index.add(source);
+  for (let n = 0; n < 20; n++) index.add(station({ id: `hint-${n}`, slug: `hint-${n}`, url: `https://hint${n}.invalid/live` }));
+  index.add(target);
+  assert.equal(assessLegacyNoindexRecovery(source, index, now).candidate?.redirectToSlug, target.slug);
+  assert.match(recoveryReviewCsv(source, index, now), /verified-duplicate-redirect/);
+  assert.match(recoveryReviewCsv(source, index, now), /"example-radio"\r\n$/);
+});
+
+test('an entirely excluded exact-primary group can recover one stable canonical even without an unsuffixed import slug', () => {
+  const first = station({ id: 'a', slug: 'old-import-a', completeLanguageCount: 1 });
+  const second = station({ id: 'b', slug: 'old-import-b', completeLanguageCount: 1 });
+  const result = assess(first, [second]);
+  assert.equal(result.candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.deepEqual(result.candidate?.evidence.excludedDuplicateIds, ['b']);
+  assert.equal(assess(second, [first]).candidate, undefined);
+  assert.equal(assess(second, [{ ...first, noIndex: false }]).candidate?.redirectToSlug, first.slug);
+  for (const patch of [{ name: 'Different Station' }, { countryCode: 'AT' }, { state: 'Vienna' },
+    { manualEditFields: { noIndex: true } }, { manualEditFields: { url: true } }, { stationuuid: 'unknown' }]) {
+    assert.equal(assess({ ...first, state: 'Berlin' }, [{ ...second, ...patch }]).candidate, undefined, JSON.stringify(patch));
+  }
+});
+
+test('closed-group city evidence is bounded to selected groups and rejects conflicting cities or outside aliases', () => {
+  const a = station({ id: 'a', slug: 'old-a' }), b = station({ id: 'b', slug: 'old-b', slugAliases: ['unowned-legacy-b'] });
+  const c = station({ id: 'c', slug: 'other-c', url: 'https://other.invalid/live' });
+  const d = station({ id: 'd', slug: 'other-d', url: c.url });
+  const index = createRecoveryIdentityIndex();
+  [a, b, c, d].forEach(row => index.add(row));
+  assert.deepEqual(index.cityEvidenceIds(new Set([a.id])).sort(), ['a', 'b']);
+  index.setCityEvidence(a.id, 'Berlin'); index.setCityEvidence(b.id, 'Munich');
+  assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
+  index.setCityEvidence(b.id, 'Berlin');
+  assert.ok(assessLegacyNoindexRecovery(a, index, now).candidate);
+  index.add(station({ id: 'outside', slug: 'outside', slugAliases: ['unowned-legacy-b'], url: 'https://outside.invalid/live' }));
+  assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate, undefined);
+});
+
+test('optional Radio wording and frequency variants recover exactly one closed page, then redirect retained copies', () => {
+  for (const [name, variant] of [['Radio Estrada', 'Radio Estrada 107.7 FM'], ['madhurtarang', 'Radio Madhur Tarang']]) {
+    const first = station({ id: 'a', name, slug: name === 'madhurtarang' ? 'madhurtarang' : 'radio-estrada' });
+    const second = station({ id: 'b', name: variant, slug: name === 'madhurtarang' ? 'radio-madhur-tarang' : 'radio-estrada-107-7-fm' });
+    assert.equal(assess(first, [second]).candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(second, [first]).candidate, undefined, 'group has only one winner regardless of review order');
+    assert.equal(assess(second, [{ ...first, noIndex: false }]).candidate?.redirectToSlug, first.slug);
+    assert.equal(assess({ ...second, city: 'Other city' }, [{ ...first, city: 'Original city', noIndex: false }]).candidate, undefined);
+  }
+});
+
+test('page-copy variants reject different known frequencies, foreign locations, generic names and mismatched primary URLs', () => {
+  const first = station({ id: 'a', name: 'Radio Estrada 107.7 FM', slug: 'radio-estrada', state: 'Galicia' });
+  for (const patch of [{ name: 'Radio Estrada 106.7 FM' }, { name: 'Radio Different 107.7 FM' },
+    { name: 'Estrada 107.7 FM', countryCode: 'AT' }, { name: 'Estrada 107.7 FM', state: 'Vienna' },
+    { name: 'Estrada 107.7 FM', url: 'https://other.invalid/live', urlResolved: first.url }]) {
+    const other = station({ id: 'b', slug: 'copy-b', ...patch });
+    assert.equal(assess(first, [other]).candidate, undefined, JSON.stringify(patch));
+    assert.equal(assess(other, [{ ...first, noIndex: false }]).candidate, undefined, JSON.stringify(patch));
+  }
+  const base = station({ id: 'base', name: 'Radio Estrada', slug: 'radio-estrada' });
+  const one = { ...first, slug: 'radio-estrada-107-7' };
+  const two = station({ id: 'c', name: 'Radio Estrada 106.7 FM', slug: 'radio-estrada-106-7' });
+  for (const row of [base, one, two]) assert.equal(assess(row, [base, one, two].filter(peer => peer.id !== row.id)).candidate, undefined);
+  assert.equal(assess(station({ name: 'Radio Mix' }), [station({ id: 'b', name: 'Mix', slug: 'mix' })]).candidate, undefined);
+});
+
+test('native URL ownership wins over shadowed aliases without suppressing actual shared identities', () => {
+  const argentina = station({ id: 'argentina', name: 'Los40', slug: 'los40-2', country: 'Argentina', countryCode: 'AR',
+    url: 'https://player.argentina.invalid/live', completeLanguageCount: 1 });
+  const spain = station({ id: 'spain', name: 'LOS40', slug: 'los40', country: 'Spain', countryCode: 'ES',
+    slugAliases: ['los40-2'], url: 'https://spain.invalid/live', noIndex: false });
+  assert.equal(assess(argentina, [spain]).candidate?.evidence.recoveryBasis, 'complete-unique-information-page');
+  assert.equal(assess({ ...argentina, slugAliases: ['los40'] }, [spain]).reason, 'eligible');
+  assert.equal(assess({ ...argentina, slugAliases: ['legacy-shared'] }, [{ ...spain, slugAliases: ['legacy-shared'] }]).reason,
+    'plausible-identity-peer', 'an alias with no native owner is still ambiguous');
+  for (const patch of [{ slug: argentina.slug }, { url: argentina.url }, { stationuuid: argentina.stationuuid }]) {
+    assert.notEqual(assess(argentina, [{ ...spain, ...patch }]).candidate?.evidence.recoveryBasis,
+      'complete-unique-information-page', JSON.stringify(patch));
+  }
+  assert.equal(assess({ ...argentina, automaticNoIndex: { ...owned, reason: 'duplicate-of:los40' } }, [spain]).candidate, undefined);
+  assert.equal(assess({ ...argentina, manualEditFields: { noIndex: true } }, [spain]).reason, 'manual-protection');
+});
+
+test('delivery suffixes consolidate matching primary information pages without erasing a programming brand', () => {
+  const target = station({ id: 'a', name: 'In Demand Radio', slug: 'in-demand-radio', noIndex: false });
+  for (const name of ['InDemand Radio (256Kbps AAC)', 'InDemand Radio MP3 192', 'InDemand Radio (128 AAC)',
+    'InDemand Radio FLAC', 'InDemand Radio [AAC+]']) {
+    const source = station({ id: 'b', name, slug: 'old-format-copy' });
+    assert.equal(assess(source, [target]).candidate?.redirectToSlug, target.slug, name);
+    assert.equal(source.noIndex, true);
+  }
+  for (const name of ['Opus In Demand Radio', 'InDemand Radio Remix', 'InDemand Radio 90s', 'InDemand Radio FM2']) {
+    assert.equal(assess(station({ id: 'b', name, slug: 'other-programme' }), [target]).candidate, undefined, name);
+  }
+});
+
+test('matching brand and full homepage consolidate alternate delivery URLs, never replace playback or merge records', () => {
+  const target = station({ id: 'target', name: 'Radio Example FM', slug: 'radio-example-fm', noIndex: false,
+    homepage: 'https://www.example.invalid/stations/example?channel=1', url: 'https://new.invalid/aac' });
+  const source = station({ id: 'copy', name: 'Example FM (MP3)', slug: 'example-fm-mp3',
+    homepage: 'http://example.invalid/stations/example/?channel=1', url: 'https://old.invalid/mp3' });
+  const before = structuredClone([source, target]);
+  assert.equal(assess(source, [target]).candidate?.redirectToSlug, target.slug);
+  assert.deepEqual([source, target], before);
+  for (const patch of [{ countryCode: null }, { countryCode: 'AT' }, { city: 'Vienna' }, { state: 'Austria' },
+    { name: 'Different Example' }, { homepage: 'https://example.invalid/stations/other?channel=1' },
+    { homepage: 'https://example.invalid/Stations/example?channel=1' }, { homepage: 'https://example.invalid/stations/example?channel=2' },
+    { homepage: 'https://user:secret@example.invalid/stations/example?channel=1' }]) {
+    assert.equal(assess({ ...source, city: 'Berlin', state: 'Germany', ...patch },
+      [{ ...target, city: 'Berlin', state: 'Germany' }]).candidate?.redirectToSlug, undefined, JSON.stringify(patch));
+  }
+  for (const homepage of ['https://facebook.com/shared', 'https://tunein.com/shared', 'https://radio.garden/shared']) {
+    assert.equal(assess({ ...source, homepage }, [{ ...target, homepage }]).candidate?.redirectToSlug, undefined, homepage);
+  }
+  assert.equal(assess({ ...source, manualEditFields: { noIndex: true } }, [target]).reason, 'manual-protection');
+});
+
+test('different known frequencies remain separate even on the same broadcaster homepage', () => {
+  const a = station({ id: 'a', name: 'Example 106.7 FM', slug: 'example-1067', homepage: 'https://example.invalid', url: 'https://a.invalid/live' });
+  const b = station({ id: 'b', name: 'Example 107.7 FM', slug: 'example-1077', homepage: a.homepage, url: 'https://b.invalid/live', noIndex: false });
+  assert.notEqual(assess(a, [b]).candidate?.redirectToSlug, b.slug);
+});
+
+test('closed homepage information group recovers one winner and fences outside identities and manual choices', () => {
+  const a = station({ id: 'a', name: 'Clare FM', slug: 'clare-fm', homepage: 'https://clare.invalid', url: 'https://a.invalid/live' });
+  const b = station({ id: 'b', name: 'Clare FM', slug: 'clare-fm-1', homepage: a.homepage, url: 'https://b.invalid/live' });
+  for (const order of [[a, b], [b, a]]) {
+    assert.equal(assess(a, order.filter(row => row.id !== a.id)).candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+    assert.equal(assess(b, order.filter(row => row.id !== b.id)).candidate, undefined);
+  }
+  assert.equal(assess(b, [{ ...a, noIndex: false }]).candidate?.redirectToSlug, a.slug);
+  const outside = station({ id: 'outside', name: 'Different Station', slug: 'outside', url: b.url, noIndex: false });
+  assert.equal(assess(a, [b, outside]).candidate, undefined);
+  for (const patch of [{ manualEditFields: { noIndex: true } }, { countryCode: 'AT' }, { city: 'Other City' },
+    { state: 'Other State' }, { homepage: 'https://different.invalid' }]) {
+    assert.notEqual(assess({ ...a, city: 'Home City', state: 'Home State' }, [{ ...b, ...patch }]).candidate?.evidence.recoveryBasis,
+      'canonical-of-excluded-duplicates', JSON.stringify(patch));
+  }
+});
+
+test('homepage city evidence covers all possible targets and selected closed group members', () => {
+  const a = station({ id: 'a', slug: 'old-copy', homepage: 'https://example.invalid', url: 'https://a.invalid' });
+  const b = station({ id: 'b', slug: 'example-radio', homepage: a.homepage, url: 'https://b.invalid', noIndex: false });
+  const c = station({ id: 'c', slug: 'other-copy', homepage: a.homepage, url: 'https://c.invalid', noIndex: false });
+  const index = createRecoveryIdentityIndex(); [a, b, c].forEach(row => index.add(row));
+  assert.deepEqual(index.cityEvidenceIds(new Set([a.id])).sort(), ['a', 'b', 'c']);
+  index.setCityEvidence(a.id, 'Berlin'); index.setCityEvidence(b.id, 'Vienna'); index.setCityEvidence(c.id, 'Vienna');
+  assert.equal(assessLegacyNoindexRecovery(a, index, now).candidate?.redirectToSlug, undefined);
+});
+
+test('homepage changes after review invalidate the entire apply snapshot', async () => {
+  const source = station({ slug: 'old-copy', homepage: 'https://example.invalid', url: 'https://old.invalid' });
+  const target = station({ id: 'target', slug: 'example-radio', homepage: source.homepage, url: 'https://new.invalid', noIndex: false });
+  const f = fixture([source, target]); const preview = await f.store.preview();
+  assert.equal(preview.candidates[0].redirectToSlug, target.slug);
+  f.setRows([source, { ...target, homepage: 'https://different.invalid' }]);
+  await assert.rejects(f.store.apply({ previewId: preview.previewId, stationIds: [source.id] }), { code: 'RECOVERY_STALE' });
+  assert.ok(!f.queries.some(sql => sql.startsWith('UPDATE')));
+});
+
+test('Mexican exact-primary callsigns consolidate written city variants, not different licences, frequencies or HD services', () => {
+  const source = station({ id: 'copy', name: 'EL HERALDO RADIO 98.5 (CDMX) - 98.5 FM - XHDL-FM - Heraldo Media Group',
+    slug: 'heraldo-old', country: 'Mexico', countryCode: 'MX', state: 'CDMX' });
+  const target = station({ id: 'target', name: 'El Heraldo Radio (Ciudad de Mexico) - 98.5 FM - XHDL-FM - Heraldo Media Group',
+    slug: 'heraldo-main', country: 'Mexico', countryCode: 'MX', state: 'Ciudad de Mexico', noIndex: false });
+  assert.equal(assess(source, [target]).candidate?.redirectToSlug, target.slug);
+  for (const patch of [{ countryCode: 'US' }, { name: target.name.replace('XHDL-FM', 'XHZZ-FM') },
+    { name: target.name.replace('98.5 FM', '99.5 FM') }, { name: `${target.name} HD2` },
+    { name: `${target.name} XHABC-FM` }, { url: target.url + '?station=other' }]) {
+    assert.equal(assess(source, [{ ...target, ...patch }]).candidate?.redirectToSlug, undefined, JSON.stringify(patch));
+  }
+  assert.equal(assess(source, [{ ...target, noIndex: true }]).candidate?.evidence.recoveryBasis, 'canonical-of-excluded-duplicates');
+  assert.equal(assess({ ...target, noIndex: true }, [source]).candidate, undefined);
+  const newBrand = { ...target, name: target.name.replace('El Heraldo Radio', 'New Station Brand'), noIndex: true };
+  assert.equal(assess(source, [newBrand]).candidate, undefined, 'a closed licence group cannot infer which brand is current');
 });

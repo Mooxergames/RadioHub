@@ -32,86 +32,6 @@ import { fileURLToPath } from 'node:url';
 // can be imported without booting Mongo / the perf cache.
 // ---------------------------------------------------------------------------
 
-interface FakeQuery<T> extends PromiseLike<T> {
-  select: (..._args: unknown[]) => FakeQuery<T>;
-  sort: (..._args: unknown[]) => FakeQuery<T>;
-  populate: (..._args: unknown[]) => FakeQuery<T>;
-  limit: (..._args: unknown[]) => FakeQuery<T>;
-  lean: () => Promise<T>;
-}
-function fakeQuery<T>(value: T): FakeQuery<T> {
-  const q: FakeQuery<T> = {
-    select: () => q,
-    sort: () => q,
-    populate: () => q,
-    limit: () => q,
-    lean: async () => value,
-    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject),
-  };
-  return q;
-}
-
-const NULL_MODEL = {
-  find: () => fakeQuery([]),
-  findOne: () => fakeQuery(null),
-  findById: () => fakeQuery(null),
-  countDocuments: async () => 0,
-  aggregate: () => ({ allowDiskUse: () => Promise.resolve([]), exec: async () => [] }),
-};
-
-const MONGO_MODEL_NAMES = [
-  'AdminPreference', 'AdvancedSearch', 'Advertisement', 'AnalyticsEvent',
-  'ApiKey', 'ApiKeyModel', 'ApiUser', 'AppleWebhookEvent', 'AppLog',
-  'AuthToken', 'BackfillRun', 'BlacklistedStation', 'BulkDescriptionJob',
-  'CastCommand', 'CastNowPlaying', 'CastSession', 'Country',
-  'CoverageSnapshot', 'DemoUsage', 'DirectMessage', 'Feedback',
-  'FooterSocialMedia', 'Genre', 'GenreSlugCleanupRun', 'GenreWhitelistOverride',
-  'IapEvent', 'IndexNowLog', 'Language', 'ListeningSession', 'Notification',
-  'PublicUserProfile', 'PushToken', 'Recommendation', 'SeoMetadata',
-  'SeoQualifiedLanguagesLkg', 'SitemapManifest', 'Station', 'StationComment',
-  'StationDebugLog', 'StationRating', 'StationSimilarity', 'SyncLog',
-  'Translation', 'TranslationKey', 'TranslationLanguage', 'TranslationMetadata',
-  'TvLoginCode', 'UrlTranslation', 'User', 'UserDevice', 'UserFavorite',
-  'UserFollow', 'UserListeningHistory', 'UserMusicProfile', 'UserNotification',
-] as const;
-
-const mongoMockExports: Record<string, unknown> = {};
-for (const name of MONGO_MODEL_NAMES) mongoMockExports[name] = NULL_MODEL;
-mongoMockExports.SAFE_GENRE_SLUG_RE = /^[a-z0-9-]+$/;
-// 2026-07-03: mongo-schemas grew new exports (IndexNowSubmissionUrls,
-// GenreCount, MediaGroup, normalizeGenreSlug, ...) AFTER this mock's model
-// list was written, and the SSR import graph (seo-renderer -> services/
-// indexnow.ts et al.) now imports some of them at module level. Any missing
-// named export kills the WHOLE suite at module-instantiation ("does not
-// provide an export named ..." -> every test hookFailed/SyntaxError), which
-// is exactly how these suites silently rotted to 0 passing. Mirror EVERY
-// runtime export of mongo-schemas: models default to NULL_MODEL, the few
-// non-model exports get workable stand-ins below.
-const SUPPLEMENTAL_MONGO_EXPORT_NAMES = [
-  'AdminSetting', 'AdminSettingHistory', 'Ads', 'AuthEventLog',
-  'ClearedOverridesAuditLog', 'Codec', 'CountryLanguageMapping',
-  'CoverageBackfillRun', 'CoverageBackfillStatus', 'EnhancedLanguage',
-  'GenreCount', 'GenreMergeAuditLog', 'GenreStationCountsRun',
-  'GenreWhitelistPushLog', 'GscIndexingSnapshot', 'GscOAuthToken',
-  'GscUrlInspection', 'IndexNowSubmissionUrls', 'LaravelPage', 'MediaGroup',
-  'Page', 'SemrushIssue', 'SharedComparisonPreset', 'SitemapUrlSnapshot',
-  'StationEngagement', 'StationErrorLog', 'StationPlaybackCache',
-  'StationRequest', 'StationSubmission', 'StripeSaleEvent',
-  'StripeSubscriptionPlan', 'TvSubscriptionCode', 'TvTelemetry',
-  'TvTelemetryDaily', 'TvVersionConfig', 'UserProfile', 'UserSession',
-  'VisitorSession',
-] as const;
-for (const name of SUPPLEMENTAL_MONGO_EXPORT_NAMES) {
-  if (!(name in mongoMockExports)) mongoMockExports[name] = NULL_MODEL;
-}
-mongoMockExports.INDEXNOW_SUBMISSION_URLS_RETENTION_DAYS = 30;
-mongoMockExports.ADMIN_SETTING_HISTORY_RETENTION_PER_KEY = 20;
-mongoMockExports.normalizeGenreSlug = (raw: string) =>
-  String(raw ?? '').toLowerCase().trim().replace(/\s+/g, '-');
-
-mock.module('@workspace/legacy-migration/mongo-schemas', {
-  namedExports: mongoMockExports,
-});
 
 mock.module(new URL('../src/performance-cache.ts', import.meta.url).href, {
   namedExports: {
@@ -215,6 +135,27 @@ function extractLocalBusinessSchema(head: string): any {
 }
 
 const DOMAIN = 'https://themegaradio.com';
+
+test('official station links use the homepage, never the audio stream, across locales', () => {
+  const renderer = new SeoRenderer();
+  for (const language of ['en', 'de', 'tr', 'ar']) {
+    const stationData = { _id: 'website-test', slug: 'website-test', name: 'Website FM', url: 'https://stream.example.test/live.mp3', homepage: 'https://radio.example.test/?a=1&b=2' };
+    const render = (homepage: any) => renderer.generateHtmlBody({
+      pageType: 'station', language, translations: {}, seoTags: {},
+      stationData: { ...stationData, homepage }, additionalData: {},
+    });
+    const body = render(stationData.homepage);
+    assert.ok(body.includes('href="https://radio.example.test/?a=1&amp;b=2"'));
+    assert.ok(!body.includes('href="https://stream.example.test/live.mp3"'));
+    for (const bad of [undefined, '', '/relative', 'javascript:alert(1)', 'data:text/html,x', 'https://user:password@radio.example.test']) {
+      const invalid = render(bad);
+      assert.ok(!invalid.includes('href="https://stream.example.test/live.mp3"'));
+      assert.ok(!invalid.includes('href="javascript:'));
+      assert.ok(!invalid.includes('href="data:'));
+      assert.ok(!invalid.includes('user:password@'));
+    }
+  }
+});
 
 // ===========================================================================
 // 0. Source-scan guard: catch new RadioStation JSON-LD emissions outside

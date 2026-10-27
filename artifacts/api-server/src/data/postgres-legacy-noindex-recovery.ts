@@ -3,8 +3,9 @@ import type pg from 'pg';
 import { getPostgresPool } from '../postgres-runtime';
 import { descriptionTextSql } from './station-description-sql';
 import { AUDIT_LANGUAGES } from '../seo/station-indexability-audit';
-import { assessLegacyNoindexRecovery, createRecoveryIdentityIndex, RECOVERY_CANDIDATE_LIMIT,
-  type RecoveryCandidate, type RecoveryStation } from '../seo/legacy-noindex-recovery';
+import { assessLegacyNoindexRecovery, assessLegacyNoindexContentRepair, createRecoveryIdentityIndex, recoveryReviewCsv, RECOVERY_CANDIDATE_LIMIT,
+  type RecoveryCandidate, type RecoveryStation, type RecoveryIdentity } from '../seo/legacy-noindex-recovery';
+import { descriptionRepairIdentity } from '../services/description-repair-policy';
 
 const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const MAX_SNAPSHOTS = 8;
@@ -13,9 +14,10 @@ export const RECOVERY_APPLY_DEADLINE_MS = 5000;
 export const RECOVERY_PREVIEW_DEADLINE_MS = 60_000;
 const RECEIPT_DEADLINE_MS = 2000;
 const CACHE_RESPONSE_DEADLINE_MS = 1000;
-const identityProjection = `s.id,s.name,s.slug,s.slug_aliases AS "slugAliases",s.country,s.country_code AS "countryCode",s.url,s.url_resolved AS "urlResolved",s.station_uuid AS stationuuid`;
-const stationProjection = `${identityProjection},s.no_index AS "noIndex",
-  s.redirect_to_slug AS "redirectToSlug",s.manual_edit_fields AS "manualEditFields",
+const identityProjection = `s.id,s.name,s.slug,s.slug_aliases AS "slugAliases",s.country,s.country_code AS "countryCode",s.state,s.url,s.url_resolved AS "urlResolved",s.homepage,s.station_uuid AS stationuuid,
+  s.no_index AS "noIndex",s.redirect_to_slug AS "redirectToSlug",s.manual_edit_fields AS "manualEditFields",
+  COALESCE((SELECT (d.full_mask & d.meta_mask & 1)=1 FROM station_description_summary d WHERE d.station_id=s.id),false) AS "englishContentComplete"`;
+const stationProjection = `${identityProjection},s.source->>'city' AS city,
   s.source->'automaticNoIndex' AS "automaticNoIndex",s.last_check_ok AS "lastCheckOk",
   s.last_check_time AS "lastCheckTime",s.source->'lastCheckOkTime' AS "lastCheckOkTime",s.xmin::text AS "rowVersion",
   (jsonb_typeof(s.source)='object') AS "sourceIsObject",
@@ -25,31 +27,43 @@ const stationProjection = `${identityProjection},s.no_index AS "noIndex",
       AND ${descriptionTextSql("d.value->'full'")} AND ${descriptionTextSql("d.value->'meta'")}) AS "completeLanguageCount"`;
 
 const failure = (code: string, message: string) => Object.assign(new Error(message), { code });
-const fingerprint = (station: RecoveryStation) => createHash('sha256').update(JSON.stringify(station)).digest('hex');
+const fingerprint = (station: RecoveryStation, peers?: RecoveryIdentity[]) =>
+  createHash('sha256').update(JSON.stringify({ station, peers })).digest('hex');
 type RecoveryPool = Pick<pg.Pool, 'connect'>;
 type RecoveryQuery = (sql: string, parameters?: any[]) => Promise<pg.QueryResult>;
 type Snapshot = { expiresAt: number; fingerprints: Map<string, string> };
+interface RecoveryApplyResult {
+  restored: number; restoredIds: string[]; redirected?: number; redirectedIds?: string[]; updatedIds?: string[];
+  skipped: number; skippedReasons: never[];
+}
+function applyResult(restoredIds: string[], redirectedIds: string[] = []): RecoveryApplyResult {
+  return { restored: restoredIds.length, restoredIds, skipped: 0, skippedReasons: [],
+    ...(redirectedIds.length ? { redirected: redirectedIds.length, redirectedIds, updatedIds: [...restoredIds, ...redirectedIds] } : {}) };
+}
 export interface RecoveryPreview {
   previewId: string; createdAt: string; expiresAt: string; totalScanned: number; totalNoIndex: number;
   totalCandidates: number; candidateLimit: number; reasonCounts: Record<string, number>; candidates: RecoveryCandidate[];
+  nextCursor?: string;
 }
 
 /** Both paths are bounded and have checked-out-client error listeners. Apply
  * has a hard five-second connection deadline, including rollback on timeout;
  * it never holds the catalog writer lock through an HTTP response. */
 async function withTransaction<T>(pool: RecoveryPool, write: boolean, signal: AbortSignal | undefined,
-  work: (query: RecoveryQuery, now: number) => Promise<T>, coordinate = true): Promise<T> {
+  work: (query: RecoveryQuery, now: number, signal: AbortSignal) => Promise<T>, coordinate = true): Promise<T> {
   signal?.throwIfAborted();
   const client = await pool.connect();
   let released = false, discarded = false, connectionLost = false, committed = false, interrupted: Error | undefined;
+  const interruptedSignal = new AbortController();
   const release = (discard: boolean) => { if (!released) { released = true; discarded = discard; client.release(discard); } };
   const abort = () => {
     interrupted ||= failure('RECOVERY_INTERRUPTED', 'Recovery operation interrupted');
+    interruptedSignal.abort(interrupted);
     // Destroying a checked-out client terminates any active query and rolls
     // back its transaction, bounding the writer lock independently of SQL.
     release(true);
   };
-  const lost = () => { connectionLost = true; interrupted ||= failure('RECOVERY_UNAVAILABLE', 'Recovery connection lost'); };
+  const lost = () => { connectionLost = true; interrupted ||= failure('RECOVERY_UNAVAILABLE', 'Recovery connection lost'); interruptedSignal.abort(interrupted); };
   client.on('error', lost); client.on('end', lost);
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) abort();
@@ -80,11 +94,11 @@ async function withTransaction<T>(pool: RecoveryPool, write: boolean, signal: Ab
       await query('LOCK TABLE stations IN SHARE ROW EXCLUSIVE MODE NOWAIT');
     }
     if (coordinate) {
-      const lock = await query("SELECT pg_try_advisory_xact_lock(hashtext('station-legacy-noindex-recovery')) AS acquired");
+      const lock = await query("SELECT pg_try_advisory_xact_lock(hashtext(current_schema() || ':station-legacy-noindex-recovery')) AS acquired");
       if (!lock.rows[0]?.acquired) throw failure('RECOVERY_BUSY', 'Another recovery operation is running');
     }
     const timestamp = await query('SELECT transaction_timestamp() AS at');
-    const result = await work(query, new Date(timestamp.rows[0].at).getTime());
+    const result = await work(query, new Date(timestamp.rows[0].at).getTime(), interruptedSignal.signal);
     await query('COMMIT');
     committed = true;
     return result;
@@ -109,22 +123,29 @@ async function withTransaction<T>(pool: RecoveryPool, write: boolean, signal: Ab
   }
 }
 
-async function readIdentityIndex(query: RecoveryQuery, singleQuery = false) {
+async function readIdentityIndex(query: RecoveryQuery, singleQuery = false, selectedIds?: ReadonlySet<string>) {
   const index = createRecoveryIdentityIndex();
   if (singleQuery) {
     // Avoid 100+ cursor round trips while the short writer lock is held.
     // This contains only identity fields, never article text or source JSON.
     const rows = await query(`SELECT ${identityProjection} FROM stations s`);
     for (const station of rows.rows) index.add(station);
-    return index;
+  } else {
+    await query(`DECLARE noindex_recovery_identity NO SCROLL CURSOR FOR SELECT ${identityProjection} FROM stations s ORDER BY s.id`);
+    while (true) {
+      const batch = await query(`FETCH FORWARD ${BATCH_SIZE} FROM noindex_recovery_identity`);
+      if (!batch.rows.length) break;
+      for (const station of batch.rows) index.add(station);
+    }
+    await query('CLOSE noindex_recovery_identity');
   }
-  await query(`DECLARE noindex_recovery_identity NO SCROLL CURSOR FOR SELECT ${identityProjection} FROM stations s ORDER BY s.id`);
-  while (true) {
-    const batch = await query(`FETCH FORWARD ${BATCH_SIZE} FROM noindex_recovery_identity`);
-    if (!batch.rows.length) break;
-    for (const station of batch.rows) index.add(station);
+  // City is retained in source JSON, not a native station column. Read it
+  // only for plausible closed groups instead of decompressing 66k articles.
+  const ids = index.cityEvidenceIds(selectedIds);
+  if (ids.length) {
+    const cities = await query(`SELECT s.id,s.source->>'city' AS city FROM stations s WHERE s.id=ANY($1::text[])`, [ids]);
+    for (const city of cities.rows) index.setCityEvidence(city.id, city.city);
   }
-  await query('CLOSE noindex_recovery_identity');
   return index;
 }
 
@@ -133,12 +154,38 @@ export class LegacyNoindexRecoveryStore {
   constructor(private readonly pool: () => RecoveryPool = getPostgresPool,
     private readonly invalidate: (slugs: string[]) => Promise<boolean> = invalidateRecoveryCaches) {}
 
-  async preview(options: { signal?: AbortSignal } = {}): Promise<RecoveryPreview> {
+  async reviewDescriptions(stationIds: string[], signal?: AbortSignal) {
+    if (!Array.isArray(stationIds) || !stationIds.length || stationIds.length > 100 ||
+        stationIds.some(id => typeof id !== 'string' || !id || id.length > 200) || new Set(stationIds).size !== stationIds.length) {
+      throw failure('RECOVERY_INVALID', 'Review 1-100 distinct station IDs');
+    }
+    return withTransaction(this.pool(), false, signal, async (query, now) => {
+      const index = await readIdentityIndex(query, true, new Set(stationIds));
+      const selected = await query(`SELECT ${stationProjection},s.descriptions,
+        (s.description_repair_journal IS NULL OR jsonb_typeof(s.description_repair_journal)='object') AS "descriptionJournalIsObject"
+        FROM stations s WHERE s.id=ANY($1::text[]) ORDER BY s.id`, [stationIds]);
+      return stationIds.map(id => {
+        const station = selected.rows.find(row => row.id === id) as (RecoveryStation & { descriptions: unknown; descriptionJournalIsObject: boolean }) | undefined;
+        if (!station) return { id, name: '', slug: null, reason: 'missing-station' };
+        if (!station.descriptionJournalIsObject) return { id, name: station.name, slug: station.slug, reason: 'ambiguous-description-journal' };
+        const decision = assessLegacyNoindexContentRepair(station, index, now);
+        return { id, name: station.name, slug: station.slug, reason: decision.reason,
+          ...(decision.reason === 'eligible-for-content-repair' ? {
+            identity: descriptionRepairIdentity(station), descriptions: station.descriptions,
+          } : {}) };
+      });
+    });
+  }
+
+  async preview(options: { signal?: AbortSignal; afterId?: string; onReviewRow?: (csv: string, signal?: AbortSignal) => Promise<void> } = {}): Promise<RecoveryPreview> {
+    if (options.afterId !== undefined && (typeof options.afterId !== 'string' || !options.afterId || options.afterId.length > 200)) {
+      throw failure('RECOVERY_INVALID', 'Invalid review cursor');
+    }
     const snapshot: Snapshot = { expiresAt: Date.now() + SNAPSHOT_TTL_MS, fingerprints: new Map() };
-    const report = await withTransaction(this.pool(), false, options.signal, async (query, now) => {
+    const report = await withTransaction(this.pool(), false, options.signal, async (query, now, signal) => {
       // The full catalog identity scan includes indexed rows and redirects;
       // limiting it to noindex rows would miss real duplicate peers.
-      const index = await readIdentityIndex(query);
+      const index = await readIdentityIndex(query, true);
       const result: RecoveryPreview = { previewId: randomUUID(), createdAt: new Date(now).toISOString(),
         expiresAt: '', totalScanned: index.total, totalNoIndex: 0, totalCandidates: 0,
         candidateLimit: RECOVERY_CANDIDATE_LIMIT, reasonCounts: {}, candidates: [] };
@@ -149,14 +196,16 @@ export class LegacyNoindexRecoveryStore {
         if (!batch.rows.length) break;
         for (const station of batch.rows as RecoveryStation[]) {
           result.totalNoIndex++;
+          if (options.onReviewRow) await options.onReviewRow(recoveryReviewCsv(station, index, now), signal);
           const decision = assessLegacyNoindexRecovery(station, index, now);
           result.reasonCounts[decision.reason] = (result.reasonCounts[decision.reason] || 0) + 1;
           if (!decision.candidate) continue;
           result.totalCandidates++;
+          if (options.afterId && station.id <= options.afterId) continue;
           if (result.candidates.length < RECOVERY_CANDIDATE_LIMIT) {
             result.candidates.push(decision.candidate);
-            snapshot.fingerprints.set(station.id, fingerprint(station));
-          }
+            snapshot.fingerprints.set(station.id, fingerprint(station, decision.peerEvidence));
+          } else result.nextCursor = result.candidates[result.candidates.length - 1].id;
         }
       }
       return result;
@@ -183,23 +232,29 @@ export class LegacyNoindexRecoveryStore {
     this.snapshots.delete(input.previewId);
     let restoredSlugs: string[] = [];
     let mutationSubmitted = false;
-    let result: { restored: number; restoredIds: string[]; skipped: number; skippedReasons: never[] };
+    let result: RecoveryApplyResult;
     try {
       result = await withTransaction(this.pool(), true, input.signal, async (query, now) => {
       const selected = await query(`SELECT ${stationProjection} FROM stations s WHERE s.id=ANY($1::text[]) ORDER BY s.id FOR UPDATE`, [input.stationIds]);
       if (selected.rows.length !== input.stationIds.length) throw failure('RECOVERY_STALE', 'A selected station changed; run preview again');
-      const index = await readIdentityIndex(query, true);
+      const index = await readIdentityIndex(query, true, new Set(input.stationIds));
       const candidates: RecoveryCandidate[] = [];
       for (const station of selected.rows as RecoveryStation[]) {
         const decision = assessLegacyNoindexRecovery(station, index, now);
-        if (!decision.candidate || fingerprint(station) !== snapshot.fingerprints.get(station.id)) {
+        if (!decision.candidate || fingerprint(station, decision.peerEvidence) !== snapshot.fingerprints.get(station.id)) {
           throw failure('RECOVERY_STALE', 'Station evidence or identity peers changed; run preview again');
         }
         candidates.push(decision.candidate);
       }
       mutationSubmitted = true;
-      const result = await query(`UPDATE stations s SET no_index=false,
-        source=s.source || jsonb_build_object('noIndex',false),
+      const recovered = candidates.filter(candidate => !candidate.redirectToSlug);
+      const redirected = candidates.filter(candidate => candidate.redirectToSlug);
+      const result = recovered.length ? await query(`UPDATE stations s SET no_index=false,
+        source=s.source || jsonb_build_object('noIndex',false) || CASE
+          WHEN evidence.value->'evidence'->>'provenance'='owned-retired-name-heuristic' THEN
+            jsonb_build_object('automaticNoIndex',(s.source->'automaticNoIndex') || jsonb_build_object(
+              'active',false,'retiredAt',$3::text,'retiredReason','explicit-verified-information-page-recovery'))
+          ELSE '{}'::jsonb END,
         no_index_recovery_journal=COALESCE(s.no_index_recovery_journal,'{}'::jsonb) || jsonb_build_object($2::text,jsonb_build_object(
             'version',1,'action','explicit-selected-legacy-noindex-recovery','recoveredAt',$3::text,'actor',$4::text,
             'before',jsonb_build_object('noIndex',s.no_index,'sourceNoIndexPresent',s.source ? 'noIndex',
@@ -208,19 +263,32 @@ export class LegacyNoindexRecoveryStore {
         updated_at=transaction_timestamp()
         FROM jsonb_array_elements($5::jsonb) evidence(value)
         WHERE s.id=ANY($1::text[]) AND s.id=evidence.value->>'id' AND s.no_index=true
-        RETURNING s.id`, [input.stationIds, input.previewId, new Date(now).toISOString(),
-        (input.actor || 'authenticated-admin').slice(0, 200), JSON.stringify(candidates)]);
-      if (result.rows.length !== input.stationIds.length) throw failure('RECOVERY_STALE', 'Recovery selection changed; run preview again');
-      restoredSlugs = candidates.map(candidate => candidate.slug);
-      return { restored: result.rows.length, restoredIds: result.rows.map(row => String(row.id)), skipped: 0, skippedReasons: [] };
+        RETURNING s.id`, [recovered.map(row => row.id), input.previewId, new Date(now).toISOString(),
+        (input.actor || 'authenticated-admin').slice(0, 200), JSON.stringify(recovered)]) : { rows: [] };
+      if (result.rows.length !== recovered.length) throw failure('RECOVERY_STALE', 'Recovery selection changed; run preview again');
+      const redirects = redirected.length ? await query(`UPDATE stations s SET redirect_to_slug=evidence.value->>'redirectToSlug',
+        source=s.source || jsonb_build_object('redirectToSlug',evidence.value->>'redirectToSlug'),
+        no_index_recovery_journal=COALESCE(s.no_index_recovery_journal,'{}'::jsonb) || jsonb_build_object($2::text,jsonb_build_object(
+          'version',1,'action','explicit-selected-legacy-duplicate-redirect','recoveredAt',$3::text,'actor',$4::text,
+          'before',jsonb_build_object('noIndex',s.no_index,'redirectToSlug',s.redirect_to_slug,
+            'sourceRedirectPresent',s.source ? 'redirectToSlug','sourceRedirect',s.source->'redirectToSlug'),
+          'after',jsonb_build_object('noIndex',s.no_index,'redirectToSlug',evidence.value->>'redirectToSlug'),
+          'evidence',evidence.value)),updated_at=transaction_timestamp()
+        FROM jsonb_array_elements($5::jsonb) evidence(value)
+        WHERE s.id=ANY($1::text[]) AND s.id=evidence.value->>'id' AND s.no_index=true AND NULLIF(s.redirect_to_slug,'') IS NULL
+        RETURNING s.id`, [redirected.map(row => row.id), input.previewId, new Date(now).toISOString(),
+        (input.actor || 'authenticated-admin').slice(0, 200), JSON.stringify(redirected)]) : { rows: [] };
+      if (redirects.rows.length !== redirected.length) throw failure('RECOVERY_STALE', 'Redirect selection changed; run preview again');
+      restoredSlugs = candidates.flatMap(candidate => [candidate.slug, ...(candidate.redirectToSlug ? [candidate.redirectToSlug] : [])]);
+      return applyResult(result.rows.map(row => String(row.id)), redirects.rows.map(row => String(row.id)));
       });
     } catch (error) {
       // Losing COMMIT's acknowledgement does not prove rollback. Read only
       // this operation's durable private receipts, never retry its mutation.
       const receipt = mutationSubmitted ? await this.committedReceipt(input.previewId, input.stationIds) : null;
       if (!receipt) throw error;
-      restoredSlugs = receipt.map(row => row.slug);
-      result = { restored: receipt.length, restoredIds: receipt.map(row => row.id), skipped: 0, skippedReasons: [] };
+      restoredSlugs = receipt.flatMap(row => [row.slug, ...(row.redirectToSlug ? [row.redirectToSlug] : [])]);
+      result = applyResult(receipt.filter(row => !row.redirected).map(row => row.id), receipt.filter(row => row.redirected).map(row => row.id));
     }
     // The database transaction is already committed and the writer lock is
     // released. A cache failure must never masquerade as a failed recovery.
@@ -232,17 +300,21 @@ export class LegacyNoindexRecoveryStore {
     return { ...result, cacheInvalidated };
   }
 
-  private async committedReceipt(previewId: string, stationIds: string[]): Promise<Array<{ id: string; slug: string }> | null> {
+  private async committedReceipt(previewId: string, stationIds: string[]): Promise<Array<{ id: string; slug: string; redirected: boolean; redirectToSlug: string | null }> | null> {
     const controller = new AbortController();
     let deadline: ReturnType<typeof setTimeout> | undefined;
     const read = withTransaction(this.pool(), false, controller.signal, async query => {
-      const rows = await query(`SELECT id,slug FROM stations
-        WHERE id=ANY($1::text[]) AND no_index=false
-          AND no_index_recovery_journal->$2::text->>'action'='explicit-selected-legacy-noindex-recovery'
+      const rows = await query(`SELECT id,slug,redirect_to_slug AS "redirectToSlug",
+          no_index_recovery_journal->$2::text->>'action'='explicit-selected-legacy-duplicate-redirect' AS redirected
+        FROM stations WHERE id=ANY($1::text[])
+          AND ((no_index=false AND no_index_recovery_journal->$2::text->>'action'='explicit-selected-legacy-noindex-recovery'
+            AND no_index_recovery_journal->$2::text->'after'->>'noIndex'='false')
+          OR (no_index=true AND no_index_recovery_journal->$2::text->>'action'='explicit-selected-legacy-duplicate-redirect'
+            AND no_index_recovery_journal->$2::text->'after'->>'noIndex'='true'
+            AND redirect_to_slug=no_index_recovery_journal->$2::text->'after'->>'redirectToSlug'))
           AND no_index_recovery_journal->$2::text->'before'->>'noIndex'='true'
-          AND no_index_recovery_journal->$2::text->'after'->>'noIndex'='false'
           AND no_index_recovery_journal->$2::text->'evidence'->>'id'=id`, [stationIds, previewId]);
-      return rows.rows.length === stationIds.length ? rows.rows as Array<{ id: string; slug: string }> : null;
+      return rows.rows.length === stationIds.length ? rows.rows as Array<{ id: string; slug: string; redirected: boolean; redirectToSlug: string | null }> : null;
     }, false).catch(() => null);
     try {
       return await Promise.race([read, new Promise<null>(resolve => {
@@ -268,5 +340,6 @@ async function invalidateRecoveryCaches(slugs: string[]): Promise<boolean> {
 }
 
 const store = new LegacyNoindexRecoveryStore();
-export const pgPreviewLegacyNoindexRecovery = (options: { signal?: AbortSignal } = {}) => store.preview(options);
+export const pgPreviewLegacyNoindexRecovery = (options: Parameters<LegacyNoindexRecoveryStore['preview']>[0] = {}) => store.preview(options);
 export const pgApplyLegacyNoindexRecovery = (input: Parameters<LegacyNoindexRecoveryStore['apply']>[0]) => store.apply(input);
+export const pgReviewSelectedDescriptionRepairs = (stationIds: string[], signal?: AbortSignal) => store.reviewDescriptions(stationIds, signal);

@@ -54,9 +54,7 @@ const STREAM_BLOCKED_PORTS: ReadonlySet<number> = new Set([
   10255, // kubelet read-only
   11211, // Memcached
   15672, // RabbitMQ management
-  27017, // MongoDB
-  27018, // MongoDB shard
-  27019, // MongoDB config
+  27017, 27018, 27019, // Non-HTTP database protocols remain blocked.
 ]);
 
 const MAX_CONCURRENT_STREAMS = parseInt(process.env.MAX_CONCURRENT_STREAMS || '25', 10);

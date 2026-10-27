@@ -472,12 +472,6 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
             (req.session as any).oauthReturnLang = refererLang;
             logger.log('🌍 Saved OAuth return language:', refererLang);
         }
-        // CRITICAL: persist the session BEFORE redirecting to Google. Without this
-        // explicit save, MongoStore writes asynchronously and Google may complete
-        // OAuth and redirect the user back to /api/auth/google/callback before the
-        // oauthReturnTo write finishes — causing the callback to fall back to the
-        // homepage instead of /tv (or wherever the user came from). The Apple
-        // endpoint already does this; Google was missing it.
         if (req.session) {
             try {
                 await new Promise<void>((resolve, reject) => {
@@ -1090,11 +1084,8 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
             }
             // Check if user exists
             const normalizedEmail = email.toLowerCase().trim();
-            const [existingMongoUser, existingPostgresUser] = await Promise.all([
-                Promise.resolve(null),
-                pgFindUserByIdentity({ email: normalizedEmail, username }),
-            ]);
-            if (existingMongoUser || existingPostgresUser) {
+            const existingUser = await pgFindUserByIdentity({ email: normalizedEmail, username });
+            if (existingUser) {
                 void logAuthEvent(req, { method: 'email', event: 'signup_duplicate', ok: false, email, message: `username=${username}` });
                 return void res.status(400).json({ error: 'User with this email or username already exists' });
             }
@@ -1260,10 +1251,6 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
             const { token } = req.body;
             const tokenPrefix = typeof token === 'string' ? `${token.slice(0, 16)}…(${token.length})` : `<${typeof token}>`;
             logger.log(`🔐 token-session POST received tokenPrefix=${tokenPrefix} origin=${req.headers.origin || '(none)'} ua=${(req.headers['user-agent'] || '').slice(0, 60)}`);
-            // CRITICAL: type guard before Mongoose query. Without this, an attacker
-            // can send `{"token":{"$ne":null}}` and match any non-revoked token,
-            // turning this into an account takeover. We also bound the length to
-            // avoid DoS via huge keys.
             if (typeof token !== 'string' || token.length < 16 || token.length > 512) {
                 logger.warn(`🔐 token-session REJECTED — bad token shape: ${tokenPrefix}`);
                 return void res.status(400).json({ success: false, error: 'Token is required' });

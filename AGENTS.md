@@ -38,9 +38,9 @@
 - `public/sw.js` ve lazy oynatıcı yüklemesi özel davranış içerir; tasarım işi
   nedeniyle bunları yeniden kurma.
 - Repo pnpm kullanır. npm/yarn lock dosyası oluşturma.
-- `CLAUDE.md` ve `replit.md` içindeki bazı mimari notlar eskidir: mevcut frontend
-  React 19.1, backend PostgreSQL kullanır. Kaynak kod ve package manifestlerini
-  esas al. MongoDB uygulaması geçmiş/migrasyon bağlamındadır.
+- Mevcut frontend React 19.1, backend yalnızca PostgreSQL kullanır. Kaynak kod
+  ve package manifestlerini esas al. Eski veritabanı aktarım araçları kaldırılmıştır;
+  uygulanmış PostgreSQL migration dosyalarını ve mevcut veri kimliklerini koru.
 - Mevcut repo kuralına göre bir branch push edildiğinde açık PR kontrol edilir;
   yoksa PR açılır. Gerçek `origin` sahibini kullan; eski belgelerdeki başka repo
   sahibi örneklerini kopyalama. Main'e merge/deploy hazırlık işinin parçası değildir.

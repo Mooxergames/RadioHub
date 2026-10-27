@@ -1,35 +1,3 @@
-/**
- * Task #158: in-memory slug existence sets for the slug-shape-404
- * middleware. Loaded once at startup (background) and refreshed on a
- * timer. Used to convert "shape-valid but DB-unknown" SEO URLs into a
- * fast HTTP 404 for non-bot visitors without doing per-request Mongo
- * lookups on the hot path.
- *
- * The sets are intentionally stored as plain `Set<string>` so lookup
- * cost is O(1). Both canonical slugs and slug aliases are included so a
- * legitimate alias URL still passes the existence gate (the SSR layer
- * will then 301 it to the canonical form).
- *
- * Task #269: extended with country + city slug sets so the same
- * shape-valid-but-DB-unknown short-circuit covers the regions/country/
- * city families. Country slugs are derived from the Country collection
- * + every distinct station.country value (canonicalized via
- * `canonicalizeCountry` and slugified to match URL conventions).
- * City slugs are computed per-country via PrecomputedCitiesService —
- * the same source of truth used to render the country → cities listing
- * pages, so a city URL is "valid" iff the cities page actually shows it.
- *
- * Task #363: countries outside the ~20 hardcoded in `COUNTRY_CITIES`
- * (e.g. Albania, Egypt, Argentina) have no precomputed city set, which
- * meant `hasCityDataForCountry` returned false for them and the
- * shape-404 gate skipped city existence checks entirely — so unknown
- * city URLs in those countries still served HTTP 200. We now backfill
- * those countries from a single aggregation over distinct
- * (station.country, station.state) pairs so any state value attached
- * to ≥1 station counts as a "known" city for that country. This stays
- * O(1) per request (the aggregation runs in the existing 6h refresh,
- * not on the hot path).
- */
 
 import { pgCatalog } from '../data/postgres-catalog-store';
 import { pgStationSlugRows, pgSeoGenres, pgSlugCountryNames, pgSlugCountryStates } from '../data/postgres-seo-indexing-store';
@@ -154,12 +122,6 @@ export function hasCityDataForCountry(countrySlugValue: string): boolean {
   return !!cities && cities.size > 0;
 }
 
-/**
- * Load (or reload) the slug sets from MongoDB. Failures are logged but
- * do not throw — a stale set is preferable to a 404 storm if Mongo is
- * briefly unavailable, and an empty initial set keeps `ready=false` so
- * the middleware just falls through.
- */
 export async function loadSlugExistence(): Promise<void> {
   try {
     const [stationDocs, genreDocs, countryDocs, distinctStationCountries] = await Promise.all([
@@ -255,7 +217,6 @@ export async function loadSlugExistence(): Promise<void> {
       const slug = countrySlug(name);
       if (slug) nextCountries.add(slug);
     }
-    // 2. Country docs in Mongo (admin-managed list, may diverge from static).
     for (const doc of countryDocs as Array<{ name?: string }>) {
       if (doc.name) {
         const slug = countrySlug(doc.name);

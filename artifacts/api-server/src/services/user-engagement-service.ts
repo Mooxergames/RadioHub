@@ -82,8 +82,6 @@ export interface UserProfile {
     };
 }
 export class UserEngagementService {
-    // Get user profile by slug (SEO-friendly URL) or ObjectId
-    // OPTIMIZED: single user lookup + all secondary queries in parallel, .lean() everywhere
     async getUserProfileBySlug(slug: string, currentUserId?: string): Promise<UserProfile | null> {
         return pgPublicProfile(slug, currentUserId);
     }

@@ -46,7 +46,8 @@ for (const [filename, width, height, format] of expectedImages) {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), `image/${format}`);
     assert.equal(response.headers.get('x-robots-tag'), null);
-    assert.equal(response.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+    assert.equal(response.headers.get('cache-control'), filename === 'favicon.png'
+      ? 'public, max-age=86400, must-revalidate' : 'public, max-age=31536000, immutable');
     const bytes = Buffer.from(await response.arrayBuffer());
     assert.deepEqual(bytes, await readFile(path.join(publicDirectory, filename)), 'never rewrites brand pixels');
     const metadata = await sharp(bytes).metadata();
@@ -55,18 +56,42 @@ for (const [filename, width, height, format] of expectedImages) {
   });
 }
 
-test('conventional favicon URL redirects to the real PNG, including HEAD and old query strings', async () => {
+test('conventional favicon is a real ICO with unchanged PNG pixels, including HEAD and old query strings', async () => {
   for (const method of ['GET', 'HEAD']) {
     const response = await fetch(`${baseUrl}/favicon.ico?v=old`, { method, redirect: 'manual' });
-    assert.equal(response.status, 301);
-    assert.equal(response.headers.get('location'), '/favicon.png');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('location'), null);
+    assert.match(response.headers.get('content-type') || '', /^image\/(?:vnd\.microsoft\.icon|x-icon)/);
     assert.equal(response.headers.get('x-robots-tag'), null);
-    assert.equal(response.headers.get('cache-control'), 'public, max-age=86400');
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=86400, must-revalidate');
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     if (method === 'HEAD') assert.equal(await response.text(), '');
+    else {
+      const ico = Buffer.from(await response.arrayBuffer());
+      assert.equal(ico.readUInt16LE(0), 0);
+      assert.equal(ico.readUInt16LE(2), 1);
+      assert.equal(ico.readUInt16LE(4), 1);
+      assert.equal(ico[6], 64);
+      assert.equal(ico[7], 64);
+      const offset = ico.readUInt32LE(18);
+      const length = ico.readUInt32LE(14);
+      assert.equal(offset + length, ico.length);
+      assert.deepEqual(ico.subarray(offset), await readFile(path.join(publicDirectory, 'favicon.png')));
+    }
   }
-  const followed = await fetch(`${baseUrl}/favicon.ico`);
-  assert.equal(followed.status, 200);
-  assert.equal(followed.headers.get('content-type'), 'image/png');
+});
+
+test('legacy SVG contains the same brand rather than a placeholder or external image', async () => {
+  const response = await fetch(`${baseUrl}/favicon.svg`, { redirect: 'manual' });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') || '', /^image\/svg\+xml/);
+  assert.equal(response.headers.get('x-robots-tag'), null);
+  assert.equal(response.headers.get('cache-control'), 'public, max-age=86400, must-revalidate');
+  const svg = await response.text();
+  const embedded = svg.match(/href="data:image\/png;base64,([^"]+)"/)?.[1];
+  assert.ok(embedded);
+  assert.deepEqual(Buffer.from(embedded, 'base64'), await readFile(path.join(publicDirectory, 'favicon.png')));
+  assert.doesNotMatch(svg, /#FF3C00|<image[^>]+href="https?:/);
 });
 
 test('manifest and unrelated/missing static assets keep their existing robots policy', async () => {
@@ -77,18 +102,29 @@ test('manifest and unrelated/missing static assets keep their existing robots po
   }
 });
 
-test('both site HTML templates declare only the actual PNG dimensions', async () => {
+test('both site HTML templates declare the same real ICO and PNG with truthful dimensions', async () => {
   for (const filename of ['../../megaradio/index.html', '../src/index-web.ts']) {
     const source = await readFile(path.resolve(import.meta.dirname, filename), 'utf8');
     const icons = [...source.matchAll(/<link\b[^>]*rel="(icon|apple-touch-icon)"[^>]*>/g)];
-    assert.equal(icons.length, 2);
+    assert.equal(icons.length, 3);
+    assert.match(source, /<link rel="icon" type="image\/vnd\.microsoft\.icon" sizes="64x64" href="\/favicon\.ico">/);
     for (const [tag] of icons) {
       const src = tag.match(/href="([^"]+)"/)?.[1];
       assert.ok(src?.startsWith('/'));
-      const metadata = await sharp(path.join(publicDirectory, src!)).metadata();
+      const metadata = await sharp(path.join(publicDirectory, src === '/favicon.ico' ? 'favicon.png' : src!)).metadata();
       assert.equal(tag.match(/sizes="([^"]+)"/)?.[1], `${metadata.width}x${metadata.height}`);
     }
     assert.match(source, /<link rel="manifest" href="\/manifest\.json">/);
+  }
+});
+
+test('Yandex ownership verification is in both server-rendered and SPA heads, preserving the existing owner', async () => {
+  for (const filename of ['../../megaradio/index.html', '../src/index-web.ts']) {
+    const source = await readFile(path.resolve(import.meta.dirname, filename), 'utf8');
+    const head = source.match(/<head>([\s\S]*?)<\/head>/)?.[1];
+    assert.ok(head, filename);
+    const tokens = [...head.matchAll(/<meta name="yandex-verification" content="([^"]+)"\s*\/>/g)].map(match => match[1]);
+    assert.deepEqual(tokens, ['2af3c8203c89a3d9', '57c83c6ab08ec3ba'], filename);
   }
 });
 

@@ -56,6 +56,7 @@ interface DuplicatesResponse {
 export default function AdminDuplicates() {
   const { toast } = useToast();
   const [duplicates, setDuplicates] = useState<DuplicatesResponse | null>(null);
+  const [bulkActionTarget, setBulkActionTarget] = useState<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [mergeResults, setMergeResults] = useState<string[]>([]);
   const [processingMerge, setProcessingMerge] = useState<string | null>(null);
@@ -127,7 +128,7 @@ export default function AdminDuplicates() {
           };
         }),
         totalGroups: data.total || 0,
-        potentialMerges: (data.duplicates || []).filter((d: any) => d.count > 1).length,
+        potentialMerges: (data.duplicates || []).reduce((sum: number, group: any) => sum + Math.max(0, (group.stations?.length || 0) - 1), 0),
         totalStations: data.totalStations
       };
       
@@ -631,7 +632,7 @@ export default function AdminDuplicates() {
         </p>
       </div>
 
-      <AdminDuplicateMergePanel onApplied={() => { if (duplicates) void detectDuplicates(); }} />
+      <AdminDuplicateMergePanel bulkActionTarget={bulkActionTarget} onApplied={() => { if (duplicates) void detectDuplicates(); }} />
       {Object.entries(pollingFailures).map(([jobId, failure]) => (
         <Alert key={jobId} variant="destructive"><AlertDescription>
           Status checking stopped{failure.groupName ? ` for ${failure.groupName}` : ''}: {failure.message}. The server job may still be running.
@@ -748,8 +749,8 @@ export default function AdminDuplicates() {
                 <span className="text-sm sm:text-base">
                   {duplicates.message || (
                     <>
-                      Found <strong>{duplicates.totalGroups}</strong> duplicate groups with{' '}
-                      <strong>{duplicates.potentialMerges}</strong> stations
+                      Found <strong>{duplicates.totalGroups.toLocaleString()}</strong> candidate groups containing{' '}
+                      <strong>{duplicates.duplicateGroups.reduce((sum, group) => sum + group.stations.length, 0).toLocaleString()}</strong> station records
                     </>
                   )}
                 </span>
@@ -757,10 +758,12 @@ export default function AdminDuplicates() {
               {duplicates.totalStations && (
                 <div className="mt-1 text-xs sm:text-sm text-muted-foreground">
                   Total: {duplicates.totalStations.toLocaleString()} stations
+                  {' · '}{duplicates.potentialMerges.toLocaleString()} extra records to review
                 </div>
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <div ref={setBulkActionTarget} />
               <Button
                 onClick={selectAllDuplicates}
                 size="sm"

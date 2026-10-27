@@ -681,14 +681,14 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   // case the SSR template falls back to its original `/src/main.tsx` tag —
   // safe because dev only runs the SSR path against the Vite dev server
   // anyway (which DOES serve `/src/main.tsx`).
-  interface ProdAssetTags { scripts: string; styles: string; preloads: string; routePreloads?: Record<string, string>; }
+  interface ProdAssetTags { scripts: string; styles: string; preloads: string; recovery: string; routePreloads?: Record<string, string>; }
   let prodAssetTagsCache: ProdAssetTags | null = null;
   function getProdAssetTags(): ProdAssetTags {
     if (prodAssetTagsCache !== null) return prodAssetTagsCache;
     try {
       const indexPath = path.resolve(import.meta.dirname, 'public', 'index.html');
       if (!fs.existsSync(indexPath)) {
-        prodAssetTagsCache = { scripts: '', styles: '', preloads: '' };
+        prodAssetTagsCache = { scripts: '', styles: '', preloads: '', recovery: '' };
         logger.log(`📦 SSR template: prod index.html not found at ${indexPath} (dev mode — using /src/main.tsx fallback)`);
         return prodAssetTagsCache;
       }
@@ -696,7 +696,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       const scripts = Array.from(html.matchAll(/<script\b[^>]*\bsrc="\/assets\/[^"]+\.js"[^>]*><\/script>/g)).map(m => m[0]).join('\n    ');
       const styles = Array.from(html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="\/assets\/[^"]+\.css"[^>]*>/g)).map(m => m[0]).join('\n    ');
       const preloads = Array.from(html.matchAll(/<link\b[^>]*\brel="modulepreload"[^>]*>/g)).map(m => m[0]).join('\n    ');
-      prodAssetTagsCache = { scripts, styles, preloads };
+      const recovery = html.match(/<script\b[^>]*\bid="app-load-recovery"[^>]*>[\s\S]*?<\/script>/)?.[0] || '';
+      prodAssetTagsCache = { scripts, styles, preloads, recovery };
       // Optional across rolling upgrades/dev: missing manifest must not discard
       // the valid entry script/CSS tags or prevent rendering the site.
       try {
@@ -706,7 +707,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       logger.log(`📦 SSR template loaded: ${scripts.split('<script').length - 1} scripts, ${styles.split('<link').length - 1} styles, ${preloads.split('<link').length - 1} modulepreloads`);
     } catch (e: any) {
       logger.log(`⚠️ SSR template load failed: ${e?.message || e} — falling back to dev tag`);
-      prodAssetTagsCache = { scripts: '', styles: '', preloads: '' };
+      prodAssetTagsCache = { scripts: '', styles: '', preloads: '', recovery: '' };
     }
     return prodAssetTagsCache;
   }
@@ -983,7 +984,11 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="yandex-verification" content="2af3c8203c89a3d9" />
+    <meta name="yandex-verification" content="57c83c6ab08ec3ba" />
+    ${prodTags.recovery}
     ${seoRenderer.generateHtmlHead(seoTags, seoData.language, seoData.translations || {}, seoData.cleanPath, seoData.pageData?.station, seoData.urlTranslations, seoData.pageData)}
+    <link rel="icon" type="image/vnd.microsoft.icon" sizes="64x64" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="manifest" href="/manifest.json">
@@ -1113,8 +1118,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         }
 
         const stationNotFound = !!seoData.pageData?.notFound;
-        // Architect P0: junk station URLs (test feeds, codec-suffix slugs,
-        // song-name slugs, frequency-prefix duplicates, or DB records with
+        // Architect P0: excluded station URLs (test feeds, verified duplicates, or DB records with
         // noIndex:true) must return 410 Gone — NOT 200/noindex and NOT 301.
         // This is the catalog's exclusion policy, not a guarantee that Google
         // will remove the URL immediately or stop recrawling it.
@@ -1249,7 +1253,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   let isShuttingDown = false;
 
   const port = parseInt(process.env.PORT || '3000', 10);
-  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' }, () => {
+  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' && process.platform !== 'darwin' }, () => {
     logger.log(`🚀 FRONTEND-WEB: Listening on port ${port}`);
     logger.log(`🔗 Backend API URL: ${BACKEND_API_URL}`);
 
@@ -1374,10 +1378,6 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       await loadDatabaseCountryLanguageMappings();
       await loadDatabaseUrlTranslations();
 
-      // Task #158: load slug-existence sets used by the slug-shape-404
-      // middleware so non-bot visitors get a real 404 for unknown
-      // genre/station slugs (not just shape-invalid ones). Done after
-      // Mongo is connected; periodic refresh keeps the set fresh.
       try {
         const { loadSlugExistence, startSlugExistenceRefresh } = await import('./seo/slug-existence');
         await loadSlugExistence();

@@ -134,6 +134,7 @@ function buildFakeManifest(
 // (e.g. simulate a missing chunk to assert the 410-vs-503 contract) without
 // re-mocking the module — `mock.module` snapshots `namedExports` at install
 // time, so we close over these holders instead.
+let manualBuildResult: Record<string, unknown> = {};
 const builderOverrides: {
   getActiveManifest:
     | null
@@ -150,7 +151,10 @@ const builderOverrides: {
 
 mock.module(new URL('../src/seo/sitemap-manifest-builder.ts', import.meta.url).href, {
   namedExports: {
-    buildAllSitemapManifests: async () => ({}),
+    buildAllSitemapManifests: async (options: unknown) => {
+      assert.deepEqual(options, { force: true });
+      return manualBuildResult;
+    },
     getActiveManifest: async (
       type: 'main' | 'genres' | 'stations',
       language: string,
@@ -281,7 +285,11 @@ mock.module(new URL('../src/performance-cache.ts', import.meta.url).href, {
   namedExports: {
     performanceCache: {
       getUrlTranslations: async () => new Map<string, string>(),
+      getCountryLanguageMappings: async () => new Map<string, string[]>(),
       getStats: () => ({ hits: 0, misses: 0 }),
+      clearTranslations: () => {},
+      clearUrlTranslations: () => {},
+      clearCountryLanguageMappings: () => {},
     },
     PerformanceCache: class {},
     deepFreeze: <T,>(v: T) => v,
@@ -336,8 +344,9 @@ before(async () => {
 
   app = express();
   await mod.registerSeoSitemapRoutes(app, {
-    requireAdmin: (_req, res) => {
-      res.status(403).end();
+    requireAdmin: (req, res, next) => {
+      if (req.headers['x-fixture-admin'] === 'manual-build') next();
+      else res.status(403).end();
     },
   });
 
@@ -521,9 +530,10 @@ test('sitemap manifest database errors cannot be cached as successful empty inde
   assert.equal((await fetch(`${baseUrl}/sitemap-index.xml`)).status, 200);
 });
 
-test('operational station timestamps do not advertise content freshness or change XML validators', async () => {
+test('operational station and genre timestamps do not advertise content freshness or change XML validators', async () => {
   fakeCacheStore.clear();
-  const paths = ['/sitemap-stations-en-1.xml', '/sitemap-main-en.xml', '/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml'];
+  const paths = ['/sitemap-stations-en-1.xml', '/sitemap-main-en.xml', '/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml',
+    ...QUALIFIED_LANGS.map(lang => `/sitemap-genres-${lang}.xml`)];
   const original = [];
   for (const pathname of paths) {
     const response = await fetch(baseUrl + pathname);
@@ -533,14 +543,16 @@ test('operational station timestamps do not advertise content freshness or chang
     if (parsed.urlset) {
       assert.equal(response.headers.get('last-modified'), null);
       if (pathname.includes('/sitemap-stations-')) assert.equal(parsed.urlset.url.length, 2, 'all eligible station URLs remain discoverable');
+      else if (pathname.includes('/sitemap-genres-')) assert.equal(parsed.urlset.url.length, 2, 'eligible genre URLs remain discoverable');
       else assert.ok(parsed.urlset.url.length > 15, 'main discovery URLs remain present');
       for (const entry of parsed.urlset.url) assert.equal(entry.lastmod, undefined);
     } else {
       for (const entry of parsed.sitemapindex.sitemap) {
-        if (/\/sitemap-(stations|main)-/.test(entry.loc)) assert.equal(entry.lastmod, undefined);
-        else assert.ok(entry.lastmod, 'other child content dates remain present');
+        if (entry.loc.endsWith('/sitemap-blog.xml')) assert.ok(entry.lastmod, 'editorial blog dates remain present');
+        else assert.equal(entry.lastmod, undefined);
       }
     }
+    assert.equal(response.headers.get('last-modified'), null);
     original.push({ pathname, body, etag: response.headers.get('etag')!, lastModified: response.headers.get('last-modified') });
   }
   const manifest = FAKE_INDEX_MANIFESTS.find(row => row.type === 'stations' && row.language === 'en')!;
@@ -548,6 +560,8 @@ test('operational station timestamps do not advertise content freshness or chang
   const previous = manifest.chunks[0].maxUpdatedAt;
   const previousMain = mainManifest.chunks[0].maxUpdatedAt;
   const advanced = new Date('2030-02-01T00:00:00Z');
+  const genreDates = FAKE_GENRE_DOCS.map(genre => genre.updatedAt);
+  FAKE_GENRE_DOCS.forEach(genre => { genre.updatedAt = advanced; });
   manifest.chunks[0].maxUpdatedAt = advanced;
   mainManifest.chunks[0].maxUpdatedAt = advanced;
   sitemapReadRows = FAKE_STATION_DOCS.map(station => ({ ...station, updatedAt: advanced }));
@@ -569,6 +583,7 @@ test('operational station timestamps do not advertise content freshness or chang
   } finally {
     manifest.chunks[0].maxUpdatedAt = previous;
     mainManifest.chunks[0].maxUpdatedAt = previousMain;
+    FAKE_GENRE_DOCS.forEach((genre, index) => { genre.updatedAt = genreDates[index]; });
     sitemapReadRows = FAKE_STATION_DOCS;
     builderOverrides.getActiveStationChunk = null;
     builderOverrides.getActiveManifest = null;
@@ -611,10 +626,13 @@ test('English pilot sitemaps expose only live eligible exact identities and rema
     assert.equal(unavailable.headers.get('cache-control'), 'no-store');
     stationBatchReadFails = true;
     assert.equal((await fetch(`${baseUrl}/sitemap-pilot-en-tr.xml`)).status, 503);
+    for (const path of ['/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml']) {
+      assert.equal((await fetch(baseUrl + path)).status, 200, 'optional pilot reads cannot break the main sitemap indexes');
+    }
   } finally { sitemapReadRows = FAKE_STATION_DOCS; stationBatchReadFails = false; }
 });
 
-test('index validators follow genre lastmod changes even when manifest membership and version stay fixed', async () => {
+test('nightly genre manifest timestamps alone do not change index XML or validators', async () => {
   const paths = ['/sitemap-index.xml', '/sitemap.xml', '/sitemap-en.xml'];
   const original = await Promise.all(paths.map(async pathname => {
     const response = await fetch(baseUrl + pathname);
@@ -628,17 +646,46 @@ test('index validators follow genre lastmod changes even when manifest membershi
   try {
     for (const snapshot of original) {
       const response = await fetch(baseUrl + snapshot.pathname, { headers: { 'If-None-Match': snapshot.etag } });
-      assert.equal(response.status, 200, `${snapshot.pathname} must expose changed child lastmod`);
-      assert.notEqual(response.headers.get('etag'), snapshot.etag);
-      const body = await response.text();
-      assert.notEqual(body, snapshot.body);
-      assert.ok(body.includes(advanced.toISOString()));
-      const freshEtag = response.headers.get('etag')!;
-      const unchanged = await fetch(baseUrl + snapshot.pathname, { headers: { 'If-None-Match': `"different", W/${freshEtag}` } });
+      assert.equal(response.status, 304, `${snapshot.pathname} must ignore operational genre dates`);
+      assert.equal(await response.text(), '');
+      assert.equal(response.headers.get('etag'), snapshot.etag);
+      assert.equal(response.headers.get('last-modified'), null);
+      const fresh = await fetch(baseUrl + snapshot.pathname);
+      assert.equal(await fresh.text(), snapshot.body);
+      const unchanged = await fetch(baseUrl + snapshot.pathname, { headers: { 'If-None-Match': `"different", W/${snapshot.etag}` } });
       assert.equal(unchanged.status, 304);
       assert.equal(await unchanged.text(), '');
     }
   } finally { manifest.chunks[0].maxUpdatedAt = previous; }
+});
+
+test('genre XML bypasses old dated caches but still changes its ETag for real URL changes', async () => {
+  fakeCacheStore.clear();
+  const oldXml = '<?xml version="1.0"?><urlset><url><loc>https://example.invalid/old</loc><lastmod>2030-01-01</lastmod></url></urlset>';
+  const oldKey = `sitemap:genres:xml-v2:en:${TEST_HASH}:v1-test:${NOW.getTime()}`;
+  fakeCacheStore.set(oldKey, { xml: oldXml, etag: '"old-dated-xml"', byteLength: Buffer.byteLength(oldXml) });
+  fakeCacheStore.set(`${oldKey}:validator`, { etag: '"old-dated-xml"' });
+  const originalSlug = FAKE_GENRE_DOCS[0].slug;
+  try {
+    const response = await fetch(`${baseUrl}/sitemap-genres-en.xml`, { headers: { 'If-None-Match': '"old-dated-xml"' } });
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    assert.doesNotMatch(body, /<lastmod>/);
+    assert.ok(body.includes('/en/genres/pop'));
+    assert.equal(response.headers.get('last-modified'), null);
+    const etag = response.headers.get('etag')!;
+    assert.equal((await fetch(`${baseUrl}/sitemap-genres-en.xml`, { headers: { 'If-None-Match': etag } })).status, 304);
+    FAKE_GENRE_DOCS[0].slug = 'new-pop';
+    builderOverrides.getActiveManifest = async (type, language) => ({ ...buildFakeManifest(type, language), version: 'v2-real-url-change' });
+    const changed = await fetch(`${baseUrl}/sitemap-genres-en.xml`, { headers: { 'If-None-Match': etag } });
+    assert.equal(changed.status, 200);
+    assert.notEqual(changed.headers.get('etag'), etag);
+    assert.match(await changed.text(), /\/en\/genres\/new-pop/);
+  } finally {
+    FAKE_GENRE_DOCS[0].slug = originalSlug;
+    builderOverrides.getActiveManifest = null;
+    fakeCacheStore.clear();
+  }
 });
 
 test('rolling manifest hashes retain every locale and incomplete builds are retryable', async () => {
@@ -651,7 +698,7 @@ test('rolling manifest hashes retain every locale and incomplete builds are retr
     assert.equal(rolling.status, 200);
     const body = await rolling.text();
     const parsed = assertValidXml(body, 'rolling cohort index') as any;
-    assert.equal(parsed.sitemapindex.sitemap.length, QUALIFIED_LANGS.length * 3 + 1);
+    assert.equal(parsed.sitemapindex.sitemap.length, QUALIFIED_LANGS.length * 3 + 3);
     assert.ok(body.includes('/sitemap-blog.xml'), 'the independently translated editorial sitemap is discoverable');
     for (const lang of QUALIFIED_LANGS) {
       assert.ok(body.includes(`/sitemap-stations-${lang}-1.xml`), `${lang} remains discoverable during the swap`);
@@ -1123,12 +1170,12 @@ test('/sitemap-stations-en-1.xml returns parser-valid XML with stations in manif
 });
 
 test('/sitemap-stations-en-1.xml drops noIndex / junk stations defensively at serve time', async () => {
-  // Flip s1 to noIndex and s2 to a junk codec suffix slug. The route must
+  // Flip s1 to noIndex and s2 to an actual test feed. The route must
   // re-run getIndexableLanguagesForStation at serve time and exclude both,
   // even though the manifest still references them.
   const original: FakeStationDoc[] = FAKE_STATION_DOCS.map((s) => ({ ...s }));
   FAKE_STATION_DOCS[0].noIndex = true;
-  FAKE_STATION_DOCS[1].slug = 'station-two-mp3';
+  FAKE_STATION_DOCS[1].slug = 'station-two-test-stream';
   try {
     // Bypass the cache hit from the previous test by invalidating the store.
     fakeCacheStore.clear();
@@ -1139,7 +1186,7 @@ test('/sitemap-stations-en-1.xml drops noIndex / junk stations defensively at se
     assert.doesNotMatch(body, /<urlset/);
     assert.ok(
       !body.includes('station-one') && !body.includes('station-two'),
-      'noIndex + codec-suffix stations must be filtered at serve time',
+      'stored noindex + test-feed stations must be filtered at serve time',
     );
   } finally {
     // Restore + clear cache so subsequent tests see clean state.
@@ -1274,4 +1321,24 @@ test('A clearly-unmatched path DOES fall through to the SPA catch-all (negative 
   const res = await fetch(`${baseUrl}/__definitely-not-a-real-route__`);
   assert.equal(res.headers.get('x-spa-catchall'), '1');
   assert.equal(spaCalls, callsBefore + 1);
+});
+
+test('manual sitemap rebuild never reports busy or unavailable builds as fresh success', async () => {
+  for (const [reason, status, code] of [
+    ['build-in-progress', 409, 'sitemap_build_in_progress'],
+    ['qualified-languages-unavailable', 503, 'sitemap_build_unavailable'],
+    ['fresh', 503, 'sitemap_build_unavailable'],
+  ] as const) {
+    manualBuildResult = { built: false, skippedReason: reason, qualifiedLanguages: [], activatedCount: 0 };
+    const response = await fetch(`${baseUrl}/api/admin/sitemap/rebuild`, {
+      method: 'POST', headers: { 'x-fixture-admin': 'manual-build' },
+    });
+    assert.equal(response.status, status);
+    assert.equal(response.headers.get('retry-after'), '60');
+    const body = await response.json() as any;
+    assert.equal(body.ok, false);
+    assert.equal(body.error, code);
+    assert.ok(body.message);
+  }
+  assert.equal((await fetch(`${baseUrl}/api/admin/sitemap/rebuild`, { method: 'POST' })).status, 403);
 });

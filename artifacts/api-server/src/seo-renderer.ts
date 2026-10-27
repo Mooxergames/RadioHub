@@ -4,6 +4,7 @@ import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcr
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
 import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
+import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
 import { pgSeoCatalog } from './data/postgres-seo-read-store';
 import { pgStoredGenreBySlug } from './data/postgres-taxonomy-store';
@@ -12,8 +13,9 @@ import { pgLocalization } from './data/postgres-localization-store';
 import { getHomeGenreNavigation } from './services/home-genre-navigation';
 import { AZ_INDEX_KEYS, azDisplayLabel, azSlugBounds, matchAzIndexPath } from './seo/az-station-index';
 import { isMissingSeoCatalogPage, isSeoCatalogPath, parseSeoCatalogPage, seoCatalogPageLinks } from './seo/catalog-pagination';
-import { regionRouteExistence } from './seo/region-route-existence';
+import { regionRouteExistence, canonicalRegionPath } from './seo/region-route-existence';
 import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from './seo/verified-legacy-station-alias';
+import { withPilotEditorial } from './seo/indexing-pilot';
 
 // The renderer only needs this small subset of the normalized catalog shape.
 interface LeanStationCard {
@@ -113,14 +115,6 @@ const LOCALIZED_LISTEN_LIVE: Record<string, string> = {
   hy: 'Ունկնդրեք ուղիղ առցանց', so: 'Ku dhageyso Toos ah Online', bs: 'Slušajte Uživo Online',
 };
 
-// Concurrency raised 5 → 15 → 50 → 200 → 1000 → 2500: paired with MongoDB
-// pool 100, heap 10 GB and RSS warning 7 GB on a 24 GB Railway replica to
-// absorb the largest Googlebot waves without ever returning
-// SEO_RENDER_OVERLOADED. The event-loop-lag guard below (800ms threshold)
-// is the real safety net — if the box is truly overloaded it rejects
-// automatically regardless of slot count, so a high slot ceiling is safe.
-// Timeout raised 5s → 10s: 57-language hreflang tables push borderline pages
-// over 5s during cold cache; a 10s budget keeps Googlebot from giving up.
 const SEO_RENDER_MAX_CONCURRENT = 2500;
 const SEO_RENDER_TIMEOUT_MS = 10_000;
 let seoRenderActive = 0;
@@ -498,11 +492,12 @@ export class SeoRenderer {
               }
             }
             if (aliasMatch && aliasMatch.slug && aliasMatch.slug !== stationSlug) {
-              const { isJunkStation, isNumericOnlySlug, canRenderLegacyOfflineInformation } = await import('./seo/junk-station-rules');
+              const { isJunkStation, isNumericOnlySlug, canRenderLegacyStationInformation, getIndexableLanguagesForStation } = await import('./seo/junk-station-rules');
               // A retained duplicate can own historical aliases and an explicit
               // redirect. Resolve that single hop before its noindex gate, but
               // never promote a missing/excluded target or follow redirect chains.
               let aliasRedirectRejected = false;
+              let aliasRedirectLanguage = actualLanguage;
               if (aliasMatch.redirectToSlug) {
                 const target = await withSignal(pgSeoCatalog().findOne({ slug: aliasMatch.redirectToSlug }), signal);
                 if (target && target.slug === aliasMatch.redirectToSlug
@@ -510,6 +505,7 @@ export class SeoRenderer {
                     && target.noIndex === false && !target.redirectToSlug
                     && !isNumericOnlySlug(target.slug) && !isJunkStation(target)) {
                   aliasMatch = target;
+                  aliasRedirectLanguage = getIndexableLanguagesForStation(target).includes(actualLanguage) ? actualLanguage : 'en';
                 } else {
                   aliasRedirectRejected = true;
                 }
@@ -525,7 +521,7 @@ export class SeoRenderer {
               const aliasTargetIsJunk =
                 aliasRedirectRejected || isJunkStation(aliasMatch)
                 || (!!repairedAlias && aliasMatch.noIndex === true)
-                || (aliasMatch.noIndex === true && !canRenderLegacyOfflineInformation(aliasMatch));
+                || (aliasMatch.noIndex === true && !canRenderLegacyStationInformation(aliasMatch));
               if (aliasTargetIsJunk) {
                 // CRITICAL: Do NOT set notFound:true — the HTTP-layer junk
                 // handler in both index.ts:1068 and index-web.ts:719 gates on
@@ -561,8 +557,8 @@ export class SeoRenderer {
               );
               const canonicalPath = buildLocalizedUrl(
                 englishCanonical,
-                actualLanguage,
-                countryCode,
+                aliasRedirectLanguage,
+                aliasRedirectLanguage === actualLanguage ? countryCode : undefined,
                 urlTranslations,
               );
               logger.log(`🔀 SEO ALIAS 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${aliasMatch.slug})`);
@@ -587,7 +583,7 @@ export class SeoRenderer {
           // reach the outer transient-error handler (uncached 503), not this 410.
           if (stationData && stationData.redirectToSlug) {
             const canonicalSlug = stationData.redirectToSlug;
-            const { isJunkStation, isNumericOnlySlug } = await import('./seo/junk-station-rules');
+            const { isJunkStation, isNumericOnlySlug, getIndexableLanguagesForStation } = await import('./seo/junk-station-rules');
             const target = typeof canonicalSlug === 'string'
               && canonicalSlug !== stationData.slug && canonicalSlug !== stationSlug
               ? await withSignal(pgSeoCatalog().findOne({ slug: canonicalSlug }), signal)
@@ -605,10 +601,11 @@ export class SeoRenderer {
             // Do not replace a substring: slugs such as "station" or "sta"
             // also occur in the route prefix and would produce the wrong URL.
             const englishCanonical = `/station/${canonicalSlug}`;
+            const redirectLanguage = getIndexableLanguagesForStation(target).includes(actualLanguage) ? actualLanguage : 'en';
             const canonicalPath = buildLocalizedUrl(
               englishCanonical,
-              actualLanguage,
-              countryCode,
+              redirectLanguage,
+              redirectLanguage === actualLanguage ? countryCode : undefined,
               urlTranslations,
             );
             logger.log(`🔀 SEO FREQ-DUP 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${canonicalSlug})`);
@@ -620,6 +617,8 @@ export class SeoRenderer {
               pageData: { redirectTo: canonicalPath },
             };
           }
+
+          if (stationData) stationData = withPilotEditorial(stationData);
 
           // If station truly doesn't exist, mark notFound and synthesize minimal data so SSR
           // can still render a 404 body (avoids 500). Caller (index-web.ts) maps this to HTTP 404,
@@ -856,12 +855,6 @@ export class SeoRenderer {
           }
         } catch (error: any) {
           if (error?.name === 'AbortError' || signal?.aborted) throw error;
-          // The top-stations grid uses a live (unindexed) $regex on `tags` —
-          // the 2026-05-14 pile-up pattern. Under load it can hit its 4s
-          // maxTimeMS and throw here BEFORE `popularStations` is assigned.
-          // Record that the fetch FAILED (vs genuinely returning few stations)
-          // so the genre thin-gate below does not silently de-index a curated
-          // whitelisted genre on a transient Mongo slowdown.
           if (additionalData.popularStations === undefined) {
             additionalData.popularStationsFetchFailed = true;
           }
@@ -995,6 +988,12 @@ export class SeoRenderer {
       const routeShape = validateRegionRouteShape(cleanPath);
       const existence = routeShape.ok && (routeShape.family === 'regions' ? pathParts.length > 3 : pathParts.length > 2)
         ? regionRouteExistence(cleanPath, await import('./seo/slug-existence')) : 'known';
+      const canonicalGeography = routeShape.ok && existence === 'known' ? canonicalRegionPath(cleanPath) : null;
+      if (canonicalGeography) {
+        return { language, cleanPath, seoTags: {}, translations: {}, pageData: {
+          redirectTo: buildLocalizedUrl(canonicalGeography, actualLanguage, countryCode, urlTranslations),
+        } };
+      }
 
       if (pathParts.length > 2) {
         additionalData.region = pathParts[2];
@@ -1112,11 +1111,6 @@ export class SeoRenderer {
               // a tags+country only projection, capped at maxTimeMS
               // 3500, no impact on the popularStations grid above.
               const countryName = additionalData.regionName as string;
-              // INCIDENT 2026-05-14: SSR region cross-link Station.find
-              // disabled — same pile-up root cause as the genres branch
-              // above. Falls back to the (already-loaded) indexable
-              // stations slice which keeps cross-links non-empty without
-              // a fresh Mongo round-trip.
               const genreSample: Array<{ tags?: any }> = countryName
                 ? (indexableStations as any[])
                 : [];
@@ -1272,7 +1266,7 @@ export class SeoRenderer {
           getIndexableLanguagesForStation,
           isStationIndexableInLanguage,
           isNumericOnlySlug,
-          canRenderLegacyOfflineInformation,
+          canRenderLegacyStationInformation,
         } = await import('./seo/junk-station-rules');
         const { getCachedQualifiedLanguages } = await import('./seo/qualified-languages');
 
@@ -1282,11 +1276,11 @@ export class SeoRenderer {
         // here — that bypasses the translation-qualification check and can
         // re-introduce "Crawled - currently not indexed" regressions.
         const qualifiedLangs = await getCachedQualifiedLanguages();
-        const legacyOfflineInformation = canRenderLegacyOfflineInformation(stationData);
-        const isJunk = isJunkStation(stationData) || (stationData.noIndex === true && !legacyOfflineInformation);
+        const legacyInformation = canRenderLegacyStationInformation(stationData);
+        const isJunk = isJunkStation(stationData) || (stationData.noIndex === true && !legacyInformation);
         const indexable = getIndexableLanguagesForStation(stationData, qualifiedLangs);
         const langIneligible =
-          !isJunk && !legacyOfflineInformation && !isStationIndexableInLanguage(stationData, language, qualifiedLangs);
+          !isJunk && !legacyInformation && !isStationIndexableInLanguage(stationData, language, qualifiedLangs);
         // Negative integer slugs (e.g. `-598`, `-2612`) are DB artifact IDs —
         // never valid station callsigns. Treat as junk → 410. Positive integer
         // slugs (e.g. `1234`) stay noindex-only in case they're callsign brands.
@@ -1295,7 +1289,7 @@ export class SeoRenderer {
         // legitimate numeric-callsign brands are not lost.
         const numericOnlySlug = !isJunk && !negativeNumericSlug && isNumericOnlySlug(stationData.slug);
 
-        if (legacyOfflineInformation) {
+        if (legacyInformation) {
           // Preserve the unknown historical noindex, not a gone response or
           // an invented reindexing approval. Real localized content remains.
           seoTags.robots = 'noindex, follow';
@@ -1337,7 +1331,7 @@ export class SeoRenderer {
           langRedirectUrl = `${domain}/en/${enSegment}/${stationData.slug}`;
         }
 
-        if (legacyOfflineInformation) {
+        if (legacyInformation) {
           seoTags.hreflangs = [];
         } else if (isJunk || negativeNumericSlug) {
           // Signal to the HTTP layer to return 410 Gone instead of SSR'ing
@@ -1393,10 +1387,6 @@ export class SeoRenderer {
     //      whole template on Google's low-quality list.
     if (pageType === 'genres' && additionalData?.genreSlug) {
       const popularStations = (additionalData?.popularStations as any[] | undefined) || [];
-      // If the top-stations fetch FAILED (transient Mongo timeout), an empty
-      // grid is not evidence the genre is thin — do not de-index a curated
-      // whitelisted genre over a blip. A not-whitelisted genre is still caught
-      // by `genreNotWhitelisted` below, so this only protects trusted genres.
       const fetchFailed = additionalData.popularStationsFetchFailed === true;
       // Prefer the authoritative Genre.stationCount (the exact value the sitemap
       // used to decide whether to publish this URL) so SSR and sitemap agree —
@@ -1429,22 +1419,6 @@ export class SeoRenderer {
         additionalData.notFound = true;
       }
     }
-    // -----------------------------------------------------------------------
-    // ---- Station cross-link fetch (architect P0, GEO + crawl) ------------
-    // Server-render up to three "Discover more" sections in the station body
-    // so AI bots / one-shot crawlers / Googlebot's first pass all see crawl
-    // edges to neighbouring entities WITHOUT needing the React app to
-    // hydrate. Sections:
-    //   • Similar in <country>   (8, sorted by votes)
-    //   • More <primary genre>   (8, sorted by votes)
-    //   • Stations in <state>    (6, only when stationData.state present)
-    // Skipped when the station itself is noindex/junk/not-found (avoids
-    // bleeding crawl budget into a page Google is already supposed to drop).
-    // Each list is junk/noIndex-filtered (mirrors the sitemap manifest's
-    // own filter at sitemap-manifest-builder.ts:553 — junk pages must NOT
-    // be advertised anywhere indexable). All three queries run in parallel
-    // with a hard 4s budget so SSR latency cannot regress when Mongo is
-    // slow; partial / empty results just hide the corresponding section.
     if (
       pageType === 'station' &&
       stationData &&
@@ -1476,56 +1450,18 @@ export class SeoRenderer {
           ],
         };
         if (selfId) baseFilter._id = { $ne: selfId };
-        const projection = 'name slug favicon logoAssets country tags votes';
+        const cardFields = ['name', 'slug', 'favicon', 'logoAssets', 'country', 'tags', 'votes'];
 
-        // INCIDENT 2026-05-14: all three station-page SSR cross-link queries
-        // were disabled because three CONCURRENT unindexed/regex Station.find
-        // calls per request stacked under load and pile-up timed out the SSR
-        // pipeline ("Sender wird geladen…" hang).
-        //
-        // RE-ENABLED 2026-06-20 — COUNTRY ONLY: the same-country query is now
-        // safe because (a) it runs ALONE (not concurrently with two siblings),
-        // (b) it is fully covered by the existing
-        // `{ country: 1, lastCheckOk: 1, votes: -1 }` index (mongo-schemas.ts),
-        // and (c) `withSignal` caps it at maxTimeMS so it can never hang the
-        // pipeline — a slow/aborted query just yields an empty section.
-        // Re-enabling this gives every station page 8 server-rendered internal
-        // links to neighbouring stations, fixing the "0 outbound links →
-        // thin/orphaned" signal that parked ~382K pages in GSC's
-        // "Crawled - currently not indexed" bucket.
-        //
-        // GENRE remains disabled ON PURPOSE: the genre query needs a
-        // contains-`$regex` over the comma-joined `tags` string (see line ~642),
-        // which a btree index cannot accelerate. It stays off until backed by
-        // a precomputed cache.
-        //
-        // CITY RE-ENABLED 2026-07-03: the original disable reason ("no state
-        // index") no longer holds — `StationSchema.index({ state: 1 },
-        // { sparse: true })` exists (mongo-schemas.ts ~4022, added for the
-        // US/CA state region pages). The query below is an exact-equality
-        // match on that indexed field (NO regex), withSignal-capped, and
-        // soft-fails to [] — none of the 2026-05-14 incident ingredients.
-        //
-        // PUBLISHER ADDED 2026-07-03 (radio.at parity, "Zugehörige Sender"):
-        // sister channels of the same brand (e.g. "kronehit", "kronehit
-        // dance"). Matched via a CASE-SENSITIVE ANCHORED PREFIX regex on the
-        // indexed `name` field — Mongo turns `^literal` case-sensitive
-        // regexes into a btree range scan on `{ name: 1 }` (docs: "prefix
-        // expressions"), so unlike the incident queries this IS
-        // index-covered. Case-insensitive or unanchored variants would NOT
-        // be; do not "improve" this into `$options: 'i'`. Generic first
-        // tokens ("Radio …", "FM …") are blacklisted so we never fan out a
-        // pseudo-family of thousands of unrelated "Radio X" stations.
         const sameCountryQ: Promise<any[]> = country
           ? withSignal<any[]>(
-              pgSeoCatalog().find({ ...baseFilter, country }, { sort: { votes: -1 }, limit: 8 }),
+              pgSeoCatalog().find({ ...baseFilter, country }, { fields: cardFields, sort: { votes: -1 }, limit: 8 }),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
         const sameGenreQ: Promise<any[]> = Promise.resolve([]);
         const sameCityQ: Promise<any[]> = stateName
           ? withSignal<any[]>(
-              pgSeoCatalog().find({ ...baseFilter, state: stateName }, { sort: { votes: -1 }, limit: 6 }),
+              pgSeoCatalog().find({ ...baseFilter, state: stateName }, { fields: cardFields, sort: { votes: -1 }, limit: 6 }),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
@@ -1550,7 +1486,7 @@ export class SeoRenderer {
               pgSeoCatalog().find({
                 ...baseFilter,
                 name: { $regex: `^${brandToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
-              }, { sort: { votes: -1 }, limit: 7 }),
+              }, { fields: cardFields, sort: { votes: -1 }, limit: 7 }),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
@@ -1592,7 +1528,7 @@ export class SeoRenderer {
       } catch (e: any) {
         if (e?.name === 'AbortError' || signal?.aborted) throw e;
         // Non-fatal — render the page without cross-link sections rather
-        // than 500'ing on a Mongo glitch. The base nav still renders.
+        // than failing on a transient database error. The base nav still renders.
       }
     }
 
@@ -2512,14 +2448,16 @@ export class SeoRenderer {
                     .replace(/\{COUNTRY\}/g, country);
                   return `<p class="station-intro">${this.escapeHtml(introText)}</p>`;
                 })()}
-                ${stationData.descriptions && stationData.descriptions[language] ? (() => {
-                  const desc = stationData.descriptions[language];
+                ${(() => {
+                  const desc = stationData.descriptions?.[language];
                   let fullText = '';
-                  if (typeof desc === 'object' && desc.full) {
+                  if (desc && typeof desc === 'object' && typeof desc.full === 'string') {
                     fullText = desc.full;
                   } else if (typeof desc === 'string') {
                     fullText = desc;
                   }
+                  if (!fullText.trim() && typeof stationData.description === 'string') fullText = stationData.description;
+                  if (!fullText.trim() && language === 'en') fullText = buildTemplateDescription(stationData).full;
                   fullText = fullText
                     .replace(/^\s*\[TRANSLATED\s+FULL\s+DESCRIPTION\]\s*/i, '')
                     .replace(/^\s*\[TRANSLATED\s+META[^\]]*\]\s*/i, '')
@@ -2549,7 +2487,7 @@ export class SeoRenderer {
                     return '<p>' + this.escapeHtml(fullText) + '</p>';
                   }
                   return '';
-                })() : (stationData.description ? `<p>${this.escapeHtml(stationData.description)}</p>` : '')}
+                })()}
                 <!-- DALGA 4: Station-specific outro (25-35 words, interpolation: name + country + tags — NOT scaled boilerplate) -->
                 ${(() => {
                   const outroTemplate = getStationPageCopy(language, translations).outro;
@@ -2596,16 +2534,14 @@ export class SeoRenderer {
                   ${stationData.tags ? `
                   <p><strong>${this.escapeHtml(getLocalizedText('genres', 'Genres'))}:</strong> ${stationData.tags.split(',').slice(0, 6).map((tag: string) => this.escapeHtml(tag.trim())).join(', ')}</p>
                   ` : ''}
-                  ${stationData.url ? (() => {
-                    // 2026-05-12 Semrush audit: this `<a>` rendered the
-                    // raw stream URL (e.g. `https://icecast.walmradio.com:8443/otr`)
-                    // as both the href AND the visible text, which Semrush
-                    // (and Google) classify as "naked URL = no anchor
-                    // text" — 114 hits across all language × station
-                    // permutations. The fix uses a descriptive label
-                    // ("Official Website of <station name>") that tells
-                    // crawlers what the linked page is about while still
-                    // exposing the URL for transparency.
+                  ${(() => {
+                    let homepage: URL;
+                    try {
+                      homepage = new URL(stationData.homepage);
+                      if (!['http:', 'https:'].includes(homepage.protocol) || homepage.username || homepage.password) return '';
+                    } catch { return ''; }
+                    // A stream is not the station's official website. Missing
+                    // homepages must not silently fall back to the audio URL.
                     const websiteLabel = this.escapeHtml(
                       getStationPageCopy(language, translations).website,
                     );
@@ -2614,8 +2550,8 @@ export class SeoRenderer {
                       ? `${websiteLabel} — ${stationName}`
                       : websiteLabel;
                     return `
-                  <p><strong>${websiteLabel}:</strong> <a href="${this.escapeHtml(stationData.url)}" target="_blank" rel="noopener noreferrer nofollow">${anchorText}</a></p>`;
-                  })() : ''}
+                  <p><strong>${websiteLabel}:</strong> <a href="${this.escapeHtml(homepage.href)}" target="_blank" rel="noopener noreferrer nofollow">${anchorText}</a></p>`;
+                  })()}
                 </section>
                 
                 ${(() => {
@@ -3333,25 +3269,6 @@ export class SeoRenderer {
         const stationLogoRaw =
           station.logoAssets?.webp256 || station.logoAssets?.webp96 || station.favicon || '';
         const stationLogo = /^https?:\/\//i.test(stationLogoRaw) ? stationLogoRaw : null;
-        // 2026-05-12 SEO audit: every nested item in this ItemList was
-        // emitting a full RadioStation entity, and Google evaluates each
-        // one against LocalBusiness's required-field list (RadioStation
-        // inherits from LocalBusiness > Organization). Missing `address`
-        // and (when station.tags was empty) `genre` produced the "2 fields:
-        // address, genre" error reported on every list page (12 stations
-        // × ~15 list pages = ~180 hits per crawl, repeating for ~10 list
-        // pages × all languages). We now:
-        //   1. Emit a PostalAddress with the country (or country code) so
-        //      the LocalBusiness `address` requirement is satisfied.
-        //   2. Drop the `genre` key entirely when there are no tags
-        //      instead of emitting an empty array (Google treats `[]` as
-        //      "empty required field" rather than "absent optional field").
-        // Tags can arrive as `string[]` (Mongoose lean projection sometimes
-        // pre-splits) OR as a comma-separated `string` (canonical schema —
-        // see lib/db-shared/src/mongo-schemas.ts → IStation.tags). Earlier
-        // revision only handled the array case, so any station with a
-        // string tags field would still trip Semrush's "missing genre"
-        // check. Normalise both shapes here.
         const rawTags: any = station.tags;
         const stationGenres: string[] = (Array.isArray(rawTags)
           ? rawTags

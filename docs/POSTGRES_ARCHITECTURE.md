@@ -1,19 +1,19 @@
 # PostgreSQL application architecture
 
-Implementation checkpoint: 2026-09-07. The application has one PostgreSQL write authority,
-not dual writes, a MongoDB compatibility server, or a background Mongo-to-SQL sync.
-See POSTGRES_VERIFICATION.md for what has actually been exercised.
+Current application contract: PostgreSQL is the sole database and write authority.
+The offline importer, old database models and previous application snapshot have
+been removed. API, web and proxy are the three supported production images.
 
 ## Runtime contract
 
 API and web startup require PostgreSQL, validate the required native tables, and
 record durable write-authority markers before serving application requests.
 Express sessions and bearer tokens are PostgreSQL-backed. Health/readiness checks
-probe PostgreSQL; no Mongo connection is required by the entrypoint code.
+probe PostgreSQL. No alternate application database connection is opened.
 
 Legacy domain selection flags may be omitted; if supplied they must be
-`postgres`. Shadow/dual/Mongo values and `STATION_CDC_ENABLED=true` are rejected.
-Do not deploy a mixture of old Mongo-writing and new PostgreSQL-writing workers.
+`postgres`. Alternative/dual values and `STATION_CDC_ENABLED=true` are rejected.
+Do not deploy retired database-writing workers alongside the current application.
 
 ## Persistence
 
@@ -25,7 +25,7 @@ Do not deploy a mixture of old Mongo-writing and new PostgreSQL-writing workers.
   data inside transactions.
 - Localization: keys, values, languages, metadata/version, localized URLs,
   country-language mappings and audit history. Translation sync reads/writes SQL;
-  it is not replication from MongoDB.
+it is not replication from another database.
 - Billing and TV: normalized subscriptions, durable provider receipt ledger,
   plans, one-time device codes, cast sessions/commands/presence/outbox and telemetry.
 - Operations: API keys/developer sessions/quotas, recommendation profiles,
@@ -34,8 +34,8 @@ Do not deploy a mixture of old Mongo-writing and new PostgreSQL-writing workers.
 
 JSONB remains for flexible fields (multilingual descriptions, logo metadata,
 preferences and provider metadata). This is native PostgreSQL storage, not a
-MongoDB runtime dependency. Canonical SQL columns override retained source JSON.
-Opaque existing public IDs are preserved as text; new IDs do not require ObjectId.
+second database runtime dependency. Canonical SQL columns override retained source JSON.
+Opaque existing public IDs are preserved as text; new IDs use native cryptographic randomness.
 
 Redis, when configured, is only a cache. Images remain in the configured object
 storage/filesystem and audio is streamed from station providers; “PostgreSQL-only”
@@ -62,16 +62,15 @@ their relations, and rolls back the whole replacement on invalid input. Duplicat
 merges blacklist/deallocate losers in the same transaction while moving favorites,
 ratings and listening history to the survivor.
 
-## One-time migration boundary
+## Historical evidence and recovery
 
-The source capture and normalization tools live in the separate
-`@workspace/legacy-migration` operator workspace, outside production dependencies.
-All four server build graphs and flat production package dependencies are checked
-for Mongo drivers and legacy imports. Their purpose is a stopped-writer import before startup, not a
-production compatibility layer. Strict BSON captures/checksums and migration
-checkpoints are historical evidence stored in PostgreSQL. After PostgreSQL starts
-accepting writes, authority markers prohibit replay/pruning from an old source.
+Previously applied SQL migrations, captured records, checksums and write-authority
+markers remain in PostgreSQL as historical evidence. They do not open a connection
+to another database. Do not delete or rewrite them to remove a historical name:
+that would break startup safety, payment provenance or schema checksums.
 
-No production deployment, migration execution against customer data, production
-backup restoration drill or production load test has been performed. A separate
-local PostgreSQL fixture backup/restore was verified; see POSTGRES_VERIFICATION.md.
+Production build graphs and installed dependency graphs reject retired database
+drivers. Development dependencies and the lockfile are checked as well. Restore
+PostgreSQL backups only into an isolated target and verify before any cutover.
+The dated POSTGRES_VERIFICATION.md is historical verification, not a current
+production restoration guarantee.

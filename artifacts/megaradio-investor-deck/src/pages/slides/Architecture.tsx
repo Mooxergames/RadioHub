@@ -28,11 +28,11 @@ export default function Architecture() {
           </div>
           <div className="bg-surface border border-border rounded-[1vw] p-[1.8vw] flex flex-col">
             <div className="font-display font-[600] text-accent text-[1.1vw] tracking-widest uppercase">Data</div>
-            <div className="mt-[1.5vh] font-display font-[700] text-text text-[1.7vw] leading-tight">MongoDB Atlas</div>
+            <div className="mt-[1.5vh] font-display font-[700] text-text text-[1.7vw] leading-tight">PostgreSQL</div>
             <p className="mt-[1.5vh] font-body text-[1.1vw] text-muted leading-snug">
               Catalog, sessions, comments, and event streams — backed by Redis cache and AWS S3 media storage.
             </p>
-            <div className="mt-auto font-body text-[1vw] text-muted/70">Mongoose · Redis · S3</div>
+            <div className="mt-auto font-body text-[1vw] text-muted/70">SQL · Redis · S3</div>
           </div>
         </div>
 

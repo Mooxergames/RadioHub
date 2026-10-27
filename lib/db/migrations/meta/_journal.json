@@ -281,6 +281,34 @@
       "when": 1791846000000,
       "tag": "0040_visitor_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791932400000,
+      "tag": "0041_verified_retained_station_redirects",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792018800000,
+      "tag": "0042_verified_ora_news_canonical_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792105200000,
+      "tag": "0043_verified_ora_news_native_content_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792716992000,
+      "tag": "0044_private_description_repair_journal",
+      "breakpoints": true
     }
   ]
 }

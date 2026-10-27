@@ -96,8 +96,6 @@ if (typeof (_ticketCleanupTimer as any).unref === 'function')
 function getSessionUserId(req: any): string | null {
     return req.session?.user?.userId || req.session?.userId || null;
 }
-// PostgreSQL identity rows also contain credentials and billing data. Chat
-// responses must use the same public projection as the former Mongo queries.
 function publicChatUser(user: any): any | null {
     if (!user)
         return null;

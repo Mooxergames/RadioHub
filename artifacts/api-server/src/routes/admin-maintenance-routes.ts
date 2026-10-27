@@ -29,7 +29,8 @@ import {
 } from "../services/scheduled-genre-slug-cleanup";
 import { getGenreSlugCleanupAlertThreshold } from "../services/genre-slug-cleanup-notifier";
 import { logger } from "../utils/logger";
-import { buildTemplateDescription } from "../services/station-description-template";
+import { performanceCache } from '../performance-cache';
+import { missingEnglishDescriptionPatch } from "../services/station-description-template";
 import { registerAdminIndexabilityAuditRoutes } from './admin-indexability-audit-routes';
 import { registerAdminLegacyNoindexRecoveryRoutes } from './admin-legacy-noindex-recovery-routes';
 
@@ -89,9 +90,6 @@ async function runTagsBackfill(countryCode: string | null, limitMax: number) {
       tags: [],
     });
   } catch (err: any) {
-    // Non-fatal — we still run the in-memory job so admins aren't blocked
-    // if the audit row fails to persist (e.g. transient Mongo blip). The
-    // existing in-memory state surfaces progress in the meantime.
     logger.error(
       "[tags-backfill] failed to persist BackfillRun audit row:",
       err?.message || err,
@@ -559,11 +557,6 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
     },
   );
 
-  // Single BackfillRun document by id. Powers the deep-linkable
-  // /admin/seo-maintenance/runs/:id detail page so an admin can paste
-  // a link to a specific run without making the recipient scroll the
-  // history table. Returns 400 for malformed ObjectIds and 404 when
-  // the row doesn't exist (or has been pruned by retention).
   app.get(
     "/api/admin/maintenance/scheduled-backfill/runs/:id",
     requireAdmin,
@@ -588,14 +581,6 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
     },
   );
 
-  // Task #313: batch-resolve the live `logoAssets.status` for the
-  // sample stations surfaced on the run detail page. Without this,
-  // admins would have to click each sample link to figure out which
-  // enqueued stations actually ended up with a downloaded logo vs
-  // failed again. Accepts up to ~200 ObjectIds in the body to keep the
-  // single round-trip bounded; unknown / malformed ids are reported as
-  // `missing` so the UI can show a neutral badge instead of dropping
-  // them silently.
   app.post(
     "/api/admin/maintenance/stations/logo-status",
     requireAdmin,
@@ -648,10 +633,6 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
     },
   );
 
-  // Live status of the scheduled backfill plus the most recent
-  // BackfillRun row so the dashboard can render "running…" vs the last
-  // completed summary without the client having to know about Mongo
-  // shapes.
   app.get(
     "/api/admin/maintenance/scheduled-backfill/status",
     requireAdmin,
@@ -749,13 +730,6 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
     },
   );
 
-  // Task #264: drill-down for a single GenreSlugCleanupRun. When the
-  // alert fires the next question is always "which genres got hit?" —
-  // this endpoint joins the run's [startedAt, finishedAt] window
-  // against `Genre.cleanupDemotion.demotedAt` so the dashboard can
-  // expand the row inline without anyone having to hit Mongo. Mirrors
-  // the run's status: if the run is still `running`, we cap the
-  // window at "now" so the partial demotions show up live.
   app.get(
     "/api/admin/maintenance/genre-slug-cleanup/runs/:id/demotions",
     requireAdmin,
@@ -1230,21 +1204,25 @@ export function registerAdminMaintenanceRoutes(app: Express, deps: any) {
       if(!leader)return void res.status(409).json({error:'already_running'});
       const job:FillTemplatesJobState={jobId:`fill-templates-${Date.now()}`,startedAt:new Date(),finishedAt:null,processed:0,filled:0,skipped:0,aiReady:0,isRunning:true,lastError:null};
       activeFillTemplatesJob=job;
-      const missingEnglish={$or:[{'descriptions.en':{$exists:false}},{'descriptions.en.full':{$exists:false}},{'descriptions.en.full':''},{'descriptions.en.full':null}]};
       void(async()=>{
         try{
-          for await(const station of pgCatalog().iterate(missingEnglish,{fields:['name','country','countryCode','state','tags','language','votes','bitrate','codec','homepage','slug']})){
+          for await(const station of pgCatalog().englishTemplateCandidates()){
             leader.assertOwned();job.processed++;
-            let description;
-            try{description=buildTemplateDescription(station as Parameters<typeof buildTemplateDescription>[0]);}
+            let patch;
+            try{patch=missingEnglishDescriptionPatch(station as Parameters<typeof missingEnglishDescriptionPatch>[0]);}
             catch(error){job.skipped++;logger.error('[fill-templates] template generation failed:',error);continue;}
-            if(!description.full){job.skipped++;continue;}
+            if(!Object.keys(patch).length){job.skipped++;continue;}
             leader.assertOwned();
-            const result=await pgCatalog().update({_id:station._id,...missingEnglish,'manualEditFields.descriptions':{$ne:true}},{$set:{'descriptions.en.full':description.full,'descriptions.en.meta':description.meta}},{respectManualFields:true});
+            const english = station.descriptions?.en;
+            const result=await pgCatalog().update({_id:station._id,
+              'descriptions.en':english === undefined ? {$exists:false} : {$eq:english},
+              'manualEditFields.descriptions':{$ne:true}},{$set:patch},{respectManualFields:true});
             job.filled+=result.modifiedCount;
             if(result.modifiedCount&&station.votes>=1000)job.aiReady++;
             if(!result.modifiedCount)job.skipped++;
           }
+          performanceCache.clearSeoHtml();
+          performanceCache.clearPageData();
         }catch(error:any){job.lastError=error?.message||String(error);logger.error('[fill-templates] failed:',error);}
         finally{try{await leader.release();}finally{job.isRunning=false;job.finishedAt=new Date();}}
       })().catch(error=>{job.lastError=String(error);logger.error('[fill-templates] release failed:',error);});

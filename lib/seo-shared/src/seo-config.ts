@@ -1,4 +1,5 @@
 // SEO Configuration for multilingual support
+import { buildTemplateDescription } from './station-description-template';
 import { reverseTranslateUrl, URL_TRANSLATIONS } from './url-translations';
 import { buildDirectoryIndexSeo } from './directory-index-seo';
 
@@ -1579,19 +1580,21 @@ export function getLocalizedStationDescription(station: any, language: string, t
   if (station.descriptions && station.descriptions[language]) {
     const desc = station.descriptions[language];
     // Handle new object format {full, meta}
-    if (typeof desc === 'object' && desc.full) {
+    if (typeof desc === 'object' && typeof desc.full === 'string' && desc.full.trim()) {
       // Strip placeholder text if present
       let fullDesc = desc.full.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').trim();
       return fullDesc;
     }
     // Handle old string format
-    if (typeof desc === 'string') {
+    if (typeof desc === 'string' && desc.trim()) {
       // Strip placeholder text if present
       let strDesc = desc.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').replace(/^\[SEO META - 155-160 characters\]\s*/i, '').trim();
       return strDesc;
     }
   }
   
+  if (language === 'en') return buildTemplateDescription(station).full;
+
   // FALLBACK: Generate template-based description
   const parts: string[] = [];
   
@@ -1710,6 +1713,8 @@ export function getStationMetaDescription(station: any, language: string, transl
     }
   }
   
+  if (language === 'en') return buildTemplateDescription(station).meta;
+
   // PRIORITY 2: Use database translation (default_station_about) with station name
   // This key contains the localized "currently listening to" template for each language
   // Falls back to trending_no_stations_message if default_station_about not found

@@ -1,0 +1,248 @@
+{
+  "checkedAt": "2026-10-22T13:10:12.024Z",
+  "sourceHash": 2318538553,
+  "concurrency": 2,
+  "summary": {
+    "count": 11,
+    "status": {
+      "200": 11
+    },
+    "noindex": 0,
+    "errors": 0
+  },
+  "rows": [
+    {
+      "url": "https://themegaradio.com/ko",
+      "final": "https://themegaradio.com/ko",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/ko",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/ko"
+    },
+    {
+      "url": "https://themegaradio.com/en",
+      "final": "https://themegaradio.com/en",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/en",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en"
+    },
+    {
+      "url": "https://themegaradio.com/am/station/schlagerplanet-100-roland-kaiser",
+      "final": "https://themegaradio.com/en/station/schlagerplanet-100-roland-kaiser",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/am/station/schlagerplanet-100-roland-kaiser",
+          "status": 301,
+          "location": "/en/station/schlagerplanet-100-roland-kaiser"
+        },
+        {
+          "url": "https://themegaradio.com/en/station/schlagerplanet-100-roland-kaiser",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en/station/schlagerplanet-100-roland-kaiser"
+    },
+    {
+      "url": "https://themegaradio.com/en/station/el-libertador",
+      "final": "https://themegaradio.com/en/station/el-libertador",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/en/station/el-libertador",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en/station/el-libertador"
+    },
+    {
+      "url": "https://themegaradio.com/af/station/dressfm-new-yorker-germany",
+      "final": "https://themegaradio.com/en/station/dressfm-new-yorker-germany",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/af/station/dressfm-new-yorker-germany",
+          "status": 301,
+          "location": "/en/station/dressfm-new-yorker-germany"
+        },
+        {
+          "url": "https://themegaradio.com/en/station/dressfm-new-yorker-germany",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en/station/dressfm-new-yorker-germany"
+    },
+    {
+      "url": "https://themegaradio.com/am/station/895-fm-kbach",
+      "final": "https://themegaradio.com/en/station/89-5-fm-kbach",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/am/station/895-fm-kbach",
+          "status": 301,
+          "location": "/en/station/89-5-fm-kbach"
+        },
+        {
+          "url": "https://themegaradio.com/en/station/89-5-fm-kbach",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en/station/89-5-fm-kbach"
+    },
+    {
+      "url": "https://themegaradio.com/ar/mahta/m80-radio-macau-rock",
+      "final": "https://themegaradio.com/ar/mahta/m80-radio-macau-rock",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/ar/mahta/m80-radio-macau-rock",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/ar/mahta/m80-radio-macau-rock"
+    },
+    {
+      "url": "https://themegaradio.com/am/station/phoenix-radio-1208",
+      "final": "https://themegaradio.com/en/station/phoenix-radio-1208",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/am/station/phoenix-radio-1208",
+          "status": 301,
+          "location": "/en/station/phoenix-radio-1208"
+        },
+        {
+          "url": "https://themegaradio.com/en/station/phoenix-radio-1208",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en/station/phoenix-radio-1208"
+    },
+    {
+      "url": "https://themegaradio.com/am/ጣቢያ/labgate-progressive-rock",
+      "final": "https://themegaradio.com/en/station/labgate-progressive-rock",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/am/ጣቢያ/labgate-progressive-rock",
+          "status": 301,
+          "location": "/en/station/labgate-progressive-rock"
+        },
+        {
+          "url": "https://themegaradio.com/en/station/labgate-progressive-rock",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en/station/labgate-progressive-rock"
+    },
+    {
+      "url": "https://themegaradio.com/af/stasie/globo-97-9-mazatlan-97-9-fm-xhmms-fm-grupo-rsn-mazatlan-sinaloa",
+      "final": "https://themegaradio.com/en/station/globo-97-9-mazatlan-97-9-fm-xhmms-fm-grupo-rsn-mazatlan-sinaloa",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/af/stasie/globo-97-9-mazatlan-97-9-fm-xhmms-fm-grupo-rsn-mazatlan-sinaloa",
+          "status": 301,
+          "location": "/en/station/globo-97-9-mazatlan-97-9-fm-xhmms-fm-grupo-rsn-mazatlan-sinaloa"
+        },
+        {
+          "url": "https://themegaradio.com/en/station/globo-97-9-mazatlan-97-9-fm-xhmms-fm-grupo-rsn-mazatlan-sinaloa",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en/station/globo-97-9-mazatlan-97-9-fm-xhmms-fm-grupo-rsn-mazatlan-sinaloa"
+    },
+    {
+      "url": "https://themegaradio.com/bg/stantsiya/radio-company-easy",
+      "final": "https://themegaradio.com/en/station/radio-company-easy",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://themegaradio.com/bg/stantsiya/radio-company-easy",
+          "status": 301,
+          "location": "/en/station/radio-company-easy"
+        },
+        {
+          "url": "https://themegaradio.com/en/station/radio-company-easy",
+          "status": 200,
+          "location": null
+        }
+      ],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobotsTag": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "noindex": false,
+      "canonical": "https://themegaradio.com/en/station/radio-company-easy"
+    }
+  ]
+}

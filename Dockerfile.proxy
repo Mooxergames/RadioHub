@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN corepack enable && corepack prepare pnpm@11.19.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.28.1 --activate
 
 WORKDIR /app
 
@@ -18,6 +18,8 @@ COPY artifacts/api-server ./artifacts/api-server
 # Legacy deploy resolves workspace patches against every package manifest.
 # Keep the frontend patch owner visible even though only the proxy is installed.
 COPY artifacts/megaradio/package.json ./artifacts/megaradio/
+COPY artifacts/mockup-sandbox/package.json ./artifacts/mockup-sandbox/
+COPY artifacts/megaradio-investor-deck/package.json ./artifacts/megaradio-investor-deck/
 COPY lib ./lib
 COPY scripts ./scripts
 

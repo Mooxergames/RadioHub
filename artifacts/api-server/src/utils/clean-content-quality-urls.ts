@@ -2,10 +2,9 @@
  * Backfill migration for task #17 — Bing ContentQuality cleanup.
  *
  * Scans every Station and:
- *   1. Re-runs the new transliterating slugifier. If the result differs from
- *      the current slug, the old slug is pushed onto `slugAliases` (so the
- *      301 fallback in the URL middleware / SEO renderer keeps working) and
- *      the new slug is written.
+ *   1. Fills genuinely missing slugs. Published station URLs are stable;
+ *      shortening a collision suffix can reassign a deleted station's URL
+ *      to a different broadcaster when that suffix becomes available.
  *   2. Evaluates the central junk rules. If the station qualifies as junk,
  *      `noIndex: true` is set so the sitemap/SSR pipeline drops it.
  *   3. Writes a CSV audit report to `attached_assets/task-17-audit-report.csv`
@@ -27,6 +26,7 @@ import {
   slugifyStationName,
   evaluateJunkStation,
   getEligibleLanguages,
+  getIndexableLanguagesForStation,
   frequencyPrefixBaseSlug,
   automaticNoIndexPatch,
   automaticNoIndexExpectedFilter,
@@ -108,11 +108,11 @@ export async function runJunkCleanup(
     const updateActions: string[] = [];
     const reasons: string[] = [];
 
-    // ---- 1) Slug regeneration ---------------------------------------------
+    // ---- 1) Missing slug assignment ---------------------------------------
     const desired = slugifyStationName(station.name || '') || station.slug || '';
     const currentSlug: string = (station.slug || '').toString();
 
-    if (desired && desired !== currentSlug) {
+    if (desired && !currentSlug) {
       // Resolve collision by appending a -N counter against existing slugs.
       let candidate = desired;
       let counter = 1;
@@ -129,32 +129,11 @@ export async function runJunkCleanup(
         if (counter > 50) break; // safety
       }
 
-      // Collision resolution can land back on the existing slug (e.g. desired
-      // is "foo" but "foo" is taken, so candidate becomes "foo-1" — which is
-      // exactly what this station is already named). In that case there's
-      // nothing to rewrite: skip the update + audit row entirely so we don't
-      // emit no-op `old=X-1 → new=X-1` entries or inflate slugRewrites.
-      if (candidate !== currentSlug) {
-        ops.slug = candidate;
-        reservedSlugs.add(candidate);
-
-        if (currentSlug && currentSlug !== candidate) {
-          // Preserve the old slug as an alias so existing inbound links still
-          // resolve via the SEO renderer's slugAliases lookup.
-          const aliases = new Set<string>(
-            Array.isArray(station.slugAliases) ? station.slugAliases : [],
-          );
-          aliases.add(currentSlug);
-          ops.slugAliases = Array.from(aliases);
-        }
-
-        slugRewrites++;
-        updateActions.push('slug-rewrite');
-        reasons.push(`old=${currentSlug || '∅'} → new=${candidate}`);
-      } else {
-        // Reserve the slug we already own so a later station can't claim it.
-        reservedSlugs.add(candidate);
-      }
+      ops.slug = candidate;
+      reservedSlugs.add(candidate);
+      slugRewrites++;
+      updateActions.push('slug-rewrite');
+      reasons.push(`old=${currentSlug || '∅'} → new=${candidate}`);
     }
 
     // ---- 2) Junk evaluation -----------------------------------------------
@@ -185,7 +164,8 @@ export async function runJunkCleanup(
           slug: baseSlug,
           _id: { $ne: station._id },
         });
-        if (sibling && assessDuplicateGroup([station, sibling]).eligible) dupeOfBase = baseSlug;
+        if (sibling && getIndexableLanguagesForStation(sibling).includes('en') &&
+            assessDuplicateGroup([station, sibling]).eligible) dupeOfBase = baseSlug;
       }
     }
 
@@ -199,7 +179,8 @@ export async function runJunkCleanup(
           slug: freqBase,
           _id: { $ne: station._id },
         });
-        if (sibling && assessDuplicateGroup([station, sibling]).eligible) dupeOfBase = freqBase;
+        if (sibling && getIndexableLanguagesForStation(sibling).includes('en') &&
+            assessDuplicateGroup([station, sibling]).eligible) dupeOfBase = freqBase;
       }
     }
 
@@ -242,7 +223,8 @@ export async function runJunkCleanup(
     // ---- 4) Write -----------------------------------------------------------
     if (!dryRun) {
       options.assertOwned?.();
-      await pgCatalog().update({ _id: station._id, ...automaticNoIndexExpectedFilter(station) }, { $set: ops }, { respectManualFields: true });
+      await pgCatalog().update({ _id: station._id, ...automaticNoIndexExpectedFilter(station),
+        ...(ops.slug !== undefined ? { slug: { $eq: station.slug ?? null } } : {}) }, { $set: ops }, { respectManualFields: true });
     }
   }
 

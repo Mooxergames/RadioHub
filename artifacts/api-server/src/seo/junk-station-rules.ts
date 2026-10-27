@@ -7,7 +7,8 @@
  *      and accented Latin characters instead of stripping them.
  *   2. isJunkStation(station) — detect "thin / low-value" station records
  *      that should never enter Google or Bing's index (test feeds, codec
- *      suffix names, song titles posing as stations, accidental duplicates).
+ *      signals and empty identities). Duplicate identity needs catalog evidence;
+ *      a format label or music genre alone is not a content-quality verdict.
  *   3. getEligibleLanguages(station) — determine which UI languages are an
  *      "appropriate language match" for a given station so the sitemap and
  *      hreflang only emit those variants and the others get noindex.
@@ -71,43 +72,8 @@ const JUNK_SLUG_SUBSTRINGS = [
   'test-feed',
   'test-stream',
   'test-loop',
-  'pink-noise',
-  'white-noise',
   'sweep-tone',
   'silence-stream',
-];
-
-/**
- * Suffix tokens that almost always indicate the station record is not actually
- * a distinct station — it's a codec/format/bitrate variant, a song name, or a
- * collision-counter duplicate created by the old slug generator.
- */
-const JUNK_SLUG_SUFFIXES = [
-  '-mp3',
-  '-mp3-1',
-  '-mp3-2',
-  '-aac',
-  '-aac-1',
-  '-aac-plus',
-  '-aacp',
-  '-dab',
-  '-dab-plus',
-  '-flac',
-  '-ogg',
-  '-opus',
-  '-128',
-  '-192',
-  '-256',
-  '-320',
-];
-
-/** Regex hints that the "name" is a song/program rather than a station. */
-const SONG_LIKE_NAME_PATTERNS: RegExp[] = [
-  /\bremix\b/i,
-  /\bphonk\b/i,
-  /\bnon[\s-]?stop\s+music\b/i,
-  /\bonly\s+\w+\s+(mp3|aac)\b/i,   // "Only Mozart MP3"
-  /\bmore\s+bounce\s+to\s+the\s+ounce\b/i,
 ];
 
 export interface JunkDecision {
@@ -195,21 +161,13 @@ export function evaluateJunkStation(station: {
   // marks a record junk when an actual sibling with the canonical base slug
   // exists in the database.
 
-  for (const suffix of JUNK_SLUG_SUFFIXES) {
-    if (slug.endsWith(suffix)) {
-      return { isJunk: true, reason: `codec-suffix:${suffix}` };
-    }
-  }
+  // MP3/AAC/DAB describe delivery; Remix/Phonk and white/pink noise describe programming.
+  // Neither proves a duplicate or a fake station. Catalog identity checks
+  // handle actual siblings; existing stored exclusions need explicit review.
 
   for (const sub of JUNK_SLUG_SUBSTRINGS) {
     if (slug.includes(sub) || lowerName.includes(sub.replace(/-/g, ' '))) {
       return { isJunk: true, reason: `test-feed:${sub}` };
-    }
-  }
-
-  for (const re of SONG_LIKE_NAME_PATTERNS) {
-    if (re.test(lowerName)) {
-      return { isJunk: true, reason: `song-or-program-name:${re.source}` };
     }
   }
 
@@ -225,12 +183,12 @@ export function isJunkStation(station: any): boolean {
   return evaluateJunkStation(station).isJunk;
 }
 
-/** An unknown old exclusion is not permission to reindex. Its rich offline
- * information page can still be shown with noindex, without altering the row.
- * Explicit manual decisions, actual quality junk and redirects stay excluded.
+/** An unknown old exclusion is not evidence that an existing page is gone.
+ * Keep its information page with noindex until identity review, independently
+ * of stream health. Manual decisions, actual junk and redirects stay excluded.
  */
-export function canRenderLegacyOfflineInformation(station: any): boolean {
-  return station?.lastCheckOk === false && station.noIndex === true &&
+export function canRenderLegacyStationInformation(station: any): boolean {
+  return station?.noIndex === true &&
     station.manualEditFields?.noIndex === undefined && !station.redirectToSlug &&
     !isNumericOnlySlug(station.slug) && !isJunkStation(station);
 }
@@ -306,30 +264,6 @@ export function frequencyClusterKey(slug?: string | null): string | null {
   return s || null;
 }
 
-// -----------------------------------------------------------------------------
-// 3. Eligible languages per station
-// -----------------------------------------------------------------------------
-
-/**
- * Major-diaspora / lingua-franca languages that are reasonable for any
- * station regardless of country. English is always included.
- */
-// AI Translation Languages — STATION-LEVEL META (admin/stations.tsx):
-// 14 dilde her radyonun meta title + meta description + full description için
-// AI çevirisi var ve Mongo `descriptions[lang]` alanları dolu. Bu 14 dil
-// "universal" — yani station'ın countryCode'una bakılmaksızın bu dillerin
-// hepsinde indexable.
-//
-// ÖNEMLİ AYRIM: Bu liste yalnızca per-station indexability'yi belirler.
-// **Sitemap-index'te kaç dil yayınlanacağı** ayrı bir karardır:
-//   `qualified-languages.ts` → `computeFromTranslations()` → tüm 57 enabled
-//   SEO_LANGUAGES içinden UI çeviri (REQUIRED_*_SEO_KEYS) tam olan dilleri
-//   seçer. Yani UI tarafı 25 dilde tam ise sitemap 25 dilde yayın yapar; bu
-//   14 ile karıştırılmamalı.
-//
-// Bu liste DEĞİŞİRSE: kullanıcının admin paneldeki "AI Translation Languages"
-// listesi ile sync tutulmalı. Önceki ('en' tek dil) sürüm 13 yeni dilde
-// stationların sitemap'ten düşmesine yol açıyordu.
 const UNIVERSAL_LANGUAGES = [
   'en', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'ar',
   'zh', 'tr', 'ja', 'ko', 'hi', 'he',
@@ -378,7 +312,7 @@ export function getEligibleLanguages(station: {
   language?: string;
   languageCodes?: string;
   descriptions?: Record<string, { full?: string; meta?: string } | null | undefined> | null;
-}): string[] {
+}, completeDescriptionLanguages?: readonly string[]): string[] {
   // QUALITY-CORE (2026-07-01): previously seeded with ALL 14 universal
   // languages unconditionally, which minted 14 thin near-duplicate pages for
   // every non-junk station (~60K stations × 14 ≈ 840K URLs) — the dominant
@@ -421,6 +355,14 @@ export function getEligibleLanguages(station: {
   // This is what lets multi-language stations like Kronehit get indexed in
   // every language where they genuinely have content, not just in their
   // country-of-origin language.
+  // Only trusted internal SQL readers supply this argument. Provider/source
+  // properties with the same name must never expand SSR language eligibility.
+  if (completeDescriptionLanguages) {
+    for (const rawLang of completeDescriptionLanguages) {
+      if (typeof rawLang === 'string' && KNOWN_LANGUAGE_CODES.has(rawLang.toLowerCase())) set.add(rawLang.toLowerCase());
+    }
+    return Array.from(set);
+  }
   const descriptions = station.descriptions;
   if (descriptions && typeof descriptions === 'object') {
     for (const rawLang of Object.keys(descriptions)) {
@@ -428,8 +370,8 @@ export function getEligibleLanguages(station: {
       if (!KNOWN_LANGUAGE_CODES.has(lang)) continue;
       const entry = descriptions[rawLang];
       if (!entry) continue;
-      const full = (entry.full || '').trim();
-      const meta = (entry.meta || '').trim();
+      const full = typeof entry.full === 'string' ? entry.full.trim() : '';
+      const meta = typeof entry.meta === 'string' ? entry.meta.trim() : '';
       // Require BOTH fields non-empty so a half-filled record does not
       // advertise a language that will render a blank/thin page.
       if (full.length > 0 && meta.length > 0) {
@@ -499,6 +441,7 @@ export function getIndexableLanguagesForStation(
     redirectToSlug?: string | null;
   },
   qualifiedLangs?: string[] | ReadonlyArray<string> | Set<string>,
+  completeDescriptionLanguages?: readonly string[],
 ): string[] {
   if (!station) return [];
   if (station.noIndex === true) return [];
@@ -511,7 +454,7 @@ export function getIndexableLanguagesForStation(
   if (isNumericOnlySlug(station.slug)) return [];
   if (isJunkStation(station)) return [];
 
-  const eligible = getEligibleLanguages(station);
+  const eligible = getEligibleLanguages(station, completeDescriptionLanguages);
 
   if (!qualifiedLangs) return eligible;
 

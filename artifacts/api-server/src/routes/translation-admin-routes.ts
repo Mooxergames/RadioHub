@@ -21,6 +21,7 @@ import { logger } from "../utils/logger";
 import { stripPlaceholders } from "./shared-utils";
 import { refreshCommunityFavoritesCache, fetchTranslationsForLanguage, refreshTranslationsCache } from "./cache-refresh-utils";
 import { syncService } from "../services/sync";
+import { registerAdminStationSyncPolicyRoutes } from './admin-station-sync-policy-routes';
 import { isQuotaExceeded, isQuotaError, handleQuotaError, safeWrite } from "../utils/quota-guard";
 import { performanceCache } from "../performance-cache";
 import { getPhaseCTranslations } from "../data/phase-c-translations";
@@ -57,6 +58,7 @@ async function healthyRadioBrowserStations(order: 'clickCount' | 'votes' | 'upda
 export function registerTranslationAdminRoutes(app: Express, deps: any) {
     app.use(['/api/filters','/api/recently-played','/api/community-favorites','/api/radio-browser','/api/user/favorites','/api/users'], publicStationResponseCache);
     const { requireAuth, requireAdmin } = deps;
+    registerAdminStationSyncPolicyRoutes(app, requireAdmin);
     const userEngagementService = new UserEngagementService();
     async function authenticatedUserId(req: any): Promise<string | undefined> {
         const sessionUserId = req.session?.userId || req.session?.user?.userId;
@@ -244,22 +246,22 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
         }
         try {
             const { pgTranslationSync } = await import('../data/postgres-translation-sync-store');
-            await pgTranslationSync().withLeader(async writer => {
+            const reply = await pgTranslationSync().withLeader(async writer => {
             // missingOnly=true → only insert truly missing translations, never overwrite existing rows
             const missingOnly = req.query.missingOnly === 'true' || req.body?.missingOnly === true;
             // Skip English - no need to translate
             if (code.toLowerCase() === 'en') {
-                return void res.json({
+                return { status: 200, body: {
                     message: 'English is the source language, no translation needed',
                     stats: { total: 0, existing: 0, translated: 0, fixed: 0, failed: 0 }
-                });
+                } };
             }
             // Find the language
             const language = (await pgLocalization().findTranslationLanguage(code.toLowerCase()));
             if (!language) {
-                return void res.status(404).json({ error: 'Translation language not found' });
+                return { status: 404, body: { error: 'Translation language not found' } };
             }
-            if (!language.isEnabled) return void res.status(409).json({ error: 'Translation language is disabled' });
+            if (!language.isEnabled) return { status: 409, body: { error: 'Translation language is disabled' } };
             // Protected terms that should NOT be translated (brand names and placeholders)
             const PROTECTED_TERMS = [
                 'Mega Radio', 'MegaRadio', 'mega radio',
@@ -353,7 +355,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
                 }
             }
             if (keysToTranslate.length === 0) {
-                return void res.json({
+                return { status: 200, body: {
                     message: 'All translations are complete and correct for this language',
                     stats: {
                         total: allKeys.length,
@@ -362,7 +364,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
                         fixed: 0,
                         failed: 0
                     }
-                });
+                } };
             }
             logger.log(`🔄 ${language.name}: Found ${keysToTranslate.filter(k => k.isNew).length} missing, ${keysToFix.length} to fix`);
             // Complete language mapping for all 57 languages
@@ -514,7 +516,7 @@ ${keysText}`;
                 logger.log(`✅ ${language.name}: Translated ${translated} new, fixed ${fixed} incorrect`);
             }
             writer.assertOwned();
-            res.json({
+            return { status: 200, body: {
                 message: `Translation complete for ${language.name}`,
                 stats: {
                     total: allKeys.length,
@@ -524,8 +526,10 @@ ${keysText}`;
                     failed,
                     keysFixed: keysToFix
                 }
+            } };
             });
-            });
+            // A completed response must not race the asynchronous leader unlock.
+            res.status(reply.status).json(reply.body);
         }
         catch (error: any) {
             console.error('Error auto-translating language:', error);
@@ -1539,9 +1543,6 @@ ${keysText}`;
             res.status(500).json({ error: 'Failed to fetch user profile' });
         }
     });
-    // REMOVED: Conflicting route for favorites that only handled MongoDB IDs
-    // Using slug-capable route instead which is defined further below
-    // GET COMMUNITY FAVORITES - Most-favorited stations across all users (Public)
     app.get("/api/community-favorites", async (req, res) => {
         try {
             const { country } = req.query;
@@ -1921,7 +1922,6 @@ ${keysText}`;
                 if (!user.isPublicProfile) {
                     updateData.isPublicProfile = true;
                 }
-                // Generate slug if missing or if it's a MongoDB ID
                 if (!user.slug || /^[0-9a-fA-F]{24}$/.test(user.slug)) {
                     updateData.slug = await generateUserSlug(user, user._id);
                 }
