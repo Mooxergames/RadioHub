@@ -18,16 +18,16 @@ import {
 import { buildBlogSitemap } from "../src/seo/blog-sitemap";
 import { getKnownOgImageDimensions } from "@workspace/seo-shared/og-image-metadata";
 
-test("catalog retains the original 140 editions and adds exactly 40 sparse market editions", () => {
+test("catalog retains the original 140 editions and adds exactly 48 sparse market editions", () => {
   assert.equal(BLOG_IDS.length, 10);
-  assert.equal(BLOG_ARTICLE_IDS.length, 50);
-  assert.equal(Object.keys(MARKET_BLOG_MANIFEST).length, 40);
+  assert.equal(BLOG_ARTICLE_IDS.length, 58);
+  assert.equal(Object.keys(MARKET_BLOG_MANIFEST).length, 48);
   assert.equal(
     BLOG_LOCALES.reduce(
       (count, locale) => count + blogIdsForLocale(locale).length,
       0,
     ),
-    180,
+    188,
   );
   for (const id of BLOG_ARTICLE_IDS) {
     const metadata = blogMetadata(id);
@@ -77,16 +77,16 @@ test("Hong Kong articles keep /zh URLs but use their genuine language tag; core 
   assert.equal(blogAlternates("radio-data-usage").length, 15);
 });
 
-test("194 sitemap URLs have only real reciprocal alternates and stable per-edition dates", () => {
+test("202 sitemap URLs have only real reciprocal alternates and stable per-edition dates", () => {
   const entries = new XMLParser({ ignoreAttributes: false }).parse(
     buildBlogSitemap(),
   ).urlset.url;
-  assert.equal(entries.length, 194);
+  assert.equal(entries.length, 202);
   const byUrl = new Map<string, any>(
     entries.map((entry: any) => [entry.loc, entry]),
   );
-  assert.equal(byUrl.size, 194);
-  assert.equal(BLOG_SITEMAP_UPDATED, "2026-10-27T00:00:00+01:00");
+  assert.equal(byUrl.size, 202);
+  assert.equal(BLOG_SITEMAP_UPDATED, "2026-10-27T07:46:55+01:00");
   for (const entry of entries) {
     const route = parseBlogPath(new URL(entry.loc).pathname)!;
     if (route.id) assert.equal(entry.lastmod, blogMetadata(route.id).updatedAt);

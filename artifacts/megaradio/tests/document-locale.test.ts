@@ -43,7 +43,7 @@ it('preserves the actual article language on hydration and resets it on SPA navi
   }
 });
 
-it('uses the same document language as SSR for all 194 published blog routes', () => {
+it('uses the same document language as SSR for all 202 published blog routes', () => {
   let checked = 0;
   for (const locale of BLOG_LOCALES) {
     for (const id of [undefined, ...blogIdsForLocale(locale)]) {
@@ -53,7 +53,7 @@ it('uses the same document language as SSR for all 194 published blog routes', (
       checked++;
     }
   }
-  expect(checked).toBe(194);
+  expect(checked).toBe(202);
 });
 
 it.each([

@@ -1,5 +1,245 @@
 [
   {
+    "id": "wind-up-radio-uk-emergency-kit",
+    "title": "Wind-up radios for a UK emergency kit: what to prepare",
+    "seoTitle": "Wind-up radio for a UK emergency kit: FM, power and stations",
+    "description": "Follow the current Be Ready advice on battery or wind-up FM radios, record local frequencies, and separate an offline receiver from an online stream.",
+    "primaryKeyword": "wind up radio UK emergency kit",
+    "secondaryKeywords": [
+      "be ready for emergency",
+      "battery FM radio power cut",
+      "BBC local radio frequencies",
+      "radio without internet"
+    ],
+    "imageAlt": "Illustration of a portable radio and headphones with pink accents on a dark background",
+    "imageId": "listen-to-radio-online",
+    "market": "GB",
+    "intro": "For a UK emergency kit, the government's current Be Ready checklist recommends an FM radio powered by batteries or a winding mechanism, together with a written record of useful news frequencies. As of 27 October 2026, that is the practical starting point: identify a broadcast receiver and its power supply, not simply an app with radio in its name. The checklist concerns preparation for disruption. It is not an announcement that a particular emergency is about to happen.",
+    "sections": [
+      {
+        "heading": "Start with the official household checklist",
+        "paragraphs": [
+          "Be Ready places communications alongside the other things a household may need for three days. Its advice is to review what you already have and build up what is missing gradually. A radio is one part of that wider preparation, not a reason to replace the whole checklist with a shopping list.",
+          "Keep the government's current page as your reference. Consider who needs to find the radio and read the frequency note. Clear controls and legible station details are more useful than unfamiliar features."
+        ]
+      },
+      {
+        "heading": "Check the receiving mode and the power source separately",
+        "paragraphs": [
+          "Look for an actual FM tuner in the device specification. Battery operation or a winding handle describes how a device gets power; neither tells you, by itself, what it receives. If the set also offers DAB or internet radio, identify which controls select each mode rather than treating the names as interchangeable.",
+          "Read your model's instructions for batteries, charging and winding. Do not infer listening time from another radio's description. Start with understanding any suitable receiver you already own; no particular set is ranked or presented as independently tested here."
+        ]
+      },
+      {
+        "heading": "Write down frequencies for the area where you live",
+        "paragraphs": [
+          "The BBC's official frequency table gives useful examples: BBC London is listed at 94.9 FM, while BBC Radio Manchester has 95.1 and 104.6 FM. These are local entries, not frequencies to use throughout Britain. The table also directs readers to the BBC transmitter checker for their location.",
+          "While you have connectivity, find the appropriate local or nations service and record its name, frequency and band together. A number without the station name is easy to misread later. Put the note beside the receiver rather than leaving the only copy in a browser bookmark that needs the internet."
+        ]
+      },
+      {
+        "heading": "Know why a phone stream is a different route",
+        "paragraphs": [
+          "An FM receiver uses its aerial to receive a broadcast; online audio needs a working internet connection. The government's power-cut guidance explains that home internet and mobile service can be disrupted. A charged phone still needs a usable network for streaming. A power bank supplies energy, not connectivity.",
+          "When your connection works, the BBC Radio 4 listing below is a way to identify a station for ordinary online news listening. It is not evidence of offline reception. MegaRadio is not a physical FM receiver or an official warning system, and opening its station page does not turn a phone into either. Broadcast reception also depends on coverage and operating infrastructure."
+        ]
+      },
+      {
+        "heading": "Make a small, usable radio checklist",
+        "paragraphs": [
+          "Keep these radio details with your household plan. They help avoid equipment confusion without promising that one listening method works in every disruption."
+        ],
+        "items": [
+          "Identify the receiver's FM setting and the controls needed to select a frequency.",
+          "Keep its instructions accessible and follow the model's stated power requirements.",
+          "Store the written news-station frequencies with the radio, along with suitable spare batteries where applicable.",
+          "Distinguish the physical receiver from any internet-only player on the same device.",
+          "Include the radio in the household's periodic review so the note and equipment still match its needs."
+        ]
+      },
+      {
+        "heading": "Keep preparation separate from live information",
+        "paragraphs": [
+          "Be Ready's power-cut guidance advises seeking stations that remain on air and considering FM and digital receiving modes. That is different from assuming one preset is guaranteed to keep broadcasting. Use the current official guidance for what to do during an actual disruption; this article is not a live incident bulletin.",
+          "For routine listening, decide whether you want national news or local information. A national station's identity does not establish that it carries the update for your area. Match the station to the information sought, not just a familiar logo."
+        ]
+      }
+    ],
+    "faq": [
+      {
+        "question": "Does a wind-up radio need the internet?",
+        "answer": "A set receiving FM broadcasts does not need an internet connection for that mode. Check that the particular device really has an FM tuner. A winding mechanism is a power feature, not proof of broadcast reception."
+      },
+      {
+        "question": "Can I use MegaRadio instead of a battery radio during an outage?",
+        "answer": "Not as an offline replacement. MegaRadio's online listening depends on connectivity. Your phone may have power while the network it needs is unavailable; keep that separate from a physical broadcast receiver and the official household guidance."
+      },
+      {
+        "question": "Is there one BBC FM frequency for every part of the UK?",
+        "answer": "No. Services and frequencies vary by area. Use the BBC's official table and location checker to identify the relevant service, then keep its station name and tuning details on your written note."
+      }
+    ],
+    "links": [
+      {
+        "route": "station:bbc-radio-4",
+        "label": "Find BBC Radio 4 for online news listening when connected"
+      },
+      {
+        "route": "blog:internet-radio-explained",
+        "label": "Compare internet radio with broadcast reception"
+      },
+      {
+        "route": "blog:news-talk-radio-guide",
+        "label": "Choose between national and local news listening"
+      },
+      {
+        "route": "blog:radio-app-iphone-android",
+        "label": "Check how radio listening works on your phone"
+      }
+    ],
+    "sources": [
+      {
+        "name": "GOV.UK Be Ready: current household preparation checklist",
+        "url": "https://beready.campaign.gov.uk/be-ready-for-emergencies/"
+      },
+      {
+        "name": "GOV.UK Be Ready: preparing for power cuts",
+        "url": "https://beready.campaign.gov.uk/be-informed-about-hazards/power-cuts/"
+      },
+      {
+        "name": "BBC Reception: official FM and AM station frequencies",
+        "url": "https://www.bbc.co.uk/reception/help-guides/fmmw-radio/fm-and-am-radio-frequencies"
+      }
+    ],
+    "relatedIds": [
+      "internet-radio-explained",
+      "news-talk-radio-guide",
+      "radio-app-iphone-android"
+    ]
+  },
+  {
+    "id": "world-series-2026-radio-audio",
+    "title": "World Series 2026 radio: official audio and local affiliates",
+    "seoTitle": "World Series 2026 radio: audio, affiliates and access checks",
+    "description": "Find the announced World Series audio routes, check the Brewers-Rays game date, and distinguish local radio, subscription audio and video restrictions.",
+    "primaryKeyword": "World Series 2026 radio broadcast",
+    "secondaryKeywords": [
+      "Brewers vs Rays radio",
+      "World Series Game 3 radio",
+      "World Series live audio",
+      "MLB postseason audio subscription"
+    ],
+    "imageAlt": "Illustration of a green microphone surrounded by curved sound-wave lines on a dark background",
+    "imageId": "news-talk-radio-guide",
+    "market": "US",
+    "intro": "ESPN Radio is the announced national English-language audio broadcaster for the 2026 World Series between the Milwaukee Brewers and Tampa Bay Rays. As of October 27, 2026, start with the broadcaster's dated event announcement, then check your chosen service's access conditions. A local affiliate, an audio subscription and a general sports-radio stream are not interchangeable ways to find a particular game.",
+    "sections": [
+      {
+        "heading": "Check the game date before looking for commentary",
+        "paragraphs": [
+          "ESPN's October 21 announcement scheduled Game 3 for October 26 at 8 p.m. ET. That listed start is now in the past. Its next scheduled game is Game 4 on October 27 at 8 p.m. ET. Keep the Eastern Time label when comparing the listing with your own clock, and recheck the official schedule for changes.",
+          "If you searched for Game 3, decide whether you want information about that game or commentary on the next one. Check the date and game number: a page mentioning an earlier matchup is not necessarily the current game player."
+        ]
+      },
+      {
+        "heading": "Use the event announcement, not just a familiar station name",
+        "paragraphs": [
+          "For the series audio, ESPN's announcement names ESPN Radio, the ESPN App and SiriusXM channel 80. Those are announced distribution routes, not a promise that every account, location or third-party player has access without charge. Follow the provider's current event listing and read any access message it presents.",
+          "The ESPN Radio link below identifies regular sports programming in MegaRadio, not World Series access. The listing does not establish specific game rights or an MLB partnership. Use the event provider's information for that separate access check."
+        ]
+      },
+      {
+        "heading": "Separate a local affiliate from its website stream",
+        "paragraphs": [
+          "The Brewers' official affiliate directory lists Milwaukee's WTMJ at 620 AM and 103.3 FM. Use the club's directory to identify a local radio option, then confirm the game in that station's current listings. Record the band along with the frequency so you know what to select on a receiver.",
+          "Do not carry an over-the-air assumption into a browser. The listing does not establish distribution rights for a website, app or aggregator. If the online entry does not identify the event, return to the rightsholder's information rather than treating a generic play button as confirmation."
+        ]
+      },
+      {
+        "heading": "Check audio subscriptions separately from video restrictions",
+        "paragraphs": [
+          "MLB currently offers paid MLB+ plans that include live postseason audio and renew automatically. Consult the current package page before buying, including the terms that apply to your intended use. Do not assume that an old promotion, another person's account or a regular-season description answers your postseason question.",
+          "MLB.TV's U.S. postseason video guidance requires an eligible subscription and participating pay-TV authentication for selected games. Keep that video check separate from your audio inquiry. A video blackout message is not enough to decide what audio access you have, nor does an available audio offer prove that the corresponding video is included."
+        ]
+      },
+      {
+        "heading": "A listening checklist before the scheduled start",
+        "paragraphs": [
+          "Keep the event details alongside the service information. That helps separate an access question from a device problem without assuming every player carries the game."
+        ],
+        "items": [
+          "Confirm the game number, absolute date and time zone in the current official listing.",
+          "Choose whether you want national commentary, a local broadcast or general sports discussion.",
+          "Check the provider's event entry, account entitlement and any location conditions before relying on that route.",
+          "For a physical radio, identify the station and band; for online audio, check the connection and intended speaker or headphones.",
+          "Keep the exact wording of an access message if you need help from the provider, without sharing account credentials."
+        ]
+      },
+      {
+        "heading": "Match the audio to what you actually want to follow",
+        "paragraphs": [
+          "A series search can lead to commentary, an interview, news discussion or an older recording. Read the item description instead of relying on team names alone. Look for an explicitly identified game if you want the play-by-play; for analysis, a general sports program may be the better match.",
+          "If the sound differs from your expectation, check the selected program and the provider's explanation before changing device settings. This guide has not tested playback or authenticated access and does not promise recordings of past games."
+        ]
+      }
+    ],
+    "faq": [
+      {
+        "question": "Where should I check the official national World Series audio?",
+        "answer": "Start with ESPN's dated 2026 series announcement and the provider's current event listing. Use those to identify the intended broadcast, then verify access for the service you plan to use. A general station page is not equivalent evidence."
+      },
+      {
+        "question": "Does an affiliate's AM or FM broadcast guarantee the game on its web stream?",
+        "answer": "No such guarantee follows from affiliation alone. Check the station's event information and online availability separately. A frequency in a team directory is not permission for every website or app to redistribute the event."
+      },
+      {
+        "question": "Can I assume audio is unavailable because the video is blacked out?",
+        "answer": "No. Check the official audio offer and your entitlement separately from the video conditions. Do not infer either universal audio access or universal audio unavailability from a video restriction, and do not assume a subscription can be bypassed."
+      }
+    ],
+    "links": [
+      {
+        "route": "station:espn-radio",
+        "label": "Find ESPN Radio for regular sports programming, not game access"
+      },
+      {
+        "route": "blog:internet-radio-explained",
+        "label": "Understand station streams and access limits"
+      },
+      {
+        "route": "blog:radio-app-iphone-android",
+        "label": "Check your phone's listening setup"
+      },
+      {
+        "route": "blog:news-talk-radio-guide",
+        "label": "Choose sports discussion or news listening"
+      }
+    ],
+    "sources": [
+      {
+        "name": "ESPN: 2026 World Series audio routes and schedule, October 21, 2026",
+        "url": "https://espnpressroom.com/press-release/espn-to-provide-comprehensive-coverage-of-the-2026-world-series-presented-by-capital-one/"
+      },
+      {
+        "name": "Milwaukee Brewers: official radio affiliate directory",
+        "url": "https://www.mlb.com/brewers/schedule/brewers-radio-network"
+      },
+      {
+        "name": "MLB: current MLB+ package and renewal terms",
+        "url": "https://www.mlb.com/live-stream-games/subscribe/mlbplus"
+      },
+      {
+        "name": "MLB: U.S. postseason video access requirements",
+        "url": "https://www.mlb.com/live-stream-games/help-center/subscription-access-how-to-watch-mlb-postseason"
+      }
+    ],
+    "relatedIds": [
+      "internet-radio-explained",
+      "radio-app-iphone-android",
+      "news-talk-radio-guide"
+    ]
+  },
+  {
     "id": "npr-local-station-stream",
     "title": "NPR live radio: Find your local station, not just a podcast feed",
     "seoTitle": "NPR local station live stream: Find the right feed",

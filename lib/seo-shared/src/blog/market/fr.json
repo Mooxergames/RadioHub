@@ -1,5 +1,126 @@
 [
   {
+    "id": "changement-heure-hiver-2026-radio-reveil",
+    "title": "Heure d'hiver 2026 : vérifier son radio-réveil après le 25 octobre",
+    "seoTitle": "Heure d'hiver 2026 : régler son radio-réveil sans se tromper",
+    "description": "Le changement d'heure du 25 octobre est passé. Vérifiez l'horloge et l'alarme de votre radio-réveil, puis distinguez la FM de l'écoute sur téléphone.",
+    "primaryKeyword": "changement d'heure hiver 2026 radio réveil",
+    "secondaryKeywords": [
+      "régler radio réveil heure hiver",
+      "radio réveil une heure d'avance",
+      "réglage automatique heure téléphone",
+      "France Inter le matin"
+    ],
+    "imageAlt": "Illustration violette d'un téléphone avec un symbole de lecture et d'un casque audio",
+    "imageId": "radio-app-iphone-android",
+    "market": "FR",
+    "intro": "Le passage à l'heure d'hiver 2026 a eu lieu en France métropolitaine dans la nuit du 24 au 25 octobre : à 3 h, les horloges sont revenues à 2 h. Au 27 octobre 2026, il ne faut donc plus anticiper ce changement, mais vérifier qu'il a été pris en compte. Si votre radio-réveil affiche une heure d'avance, commencez par identifier son mode de réglage. Un poste à horloge manuelle, un modèle à correction automatique et un téléphone ne demandent pas forcément la même intervention.",
+    "sections": [
+      {
+        "heading": "Comparer les horloges avant de toucher aux boutons",
+        "paragraphs": [
+          "La date et le sens du changement sont confirmés par Service Public. Pour un appareil utilisé en France métropolitaine, le fuseau à retenir est Europe/Paris. Au 27 octobre, il correspond à UTC+1 ; ce décalage fixe ne doit toutefois pas remplacer un fuseau géographique pour toute l'année.",
+          "Comparez le poste avec un téléphone dont vous avez vérifié les réglages. Notez l'écart avant d'intervenir. Si les affichages concordent, une nouvelle correction créerait un décalage. L'heure entendue dans un programme ne remplace pas la vérification des appareils."
+        ]
+      },
+      {
+        "heading": "Un tuner FM ne dit pas comment l'horloge se règle",
+        "paragraphs": [
+          "Cherchez la référence du radio-réveil et les rubriques consacrées à l'horloge et au changement saisonnier dans sa notice. S'il est à réglage manuel, corrigez l'affichage en suivant cette procédure précise. S'il possède une fonction automatique, vérifiez son état avant d'ajouter une correction manuelle.",
+          "Sony présente par exemple l'ICF-C1 avec un tuner AM/FM analogique et une fonction automatique de passage à l'heure d'été. Cela ne donne pas une méthode valable pour tous les postes : cela montre surtout que recevoir la FM ne signifie pas nécessairement régler l'heure à la main. Ne transposez pas les boutons d'un modèle à un autre."
+        ]
+      },
+      {
+        "heading": "Sur le téléphone, séparer l'heure et l'alarme",
+        "paragraphs": [
+          "Pour l'iPhone, Apple demande notamment une connexion Internet, un logiciel à jour et l'activation du réglage automatique dans Réglages, Général, Date et heure. Son aide détaille aussi le service système de définition du fuseau horaire. Si un choix manuel de ville est nécessaire, sélectionnez Paris pour cet usage métropolitain. Sur un autre téléphone, consultez l'aide de son fabricant plutôt que de chercher des menus identiques.",
+          "Ouvrez ensuite votre alarme habituelle et relisez l'heure souhaitée ainsi que les jours prévus. Ne déduisez pas de l'heure correcte à l'écran que tous les paramètres de votre prochain réveil sont forcément ceux que vous vouliez."
+        ]
+      },
+      {
+        "heading": "Retrouver France Inter pour l'écoute du matin",
+        "paragraphs": [
+          "Pour reprendre votre écoute, identifiez d'abord la station : la fiche France Inter proposée ci-dessous sert à la retrouver dans MegaRadio. Le guide officiel de Radio France fournit, de son côté, les différentes voies d'écoute et un accès aux fréquences. Une fréquence concerne la réception radio ; une page de direct concerne une autre voie d'accès.",
+          "Choisir France Inter ne programme pas à lui seul un réveil. Sur un poste, l'alarme radio dépend des fonctions du modèle. Sur un téléphone, distinguez l'application d'alarme du lecteur que vous ouvrez. Une page MegaRadio n'est pas présentée ici comme une alarme ni comme une garantie de lancement automatique."
+        ]
+      },
+      {
+        "heading": "La vérification avant le prochain matin",
+        "paragraphs": [
+          "Après la mise à l'heure, parcourez les réglages utiles de votre appareil sans modifier plusieurs choses à la fois. Cette petite liste permet de séparer une erreur d'horloge d'un mauvais choix de source sonore."
+        ],
+        "items": [
+          "Vérifiez l'heure affichée et le fuseau utilisé avant toute nouvelle correction.",
+          "Contrôlez le réglage saisonnier automatique, s'il existe sur votre modèle.",
+          "Relisez l'heure de l'alarme, son activation et ses jours de répétition éventuels.",
+          "Si vous utilisez l'alarme radio du poste, vérifiez la station choisie et son volume selon la notice.",
+          "Pour une écoute web sur téléphone, vérifiez séparément la connexion et la sortie audio souhaitée."
+        ]
+      },
+      {
+        "heading": "Si le décalage reste présent",
+        "paragraphs": [
+          "Conservez la référence du poste, l'heure affichée et le réglage modifié : ces éléments aideront l'assistance du fabricant si le décalage revient. Si seule l'écoute pose problème, recherchez plutôt la cause du côté du mode de réception ou du lecteur. Une horloge incorrecte et une absence de son demandent des vérifications différentes."
+        ]
+      }
+    ],
+    "faq": [
+      {
+        "question": "Quand le changement d'heure d'hiver 2026 a-t-il eu lieu ?",
+        "answer": "En France métropolitaine, il a eu lieu le dimanche 25 octobre 2026 : à 3 h, il était de nouveau 2 h. Au 27 octobre, cette étape est passée ; vérifiez vos appareils sans appliquer une deuxième correction inutile."
+      },
+      {
+        "question": "Tous les radios-réveils FM doivent-ils être réglés manuellement ?",
+        "answer": "Non. Le tuner et l'horloge sont deux fonctions distinctes. Cherchez dans la notice de votre modèle s'il existe un réglage saisonnier automatique, puis vérifiez son état avant de changer l'heure à la main."
+      },
+      {
+        "question": "La fiche France Inter sur MegaRadio peut-elle remplacer mon réveil ?",
+        "answer": "La fiche sert à retrouver la station pour l'écoute. Elle ne constitue pas une fonction d'alarme. Utilisez les réglages de réveil réellement proposés par votre téléphone ou votre poste, sans supposer qu'un onglet lancera automatiquement la radio."
+      }
+    ],
+    "links": [
+      {
+        "route": "station:france-inter",
+        "label": "Retrouver France Inter pour l'écoute du matin"
+      },
+      {
+        "route": "blog:radio-app-iphone-android",
+        "label": "Préparer l'écoute radio sur téléphone"
+      },
+      {
+        "route": "blog:internet-radio-explained",
+        "label": "Distinguer réception FM et radio internet"
+      },
+      {
+        "route": "blog:listen-to-radio-online",
+        "label": "Vérifier une écoute radio dans le navigateur"
+      }
+    ],
+    "sources": [
+      {
+        "name": "Service Public : passage à l'heure d'hiver, mise à jour du 20 octobre 2026",
+        "url": "https://www.service-public.gouv.fr/particuliers/actualites/A15263"
+      },
+      {
+        "name": "Apple : vérifier l'heure et le fuseau horaire de son appareil",
+        "url": "https://support.apple.com/fr-fr/101619"
+      },
+      {
+        "name": "Sony France : fonctions de l'horloge et du tuner de l'ICF-C1",
+        "url": "https://www.sony.fr/electronics/radios-reveils/icf-c1/specifications"
+      },
+      {
+        "name": "Radio France : modes d'écoute et recherche des fréquences",
+        "url": "https://www.radiofrance.fr/comment-ecouter-radio-france"
+      }
+    ],
+    "relatedIds": [
+      "radio-app-iphone-android",
+      "internet-radio-explained",
+      "listen-to-radio-online"
+    ]
+  },
+  {
     "id": "france-bleu-ici-radio-locale",
     "title": "France Bleu devient ici : retrouver sa radio locale sans choisir la mauvaise station",
     "seoTitle": "France Bleu devient ici : retrouver sa radio locale",

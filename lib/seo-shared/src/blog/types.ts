@@ -32,6 +32,16 @@ export type CoreBlogId = (typeof BLOG_IDS)[number];
 export type BlogId =
   | CoreBlogId
   | keyof typeof import("./market-manifest").MARKET_BLOG_MANIFEST;
+export const BLOG_STATION_SLUGS = [
+  "kral-fm",
+  "orf-radio-vorarlberg",
+  "orf-hitradio-o3",
+  "deutschlandfunk",
+  "wdr-2-rheinland",
+  "france-inter",
+  "bbc-radio-4",
+  "espn-radio",
+] as const;
 export interface BlogArticle {
   id: BlogId;
   title: string;
@@ -55,7 +65,7 @@ export interface BlogArticle {
       | "applications"
       | "search"
       | `blog:${BlogId}`
-      | "station:kral-fm"
+      | `station:${(typeof BLOG_STATION_SLUGS)[number]}`
       | `genre:${string}`;
     label: string;
   }>;
