@@ -166,6 +166,60 @@ describe('PostgreSQL public sitemap and playback diagnostics',{skip:!connectionS
       await new Promise(resolve=>setTimeout(resolve,10));body=await buildLlmsTxtBody('https://example.invalid');
     }
     assert.match(body,/example\.invalid\/en\/genres\/pop/);assert.match(body,/example\.invalid\/en\/regions\/europe\/germany/);
+
+    const {getQualifiedLanguagesState}=await import('../src/seo/qualified-languages');
+    const {buildLocalizedUrl}=await import('../src/seo/url-helpers');
+    const state=await getQualifiedLanguagesState();
+    assert.ok(state.languages.includes('en')&&state.languages.includes('de'));
+    const originals=(await pool.query("SELECT id,language,chunks,total_urls,chunk_count FROM sitemap_manifests WHERE type='genres' AND status='active' ORDER BY language")).rows;
+    const fixtures=[
+      {id:randomUUID(),slug:'classic-hits',count:5},
+      {id:randomUUID(),slug:'classic-rock',count:6},
+      {id:randomUUID(),slug:'jazz',count:6},
+      {id:randomUUID(),slug:'public-radio',count:50},
+    ];
+    const stationIds=Array.from({length:8},()=>randomUUID());
+    try{
+      for(const genre of fixtures)await pool.query('INSERT INTO genres(id,name,slug,is_discoverable,station_count) VALUES($1,$2,$2,true,$3)',[genre.id,genre.slug,genre.count]);
+      await pgCatalog().insertMany(stationIds.map((id,index)=>({_id:id,stationuuid:randomUUID(),name:`LLMS genre fixture ${index}`,slug:`llms-genre-fixture-${id}`,
+        url:'https://stream.example.invalid/llms-genres',tags:'classic-hits, classic-rock, jazz, public-radio',lastCheckOk:true,noIndex:false})));
+      for(const manifest of originals){
+        const currentIds=manifest.chunks.flatMap((chunk:any)=>chunk.stationIds||[]);
+        const additions=manifest.language==='en'?[fixtures[0].id,fixtures[1].id]:manifest.language==='de'?[fixtures[2].id]:[];
+        const ids=[...new Set([...currentIds,...additions])];
+        const chunks=ids.length?[{chunk:1,stationIds:ids,urlCount:ids.length,maxUpdatedAt:new Date().toISOString()}]:[];
+        await pool.query('UPDATE sitemap_manifests SET chunks=$2::jsonb,total_urls=$3,chunk_count=$4 WHERE id=$1',[manifest.id,JSON.stringify(chunks),ids.length,chunks.length]);
+      }
+      const stored=await seo.pgSeoGenres(fixtures.map(genre=>genre.id));
+      assert.deepEqual(new Map(stored.map(genre=>[genre.slug,genre.stationCount])),new Map(fixtures.map(genre=>[genre.slug,genre.count])));
+      const raw=await seo.pgTopIndexableTags(100);
+      for(const genre of fixtures)assert.ok(raw.some(tag=>tag._id===genre.slug&&tag.count>=8),`${genre.slug} has high measured raw-tag frequency`);
+      clearLlmsTxtCache();
+      let enriched=await buildLlmsTxtBody('https://example.invalid','en',false);
+      const refreshDeadline=Date.now()+5000;
+      while(!enriched.includes('/en/genres/classic-rock')&&Date.now()<refreshDeadline){
+        await new Promise(resolve=>setTimeout(resolve,10));enriched=await buildLlmsTxtBody('https://example.invalid','en',false);
+      }
+      assert.match(enriched,/\/en\/genres\/classic-rock/,'authoritative count=6 and an active English manifest qualify');
+      for(const locale of state.languages){
+        const response=await fetch(`${base}/${locale}/llms.txt`);
+        assert.equal(response.status,200);assert.equal(response.headers.get('content-language'),locale);
+        const native=await response.text();
+        const urls=[...native.matchAll(/\]\((https:\/\/[^\s)]+)\)/g)].map(match=>new URL(match[1]));
+        const genrePath=buildLocalizedUrl('/genres',locale,undefined,new Map());
+        const hasGenre=(slug:string)=>urls.some(url=>url.pathname===`${genrePath}/${slug}`);
+        assert.equal(hasGenre('classic-hits'),false,`${locale}: authoritative count below 6 overrides raw frequency and publication`);
+        assert.equal(hasGenre('public-radio'),false,`${locale}: a high-count unpublished genre is not advertised`);
+        assert.equal(hasGenre('classic-rock'),locale==='en',`${locale}: English publication is not inherited by other editions`);
+        assert.equal(hasGenre('jazz'),locale==='de',`${locale}: German publication is not inherited by other editions`);
+        assert.equal(hasGenre('pop'),locale==='en',`${locale}: existing published Pop remains intact`);
+      }
+    }finally{
+      clearLlmsTxtCache();
+      for(const manifest of originals)await pool.query('UPDATE sitemap_manifests SET chunks=$2::jsonb,total_urls=$3,chunk_count=$4 WHERE id=$1',[manifest.id,JSON.stringify(manifest.chunks),manifest.total_urls,manifest.chunk_count]);
+      await pool.query('DELETE FROM stations WHERE id=ANY($1::text[])',[stationIds]);
+      await pool.query('DELETE FROM genres WHERE id=ANY($1::text[])',[fixtures.map(genre=>genre.id)]);
+    }
   });
   it('cancels slow SSR catalog queries inside PostgreSQL and restores pooled statement-timeout configuration',async()=>{
     const {pgSeoCatalog}=await import('../src/data/postgres-seo-read-store');const blocker=await pool.connect();

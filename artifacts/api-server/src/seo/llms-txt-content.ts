@@ -9,13 +9,13 @@ export type LlmsLocale = (typeof ACTIVE_SITEMAP_LANGUAGES)[number];
 
 export interface LlmsDiscovery {
   countries: ReadonlyArray<{ region: string; country: string }>;
-  genres: readonly string[];
+  genres: Partial<Record<LlmsLocale, readonly string[]>>;
   languages: readonly string[];
   translations: Map<string, string>;
 }
 
 export const EMPTY_LLMS_DISCOVERY: LlmsDiscovery = {
-  countries: [], genres: [], languages: [], translations: new Map(),
+  countries: [], genres: {}, languages: [], translations: new Map(),
 };
 
 export function isLlmsLocale(locale: string): locale is LlmsLocale {
@@ -90,9 +90,10 @@ export function renderLlmsTxtBody(
     }
     lines.push('');
   }
-  if (discovery.languages.includes(locale) && discovery.genres.length) {
+  const genres = discovery.genres[locale] || [];
+  if (discovery.languages.includes(locale) && genres.length) {
     section(text.sections.genres);
-    for (const genre of discovery.genres) link(genre, `${url('/genres')}/${encodeURIComponent(genre)}`);
+    for (const genre of genres) link(genre, `${url('/genres')}/${encodeURIComponent(genre)}`);
     lines.push('');
   }
   return lines.join('\n');
