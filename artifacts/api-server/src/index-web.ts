@@ -24,6 +24,7 @@ import { serveStatic, log, HTML_CACHE_CONTROL } from "./serve-static";
 import { createAdminSpaHandler } from './admin-spa';
 import { SeoRenderer, getSeoRenderStats } from './seo-renderer';
 import { markSeoTemporarilyUnavailable } from './seo/temporary-unavailable';
+import { capturePublicStationDeadline } from './utils/public-station-deadline';
 import { parseSeoCatalogPage } from './seo/catalog-pagination';
 import { sendSeoNotFound } from './seo/send-seo-not-found';
 import { buildPublicSeoRouteMatchers, collectSeoTranslations, decodePublicSeoPath } from './seo/public-route-matchers';
@@ -885,7 +886,9 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       // truth for SSR language; a user's preferred UI language is applied
       // client-side after React mounts (the SPA replaces the SSR body anyway),
       // so users lose nothing.
-      const seoData = await seoRenderer.renderStaticPage(url, productionDomain);
+      const { value: seoData, expiresAt: sourceExpiresAt } = await capturePublicStationDeadline(
+        () => seoRenderer.renderStaticPage(url, productionDomain),
+      );
       // CRITICAL: seoData.seoTags is shared from a `useClones: false` cache and
       // is frozen on write — clone before overriding the domain so that this
       // request-specific value doesn't poison cached SEO data for others.
@@ -1030,7 +1033,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         // Handle transient data failures BEFORE the permanent quality gates.
         // Synthetic station placeholders have no stream URL; treating them as
         // junk used to turn a brief database read failure into a cached 410.
-        if (seoData.pageData?.stationDbError) {
+        // Publication may happen after the renderer's source data expires.
+        if (seoData.pageData?.stationDbError || sourceExpiresAt <= Date.now()) {
           markSeoTemporarilyUnavailable(res);
           next();
           return;
@@ -1069,12 +1073,10 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
           return;
         }
 
-        // DB-error placeholder: station data is synthetic (transient DB
-        // failure). Do NOT cache; set noindex so Google doesn't index empty
-        // placeholder content — it will retry the URL later when DB is healthy.
+        // Only complete, current documents may enter the HTML cache.
         const stationDbError = !!seoData.pageData?.stationDbError;
         if (!stationNotFound && !stationDbError) {
-          performanceCache.setSeoHtml(seoHtmlKey, htmlContent);
+          performanceCache.setSeoHtml(seoHtmlKey, htmlContent, 'bot', sourceExpiresAt);
         }
         // Soft-404 guard (2026-05-15): when the SSR resolves to "not
         // found", we MUST emit noindex on BOTH the X-Robots-Tag header

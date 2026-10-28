@@ -191,7 +191,7 @@ export class PerformanceCache {
     return result || null;
   }
   
-  setSeoHtml(url: string, html: string, userAgent: string = 'bot'): void {
+  setSeoHtml(url: string, html: string, userAgent: string = 'bot', sourceExpiresAt = Infinity): void {
     const page = this.getPageData(url)?.pageData;
     if (page?.stationIsJunk || page?.notFound) return;
     const cacheKey = `seo:${SEO_CACHE_NAMESPACE}:${userAgent}:${url}`;
@@ -200,6 +200,7 @@ export class PerformanceCache {
     const expiresAt = Math.min(
       this.pageDataCache.getTtl(`page:${SEO_CACHE_NAMESPACE}:${url}`) || Date.now() + 60000,
       getPublicStationDeadline(),
+      sourceExpiresAt,
     );
     const seconds = Math.min(1800, (expiresAt - Date.now()) / 1000);
     if (seconds > 0) this.safeSet(this.seoHtmlCache, 'seoHtmlCache', cacheKey, html, seconds);
