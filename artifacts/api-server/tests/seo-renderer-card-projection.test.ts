@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
+import express from 'express';
+import { markSeoTemporarilyUnavailable } from '../src/seo/temporary-unavailable';
 import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
 import { getSeoReadDeadline } from '../src/utils/seo-read-deadline';
@@ -27,6 +29,10 @@ let reads: Array<{ filter: any; options: any }> = [];
 let urlGate: ReturnType<typeof Promise.withResolvers<Map<string, string>>> | undefined;
 let visibilityDeadline = Infinity;
 let executionDeadline = Infinity;
+let readFailure: Error | undefined;
+let emptyCards = false;
+let genreCountFails = false;
+let junkOnly = false;
 
 mock.module('../src/postgres-runtime', { namedExports: {
   getPostgresPool: () => { throw new Error('Production/database access is forbidden in this unit test'); },
@@ -40,15 +46,19 @@ mock.module('../src/performance-cache', { namedExports: { performanceCache: {
 mock.module('../src/data/postgres-seo-read-store', { namedExports: { pgSeoCatalog: () => ({
   find: async (filter: any, options: any) => {
     reads.push({ filter, options });
+    if (readFailure) throw readFailure;
     visibilityDeadline = getPublicStationDeadline();
     executionDeadline = getSeoReadDeadline()?.expiresAt ?? Infinity;
-    const selected = rawCards.slice(0, options.limit);
+    const selected = emptyCards ? [] : junkOnly ? rawCards.slice(0, 4) : rawCards.slice(0, options.limit);
     return compact ? selected.map(row => Object.fromEntries(options.fields.map((field: string) =>
       [field, (row as any)[field]]).filter(([, value]: [string, unknown]) => value !== undefined))) : selected;
   },
 }) } });
 mock.module('../src/data/postgres-content-store', { namedExports: { pgSeoMetadata: async () => null } });
-mock.module('../src/data/postgres-taxonomy-store', { namedExports: { pgStoredGenreBySlug: async () => ({ stationCount: 120 }) } });
+mock.module('../src/data/postgres-taxonomy-store', { namedExports: { pgStoredGenreBySlug: async () => {
+  if (genreCountFails) throw new Error('temporary genre count outage');
+  return { stationCount: 120 };
+} } });
 mock.module('../src/services/home-genre-navigation', { namedExports: { getHomeGenreNavigation: () => undefined } });
 mock.module('../src/services/precomputed-stations', { namedExports: { PrecomputedStationsService: {
   getCountryStationsByName: async () => ({ stations: [good[0]], totalPages: 1 }),
@@ -66,7 +76,10 @@ mock.module('../src/utils/logger', { namedExports: { logger: { log() {}, warn() 
 const { SeoRenderer, getSeoRenderStats } = await import('../src/seo-renderer');
 const { PostgresCatalogStore } = await import('../src/data/postgres-catalog-store');
 const renderer = new SeoRenderer();
-beforeEach(() => { pages.clear(); reads = []; compact = false; urlGate = undefined; });
+beforeEach(() => {
+  pages.clear(); reads = []; compact = false; urlGate = undefined;
+  readFailure = undefined; emptyCards = false; genreCountFails = false; junkOnly = false;
+});
 
 function markup(page: any) {
   return {
@@ -94,6 +107,8 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
       assert.equal(filter.noIndex.$ne, true);
       assert.deepEqual(options.sort, { votes: -1 });
       assert.equal(options.limit, 24);
+      assert.equal(options.sharedCardsKey, JSON.stringify(path === '/' ? ['home']
+        : path.startsWith('/genres') ? ['genre', '70s'] : ['country', 'Germany']));
       for (const field of ['_id', 'name', 'slug', 'url', 'noIndex', 'isListVisible', 'favicon',
         'logoAssets', 'country', 'countryCode', 'tags', 'votes', 'genre']) assert.ok(options.fields.includes(field), field);
       assert.ok(!options.fields.includes('source') && !options.fields.includes('descriptions'));
@@ -108,6 +123,108 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
     });
   }
 }
+
+for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+  for (const path of ['/', '/genres/70s', '/regions/europe/germany']) {
+    test(`${language}${path}: a required grid outage is retryable, uncached and recovers with inventory`, async () => {
+      const localized = buildLocalizedUrl(path, language, undefined, new Map());
+      readFailure = Object.assign(new Error('temporary station card read outage'), { code: 'SEO_READ_TIMEOUT' });
+      const failed = await renderer.renderStaticPage(localized, origin);
+      assert.equal(failed.pageData.stationDbError, true);
+      assert.equal(failed.pageData.additionalData.hubReadFailed, true);
+      assert.notEqual(failed.pageData.httpNotFound, true);
+      assert.notEqual(failed.pageData.stationIsJunk, true);
+      assert.equal(pages.size, 0);
+      readFailure = undefined;
+      const recovered = await renderer.renderStaticPage(localized, origin);
+      assert.notEqual(recovered.pageData.stationDbError, true);
+      assert.equal(recovered.pageData.additionalData.popularStations.length, path === '/' ? 10 : 12);
+      assert.equal(pages.size, 1);
+    });
+  }
+}
+
+for (const path of ['/en', '/en/genres/70s', '/en/regions/europe/germany']) {
+  test(`${path}: a successful empty grid is not reclassified as a database outage`, async () => {
+    emptyCards = true;
+    const result = await renderer.renderStaticPage(path, origin);
+    assert.notEqual(result.pageData.stationDbError, true);
+    assert.notEqual(result.pageData.additionalData.hubReadFailed, true);
+    assert.deepEqual(result.pageData.additionalData.popularStations, []);
+  });
+  test(`${path}: aborts still escape without publishing page data`, async () => {
+    readFailure = new DOMException('Aborted', 'AbortError');
+    await assert.rejects(renderer.renderStaticPage(path, origin), /SEO_RENDER_TIMEOUT/);
+    assert.equal(pages.size, 0);
+  });
+  test(`${path}: a successful grid filtered to no eligible cards is not a read outage`, async () => {
+    junkOnly = true;
+    const result = await renderer.renderStaticPage(path, origin);
+    assert.deepEqual(result.pageData.additionalData.popularStations, []);
+    assert.notEqual(result.pageData.stationDbError, true);
+    assert.notEqual(result.pageData.additionalData.hubReadFailed, true);
+  });
+}
+
+for (const family of ['genre', 'country']) {
+  test(`${family}: optional cross-link enrichment errors do not invalidate a healthy grid`, async t => {
+    const { GENRE_WHITELIST_SEED } = await import('../src/seo/genre-whitelist-seed');
+    t.mock.method(GENRE_WHITELIST_SEED, family === 'genre' ? Symbol.iterator : 'has', () => {
+      throw new Error('optional cross-link enrichment failure');
+    });
+    const path = family === 'genre' ? '/en/genres/70s' : '/en/regions/europe/germany';
+    const result = await renderer.renderStaticPage(path, origin);
+    assert.equal(result.pageData.additionalData.popularStations.length, 12);
+    assert.notEqual(result.pageData.stationDbError, true);
+    assert.notEqual(result.pageData.additionalData.hubReadFailed, true);
+  });
+}
+
+test('only the optional genre count failing does not discard a successfully loaded grid', async () => {
+  genreCountFails = true;
+  const result = await renderer.renderStaticPage('/en/genres/70s', origin);
+  assert.equal(result.pageData.additionalData.genreCountFetchFailed, true);
+  assert.equal(result.pageData.additionalData.popularStations.length, 12);
+  assert.notEqual(result.pageData.stationDbError, true);
+  assert.notEqual(result.seoTags.noIndex, true);
+});
+
+test('all three required grids produce GET/HEAD 503/no-store without cache writes, then recover', async () => {
+  const app = express();
+  app.use(async (req, res) => {
+    const page = await renderer.renderStaticPage(req.originalUrl, origin);
+    res.setHeader('X-Robots-Tag', 'index, follow');
+    if (page.pageData.stationDbError) markSeoTemporarilyUnavailable(res);
+    res.send(markup(page).body);
+  });
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  try {
+    const base = `http://127.0.0.1:${(server.address() as any).port}`;
+    for (const path of ['/en', '/en/genres/70s', '/en/regions/europe/germany']) {
+      pages.clear();
+      for (const code of ['SEO_READ_TIMEOUT', 'ECONNRESET', 'SEO_SHARED_CARDS_EXPIRED']) {
+        readFailure = Object.assign(new Error('temporary required grid failure'), { code });
+        for (const method of ['GET', 'HEAD']) {
+          const response = await fetch(base + path, { method });
+          assert.equal(response.status, 503);
+          assert.equal(response.headers.get('cache-control'), 'no-store');
+          assert.equal(response.headers.get('retry-after'), '60');
+          assert.equal(response.headers.get('x-robots-tag'), null);
+          if (method === 'HEAD') assert.equal(await response.text(), '');
+          assert.equal(pages.size, 0);
+        }
+      }
+      readFailure = undefined;
+      const response = await fetch(base + path);
+      assert.equal(response.status, 200);
+      assert.match(await response.text(), /station-0/);
+    }
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
 
 test('the real catalog projection reads only the requested legacy genre key, not archived JSON', async () => {
   compact = true;

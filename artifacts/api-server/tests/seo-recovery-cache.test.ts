@@ -123,3 +123,86 @@ test('a retained noindex information page expires within 60s after recovery in a
   assert.equal(performanceCache.getPageData(url).pageData.station.isListVisible, false);
   performanceCache.invalidateStationCache('offline-noindex-recovery');
 });
+
+test('expired source deadlines cannot create fresh HTML when paired page data is absent', async t => {
+  const now = 2_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const cache = performanceCache as any;
+  for (const offset of [0, -1]) {
+    const url = `/en/station/html-expired-${offset}`;
+    await withPublicStationDeadline(async () => {
+      limitPublicStationDeadline(now + offset);
+      performanceCache.setPageData(url, { pageData: { pageType: 'station' } });
+      assert.equal(performanceCache.getPageData(url), null);
+      performanceCache.setSeoHtml(url, '<main>must not receive another60s</main>');
+      assert.equal(cache.seoHtmlCache.getTtl(`seo:${SEO_CACHE_NAMESPACE}:bot:${url}`), undefined);
+      assert.equal(performanceCache.getSeoHtml(url), null);
+    });
+  }
+});
+
+test('unpaired HTML inherits the remaining source lifetime, not a new60s', async t => {
+  let now = 2_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const cache = performanceCache as any;
+  const url = '/en/station/html-near-expiry';
+  const deadline = now + 750;
+  await withPublicStationDeadline(async () => {
+    limitPublicStationDeadline(deadline);
+    performanceCache.setSeoHtml(url, '<main>fresh for750ms</main>');
+    assert.equal(cache.seoHtmlCache.getTtl(`seo:${SEO_CACHE_NAMESPACE}:bot:${url}`), deadline);
+    assert.equal(performanceCache.getSeoHtml(url), '<main>fresh for750ms</main>');
+    now = deadline + 1;
+    assert.equal(performanceCache.getSeoHtml(url), null);
+  });
+});
+
+test('a55s page HIT retains only5s even if its paired entry disappears before HTML publication', async t => {
+  let now = 2_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const cache = performanceCache as any;
+  const url = '/en/station/html-lost-page-pair';
+  const pageKey = `page:${SEO_CACHE_NAMESPACE}:${url}`;
+  const htmlKey = `seo:${SEO_CACHE_NAMESPACE}:bot:${url}`;
+  performanceCache.setPageData(url, { pageData: { pageType: 'station' } });
+  const deadline = cache.pageDataCache.getTtl(pageKey);
+  now += 55_000;
+  await withPublicStationDeadline(async () => {
+    assert.ok(performanceCache.getPageData(url));
+    assert.equal(getPublicStationDeadline(), deadline);
+    cache.pageDataCache.del(pageKey);
+    performanceCache.setSeoHtml(url, '<main>only5s left</main>');
+    assert.equal(cache.seoHtmlCache.getTtl(htmlKey), deadline);
+    now = deadline + 1;
+    performanceCache.setSeoHtml(url, '<main>too late</main>');
+    assert.equal(performanceCache.getSeoHtml(url), null);
+  });
+});
+
+test('an earlier source deadline also bounds HTML with a longer-lived paired page', async t => {
+  const now = 2_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const cache = performanceCache as any;
+  const url = '/en/station/html-earlier-source';
+  performanceCache.setPageData(url, { pageData: { pageType: 'station' } });
+  await withPublicStationDeadline(async () => {
+    limitPublicStationDeadline(now + 2000);
+    performanceCache.setSeoHtml(url, '<main>earlier source wins</main>');
+    assert.equal(cache.seoHtmlCache.getTtl(`seo:${SEO_CACHE_NAMESPACE}:bot:${url}`), now + 2000);
+  });
+  performanceCache.invalidateStationCache('html-earlier-source');
+});
+
+test('outside a source context, unpaired60s and informational-page30min HTML defaults are unchanged', t => {
+  const now = 2_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const cache = performanceCache as any;
+  assert.equal(getPublicStationDeadline(), Infinity);
+  for (const paired of [false, true]) {
+    const url = `/en/station/html-outside-context-${paired}`;
+    if (paired) performanceCache.setPageData(url, { pageData: { pageType: 'about' } });
+    performanceCache.setSeoHtml(url, '<main>unchanged default</main>');
+    assert.equal(cache.seoHtmlCache.getTtl(`seo:${SEO_CACHE_NAMESPACE}:bot:${url}`), now + (paired ? 1_800_000 : 60_000));
+    performanceCache.invalidateStationCache(`html-outside-context-${paired}`);
+  }
+});

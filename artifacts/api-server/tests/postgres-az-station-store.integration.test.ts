@@ -13,7 +13,7 @@ const url = process.env.PG_TEST_DATABASE_URL;
 mock.module('../src/performance-cache', { namedExports: { performanceCache: {
   getPageData: () => undefined, setPageData: () => {}, getTranslations: () => ({}), getUrlTranslations: async () => new Map(),
 } } });
-mock.module('../src/public-station-cache', { namedExports: { publicStationCache: {
+mock.module('../src/public-station-cache', { namedExports: { PUBLIC_STATION_CACHE_MAX_TTL: 60, publicStationCache: {
   getOrSetSingleFlight: async (_key: string, read: () => Promise<any>) => read(),
 } } });
 mock.module('../src/data/postgres-content-store', { namedExports: { pgSeoMetadata: async () => null } });

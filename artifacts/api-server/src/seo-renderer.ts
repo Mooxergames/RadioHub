@@ -808,7 +808,8 @@ export class SeoRenderer {
               slug: { $exists: true, $ne: '' },
               noIndex: { $ne: true },
               votes: { $gt: 0 },
-            }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24 }),
+            }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24,
+              sharedCardsKey: JSON.stringify(['genre', escapedTerm]) }),
             signal
           );
           // DALGA 2 W2.REVIEW P2: Apply junk-station gate per replit.md INDEXABILITY-GATE rule.
@@ -889,6 +890,7 @@ export class SeoRenderer {
           if (error?.name === 'AbortError' || signal?.aborted) throw error;
           if (additionalData.popularStations === undefined) {
             additionalData.popularStationsFetchFailed = true;
+            additionalData.hubReadFailed = true;
           }
         }
         }
@@ -1078,7 +1080,8 @@ export class SeoRenderer {
                 slug: { $exists: true, $ne: '' },
                 noIndex: { $ne: true },
                 votes: { $gt: 0 },
-              }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24 }),
+              }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24,
+                sharedCardsKey: JSON.stringify(['country', countryName]) }),
               signal
             );
             // DALGA 2 W2.REVIEW P2: Junk gate via isJunkStation + noIndex (see W2.1 comment).
@@ -1208,6 +1211,7 @@ export class SeoRenderer {
             // diacritics and language-specific spellings.
           } catch (error: any) {
             if (error?.name === 'AbortError' || signal?.aborted) throw error;
+            additionalData.hubReadFailed = true;
           }
         }
       }
@@ -1238,7 +1242,8 @@ export class SeoRenderer {
             isListVisible: true,
             slug: { $exists: true, $ne: '' },
             noIndex: { $ne: true },
-          }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24 }),
+          }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24,
+            sharedCardsKey: JSON.stringify(['home']) }),
           signal
         );
         // Apply the junk-station gate (same as genre/region SSR surfaces) so the
@@ -1248,6 +1253,7 @@ export class SeoRenderer {
           .slice(0, 10);
       } catch (error: any) {
         if (error?.name === 'AbortError' || signal?.aborted) throw error;
+        additionalData.hubReadFailed = true;
       }
       })(), (async () => {
       // Optional names/links refresh independently of first paint. The API and

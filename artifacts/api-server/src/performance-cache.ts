@@ -197,7 +197,10 @@ export class PerformanceCache {
     const cacheKey = `seo:${SEO_CACHE_NAMESPACE}:${userAgent}:${url}`;
     // HTML must expire with its source page, not start a fresh TTL after a
     // page-data hit. Missing paired data is conservatively bounded as well.
-    const expiresAt = this.pageDataCache.getTtl(`page:${SEO_CACHE_NAMESPACE}:${url}`) || Date.now() + 60000;
+    const expiresAt = Math.min(
+      this.pageDataCache.getTtl(`page:${SEO_CACHE_NAMESPACE}:${url}`) || Date.now() + 60000,
+      getPublicStationDeadline(),
+    );
     const seconds = Math.min(1800, (expiresAt - Date.now()) / 1000);
     if (seconds > 0) this.safeSet(this.seoHtmlCache, 'seoHtmlCache', cacheKey, html, seconds);
   }
