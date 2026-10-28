@@ -10,6 +10,7 @@ import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailab
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
 import { withSeoReadDeadline } from './utils/seo-read-deadline';
+import { resolveToDbName } from './utils/normalize-country';
 import { pgSeoCatalog } from './data/postgres-seo-read-store';
 import { boundedSeoReadQuery } from './data/postgres-seo-read-query';
 import { readAzStationPage } from './data/postgres-az-station-store';
@@ -1072,7 +1073,12 @@ export class SeoRenderer {
         } else {
           // DALGA 2 W2.2: Fetch top 12 stations from this country for SSR flag + <img> grid
           try {
-            const countryName = additionalData.regionName as string;
+            const displayName = additionalData.regionName as string;
+            const geographyPath = TERMINAL_LISTING_SEGMENTS.has(lastSegment.toLowerCase())
+              ? pathParts.slice(0, -1).join('/') : cleanPath;
+            // Display slugs and stored country names differ; city names must stay untouched.
+            const countryName = isExactCountryPagePath(geographyPath)
+              ? resolveToDbName(displayName) || displayName : displayName;
             const topStations = await withSignal<LeanStationCard[]>(
               pgSeoCatalog().find({
                 country: countryName,
