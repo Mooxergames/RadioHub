@@ -9,7 +9,9 @@ import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSch
 import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
+import { withSeoReadDeadline } from './utils/seo-read-deadline';
 import { pgSeoCatalog } from './data/postgres-seo-read-store';
+import { boundedSeoReadQuery } from './data/postgres-seo-read-query';
 import { readAzStationPage } from './data/postgres-az-station-store';
 import { pgStoredGenreBySlug } from './data/postgres-taxonomy-store';
 import { pgSeoMetadata } from './data/postgres-content-store';
@@ -42,6 +44,11 @@ interface LeanStationCard {
   lastCheckTime?: Date;
   noIndex?: boolean;
 }
+
+const SSR_CARD_FIELDS = ['_id', 'name', 'slug', 'url', 'noIndex', 'isListVisible',
+  'favicon', 'logoAssets', 'country', 'countryCode', 'tags', 'votes', 'genre'];
+const SSR_METADATA_READER = { query: (text: string, values: any[]) => boundedSeoReadQuery(text, values, 'metadata') };
+const SSR_GENRE_READER = { query: (text: string, values: any[]) => boundedSeoReadQuery(text, values, 'genre') };
 
 type LeanSeoMetadataDoc = Record<string, any>;
 import { performanceCache } from './performance-cache';
@@ -232,7 +239,7 @@ export class SeoRenderer {
       const metadata = await withSignal<LeanSeoMetadataDoc | null>(
         pgSeoMetadata({
           pageType,routeKey: routeKey || '',language,status:'published',
-        }),
+        }, SSR_METADATA_READER),
         signal,
       );
       
@@ -318,7 +325,8 @@ export class SeoRenderer {
 
     try {
       const result = await Promise.race([
-        withPublicStationDeadline(() => this._doRenderStaticPage(url, domain, preferredLanguage, abortController.signal)),
+        withSeoReadDeadline({ expiresAt: Date.now() + SEO_RENDER_TIMEOUT_MS, signal: abortController.signal },
+          () => withPublicStationDeadline(() => this._doRenderStaticPage(url, domain, preferredLanguage, abortController.signal))),
         new Promise<never>((_, reject) => {
           timerId = setTimeout(() => {
             abortController.abort();
@@ -770,7 +778,7 @@ export class SeoRenderer {
           // never disagree.
           try {
             const genreDoc = await withSignal<{ stationCount?: number } | null>(
-              pgStoredGenreBySlug(canonicalSlug),
+              pgStoredGenreBySlug(canonicalSlug, SSR_GENRE_READER),
               signal,
             );
             if (genreDoc && typeof genreDoc.stationCount === 'number') {
@@ -800,7 +808,7 @@ export class SeoRenderer {
               slug: { $exists: true, $ne: '' },
               noIndex: { $ne: true },
               votes: { $gt: 0 },
-            }, { sort: { votes: -1 }, limit: 24 }),
+            }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24 }),
             signal
           );
           // DALGA 2 W2.REVIEW P2: Apply junk-station gate per replit.md INDEXABILITY-GATE rule.
@@ -1070,7 +1078,7 @@ export class SeoRenderer {
                 slug: { $exists: true, $ne: '' },
                 noIndex: { $ne: true },
                 votes: { $gt: 0 },
-              }, { sort: { votes: -1 }, limit: 24 }),
+              }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24 }),
               signal
             );
             // DALGA 2 W2.REVIEW P2: Junk gate via isJunkStation + noIndex (see W2.1 comment).
@@ -1230,7 +1238,7 @@ export class SeoRenderer {
             isListVisible: true,
             slug: { $exists: true, $ne: '' },
             noIndex: { $ne: true },
-          }, { sort: { votes: -1 }, limit: 24 }),
+          }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24 }),
           signal
         );
         // Apply the junk-station gate (same as genre/region SSR surfaces) so the
