@@ -24,7 +24,7 @@ const EXISTING_LINKS = [
 ];
 const HOME_HTML = '<!doctype html><html><body>Existing home fixture</body></html>';
 const SPA_HTML = '<!doctype html><html><body>Unrelated SPA fixture</body></html>';
-const calls = { countries: 0, genres: 0, languages: 0, translations: 0 };
+const calls = { countries: 0, genres: 0, genreManifests: 0, genreDocs: 0, languages: 0, translations: 0 };
 type SourceMode = 'empty' | 'pending' | 'reject';
 let sourceMode: SourceMode = 'empty';
 let releasePending = () => {};
@@ -41,6 +41,17 @@ async function optionalSource<T>(source: keyof typeof calls, value: T): Promise<
 // and all editorial imports remain real, with no PostgreSQL or external HTTP.
 mock.module('../src/data/postgres-seo-indexing-store', { namedExports: {
   pgTopIndexableTags: () => optionalSource('genres', []),
+  pgActiveManifests: (type?: string) => {
+    assert.equal(type, 'genres', 'genre discovery must request only genre manifests');
+    return optionalSource('genreManifests', []);
+  },
+  pgSeoGenres: async (ids?: readonly unknown[]) => {
+    calls.genreDocs++;
+    assert.ok(ids && ids.length > 0 && ids.length <= 4096, 'never run an unbounded or empty genre document read');
+    if (sourceMode === 'pending') await pending;
+    if (sourceMode === 'reject') throw new Error('Offline genreDocs fixture');
+    return [];
+  },
 } });
 mock.module('../src/seo/sitemap-manifest-builder', { namedExports: {
   getActiveManifest: () => optionalSource('countries', null),
@@ -312,7 +323,7 @@ test('all native HTTP editions retain real local blog membership, ten core guide
     }
   }
   assert.equal(new Set(bodies).size, 14, 'each edition has distinct bytes; human native-copy review remains separate');
-  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1 });
+  assert.deepEqual(calls, { countries: 1, genres: 1, genreManifests: 1, genreDocs: 0, languages: 1, translations: 1 });
 });
 
 const invalidPaths = new Set([
@@ -448,7 +459,7 @@ test('mixed-locale cold HTTP burst returns native real guides without waiting fo
       return http(index % 2 ? api : web, edition.path).then(result => { assertGuide(result, edition.path, edition.locale); return result; });
     }));
     assert.equal(results.length, 100);
-    assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1 });
+    assert.deepEqual(calls, { countries: 1, genres: 1, genreManifests: 1, genreDocs: 0, languages: 1, translations: 1 });
   } finally {
     releasePending();
     await setImmediate();
@@ -463,7 +474,7 @@ test('rejected optional discovery preserves localized 200 guides and stable vali
     assertSameRepresentation(first, await http(web, path));
     assert.match(first.body, new RegExp(`https://themegaradio\\.com/${locale}/blog`));
   }
-  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1 });
+  assert.deepEqual(calls, { countries: 1, genres: 1, genreManifests: 1, genreDocs: 0, languages: 1, translations: 1 });
 });
 
 test('unexpected builder failure serves the pure native core with correct canonical, HEAD and validator behavior, never English fallback', async () => {
@@ -489,7 +500,7 @@ test('unexpected builder failure serves the pure native core with correct canoni
       assert.equal(conditional.status, 304);
       assert.equal(conditional.bytes.length, 0);
     }
-    assert.deepEqual(calls, { countries: 0, genres: 0, languages: 0, translations: 0 }, 'fallback never invokes discovery providers');
+    assert.deepEqual(calls, { countries: 0, genres: 0, genreManifests: 0, genreDocs: 0, languages: 0, translations: 0 }, 'fallback never invokes discovery providers');
   } finally {
     failure.restore();
   }

@@ -4,13 +4,18 @@ import { setImmediate } from 'node:timers/promises';
 import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { blogIdsForLocale, blogPath, type BlogLocale } from '@workspace/seo-shared/blog-manifest';
 import copy from '../src/seo/llms-locales.json';
+import { MIN_STATIONS_FOR_GENRE_INDEX } from '../src/seo/genre-whitelist-seed';
 
 let now = 1_000_000;
-const calls = { countries: 0, genres: 0, languages: 0, translations: 0 };
+const calls = { countries: 0, genres: 0, languages: 0, translations: 0, genreManifests: 0, genreDocs: 0 };
 let countries: () => Promise<any>;
 let genres: () => Promise<any>;
 let languages: () => Promise<any>;
 let translations: () => Promise<Map<string, string>>;
+let genreManifests: () => Promise<any[]>;
+let genreDocuments: (ids: readonly unknown[]) => Promise<any[]>;
+const allowedGenres = new Set<string>();
+const genreIdReads: string[][] = [];
 let failBlog = false;
 const blogCalls = new Map<string, number>();
 const loadedBlogs = new Map<string, Awaited<ReturnType<typeof actualBlog.loadBlogContent>>>();
@@ -28,6 +33,15 @@ mock.module('@workspace/seo-shared/blog', { namedExports: {
 
 mock.module('../src/data/postgres-seo-indexing-store', { namedExports: {
   pgTopIndexableTags: () => { calls.genres++; return genres(); },
+  pgActiveManifests: (type: string) => { assert.equal(type, 'genres'); calls.genreManifests++; return genreManifests(); },
+  pgSeoGenres: (ids: readonly unknown[]) => {
+    assert.ok(Array.isArray(ids) && ids.length > 0 && ids.length <= 4096, 'never read the complete genre table');
+    genreIdReads.push(ids.map(String)); calls.genreDocs++; return genreDocuments(ids);
+  },
+} });
+mock.module('../src/seo/genre-whitelist', { namedExports: {
+  MIN_STATIONS_FOR_GENRE_INDEX,
+  isWhitelistedGenreSlug: (slug: string) => allowedGenres.has(slug),
 } });
 mock.module('../src/seo/sitemap-manifest-builder', { namedExports: {
   getActiveManifest: () => { calls.countries++; return countries(); },
@@ -61,12 +75,15 @@ function deferred<T>() {
 
 beforeEach(() => {
   clearLlmsTxtCache(); now = 1_000_000;
-  calls.countries = calls.genres = calls.languages = calls.translations = 0;
+  for (const key of Object.keys(calls) as Array<keyof typeof calls>) calls[key] = 0;
   blogCalls.clear(); loadedBlogs.clear(); failBlog = false;
+  allowedGenres.clear(); allowedGenres.add('rock'); allowedGenres.add('jazz'); genreIdReads.length = 0;
   countries = async () => ({ chunks: [{ stationIds: [{ regionSlug: 'europe', countrySlug: 'germany' }] }] });
   genres = async () => [{ _id: 'rock', count: 12 }, { _id: 'not-a-public-genre', count: 9 }];
   languages = async () => ['en', 'de', 'tr'];
   translations = async () => new Map();
+  genreManifests = async () => ACTIVE_SITEMAP_LANGUAGES.map(language => ({ type: 'genres', status: 'active', language, chunks: [{ stationIds: ['rock-id', 'jazz-id'] }] }));
+  genreDocuments = async ids => [{ _id: 'rock-id', slug: 'rock', stationCount: 25 }, { _id: 'jazz-id', slug: 'jazz', stationCount: 15 }].filter(row => ids.includes(row._id));
   mock.method(Date, 'now', () => now);
 });
 afterEach(() => { clearLlmsTxtCache(); mock.restoreAll(); });
@@ -76,7 +93,7 @@ test('cold concurrent reads return a real core guide without waiting for any dat
   countries = genres = languages = translations = () => pending.promise;
   const bodies = await Promise.all(Array.from({ length: 100 }, () => buildLlmsTxtBody(base)));
   assert.equal(new Set(bodies).size, 1);
-  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1 }, 'one shared refresh, not 100 aggregations');
+  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1, genreManifests: 1, genreDocs: 0 }, 'one shared refresh; unresolved rankings cannot trigger a full-table genre read');
   assert.match(bodies[0], /^# MegaRadio\n/);
   assert.match(bodies[0], /\[Sitemap Index\]\(https:\/\/themegaradio\.com\/sitemap-index\.xml\)/);
   assertCoreDiscovery(bodies[0]);
@@ -95,7 +112,7 @@ test('completed refresh supplies only measured, whitelisted optional links and q
   assert.match(enriched, /\/de\/llms\.txt/);
   assert.match(enriched, /\/tr\/llms\.txt/);
   assert.doesNotMatch(enriched, /not-a-public-genre/);
-  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1 });
+  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1, genreManifests: 1, genreDocs: 1 });
   assert.equal(await buildLlmsTxtBody(base + '/'), enriched);
 });
 
@@ -171,7 +188,7 @@ test('100 mixed-locale and mixed-origin cold reads share all four discovery prov
     const origin = `https://origin-${index % 5}.example.invalid`;
     return { locale, origin, body: await buildLlmsTxtBody(origin, locale, false) };
   }));
-  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1 });
+  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1, genreManifests: 1, genreDocs: 0 });
   assert.equal(blogCalls.size, 14);
   assert.ok([...blogCalls.values()].every(count => count === 1));
   for (const { locale, origin, body } of results) {
@@ -265,7 +282,7 @@ test('body origin cache is bounded and refresh invalidation does not multiply di
   const evicted = await buildLlmsTxtBody('https://first.example.invalid', 'tr', false);
   assert.notEqual(evicted, first);
   assert.ok(evicted.includes('Yeni editoryal etiket'));
-  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1 });
+  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1, genreManifests: 1, genreDocs: 0 });
   pending.resolve([]); await setImmediate();
 });
 
@@ -289,4 +306,115 @@ test('editorial line breaks and Markdown link delimiters cannot inject links or 
   assert.doesNotMatch(body, /^#+ injected/m);
   assert.ok(body.includes('Title\\](https://attacker.invalid) ## injected'));
   assert.equal((body.match(/^# /gm) || []).length, 1);
+});
+
+test('filled mixed-language cold burst shares six bounded discovery providers without waiting for genre records', async () => {
+  const pending = deferred<any[]>();
+  genreDocuments = () => pending.promise;
+  await Promise.all(Array.from({ length: 100 }, (_, index) => buildLlmsTxtBody(`https://burst-${index % 3}.example.invalid`, ACTIVE_SITEMAP_LANGUAGES[index % 14], false)));
+  assert.deepEqual(calls, { countries: 1, genres: 1, languages: 1, translations: 1, genreManifests: 1, genreDocs: 1 });
+  assert.deepEqual(genreIdReads, [['rock-id', 'jazz-id']], 'manifest IDs deduplicated across all 14 locales');
+  pending.resolve([{ _id: 'rock-id', slug: 'rock', stationCount: 6 }]); await setImmediate();
+  assert.match(await buildLlmsTxtBody(base), /\/en\/genres\/rock/);
+});
+
+test('published but thin, removed, unsafe, nonnumeric and alias-only genres cannot be advertised regardless of tag frequency', async () => {
+  const docs = [
+    { _id: 'rock-id', slug: 'rock', stationCount: 6 },
+    { _id: 'thin', slug: 'adult-contemporary', stationCount: 5 },
+    { _id: 'removed', slug: 'classic-rock', stationCount: 800 },
+    { _id: 'alias', slug: 'j-rock', stationCount: 800 },
+    { _id: 'unsafe', slug: 'bad/genre', stationCount: 800 },
+    { _id: 'string', slug: 'public-radio', stationCount: '800' },
+    { _id: 'nan', slug: 'classic-hits', stationCount: NaN },
+    { _id: 'infinite', slug: 'top-40', stationCount: Infinity },
+    { _id: 'not-published', slug: 'jazz', stationCount: 100 },
+  ];
+  for (const doc of docs) allowedGenres.add(doc.slug);
+  allowedGenres.delete('classic-rock'); allowedGenres.delete('j-rock');
+  genres = async () => docs.slice().reverse().map(doc => ({ _id: doc.slug, count: 9000 }));
+  genreManifests = async () => [{ type: 'genres', status: 'active', language: 'en', chunks: [{ stationIds: docs.filter(doc => doc._id !== 'not-published').map(doc => doc._id) }] }];
+  genreDocuments = async () => docs;
+  await buildLlmsTxtBody(base); await setImmediate();
+  const body = await buildLlmsTxtBody(base);
+  const advertised = [...body.matchAll(/https:\/\/themegaradio\.com\/en\/genres\/([^)]+)/g)].map(match => match[1]);
+  assert.deepEqual(advertised, ['rock']);
+});
+
+test('genre membership belongs to its own locale rather than inheriting English or another locale', async () => {
+  genreManifests = async () => [
+    { type: 'genres', status: 'active', language: 'de', chunks: [{ stationIds: ['rock-id'] }] },
+    { type: 'genres', status: 'active', language: 'tr', chunks: [{ stationIds: ['jazz-id'] }] },
+    { type: 'stations', status: 'active', language: 'en', chunks: [{ stationIds: ['must-not-read'] }] },
+    { type: 'genres', status: 'retired', language: 'en', chunks: [{ stationIds: ['must-not-read'] }] },
+    { type: 'genres', status: 'active', language: 'am', chunks: [{ stationIds: ['must-not-read'] }] },
+  ];
+  genres = async () => [{ _id: 'rock', count: 100 }, { _id: 'jazz', count: 90 }];
+  await buildLlmsTxtBody(base); await setImmediate();
+  const en = await buildLlmsTxtBody(base);
+  const de = await buildLlmsTxtBody(base, 'de', false);
+  const tr = await buildLlmsTxtBody(base, 'tr', false);
+  assert.doesNotMatch(en, /\/en\/genres\/(?:rock|jazz)/);
+  assert.match(de, /\/de\/genres\/rock/); assert.doesNotMatch(de, /\/de\/genres\/jazz/);
+  assert.match(tr, /\/tr\/turler\/jazz/); assert.doesNotMatch(tr, /\/tr\/turler\/rock/);
+  assert.deepEqual(genreIdReads, [['rock-id', 'jazz-id']]);
+});
+
+test('genre cap applies after measured-rank, membership and policy filters, with a hard 100-candidate ceiling', async () => {
+  const docs = Array.from({ length: 110 }, (_, index) => ({ _id: `id-${index}`, slug: `genre-${index}`, stationCount: index < 12 || (index >= 30 && index < 100) ? 5 : 6 }));
+  for (const doc of docs) allowedGenres.add(doc.slug);
+  genreManifests = async () => [{ type: 'genres', status: 'active', language: 'en', chunks: [{ stationIds: docs.map(doc => doc._id) }] }];
+  genreDocuments = async () => docs;
+  genres = async () => docs.map(doc => ({ _id: doc.slug, count: 100 }));
+  await buildLlmsTxtBody(base); await setImmediate();
+  const body = await buildLlmsTxtBody(base);
+  const advertised = [...body.matchAll(/\/en\/genres\/(genre-\d+)\)/g)].map(match => match[1]);
+  assert.deepEqual(advertised, Array.from({ length: 18 }, (_, index) => `genre-${index + 12}`));
+  assert.doesNotMatch(body, /\/genres\/genre-10\d/);
+  clearLlmsTxtCache();
+  for (const doc of docs) doc.stationCount = 6;
+  await buildLlmsTxtBody(base); await setImmediate();
+  const capped = await buildLlmsTxtBody(base);
+  assert.deepEqual([...capped.matchAll(/\/en\/genres\/(genre-\d+)\)/g)].map(match => match[1]), Array.from({ length: 20 }, (_, index) => `genre-${index}`));
+});
+
+test('missing or empty genre manifests omit optional links without a full-table query or whitelist filler', async () => {
+  for (const entries of [[], [{ type: 'genres', status: 'active', language: 'en', chunks: [] }]]) {
+    clearLlmsTxtCache(); genreManifests = async () => entries;
+    const before = calls.genreDocs;
+    await buildLlmsTxtBody(base); await setImmediate();
+    const body = await buildLlmsTxtBody(base);
+    assertCoreDiscovery(body); assert.doesNotMatch(body, /\/en\/genres\/rock/);
+    assert.equal(calls.genreDocs, before);
+  }
+});
+
+test('overlarge or malformed genre membership fails closed without sending a whole-table query', async () => {
+  for (const chunks of [
+    [{ stationIds: Array.from({ length: 4097 }, (_, index) => `id-${index}`) }],
+    [{ stationIds: [null] }], [{ stationIds: 'not-an-array' }],
+  ]) {
+    clearLlmsTxtCache();
+    genreManifests = async () => [{ type: 'genres', status: 'active', language: 'en', chunks }];
+    const before = calls.genreDocs;
+    await buildLlmsTxtBody(base); await setImmediate();
+    const body = await buildLlmsTxtBody(base);
+    assertCoreDiscovery(body); assert.doesNotMatch(body, /\/en\/genres\/rock/);
+    assert.equal(calls.genreDocs, before);
+  }
+});
+
+test('failed genre manifest or bounded-record refresh retains only the last verified per-locale snapshot', async () => {
+  await buildLlmsTxtBody(base); await setImmediate();
+  const verified = await buildLlmsTxtBody(base);
+  for (const source of ['manifest', 'records']) {
+    now += 6 * 60 * 60 * 1000 + 1;
+    genreManifests = source === 'manifest' ? async () => { throw new Error('manifest unavailable'); }
+      : async () => [{ type: 'genres', status: 'active', language: 'en', chunks: [{ stationIds: ['jazz-id'] }] }];
+    genreDocuments = async () => { throw new Error('records unavailable'); };
+    genres = async () => [{ _id: 'jazz', count: 9000 }];
+    assert.equal(await buildLlmsTxtBody(base), verified); await setImmediate();
+    assert.equal(await buildLlmsTxtBody(base), verified);
+    assert.doesNotMatch(await buildLlmsTxtBody(base), /\/en\/genres\/jazz/);
+  }
 });
