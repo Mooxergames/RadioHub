@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import { registerLlmsTxtRoutes } from '../seo/llms-txt-routes';
 import { mobileAppLinkPaths } from '../seo/mobile-app-links';
 import { isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 import crypto from 'crypto';
@@ -871,31 +872,7 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
   // useful on the API host (they only advertise crawl directives + canonical
   // entry points on themegaradio.com), so the guard now sits AFTER them.
 
-  // Task #128: /llms.txt advertises crawl-friendly entry points to AI agents
-  // and Google's LLM probes. Must be plain-text — without this route the SPA
-  // shell was served as HTML 200, breaking the contract.
-  // 2026-05-13: body is now assembled by `buildLlmsTxtBody()` (adds About,
-  // localized entry points, top countries/genres). Same helper is used by
-  // the early-mounted shadow handler in `index-web.ts` so the bytes are
-  // identical regardless of which route serves the request. A cold optional
-  // discovery cache never blocks the core guide on database aggregations.
-  app.get("/llms.txt", async (req, res) => {
-    const baseUrl = getBaseUrl(req);
-    try {
-      const { buildLlmsTxtBody } = await import('../seo/llms-txt-builder');
-      const body = await buildLlmsTxtBody(baseUrl);
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.status(200).send(body);
-    } catch {
-      const fallback = `# MegaRadio\n\n${baseUrl}/\n\n## Sitemaps\n${baseUrl}/sitemap-index.xml\n${baseUrl}/robots.txt\n\n## Key sections\n${baseUrl}/en/stations\n${baseUrl}/en/genres\n${baseUrl}/en/regions\n${baseUrl}/en/about\n${baseUrl}/en/faq\n${baseUrl}/en/contact\n${baseUrl}/en/privacy-policy\n${baseUrl}/en/terms-and-conditions\n`;
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.setHeader('Cache-Control', 'public, max-age=300');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.status(200).send(fallback);
-    }
-  });
+  registerLlmsTxtRoutes(app, { homeDiscovery: !options?.apiOnly });
 
   // Robots.txt generator
   app.get("/robots.txt", async (req, res) => {

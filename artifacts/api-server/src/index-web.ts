@@ -31,7 +31,7 @@ import { buildPublicRoutePreloads } from './seo/frontend-asset-preloads';
 import { renderStationBootstrap } from './seo/station-bootstrap';
 import { renderTranslationBootstrap } from './seo/translation-bootstrap';
 import { registerSeoSitemapRoutes } from './routes/seo-sitemap-routes';
-import { getBaseUrl } from './routes/shared-utils';
+import { registerLlmsTxtRoutes } from './seo/llms-txt-routes';
 import { startOperation, endOperation, getActiveOperations, getGcStats } from './utils/operation-tracker';
 import { COUNTRY_TO_LANGUAGE, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
@@ -109,45 +109,8 @@ app.get('/readyz', async (_req,res) => {
   res.status(ready ? 200 : 503).json({ ready,database:'postgresql',postgres:postgres.status });
 });
 
-// 2026-05-12 Semrush audit: `/llms.txt` was returning the SPA HTML shell
-// (Multiple-H1 notice) on production even though `routes/seo-sitemap-routes.ts`
-// registers the proper text/plain handler. The root cause was middleware
-// ordering — geo-block / language redirects / SSR catch-alls were running
-// before `registerSeoSitemapRoutes(app)` (line ~496) and one of them was
-// emitting an HTML response. Mounting the handler here, immediately after
-// `/healthz`, guarantees nothing else can shadow it. Body intentionally
-// kept identical to the canonical handler so the contract doesn't drift.
-app.get('/llms.txt', async (req, res) => {
-  // Use the same canonical baseUrl helper as the shadowed handler in
-  // routes/seo-sitemap-routes.ts so the body is byte-identical regardless
-  // of which route ultimately serves the request (avoids host-header
-  // driven divergence flagged in code review).
-  const baseUrl = getBaseUrl(req);
-  // 2026-05-13 architect P0 (GEO ingestion expansion): the body is now
-  // assembled by `buildLlmsTxtBody()` which adds an About paragraph,
-  // per-language entry points (qualified langs only), top-30 countries
-  // pulled from the active main sitemap manifest and top-20 genres
-  // computed from a 6h-cached aggregation. Both /llms.txt handlers
-  // (this one and the canonical one in routes/seo-sitemap-routes.ts)
-  // call the SAME helper. Cold reads return the core guide immediately;
-  // optional database-backed sections refresh in one background operation.
-  try {
-    const { buildLlmsTxtBody } = await import('./seo/llms-txt-builder');
-    const body = await buildLlmsTxtBody(baseUrl);
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.status(200).send(body);
-  } catch (err) {
-    // Defensive: if the builder throws unexpectedly emit the
-    // historical minimal body so /llms.txt never returns the SPA shell.
-    const fallback = `# MegaRadio\n\n${baseUrl}/\n\n## Sitemaps\n${baseUrl}/sitemap-index.xml\n${baseUrl}/robots.txt\n\n## Key sections\n${baseUrl}/en/stations\n${baseUrl}/en/genres\n${baseUrl}/en/regions\n${baseUrl}/en/about\n${baseUrl}/en/faq\n${baseUrl}/en/contact\n${baseUrl}/en/privacy-policy\n${baseUrl}/en/terms-and-conditions\n`;
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.status(200).send(fallback);
-  }
-});
+// Public text guides must precede language redirects, static delivery and SSR.
+registerLlmsTxtRoutes(app, { homeDiscovery: true });
 
 app.get('/health', async (_req, res) => {
   setHealthCacheHeaders(res);
