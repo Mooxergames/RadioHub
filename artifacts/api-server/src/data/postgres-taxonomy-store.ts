@@ -88,8 +88,10 @@ export async function pgGenreBySlug(slug: string): Promise<any | null> {
   return genreShape(row);
 }
 
-export async function pgStoredGenreBySlug(slug: string): Promise<any | null> {
-  const result = await getPostgresPool().query('SELECT * FROM genres WHERE slug=$1', [slug]);
+export async function pgStoredGenreBySlug(slug: string,
+  reader?: { query(text: string, values: any[]): Promise<{ rows: any[] }> },
+): Promise<any | null> {
+  const result = await (reader ?? getPostgresPool()).query('SELECT * FROM genres WHERE slug=$1', [slug]);
   return result.rows[0] ? genreShape(result.rows[0]) : null;
 }
 
