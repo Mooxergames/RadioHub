@@ -10,6 +10,7 @@ import ts from 'typescript';
 import { loadBlogContent } from '@workspace/seo-shared/blog';
 import { BLOG_IDS, blogIdsForLocale, isCoreBlogId } from '@workspace/seo-shared/blog-manifest';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
+import { isLlmsLocale, readLlmsStationSelection } from '../src/seo/llms-txt-content';
 
 const ORIGIN = 'https://themegaradio.com';
 const LOCALES = ['en', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'ar', 'zh', 'tr', 'ja', 'ko', 'hi', 'he'] as const;
@@ -175,6 +176,14 @@ function assertPlain(result: HttpResult): void {
   assert.doesNotMatch(result.body, /<!doctype|<html|Existing home fixture|Unrelated SPA fixture/i);
 }
 
+function assertStationLinks(body: string, locale: string): void {
+  assert.ok(isLlmsLocale(locale));
+  const selection = readLlmsStationSelection(locale);
+  assert.ok(selection);
+  assert.equal(selection.stations.length, 40);
+  for (const station of selection.stations) assert.equal(body.split(`](${ORIGIN}${station.path})`).length - 1, 1);
+}
+
 function assertGuide(result: HttpResult, path: string, locale: string): void {
   assert.equal(result.status, 200, path);
   assertPlain(result);
@@ -186,6 +195,7 @@ function assertGuide(result: HttpResult, path: string, locale: string): void {
   assert.equal(header(result, 'x-fixture-downstream'), '');
   assert.equal(header(result, 'x-fixture-security'), 'before-registrar');
   assert.match(result.body, /^# MegaRadio\n/);
+  assertStationLinks(result.body, locale);
   assert.equal(new TextDecoder('utf-8', { fatal: true }).decode(result.bytes), result.body);
   assert.equal(Number(header(result, 'content-length')), Buffer.byteLength(result.body));
   const digest = createHash('sha1').update(result.bytes).digest('base64').slice(0, 27);
@@ -488,6 +498,7 @@ test('unexpected builder failure serves the pure native core with correct canoni
       assert.equal(get.status, 200);
       assertPlain(get);
       assert.equal(get.body, buildLlmsTxtCoreBody(locale));
+      assertStationLinks(get.body, locale);
       assert.equal(header(get, 'content-language'), locale);
       assert.equal(header(get, 'link'), `<${ORIGIN}${path}>; rel="canonical"`);
       assert.match(header(get, 'cache-control'), /^public, max-age=(?:300|3600)$/);
