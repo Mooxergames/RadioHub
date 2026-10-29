@@ -132,6 +132,22 @@ describe('Native PostgreSQL public catalog', { skip: !process.env.PG_TEST_DATABA
     assert.deepEqual(second.stations.map(row => row._id), api.stations.map((row: any) => row._id));
     assert.deepEqual(await readSeoGenrePage('jazz', 2, 'The United States Of America'), second);
   });
+  it('genre quality sample filters noindex/missing slugs before LIMIT and does not prefer logos over votes', async () => {
+    await catalog.insertMany([
+      ...Array.from({ length: 12 }, (_, i) => station(`excluded-${i}`, { slug: `excluded-${i}`, tags: 'jazz', votes: 10000, noIndex: true, favicon: 'https://logo.invalid/a.png' })),
+      ...Array.from({ length: 12 }, (_, i) => station(`no-slug-${i}`, { slug: null, tags: 'jazz', votes: 10000, favicon: 'https://logo.invalid/a.png' })),
+      station('empty-slug', { slug: '', tags: 'jazz', votes: 10000 }),
+      ...Array.from({ length: 8 }, (_, i) => station(`eligible-${i}`, { slug: `eligible-${i}`, tags: 'jazz', votes: 1000 - i, favicon: '' })),
+      ...Array.from({ length: 24 }, (_, i) => station(`junk-${i}`, { name: 'Audio Test Stream', slug: `test-stream-${i}`, tags: 'jazz', votes: 10, favicon: 'https://logo.invalid/a.png' })),
+    ]);
+    const { readSeoGenreQualityPage } = await import('../src/data/postgres-seo-directory-store');
+    const { isJunkStation } = await import('../src/seo/junk-station-rules');
+    const sample = await readSeoGenreQualityPage('jazz');
+    assert.equal(sample.stations.length, 24);
+    assert.deepEqual(sample.stations.slice(0, 8).map(row => row._id), Array.from({ length: 8 }, (_, i) => `eligible-${i}`));
+    assert.ok(sample.stations.every(row => row.slug && row.noIndex !== true));
+    assert.equal(sample.stations.filter(row => !isJunkStation(row)).length, 8);
+  });
   it('prioritizes canonical slug then ID without scanning legacy aliases on a direct hit', async () => {
     await catalog.insertMany([
       station('canonical-owner', { slug: 'collision', slugAliases: ['old-canonical'], descriptions: { de: { full: 'Kept article' } } }),

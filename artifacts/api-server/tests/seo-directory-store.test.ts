@@ -72,8 +72,14 @@ test('global genre quality sample is independently bounded and shared across all
   assert.equal(data.stations.length, 24); assert.equal(queries.length, 1);
   assert.deepEqual(queries[0].values.slice(-3), [1, 24, 0]);
   assert.ok(queries[0].sql.includes('votes>='));
+  assert.ok(queries[0].sql.includes('no_index IS NOT TRUE'));
+  assert.ok(queries[0].sql.includes("slug IS NOT NULL AND slug<>''"));
+  assert.ok(queries[0].sql.includes('ORDER BY votes DESC,id ASC LIMIT'));
+  assert.ok(!queries[0].sql.includes("(btrim(COALESCE(favicon,''))"));
   await readSeoGenrePage('jazz', 3);
   assert.equal(queries.length, 2);
+  assert.ok(!queries[1].sql.includes('no_index IS NOT TRUE'));
+  assert.ok(queries[1].sql.includes("(btrim(COALESCE(favicon,''))"));
 });
 test('read outage does not cache empty success and later recovers', async () => {
   failure = true; await assert.rejects(readSeoGenrePage('jazz', 2), /temporary bounded/);

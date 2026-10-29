@@ -39,7 +39,7 @@ export function readSeoGenrePage(slug: string, page: number, country?: string): 
 export function readSeoGenreQualityPage(slug: string): Promise<DirectoryPage> {
   return readPage(JSON.stringify(['genre-quality', slug, 24]), async () => {
     const data = await listStationsFromPostgres({ genre: slug, minVotes: 1, sort: 'votes',
-      page: 1, limit: 24, compact: true }, boundedSeoReadQuery);
+      page: 1, limit: 24, compact: true, seoQualitySample: true }, boundedSeoReadQuery);
     return { stations: data.stations, total: data.totalCount, totalPages: data.pagination.pages };
   });
 }

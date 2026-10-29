@@ -120,6 +120,8 @@ export async function getNearbyStationsFromPostgres(options: {
   latitude?: number; longitude?: number; radiusKm: number; limit: number;
   country?: string; excludeBroken?: boolean; userCountry?: string;
   compact?: boolean;
+  /** Internal SSR fallback only; public browsing retains its existing order. */
+  seoQualitySample?: boolean;
 }): Promise<any[]> {
   const hasCoordinates = options.latitude !== undefined || options.longitude !== undefined;
   if (!hasCoordinates) {
@@ -215,6 +217,7 @@ export async function listStationsFromPostgres(options: PostgresStationListOptio
   // This is a public catalog reader. excludeBroken=false is a legacy client
   // preference, not permission to bypass current native health visibility.
   const conditions: string[] = ['(is_list_visible IS TRUE OR COALESCE(visibility_expires_at<=now(),false))'];
+  if (options.seoQualitySample) conditions.push('no_index IS NOT TRUE', "slug IS NOT NULL AND slug<>''");
   let genreCandidates = '';
   const bind = (value: unknown): string => { values.push(value); return `$${values.length}`; };
   if (options.country) conditions.push(`lower(country)=lower(${bind(options.country)})`);
@@ -269,7 +272,8 @@ export async function listStationsFromPostgres(options: PostgresStationListOptio
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const sortMap: Record<string, string> = { az:'name ASC',za:'name DESC',newest:'created_at DESC',oldest:'created_at ASC',votes:'votes DESC' };
   const numericNamesLast = ['az','za'].includes(options.sort || '') ? "(btrim(name) ~ '^[0-9]') ASC," : '';
-  const order = searchOrder + numericNamesLast + `(btrim(COALESCE(favicon,'')) ~* '^(https?://.+|data:image/.+)') DESC,${sortMap[options.sort || 'votes'] || sortMap.votes},id ASC`;
+  const order = options.seoQualitySample ? 'votes DESC,id ASC'
+    : searchOrder + numericNamesLast + `(btrim(COALESCE(favicon,'')) ~* '^(https?://.+|data:image/.+)') DESC,${sortMap[options.sort || 'votes'] || sortMap.votes},id ASC`;
   const page = boundedInteger(options.page, 1, 1_000_000);
   const limit = boundedInteger(options.limit, 25, 500);
   // Select the bounded ID page before loading wide station/source columns.

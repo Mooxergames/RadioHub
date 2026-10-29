@@ -118,10 +118,13 @@ test('past-end native count is absence; filtered-empty or failed reads are not',
 });
 test('missing stored count uses genre-wide eligible evidence, not a short final page or raw public total', async () => {
   storedCount = undefined;
-  for (const page of [1, 3]) {
-    const data = await renderer.renderStaticPage(`/en/genres/jazz?page=${page}`, origin);
-    assert.notEqual(data.seoTags.noIndex, true);
-    assert.ok(data.seoTags.hreflangs.length > 0);
+  for (const eligible of [8, 32]) {
+    qualityCount = eligible; cache.clear();
+    for (const page of [1, 3]) {
+      const data = await renderer.renderStaticPage(`/en/genres/jazz?page=${page}`, origin);
+      assert.notEqual(data.seoTags.noIndex, true);
+      assert.ok(data.seoTags.hreflangs.length > 0);
+    }
   }
   cache.clear(); qualityCount = 4;
   assert.equal((await renderer.renderStaticPage('/en/genres/jazz?page=3', origin)).seoTags.noIndex, true, 'A genuinely thin global quality sample retains the gate');
