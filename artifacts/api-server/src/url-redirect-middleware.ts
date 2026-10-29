@@ -216,8 +216,7 @@ function detectLanguageFromRequest(req: Request): string {
   // language negotiation respects regional tags, quality weights and q=0.
   const saved = getPreferredLanguageCookie(req.headers.cookie || '');
   if (saved) return saved;
-  const supported = ['en', ...SEO_LANGUAGES.filter(lang => lang.enabled && lang.code !== 'en').map(lang => lang.code)];
-  return req.acceptsLanguages(...supported) || 'en';
+  return req.acceptsLanguages(...ACTIVE_SITEMAP_LANGUAGES) || 'en';
 }
 
 export async function urlRedirectMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {

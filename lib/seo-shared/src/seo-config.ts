@@ -218,6 +218,9 @@ export const SITEMAP_PRIORITY_LANGUAGES = {
 // Active sitemap language cohort (change this to roll out more languages)
 export const ACTIVE_SITEMAP_LANGUAGES = SITEMAP_PRIORITY_LANGUAGES.universal14;
 
+export const GENRE_STATIONS_PAGE_SIZE = 15;
+export const MAX_GENRE_DIRECTORY_PAGE = 1_000_000;
+
 // Sitemap generation configuration
 export const SITEMAP_CONFIG = {
   // Chunk sizes (Google limit: 50K URLs per sitemap, 50MB per file)

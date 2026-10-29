@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import express from 'express';
 import { markSeoTemporarilyUnavailable } from '../src/seo/temporary-unavailable';
-import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { ACTIVE_SITEMAP_LANGUAGES, GENRE_STATIONS_PAGE_SIZE } from '@workspace/seo-shared/seo-config';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
 import { getSeoReadDeadline } from '../src/utils/seo-read-deadline';
 import { getPublicStationDeadline, limitPublicStationDeadline, withPublicStationDeadline } from '../src/utils/public-station-deadline';
@@ -26,6 +26,7 @@ const rawCards = [
 const pages = new Map<string, any>();
 let compact = false;
 let reads: Array<{ filter: any; options: any }> = [];
+let genreReads: Array<{ slug: string; page: number; country?: string }> = [];
 let urlGate: ReturnType<typeof Promise.withResolvers<Map<string, string>>> | undefined;
 let visibilityDeadline = Infinity;
 let executionDeadline = Infinity;
@@ -54,6 +55,21 @@ mock.module('../src/data/postgres-seo-read-store', { namedExports: { pgSeoCatalo
       [field, (row as any)[field]]).filter(([, value]: [string, unknown]) => value !== undefined))) : selected;
   },
 }) } });
+mock.module('../src/data/postgres-seo-directory-store', { namedExports: {
+  readSeoGenrePage: async (slug: string, page: number, country?: string) => {
+    genreReads.push({ slug, page, country });
+    if (readFailure) throw readFailure;
+    visibilityDeadline = getPublicStationDeadline();
+    executionDeadline = getSeoReadDeadline()?.expiresAt ?? Infinity;
+    const rows = emptyCards ? [] : junkOnly ? rawCards.slice(0, 4) : good;
+    const fields = ['_id', 'name', 'slug', 'url', 'noIndex', 'isListVisible', 'favicon',
+      'logoAssets', 'country', 'countryCode', 'tags', 'votes', 'genre', 'lastCheckOk'];
+    // Native compact rows retain an empty descriptions map, never archived prose.
+    const stations = rows.slice((page - 1) * GENRE_STATIONS_PAGE_SIZE, page * GENRE_STATIONS_PAGE_SIZE)
+      .map(row => ({ ...Object.fromEntries(fields.map(field => [field, (row as any)[field]])), descriptions: {} }));
+    return { stations, total: rows.length, totalPages: Math.ceil(rows.length / GENRE_STATIONS_PAGE_SIZE) };
+  },
+} });
 mock.module('../src/data/postgres-content-store', { namedExports: { pgSeoMetadata: async () => null } });
 mock.module('../src/data/postgres-taxonomy-store', { namedExports: { pgStoredGenreBySlug: async () => {
   if (genreCountFails) throw new Error('temporary genre count outage');
@@ -77,7 +93,7 @@ const { SeoRenderer, getSeoRenderStats } = await import('../src/seo-renderer');
 const { PostgresCatalogStore } = await import('../src/data/postgres-catalog-store');
 const renderer = new SeoRenderer();
 beforeEach(() => {
-  pages.clear(); reads = []; compact = false; urlGate = undefined;
+  pages.clear(); reads = []; genreReads = []; compact = false; urlGate = undefined;
   readFailure = undefined; emptyCards = false; genreCountFails = false; junkOnly = false;
 });
 
@@ -91,32 +107,44 @@ function markup(page: any) {
   };
 }
 
+function expectedGridSize(path: string): number {
+  return path.includes('/genres/') ? GENRE_STATIONS_PAGE_SIZE : path === '/' || path === '/en' ? 10 : 12;
+}
+
 for (const language of ACTIVE_SITEMAP_LANGUAGES) {
   for (const path of ['/', '/genres/70s', '/regions/europe/germany']) {
     test(`${language}${path}: projected cards preserve visible HTML, JSON-LD, alt and quality gates`, async () => {
       const localized = buildLocalizedUrl(path, language, undefined, new Map());
       const full = await renderer.renderStaticPage(localized, origin);
       const expected = markup(full);
-      pages.clear(); reads = []; compact = true;
+      pages.clear(); reads = []; genreReads = []; compact = true;
       const projected = await renderer.renderStaticPage(localized, origin);
       assert.deepEqual(markup(projected), expected);
       assert.equal(projected.seoTags.noIndex, undefined);
-      assert.equal(reads.length, 1);
-      const { filter, options } = reads[0];
-      assert.equal(filter.isListVisible, true);
-      assert.equal(filter.noIndex.$ne, true);
-      assert.deepEqual(options.sort, { votes: -1 });
-      assert.equal(options.limit, 24);
-      assert.equal(options.sharedCardsKey, JSON.stringify(path === '/' ? ['home']
-        : path.startsWith('/genres') ? ['genre', '70s'] : ['country', 'Germany']));
-      for (const field of ['_id', 'name', 'slug', 'url', 'noIndex', 'isListVisible', 'favicon',
-        'logoAssets', 'country', 'countryCode', 'tags', 'votes', 'genre']) assert.ok(options.fields.includes(field), field);
-      assert.ok(!options.fields.includes('source') && !options.fields.includes('descriptions'));
+      if (path.startsWith('/genres/')) {
+        assert.equal(reads.length, 0, 'genre pages must not return to the regex catalog reader');
+        assert.deepEqual(genreReads, [{ slug: '70s', page: 1, country: undefined }]);
+        assert.equal(projected.pageData.additionalData.catalogPage, 1);
+        assert.equal(projected.pageData.additionalData.catalogTotalPages, Math.ceil(good.length / GENRE_STATIONS_PAGE_SIZE));
+      } else {
+        assert.equal(genreReads.length, 0);
+        assert.equal(reads.length, 1);
+        const { filter, options } = reads[0];
+        assert.equal(filter.isListVisible, true);
+        assert.equal(filter.noIndex.$ne, true);
+        assert.deepEqual(options.sort, { votes: -1 });
+        assert.equal(options.limit, 24);
+        assert.equal(options.sharedCardsKey, JSON.stringify(path === '/' ? ['home'] : ['country', 'Germany']));
+        for (const field of ['_id', 'name', 'slug', 'url', 'noIndex', 'isListVisible', 'favicon',
+          'logoAssets', 'country', 'countryCode', 'tags', 'votes', 'genre']) assert.ok(options.fields.includes(field), field);
+        assert.ok(!options.fields.includes('source') && !options.fields.includes('descriptions'));
+      }
       const cards = projected.pageData.additionalData.popularStations;
-      assert.equal(cards.length, path === '/' ? 10 : 12);
+      assert.equal(cards.length, expectedGridSize(path));
       assert.ok(cards.some((row: any) => row.slug === 'station-0'), 'provider-only failure is not a quality exclusion');
       assert.ok(cards.every((row: any) => row.url && !['radio-test-stream', 'hidden', 'excluded'].includes(row.slug)));
-      assert.ok(cards.every((row: any) => !('descriptions' in row) && !('source' in row)));
+      assert.ok(cards.every((row: any) => !('source' in row) && (path.startsWith('/genres/')
+        ? JSON.stringify(row.descriptions) === '{}' : !('descriptions' in row))));
       assert.ok(JSON.stringify(cards).length < 20000);
       assert.ok(!expected.body.includes('UNNEEDED_ARCHIVED_EDITORIAL_TEXT'));
       assert.equal(projected.seoTags.canonical, origin + localized);
@@ -138,7 +166,7 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
       readFailure = undefined;
       const recovered = await renderer.renderStaticPage(localized, origin);
       assert.notEqual(recovered.pageData.stationDbError, true);
-      assert.equal(recovered.pageData.additionalData.popularStations.length, path === '/' ? 10 : 12);
+      assert.equal(recovered.pageData.additionalData.popularStations.length, expectedGridSize(path));
       assert.equal(pages.size, 1);
     });
   }
@@ -174,7 +202,7 @@ for (const family of ['genre', 'country']) {
     });
     const path = family === 'genre' ? '/en/genres/70s' : '/en/regions/europe/germany';
     const result = await renderer.renderStaticPage(path, origin);
-    assert.equal(result.pageData.additionalData.popularStations.length, 12);
+    assert.equal(result.pageData.additionalData.popularStations.length, family === 'genre' ? GENRE_STATIONS_PAGE_SIZE : 12);
     assert.notEqual(result.pageData.stationDbError, true);
     assert.notEqual(result.pageData.additionalData.hubReadFailed, true);
   });
@@ -184,7 +212,7 @@ test('only the optional genre count failing does not discard a successfully load
   genreCountFails = true;
   const result = await renderer.renderStaticPage('/en/genres/70s', origin);
   assert.equal(result.pageData.additionalData.genreCountFetchFailed, true);
-  assert.equal(result.pageData.additionalData.popularStations.length, 12);
+  assert.equal(result.pageData.additionalData.popularStations.length, GENRE_STATIONS_PAGE_SIZE);
   assert.notEqual(result.pageData.stationDbError, true);
   assert.notEqual(result.seoTags.noIndex, true);
 });
@@ -228,7 +256,7 @@ test('all three required grids produce GET/HEAD 503/no-store without cache write
 
 test('the real catalog projection reads only the requested legacy genre key, not archived JSON', async () => {
   compact = true;
-  await renderer.renderStaticPage('/en/genres/70s', origin);
+  await renderer.renderStaticPage('/en', origin);
   const options = reads[0].options;
   let sql = '', values: any[] = [];
   const store = new PostgresCatalogStore({ query: async (text: string, parameters: any[]) => {

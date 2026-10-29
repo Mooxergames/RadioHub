@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider as BaseQueryClientProvider } from '@ta
 import { getBrowserLanguage, saveBrowserLanguage, syncBrowserLanguageFromUrl } from '../src/lib/browser-language';
 import { TranslationProvider, useTranslation } from '../src/hooks/useTranslation';
 import { useSeoRouting } from '../src/hooks/useSeoRouting';
+import { ACTIVE_SITEMAP_LANGUAGES, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
 let client: QueryClient;
 let translation: ReturnType<typeof useTranslation>;
@@ -98,14 +99,65 @@ describe('same-task automatic URL preference sync', () => {
 
   it('ignores unsupported values without poisoning the next valid automatic sync', () => {
     const storage = vi.spyOn(Storage.prototype, 'getItem');
-    syncBrowserLanguageFromUrl('xx-invalid'); syncBrowserLanguageFromUrl('de');
+    syncBrowserLanguageFromUrl('xx-invalid'); syncBrowserLanguageFromUrl('am'); syncBrowserLanguageFromUrl('de');
     expect(storage).toHaveBeenCalledTimes(1);
+    expect(document.cookie).toContain('preferredLanguage=de');
+  });
+
+  it('does not save or synchronize inactive locales over an existing active preference', () => {
+    localStorage.setItem('preferredLanguage', 'de');
+    document.cookie = 'preferredLanguage=de; path=/';
+    const storage = vi.spyOn(Storage.prototype, 'setItem');
+    const cookie = vi.spyOn(Document.prototype, 'cookie', 'set');
+    for (const { code } of SEO_LANGUAGES.filter(language => !(ACTIVE_SITEMAP_LANGUAGES as readonly string[]).includes(language.code))) {
+      saveBrowserLanguage(code);
+      syncBrowserLanguageFromUrl(code);
+    }
+    expect(storage).not.toHaveBeenCalled();
+    expect(cookie).not.toHaveBeenCalled();
+    expect(localStorage.getItem('preferredLanguage')).toBe('de');
     expect(document.cookie).toContain('preferredLanguage=de');
   });
 });
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
 
 describe('root-only browser language selection', () => {
+  for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+    it(`accepts active device locale ${language}`, () => {
+      deviceLanguages([language]);
+      expect(getBrowserLanguage()).toBe(language);
+    });
+  }
+  it('skips an inactive cookie before an active localStorage preference', () => {
+    document.cookie = 'preferredLanguage=am; path=/';
+    localStorage.setItem('preferredLanguage', 'tr');
+    deviceLanguages(['de-AT']);
+    expect(getBrowserLanguage()).toBe('tr');
+  });
+  it('skips inactive saved and device preferences before the next active device locale', () => {
+    document.cookie = 'preferredLanguage=am; path=/';
+    localStorage.setItem('preferredLanguage', 'af');
+    deviceLanguages(['am-ET', 'af-ZA', 'de-AT']);
+    expect(getBrowserLanguage()).toBe('de');
+  });
+  it('falls back to English when every saved/device preference is inactive', () => {
+    document.cookie = 'preferredLanguage=am; path=/';
+    localStorage.setItem('preferredLanguage', 'af');
+    deviceLanguages(['am-ET', 'af-ZA']);
+    expect(getBrowserLanguage()).toBe('en');
+  });
+  for (const language of ['am', 'af']) {
+    it(`retains explicit /${language} parsing without replacing an active preference`, () => {
+      window.history.replaceState({}, '', `/${language}/station/example`);
+      document.cookie = 'preferredLanguage=de; path=/';
+      localStorage.setItem('preferredLanguage', 'de');
+      deviceLanguages(['tr-TR']);
+      expect(getBrowserLanguage()).toBe(language);
+      syncBrowserLanguageFromUrl(language);
+      expect(localStorage.getItem('preferredLanguage')).toBe('de');
+      expect(document.cookie).toContain('preferredLanguage=de');
+    });
+  }
   for (const tag of ['de-AT', 'de-DE']) {
     it(`selects German device ${tag} without a stored preference`, () => {
       deviceLanguages([tag, 'en-US']);

@@ -83,6 +83,55 @@ describe('Native PostgreSQL public catalog', { skip: !process.env.PG_TEST_DATABA
     const empty = await read.listStationsFromPostgres({ genre: 'rock', page: 3, limit: 1 });
     assert.equal(empty.totalCount, 1); assert.deepEqual(empty.stations, []); assert.equal(empty.pagination.pages, 1);
   });
+  it('SSR genre native pages stay compact and match the public native membership/order', async () => {
+    const archive = 'ARCHIVED_ARTICLE_NOT_A_CARD '.repeat(1000);
+    await catalog.insertMany(Array.from({ length: 32 }, (_, i) => station(`genre-${String(i).padStart(2, '0')}`, {
+      slug: `genre-${i}`, tags: 'jazz', votes: 32 - i, descriptions: { en: { full: archive }, de: { full: archive } },
+    })));
+    const { readSeoGenrePage } = await import('../src/data/postgres-seo-directory-store');
+    const first = await readSeoGenrePage('jazz', 1);
+    const second = await readSeoGenrePage('jazz', 2);
+    const expected = await read.listStationsFromPostgres({ genre: 'jazz', sort: 'votes', page: 2, limit: 15 });
+    assert.equal(first.stations.length, 15); assert.equal(second.stations.length, 15);
+    assert.equal(second.total, 32); assert.equal(second.totalPages, 3);
+    assert.deepEqual(second.stations.map(row => row._id), expected.stations.map(row => row._id));
+    assert.ok(first.stations.every(row => !second.stations.some(next => next._id === row._id)));
+    assert.ok(!JSON.stringify(second).includes(archive));
+    assert.ok(second.stations.every(row => Object.keys(row.descriptions).length === 0));
+    assert.equal((await readSeoGenrePage('jazz', 3)).stations.length, 2);
+    assert.deepEqual((await readSeoGenrePage('jazz', 4)).stations, []);
+  });
+  it('SSR city pagination reads country AND city aliases, not country=city or a country-wide fallback', async () => {
+    await catalog.insertMany([
+      ...Array.from({ length: 62 }, (_, i) => station(`berlin-${String(i).padStart(2, '0')}`, { slug: `berlin-${i}`, name: `Berlin Radio ${i}`, tags: 'news' })),
+      station('outside-city', { slug: 'outside-city', name: 'Hamburg Radio', votes: 100000 }),
+      station('other-country', { slug: 'other-country', name: 'Berlin Radio France', country: 'France', votes: 100000 }),
+      station('vienna-name', { slug: 'vienna-name', name: 'Vienna Radio', country: 'Austria' }),
+      station('wien-tag', { slug: 'wien-tag', name: 'Austria Radio', country: 'Austria', tags: 'wien' }),
+    ]);
+    const { readSeoCityPage } = await import('../src/data/postgres-seo-directory-store');
+    const first = await readSeoCityPage('Germany', 'berlin', 1);
+    const second = await readSeoCityPage('Germany', 'berlin', 2);
+    assert.equal(first.total, 62); assert.equal(first.stations.length, 60); assert.equal(second.stations.length, 2);
+    assert.ok([...first.stations, ...second.stations].every(row => row.country === 'Germany' && row.name.startsWith('Berlin Radio')));
+    assert.ok(first.stations.every(row => !second.stations.some(next => next._id === row._id)));
+    for (const city of ['wien', 'vienna']) assert.equal((await readSeoCityPage('Austria', city, 1)).total, 2);
+  });
+  it('explicit US genre SSR and API pages share the canonical DB country, count, slice and cache scope', async () => {
+    await catalog.insertMany(Array.from({ length: 31 }, (_, i) => station(`us-${String(i).padStart(2, '0')}`, {
+      slug: `us-${i}`, tags: 'jazz', country: 'The United States Of America', countryCode: 'US', votes: 31 - i,
+    })));
+    const { readSeoGenrePage } = await import('../src/data/postgres-seo-directory-store');
+    const first = await readSeoGenrePage('jazz', 1, 'United States');
+    const second = await readSeoGenrePage('jazz', 2, 'United States');
+    const response = await fetch(`${base}/api/genres/jazz/stations?country=United%20States&page=2&limit=15`);
+    assert.equal(response.status, 200);
+    const api = await response.json() as any;
+    assert.equal(first.total, 31); assert.equal(second.total, api.total);
+    assert.equal(second.totalPages, api.pages); assert.equal(second.stations.length, 15);
+    assert.deepEqual(second.stations.map(row => row._id), api.stations.map((row: any) => row._id));
+    assert.deepEqual(await readSeoGenrePage('jazz', 2, 'The United States Of America'), second);
+  });
   it('prioritizes canonical slug then ID without scanning legacy aliases on a direct hit', async () => {
     await catalog.insertMany([
       station('canonical-owner', { slug: 'collision', slugAliases: ['old-canonical'], descriptions: { de: { full: 'Kept article' } } }),

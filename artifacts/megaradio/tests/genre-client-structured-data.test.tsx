@@ -177,19 +177,28 @@ describe('genre client station-list ownership with real SEO and station anchors'
   });
 
   it('survives filter changes, page two and browser back/forward with cached immutable SEO payloads', async () => {
+    localStorage.setItem('selectedCountry', 'all');
     const cached = payload('Cached page two');
+    cached.seoTags.canonical = `${origin}/en/genres/pop?page=2`;
     const before = JSON.stringify(cached);
     Object.freeze(cached.structuredData.page); Object.freeze(cached.structuredData);
     client.setQueryData(['/api/seo/page-data', '/en/genres/pop?page=2', 'en'], cached);
-    const view = render(tree()); await expectStations('Turkey');
-    fireEvent.click(screen.getByRole('button', { name: '2' }));
-    await expectStations('Turkey', 2);
+    const view = render(tree('all')); await expectStations('all');
+    expect(screen.getByRole('link', { name: '2' })).toHaveAttribute('href', '/en/genres/pop?page=2');
+    fireEvent.click(screen.getByRole('link', { name: '2' }));
+    await expectStations('all', 2);
+    expect(window.location.search).toBe('?page=2');
     await waitFor(() => expect(document.title).toBe('Cached page two'));
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `${origin}/en/genres/pop?page=2`);
     expect(client.getQueryData(['/api/seo/page-data', '/en/genres/pop?page=2', 'en'])).toEqual(cached);
     expect(JSON.stringify(cached)).toBe(before);
-    act(() => window.history.back()); await expectStations('Turkey');
-    act(() => window.history.forward()); await expectStations('Turkey', 2);
+    act(() => window.history.back()); await expectStations('all');
+    act(() => window.history.forward()); await expectStations('all', 2);
     view.rerender(tree('Austria')); await expectStations('Austria');
+    expect(window.location.search).toBe('');
+    expect(screen.queryByRole('link', { name: '2' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    await expectStations('Austria', 2);
     expect(window.location.search).toBe('');
     expectNoStationLists();
   });
@@ -222,11 +231,14 @@ describe('genre client station-list ownership with real SEO and station anchors'
   });
 
   it('cannot apply an old route head after genre -> station -> back under StrictMode', async () => {
-    const view = render(tree()); await expectStations('Turkey');
-    fireEvent.click(screen.getByRole('button', { name: '2' }));
-    await expectStations('Turkey', 2);
+    localStorage.setItem('selectedCountry', 'all');
+    const view = render(tree('all')); await expectStations('all');
+    expect(screen.getByRole('link', { name: '2' })).toHaveAttribute('href', '/en/genres/pop?page=2');
+    fireEvent.click(screen.getByRole('link', { name: '2' }));
+    await expectStations('all', 2);
+    await waitFor(() => expect(pendingSeo.has('/en/genres/pop?page=2')).toBe(true));
     const oldGenreResponse = pendingSeo.get('/en/genres/pop?page=2')!;
-    fireEvent.click(screen.getByRole('link', { name: /^Station Turkey 2 0 / }));
+    fireEvent.click(screen.getByRole('link', { name: /^Station all 2 0 / }));
     await screen.findByText('Station route');
     const stationUrl = window.location.pathname;
     await waitFor(() => expect(pendingSeo.has(stationUrl)).toBe(true));
@@ -239,10 +251,11 @@ describe('genre client station-list ownership with real SEO and station anchors'
     expect(document.title).toBe('Current station');
     expect(pageSchemas()).toEqual([{ '@type': 'RadioBroadcastService', name: 'Current station' }]);
     act(() => window.history.back());
-    await expectStations('Turkey', 2);
+    await expectStations('all', 2);
     await waitFor(() => expect(pendingSeo.get('/en/genres/pop?page=2')).not.toBe(oldGenreResponse));
     await act(async () => { pendingSeo.get('/en/genres/pop?page=2')!(Response.json(payload('Returned genre'))); });
     await waitFor(() => expect(document.title).toBe('Returned genre'));
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `${origin}/en/genres/pop?page=2`);
     expectNoStationLists();
     act(() => window.history.forward()); await screen.findByText('Station route');
     await waitFor(() => expect(document.title).toBe('Current station'));

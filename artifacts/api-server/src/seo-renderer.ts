@@ -1,13 +1,14 @@
-import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, SEO_LANGUAGES, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
+import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, CODE_TO_COUNTRY, SEO_LANGUAGES, MAX_GENRE_DIRECTORY_PAGE, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { buildDirectoryIndexSeo } from '@workspace/seo-shared/directory-index-seo';
 import { isStationDirectoryPath, isStationDirectoryData, type StationDirectoryData } from '@workspace/seo-shared/station-directory';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
+import { canonicalizeCountry } from '@workspace/seo-shared/country-regions';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { getKnownOgImageDimensions } from '@workspace/seo-shared/og-image-metadata';
 import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
 import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
-import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
+import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
 import { withSeoReadDeadline } from './utils/seo-read-deadline';
 import { resolveToDbName } from './utils/normalize-country';
@@ -21,6 +22,7 @@ import { getHomeGenreNavigation } from './services/home-genre-navigation';
 import { AZ_INDEX_KEYS, azDisplayLabel, matchAzIndexPath } from './seo/az-station-index';
 import { isMissingSeoCatalogPage, isSeoCatalogPath, parseSeoCatalogPage, seoCatalogPageLinks } from './seo/catalog-pagination';
 import { regionRouteExistence, canonicalRegionPath } from './seo/region-route-existence';
+import { buildRegionStationScope } from './services/region-location-data';
 import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from './seo/verified-legacy-station-alias';
 import { withPilotEditorial } from './seo/indexing-pilot';
 
@@ -375,7 +377,8 @@ export class SeoRenderer {
     const pagination = parseSeoCatalogPage(url);
     // Validate before either pageData or HTML can alias an invalid request to
     // a cached valid slice. Non-paginated pages retain their query behaviour.
-    if (isSeoCatalogPath(cleanPath) && !pagination.valid) {
+    if (isSeoCatalogPath(cleanPath) && (!pagination.valid
+      || (cleanPath.startsWith('/genres/') && pagination.page > MAX_GENRE_DIRECTORY_PAGE))) {
       return { language, cleanPath, translations: {}, urlTranslations: new Map(),
         seoTags: { robots: 'noindex, follow', noIndex: true, hreflangs: [] },
         pageData: { pageType: 'stations', notFound: true, httpNotFound: true } };
@@ -407,6 +410,7 @@ export class SeoRenderer {
     let pageSuffix = '';
     if (
       cleanPath.startsWith('/stations') ||
+      cleanPath.startsWith('/genres/') ||
       cleanPath.startsWith('/regions') ||
       cleanPath.startsWith('/country')
     ) {
@@ -797,29 +801,28 @@ export class SeoRenderer {
             additionalData.genreCountFetchFailed = true;
           }
         }
-        // DALGA 2 W2.1: Fetch top 12 stations matching this genre for SSR <img> grid (image indexing)
+        // The public genre URL represents a native, deterministic 15-card page.
         try {
           const term = pathParts[2].replace(/-/g, ' ');
-          // Escape regex meta-chars (replit.md SSRF/NoSQL rule)
           const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const topStations = await withSignal<LeanStationCard[]>(
-            pgSeoCatalog().find({
-              tags: { $regex: escapedTerm },
-              isListVisible: true,
-              slug: { $exists: true, $ne: '' },
-              noIndex: { $ne: true },
-              votes: { $gt: 0 },
-            }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24,
-              sharedCardsKey: JSON.stringify(['genre', escapedTerm]) }),
-            signal
-          );
-          // DALGA 2 W2.REVIEW P2: Apply junk-station gate per replit.md INDEXABILITY-GATE rule.
-          // Use isJunkStation + noIndex (not full isStationIndexableInLanguage which requires
-          // BOTH meta+full descriptions per language — too restrictive for our image-grid surface
-          // where the station's own SSR page already enforces full language gate).
-          additionalData.popularStations = topStations
-            .filter((s) => s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s))
-            .slice(0, 12);
+          const { readSeoGenrePage, readSeoGenreQualityPage } = await import('./data/postgres-seo-directory-store');
+          const explicitCountry = countryCode && !SEO_LANGUAGES.some(l => l.enabled && l.code.toLowerCase() === countryCode)
+            ? CODE_TO_COUNTRY[countryCode] : undefined;
+          const listed = await withSignal(readSeoGenrePage(canonicalSlug || requestedSlug, pagination.page, explicitCountry), signal);
+          additionalData.popularStations = listed.stations
+            .filter((s: any) => s.slug && s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s));
+          additionalData.catalogPage = pagination.page;
+          additionalData.catalogTotalPages = Math.max(1, listed.totalPages);
+          if (isMissingSeoCatalogPage(pagination.page, listed.totalPages, listed.stations)) additionalData.httpNotFound = true;
+          if (typeof additionalData.genreStationCount !== 'number' && !additionalData.genreCountFetchFailed && !additionalData.httpNotFound) {
+            try {
+              const quality = await withSignal(readSeoGenreQualityPage(canonicalSlug || requestedSlug), signal);
+              additionalData.genreQualitySampleCount = quality.stations.filter((s: any) => s.slug && s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s)).length;
+            } catch (error: any) {
+              if (error?.name === 'AbortError' || signal?.aborted) throw error;
+              additionalData.genreCountFetchFailed = true;
+            }
+          }
 
           // ---- Genre cross-link fetch (architect P1: B2) -----------------
           // "Top countries broadcasting <genre>" + "Related radio genres".
@@ -1045,12 +1048,11 @@ export class SeoRenderer {
           .split('-')
           .map(word => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ');
-        if (pathParts.length > 3) {
-          additionalData.country = pathParts[3];
-        }
-        if (pathParts.length > 4) {
-          additionalData.city = pathParts[4];
-        }
+        const countryIndex = routeShape.family === 'country' ? 2 : 3;
+        const countrySlug = pathParts[countryIndex];
+        const citySlug = pathParts[countryIndex + 1];
+        if (countrySlug) additionalData.country = countrySlug;
+        if (citySlug && !TERMINAL_LISTING_SEGMENTS.has(citySlug)) additionalData.city = citySlug;
 
         if (!routeShape.ok || existence !== 'known') {
           // Task #127: route-shape failure → real 404. index-web.ts catch-all
@@ -1069,6 +1071,32 @@ export class SeoRenderer {
           } catch (error: any) {
             if (error?.name === 'AbortError' || signal?.aborted) throw error;
             additionalData.hubReadFailed = true;
+          }
+        } else if (additionalData.city) {
+          const displayCountry = String(additionalData.country).replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          const countryName = canonicalizeCountry(resolveToDbName(displayCountry) || displayCountry);
+          const scope = buildRegionStationScope(countryName, additionalData.city);
+          if (!scope) {
+            additionalData.httpNotFound = true;
+            additionalData.popularStations = [];
+          } else {
+            additionalData.countryName = countryName;
+            additionalData.cityName = scope.cityName;
+            additionalData.regionName = scope.cityName === 'ALL' ? countryName : scope.cityName;
+            try {
+              const { readSeoCityPage } = await import('./data/postgres-seo-directory-store');
+              const listed = await withSignal(readSeoCityPage(countryName, additionalData.city, pagination.page), signal);
+              additionalData.catalogStations = listed.stations.filter((s: any) => s.slug && s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s));
+              additionalData.popularStations = additionalData.catalogStations.slice(0, 12);
+              additionalData.catalogPage = pagination.page;
+              additionalData.catalogTotalPages = Math.max(1, listed.totalPages);
+              if (isMissingSeoCatalogPage(pagination.page, listed.totalPages, listed.stations)) additionalData.httpNotFound = true;
+              const cc = listed.stations[0]?.countryCode;
+              if (typeof cc === 'string' && /^[a-z]{2}$/i.test(cc)) additionalData.countryCode = cc.toLowerCase();
+            } catch (error: any) {
+              if (error?.name === 'AbortError' || signal?.aborted) throw error;
+              additionalData.hubReadFailed = true;
+            }
           }
         } else {
           // DALGA 2 W2.2: Fetch top 12 stations from this country for SSR flag + <img> grid
@@ -1451,19 +1479,15 @@ export class SeoRenderer {
     if (pageType === 'genres' && additionalData?.genreSlug) {
       const popularStations = (additionalData?.popularStations as any[] | undefined) || [];
       const fetchFailed = additionalData.popularStationsFetchFailed === true;
-      // Prefer the authoritative Genre.stationCount (the exact value the sitemap
-      // used to decide whether to publish this URL) so SSR and sitemap agree —
-      // no "Noindex page in sitemap". Only fall back to the live grid count (with
-      // transient-failure protection) when the authoritative count is unavailable.
-      // If the COUNT fetch itself failed transiently (genreCountFetchFailed), the
-      // grid heuristic is not trustworthy evidence either (its case-sensitive
-      // regex under-counts variant spellings) — don't de-index a whitelisted
-      // genre on missing evidence; the next uncached render re-evaluates.
+      // Prefer the manifest's stored count. A missing row uses the same global
+      // bounded quality sample on every page, never the short current slice.
+      // A failed count read is not evidence for excluding a healthy category.
       const authoritativeCount = additionalData.genreStationCount;
       const countFetchFailed = additionalData.genreCountFetchFailed === true;
       const tooThin = typeof authoritativeCount === 'number'
         ? authoritativeCount < MIN_STATIONS_FOR_GENRE_INDEX
-        : (!fetchFailed && !countFetchFailed && popularStations.length < MIN_STATIONS_FOR_GENRE_INDEX);
+        : (!fetchFailed && !countFetchFailed && typeof additionalData.genreQualitySampleCount === 'number'
+          && additionalData.genreQualitySampleCount < MIN_STATIONS_FOR_GENRE_INDEX);
       if (additionalData.genreNotWhitelisted || tooThin) {
         seoTags.robots = 'noindex, follow';
         seoTags.noIndex = true;
@@ -1660,12 +1684,18 @@ export class SeoRenderer {
     // into a single page-1 entry. We also append ?page=N to every hreflang
     // alternate so the per-language pagination cluster is consistent.
     const catalogPage = (additionalData?.catalogPage as number) || 1;
-    if ((pageType === 'stations' || pageType === 'regions') && catalogPage > 1 && seoTags.canonical) {
-      seoTags.canonical = `${seoTags.canonical}?page=${catalogPage}`;
+    if ((pageType === 'stations' || pageType === 'regions' || pageType === 'genres') && catalogPage > 1 && seoTags.canonical) {
+      const pageUrl = (value: string) => {
+        const parsed = new URL(value, domain || 'https://themegaradio.com');
+        parsed.searchParams.set('page', String(catalogPage));
+        parsed.hash = '';
+        return parsed.href;
+      };
+      seoTags.canonical = pageUrl(seoTags.canonical);
       if (Array.isArray(seoTags.hreflangs)) {
         seoTags.hreflangs = seoTags.hreflangs.map((h: { hreflang: string; url: string }) => ({
           ...h,
-          url: `${h.url}?page=${catalogPage}`,
+          url: pageUrl(h.url),
         }));
       }
     }
@@ -1761,7 +1791,9 @@ export class SeoRenderer {
       // the duplicates into one EN canonical and dropping the rest.
       if (additionalData.country) {
         const countryName = additionalData.country.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-        const seo = buildCountrySeo(countryName, language, translations);
+        const place = additionalData.cityName && additionalData.cityName !== 'ALL'
+          ? `${additionalData.cityName}, ${getLocalizedCountryName(additionalData.countryName || countryName, language)}` : countryName;
+        const seo = buildCountrySeo(place, language, translations);
         baseSeoTags.title = seo.title;
         baseSeoTags.description = seo.description;
         baseSeoTags.keywords = seo.keywords;
@@ -2252,7 +2284,8 @@ export class SeoRenderer {
           // hand-curated copy) when the DB key is missing instead of dumping
           // English into a non-English page.
           const isContinent = !additionalData.country && VALID_CONTINENT_SLUGS.has(String(additionalData.region || '').toLowerCase());
-          const localizedRegion = isContinent
+          const localizedRegion = additionalData.cityName && additionalData.cityName !== 'ALL'
+            ? `${additionalData.cityName}, ${getLocalizedCountryName(additionalData.countryName, language)}` : isContinent
             ? getLocalizedRegionName(additionalData.regionName, language)
             : getLocalizedCountryName(additionalData.regionName, language);
           const radioStationsText = translations['seo_radio_stations']?.trim()
@@ -2571,23 +2604,7 @@ export class SeoRenderer {
                   return `<p class="station-intro">${this.escapeHtml(introText)}</p>`;
                 })()}
                 ${(() => {
-                  const desc = stationData.descriptions?.[language];
-                  let fullText = '';
-                  if (desc && typeof desc === 'object' && typeof desc.full === 'string') {
-                    fullText = desc.full;
-                  } else if (typeof desc === 'string') {
-                    fullText = desc;
-                  }
-                  if (!fullText.trim() && typeof stationData.description === 'string') fullText = stationData.description;
-                  if (!fullText.trim() && language === 'en') fullText = buildTemplateDescription({ ...stationData, country: getStationCountryName(stationData, language) }).full;
-                  fullText = fullText
-                    .replace(/^\s*\[TRANSLATED\s+FULL\s+DESCRIPTION\]\s*/i, '')
-                    .replace(/^\s*\[TRANSLATED\s+META[^\]]*\]\s*/i, '')
-                    .replace(/^\s*\[FULL\s+DESCRIPTION[^\]]*\]\s*/i, '')
-                    .replace(/^\s*\[[^\]]*DESCRIPTION[^\]]*\]\s*/i, '')
-                    .replace(/^\s*\[[^\]]*\]\s*/g, '')
-                    .replace(/\{STATION_NAME\}/g, () => stationData.name)
-                    .trim();
+                  const fullText = selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
                   if (fullText && fullText.length > 300) {
                     // Preserve leading punctuation and a final fragment without
                     // ASCII sentence punctuation (including mixed CJK text).
@@ -2744,9 +2761,9 @@ export class SeoRenderer {
                 <!-- Navigation -->
                 <nav class="explore-nav">
                   <ul>
-                    <li><a href="/${language}/genres">${this.escapeHtml(getLocalizedText('nav_genres', 'Browse All Radio Genres'))}</a></li>
-                    <li><a href="/${language}/regions">${this.escapeHtml(getLocalizedText('nav_regions', 'Radio Stations by Country'))}</a></li>
-                    <li><a href="/${language}/stations">${this.escapeHtml(getLocalizedText('nav_stations', 'Explore All Stations'))}</a></li>
+                    <li><a href="${this.escapeHtml(buildLocalizedUrl('/genres', language, undefined, urlTranslations))}">${this.escapeHtml(getLocalizedText('nav_genres', 'Browse All Radio Genres'))}</a></li>
+                    <li><a href="${this.escapeHtml(buildLocalizedUrl('/regions', language, undefined, urlTranslations))}">${this.escapeHtml(getLocalizedText('nav_regions', 'Radio Stations by Country'))}</a></li>
+                    <li><a href="${this.escapeHtml(buildLocalizedUrl('/stations', language, undefined, urlTranslations))}">${this.escapeHtml(getLocalizedText('nav_stations', 'Explore All Stations'))}</a></li>
                     <li><a href="/${language}">${this.escapeHtml(getLocalizedText('nav_home', 'Home'))}</a></li>
                   </ul>
                 </nav>
@@ -2793,8 +2810,7 @@ export class SeoRenderer {
               <ul class="popular-stations-list">
                 ${additionalData.popularStations.map((station: any) => {
                   const slug = station.slug || station._id;
-                  const stationSegment = urlTranslations?.get(`${language}:station`) || 'station';
-                  const stationUrl = `/${language}/${stationSegment}/${slug}`;
+                  const stationUrl = buildLocalizedUrl(`/station/${slug}`, language, undefined, urlTranslations);
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
                   const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
@@ -2809,6 +2825,18 @@ export class SeoRenderer {
               </ul>
             </section>
             ` : ''}
+            ${(() => {
+              const current = additionalData?.catalogPage || 1;
+              const total = additionalData?.catalogTotalPages || 1;
+              if (total > 1) {
+                const base = (seoTags?.canonical || buildLocalizedUrl(cleanPath || '/genres', language, undefined, urlTranslations)).split('?')[0];
+                return `<nav class="pagination" aria-label="${this.escapeHtml(getLocalizedText('pagination', 'Pagination'))}"><ul>${seoCatalogPageLinks(current, total).map(page =>
+                  page === current ? `<li><span aria-current="page">${page}</span></li>`
+                    : `<li><a href="${this.escapeHtml(page === 1 ? base : `${base}?page=${page}`)}"${page === current - 1 ? ' rel="prev"' : page === current + 1 ? ' rel="next"' : ''}>${page}</a></li>`
+                ).join('')}</ul></nav>`;
+              }
+              return '';
+            })()}
             ${(() => {
               // ---- Cross-link sections (architect P1: B2) ----------------
               // "Top countries broadcasting <genre>" links to the country
@@ -2924,11 +2952,14 @@ export class SeoRenderer {
           }
           const cc = additionalData?.countryCode;
           const flagSrc = cc && /^[a-z]{2}$/i.test(cc) ? `https://flagcdn.com/w320/${cc.toLowerCase()}.png` : '';
+          const flagCountry = additionalData?.countryName ? getLocalizedCountryName(additionalData.countryName, language) : regionName;
           // Multilingual body intro/availability — see shared/region-seo-templates.ts.
           // Without this every language reused the same English fallback fragments.
+          const locationName = additionalData?.cityName && additionalData.cityName !== 'ALL'
+            ? `${additionalData.cityName}, ${getLocalizedCountryName(additionalData.countryName, language)}` : regionName;
           const regionSeo = regionName
             ? (additionalData?.country
-                ? buildCountrySeo(regionName, language, translations)
+                ? buildCountrySeo(locationName, language, translations)
                 : buildRegionSeo(regionName, language, translations))
             : null;
           content = `
@@ -2937,8 +2968,8 @@ export class SeoRenderer {
             ${flagSrc ? `
             <!-- DALGA 2 W2.2: Country flag — SEO image surface -->
             <figure class="country-flag">
-              <img src="${flagSrc}" alt="${this.escapeHtml(regionName)} ${this.escapeHtml(getLocalizedText('country_flag', LOCALIZED_FLAG_WORD[language] || 'flag'))}" width="320" height="213" loading="eager" decoding="async">
-              <figcaption>${this.escapeHtml(regionName)}</figcaption>
+              <img src="${flagSrc}" alt="${this.escapeHtml(flagCountry)} ${this.escapeHtml(getLocalizedText('country_flag', LOCALIZED_FLAG_WORD[language] || 'flag'))}" width="320" height="213" loading="eager" decoding="async">
+              <figcaption>${this.escapeHtml(flagCountry)}</figcaption>
             </figure>
             ` : ''}
             ${regionSeo ? `
@@ -3512,35 +3543,12 @@ export class SeoRenderer {
       // Free-form tags cannot verify a broadcast frequency, even with numbers.
 
       // Task #372: source the schema description from the SAME copy the
-      // visible station body renders (descriptions[language].full > description)
+      // visible station body renders (including legacy and English fallbacks)
       // so AI-rewritten / per-language strings can't drift into the JSON-LD
       // and trigger Google's "deceptive markup" warning. `aiDescription` is
       // intentionally NOT used here because the visible body never renders
       // it — see generateHtmlBody case 'station' (~line 1461).
-      const schemaDescriptionSource = (() => {
-        const langDesc = stationData.descriptions?.[language];
-        let candidate = '';
-        if (langDesc) {
-          if (typeof langDesc === 'object' && langDesc.full) candidate = langDesc.full;
-          else if (typeof langDesc === 'string') candidate = langDesc;
-        }
-        if (!candidate && stationData.description) candidate = stationData.description;
-        candidate = String(candidate)
-          .replace(/^\s*\[TRANSLATED\s+FULL\s+DESCRIPTION\]\s*/i, '')
-          .replace(/^\s*\[TRANSLATED\s+META[^\]]*\]\s*/i, '')
-          .replace(/^\s*\[FULL\s+DESCRIPTION[^\]]*\]\s*/i, '')
-          .replace(/^\s*\[[^\]]*DESCRIPTION[^\]]*\]\s*/i, '')
-          .replace(/^\s*\[[^\]]*\]\s*/g, '')
-          .replace(/\{STATION_NAME\}/g, () => stationData.name || '')
-          .trim();
-        // Item 3 (re-audit 2026-06-20): localize the synthetic fallback per PAGE
-        // language so a station without a per-language/base description doesn't
-        // ship English copy into the JSON-LD of a non-English page. Reuses the
-        // existing LOCALIZED_LISTEN_LIVE map (14 langs + English default).
-        if (candidate) return candidate;
-        const listenLive = LOCALIZED_LISTEN_LIVE[language] || LOCALIZED_LISTEN_LIVE.en;
-        return `${stationData.name} — ${listenLive} · Mega Radio`;
-      })();
+      const schemaDescriptionSource = selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
 
       // 2026-05-12 SEO audit (138 invalid items): switched primary type
       // from RadioStation → RadioBroadcastService. RadioStation extends

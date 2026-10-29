@@ -30,7 +30,7 @@ import { readStationBootstrap } from '@/lib/station-bootstrap';
 import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
-import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
+import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
 import { getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { getStationRelatedHeading } from '@workspace/seo-shared/station-page-copy';
 import AnimatedEqualizer from "@/components/ui/animated-equalizer";
@@ -849,47 +849,13 @@ export default function StationDetails() {
                   </div>
                   <div className="mb-2 w-full text-white">
                     {/* Keep the complete article in the DOM; only its visual height is clamped. */}
-                    {(() => {
-                      let fullText = '';
-                      
-                      if (station.descriptions) {
-                        const desc = station.descriptions[language];
-                        if (desc) {
-                          if (typeof desc === 'object' && typeof desc.full === 'string') {
-                            fullText = desc.full;
-                          } else if (typeof desc === 'string') {
-                            fullText = desc;
-                          }
-                        }
-                      }
-                      // SSR uses this legacy article when the locale has no
-                      // description; prefer it to unrelated English/default copy.
-                      if (!fullText.trim() && typeof station.description === 'string') fullText = station.description;
-                      if (!fullText.trim()) {
-                        const english = station.descriptions?.en;
-                        fullText = typeof english === 'string' ? english : typeof english?.full === 'string' ? english.full : '';
-                      }
-                      fullText = fullText.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').trim();
-                      
-                      if (!fullText && language === 'en') fullText = buildTemplateDescription({ ...station, country: stationCountryName }).full;
-                      if (!fullText && language !== 'en') {
-                        fullText = language === 'tr' 
-                          ? `Şu anda ${station.name} dinliyorsunuz! – Mega Radio üzerinde binlerce radyo istasyonunu HD kalitede ücretsiz online dinleyin.`
-                          : t('default_station_about', `You are now listening to ${station.name}! – Listen to thousands of radio stations in HD quality online for free on Mega Radio.`, {
-                              STATION_NAME: station.name
-                            });
-                      }
-                      
-                      return (
-                        <StationArticle
-                          text={fullText}
-                          expanded={isAboutExpanded}
-                          onExpandedChange={setIsAboutExpanded}
-                          moreLabel={t('general_more', 'more')}
-                          lessLabel={t('faq_show_less', 'less')}
-                        />
-                      );
-                    })()}
+                    <StationArticle
+                      text={selectStationVisibleDescription(station, language, getStationCountryName(station, 'en'))}
+                      expanded={isAboutExpanded}
+                      onExpandedChange={setIsAboutExpanded}
+                      moreLabel={t('general_more', 'more')}
+                      lessLabel={t('faq_show_less', 'less')}
+                    />
                   </div>
 
                   {/* Genuine listener ratings, scoped to station and viewer.

@@ -232,12 +232,13 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
 for (const family of ['regions/europe/germany', 'country/germany']) {
   for (const city of ['turkey', 'korea', 'philippines']) {
     for (const terminal of ['', '/stations']) {
-      test(`city guard /${family}/${city}${terminal}: no country alias normalization`, async () => {
+      test(`city guard /${family}/${city}${terminal}: country-shaped unknown city never becomes another country's catalogue`, async () => {
         const result = await renderer.renderStaticPage(buildLocalizedUrl(`/${family}/${city}${terminal}`, 'tr', undefined, new Map()), origin);
         const display = titleCase(city);
-        assertReadIdentity(display);
+        assert.equal(result.pageData.httpNotFound, true);
+        assert.equal(result.seoTags.noIndex, true);
+        assert.equal(reads.length, 0); assert.equal(catalogCalls.length, 0);
         assert.equal(result.pageData.additionalData.regionName, display);
-        if (city === 'turkey') assert.equal(result.pageData.additionalData.popularStations[0].country, 'Turkey');
       });
     }
   }

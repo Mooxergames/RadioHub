@@ -205,7 +205,9 @@ export interface PostgresStationListOptions {
   compact?: boolean;
 }
 
-export async function listStationsFromPostgres(options: PostgresStationListOptions): Promise<{
+export async function listStationsFromPostgres(options: PostgresStationListOptions,
+  query = (text: string, values: any[]) => getPostgresPool().query(text, values),
+): Promise<{
   stations: any[]; totalCount: number; count: number;
   pagination: { page: number; limit: number; total: number; pages: number };
 }> {
@@ -274,7 +276,7 @@ export async function listStationsFromPostgres(options: PostgresStationListOptio
   // This permits a narrow top-N sort instead of sorting full catalog rows
   // for the window. Reapply the identical order only to the selected page.
   // One statement gives count and page the same MVCC snapshot, including empty pages.
-  const result = await getPostgresPool().query(
+  const result = await query(
     `WITH ${genreCandidates} page_ids AS MATERIALIZED (SELECT id FROM stations ${where}
        ORDER BY ${order} LIMIT ${bind(limit)} OFFSET ${bind((page-1)*limit)}),
      selected AS (SELECT ${options.compact ? CARD_SELECTION : '*'},row_number() OVER (ORDER BY ${order}) AS _position

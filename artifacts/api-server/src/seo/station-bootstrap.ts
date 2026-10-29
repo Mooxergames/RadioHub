@@ -12,6 +12,7 @@ export function renderStationBootstrap(station: any, language: string): string {
     const value = station[key];
     if (['string','number','boolean'].includes(typeof value)) data[key] = value;
   }
+  if (typeof station.description === 'string') data.description = station.description;
   data._id = String(station._id);
   if (station.logoAssets && typeof station.logoAssets === 'object') {
     data.logoAssets = Object.fromEntries(['folder','status','webp48','webp96','webp256']

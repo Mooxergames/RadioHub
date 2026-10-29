@@ -47,6 +47,41 @@ export function buildTemplateDescription(station: TemplateStationInfo): { full: 
   return { full: sentences.join(' '), meta: meta.length <= 160 ? meta : meta.slice(0, 157).trimEnd() + '...' };
 }
 
+export interface VisibleDescriptionStationInfo extends TemplateStationInfo {
+  description?: unknown;
+  descriptions?: unknown;
+}
+
+/** Visible article only, not metadata or an indexing signal. Each candidate is
+ * cleaned before selection: locale full/string -> legacy -> English -> template.
+ * Pass getStationCountryName(station, 'en') as templateCountry in every locale:
+ * the existing factual fallback stays English, and sparse records may stay empty.
+ * Stored prose keeps its internal whitespace and complete tail; callers escape it.
+ */
+export function selectStationVisibleDescription(
+  station: VisibleDescriptionStationInfo | null | undefined,
+  language: string,
+  templateCountry: string,
+): string {
+  if (!station) return '';
+  const descriptions = station.descriptions && typeof station.descriptions === 'object' && !Array.isArray(station.descriptions)
+    ? station.descriptions as Record<string, unknown> : undefined;
+  const article = (entry: unknown): string => {
+    const value = typeof entry === 'string' ? entry
+      : entry && typeof entry === 'object' && !Array.isArray(entry) ? (entry as { full?: unknown }).full : undefined;
+    // Match SSR's leading marker safeguards; brackets inside prose stay intact.
+    return typeof value === 'string'
+      ? value.replace(/^(?:\s*\[[^\]]*\]\s*)+/u, '')
+        .replace(/\{STATION_NAME\}/g, () => typeof station.name === 'string' ? station.name : '').trim() : '';
+  };
+  const legacy = typeof station.description === 'string' ? station.description : undefined;
+  for (const entry of [descriptions?.[language], legacy, descriptions?.en]) {
+    const candidate = article(entry);
+    if (candidate) return candidate;
+  }
+  return buildTemplateDescription({ ...station, country: templateCountry }).full;
+}
+
 /** Fill individual gaps without replacing any valid stored prose or metadata. */
 export function missingEnglishDescriptionPatch(station: TemplateStationInfo & { descriptions?: any; manualEditFields?: any }): Record<string, string> {
   if (station.manualEditFields?.descriptions === true) return {};

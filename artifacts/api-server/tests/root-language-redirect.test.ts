@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { ACTIVE_SITEMAP_LANGUAGES, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
 let server: Server;
 let baseUrl: string;
@@ -40,6 +41,16 @@ for (const [accept, cookie, target] of [
   ['zz-ZZ', '', 'en'],
   ['de-DE', 'notpreferredLanguage=tr; preferredLanguage=invalid', 'de'],
   ['de-DE', 'preferredLanguage=trailing', 'de'],
+  ['am', '', 'en'],
+  ['am-ET,af-ZA;q=0.9,de-AT;q=0.8', '', 'de'],
+  ['am;q=1,de;q=0,en;q=0.5', 'preferredLanguage=af', 'en'],
+  ['am', 'preferredLanguage=de', 'de'],
+  ['de-DE', 'preferredLanguage=am', 'de'],
+  ['de-DE', 'preferredLanguage=%61%66', 'de'],
+  ['de-DE', 'preferredLanguage=%E0%A4%A', 'de'],
+  ['*', '', 'en'],
+  ['', '', 'en'],
+  ...ACTIVE_SITEMAP_LANGUAGES.map(language => [language, '', language]),
 ]) {
   test(`root selects ${target} for ${accept} / ${cookie || 'no cookie'}, independent of IP country`, async () => {
     const response = await fetch(baseUrl + '/?utm_source=iphone%26test', {
@@ -51,10 +62,11 @@ for (const [accept, cookie, target] of [
     assert.match(response.headers.get('cache-control') || '', /no-store/);
     assert.match(response.headers.get('vary') || '', /Cookie/i);
     assert.match(response.headers.get('vary') || '', /Accept-Language/i);
+    assert.match(response.headers.get('vary') || '', /User-Agent/i);
   });
 }
 
-for (const path of ['/en', '/tr', '/de', '/ar']) {
+for (const path of SEO_LANGUAGES.filter(language => language.enabled).map(language => `/${language.code}`)) {
   test(`explicit ${path} never follows a saved/device/IP language`, async () => {
     const response = await fetch(baseUrl + path, { redirect: 'manual', headers: {
       cookie: 'preferredLanguage=de', 'accept-language': 'de-AT', 'cf-ipcountry': 'US',
@@ -73,10 +85,22 @@ test('bare content canonicalization remains deterministic English', async () => 
 });
 
 test('bot root remains deterministic and cannot poison a user redirect cache', async () => {
-  const response = await fetch(baseUrl + '/', { redirect: 'manual', headers: {
-    'user-agent': 'Googlebot', 'accept-language': 'de-AT', cookie: 'preferredLanguage=tr',
+  const response = await fetch(baseUrl + '/?utm_source=gsc%26test', { redirect: 'manual', headers: {
+    'user-agent': 'Googlebot', 'accept-language': 'am-ET', cookie: 'preferredLanguage=tr',
   } });
-  assert.equal(response.headers.get('location'), '/en');
+  assert.equal(response.status, 301);
+  assert.equal(response.headers.get('location'), '/en?utm_source=gsc%26test');
+  assert.match(response.headers.get('cache-control') || '', /private/);
   assert.match(response.headers.get('cache-control') || '', /no-store/);
+  assert.match(response.headers.get('vary') || '', /Cookie/i);
+  assert.match(response.headers.get('vary') || '', /Accept-Language/i);
   assert.match(response.headers.get('vary') || '', /User-Agent/i);
+});
+
+test('explicit legacy lang query remains URL canonicalization, not automatic preference', async () => {
+  const response = await fetch(baseUrl + '/en?lang=am&utm_source=test', { redirect: 'manual', headers: {
+    cookie: 'preferredLanguage=de', 'accept-language': 'de-AT',
+  } });
+  assert.equal(response.status, 301);
+  assert.equal(response.headers.get('location'), '/am?utm_source=test');
 });

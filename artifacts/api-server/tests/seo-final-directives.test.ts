@@ -14,6 +14,8 @@ let qualificationFails = false;
 let metadataFails = false;
 let genreCountFails = false;
 let genreCount = 20;
+let genreFails = false;
+let genreStations: Record<string, any>[] = [];
 const station = {
   _id: 'fixture-station', name: 'Fixture FM', slug: 'fixture-fm', country: 'Germany',
   url: 'https://stream.example.invalid/live', tags: 'pop', noIndex: false, lastCheckOk: true,
@@ -49,6 +51,17 @@ mock.module('../src/data/postgres-seo-read-store', { namedExports: { pgSeoCatalo
   find: async () => [], count: async () => 0, groupCount: async () => [],
   findMergedAlias: async () => null,
 }) } });
+mock.module('../src/data/postgres-seo-directory-store', { namedExports: {
+  readSeoGenrePage: async (_slug: string, page: number) => {
+    if (genreFails) throw new Error('Temporary genre directory failure');
+    const size = seoConfig.GENRE_STATIONS_PAGE_SIZE;
+    return {
+      stations: genreStations.slice((page - 1) * size, page * size),
+      total: genreStations.length,
+      totalPages: Math.ceil(genreStations.length / size),
+    };
+  },
+} });
 mock.module('../src/data/postgres-content-store', { namedExports: {
   pgSeoMetadata: async () => {
     metadataReads++;
@@ -78,7 +91,7 @@ beforeEach(() => {
   pageCache.clear(); cacheWrites = []; metadata = null; metadataReads = 0;
   stationPatch = {}; baseRobots = undefined;
   stationFails = false; qualificationFails = false; metadataFails = false;
-  genreCountFails = false; genreCount = 20;
+  genreCountFails = false; genreCount = 20; genreFails = false; genreStations = [];
 });
 
 async function missAndHit(path: string) {
@@ -187,19 +200,28 @@ for (const robots of ['NOINDEX, follow', 'none']) {
   });
 }
 
-for (const failure of ['station', 'qualification'] as const) {
+for (const failure of ['station', 'qualification', 'genre'] as const) {
   test(`${failure} failure remains retryable, uncached, and never becomes a permanent noindex`, async () => {
     stationFails = failure === 'station'; qualificationFails = failure === 'qualification';
-    const failed = await renderer.renderStaticPage('/en/station/fixture-fm', origin);
+    genreFails = failure === 'genre';
+    if (genreFails) {
+      genreStations = Array.from({ length: seoConfig.GENRE_STATIONS_PAGE_SIZE }, (_, index) => ({
+        ...station, _id: `genre-${index}`, name: `Genre FM ${index}`, slug: `genre-fm-${index}`,
+        isListVisible: true, descriptions: {},
+      }));
+    }
+    const path = failure === 'genre' ? '/en/genres/pop' : '/en/station/fixture-fm';
+    const failed = await renderer.renderStaticPage(path, origin);
     assert.equal(failed.pageData.stationDbError, true);
     assert.equal(failed.pageData.stationIsJunk, false);
     assert.notEqual(failed.seoTags.noIndex, true);
     assert.equal(failed.seoTags.robots, 'index, follow');
     assert.equal(cacheWrites.length, 0);
-    stationFails = false; qualificationFails = false;
-    const recovered = await renderer.renderStaticPage('/en/station/fixture-fm', origin);
+    stationFails = false; qualificationFails = false; genreFails = false;
+    const recovered = await renderer.renderStaticPage(path, origin);
     assert.equal(recovered.pageData.stationDbError, undefined);
     assertDirectives(recovered, 'index, follow', false);
+    if (failure === 'genre') assert.equal(recovered.pageData.additionalData.popularStations.length, seoConfig.GENRE_STATIONS_PAGE_SIZE);
     assert.equal(cacheWrites.length, 1);
   });
 }

@@ -276,14 +276,21 @@ async function computeFromTranslations(): Promise<string[]> {
 async function loadLkg(): Promise<QualifiedLanguagesState | null> {
   try {
     const doc = await pgLocalization().getQualifiedLanguagesLkg(LKG_KEY);
-    if (!doc) return null;
-    if (doc.expiresAt && doc.expiresAt.getTime() < Date.now()) {
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return null;
+    if (!Array.isArray(doc.languages) || !doc.languages.every((language: unknown) => typeof language === 'string')) return null;
+    if (!(doc.computedAt instanceof Date) || !Number.isFinite(doc.computedAt.getTime())) return null;
+    if (doc.expiresAt !== null && (!(doc.expiresAt instanceof Date) || !Number.isFinite(doc.expiresAt.getTime()))) return null;
+    if (doc.expiresAt && doc.expiresAt.getTime() <= Date.now()) {
       logger.warn(`⚠️ qualified-languages: LKG expired at ${doc.expiresAt.toISOString()}`);
       return null;
     }
+    // Invalid or inactive-only records cannot become valid through the guarantee.
+    const activeLanguages = doc.languages.filter((language: string) => LANGUAGE_ORDER.has(language));
+    if (activeLanguages.length === 0) return null;
+    const languages = withGuaranteedLanguages(activeLanguages);
     return {
-      languages: normalizeLanguageOrder(doc.languages),
-      hash: doc.hash,
+      languages,
+      hash: hashLanguages(languages),
       source: 'lkg',
       computedAt: doc.computedAt,
       expiresAt: doc.expiresAt,

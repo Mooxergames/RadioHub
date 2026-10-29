@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { getQueryFn } from '../src/lib/queryClient';
 import { ServerSeoHeadContext } from '../src/utils/ssr-seo-head';
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
+import { renderStationBootstrap } from '../../api-server/src/seo/station-bootstrap';
 
 const state = vi.hoisted(() => ({
   language: 'en', slug: 'fixture-radio', playStation: vi.fn(),
@@ -68,10 +69,7 @@ afterEach(() => {
 });
 
 function bootstrap(station: Record<string, unknown> = seed, language = 'en') {
-  const script = document.createElement('script');
-  script.id = 'station-bootstrap'; script.type = 'application/json';
-  script.textContent = JSON.stringify({ language, station });
-  document.body.append(script);
+  document.body.insertAdjacentHTML('beforeend', renderStationBootstrap(station, language));
 }
 function mount() {
   return render(<QueryClientProvider client={client}><ServerSeoHeadContext.Provider value={true}>
@@ -267,4 +265,92 @@ it('prefers the current locale full article over both legacy and English content
   expect(screen.queryByText(article)).not.toBeInTheDocument();
   expect(screen.queryByText('Legacy text should not replace the local article.')).not.toBeInTheDocument();
   expect(screen.queryByText('Only metadata, not the article.')).not.toBeInTheDocument();
+});
+
+it.each([
+  { language: 'de', description: 'Legacy programme detail.',
+    descriptions: { de: { full: '[FULL DESCRIPTION - 200-300 words]' }, en: article }, expected: 'Legacy programme detail.' },
+  { language: 'tr', description: '[FULL DESCRIPTION - 200-300 words]',
+    descriptions: { tr: ' \n[FULL DESCRIPTION - 200-300 words]\n', en: { full: article } }, expected: article },
+  { language: 'de', description: 'Legacy programme detail.',
+    descriptions: { de: { full: 'Local programme detail.' }, en: article }, expected: 'Local programme detail.' },
+  { language: 'en', description: 'Legacy programme detail.',
+    descriptions: {}, expected: 'Legacy programme detail.' },
+  { language: 'de', description: '[Import note] [FULL DESCRIPTION] Programme for {STATION_NAME}.',
+    descriptions: { de: '[TRANSLATED FULL DESCRIPTION]', en: '[TRANSLATED META DESCRIPTION]' }, expected: 'Programme for Fixture Radio.' },
+])('keeps cleaned $language article parity from real SSR bootstrap through API enrichment', async row => {
+  state.language = row.language;
+  window.history.replaceState({}, '', `/${row.language}/station/${seed.slug}`);
+  const station = { ...seed, description: row.description, descriptions: row.descriptions };
+  bootstrap(station, row.language);
+  const head = document.head.innerHTML;
+  mount();
+  expect(screen.getAllByText(row.expected)).toHaveLength(1);
+  expect(client.getQueryData(['/api/station/fixture-radio'])).toBeUndefined();
+  await act(async () => { finish(Response.json(station)); });
+  await waitFor(() => expect(client.getQueryData(['/api/station/fixture-radio'])).toEqual(station));
+  expect(screen.getAllByText(row.expected)).toHaveLength(1);
+  expect(document.head.innerHTML).toBe(head);
+});
+
+it.each(['en', 'de', 'tr'])('uses the same factual English template for missing %s prose before and after enrichment', async language => {
+  state.language = language;
+  window.history.replaceState({}, '', `/${language}/station/${seed.slug}`);
+  const station = { ...seed, country: 'Unknown', countryCode: 'DE', tags: 'news',
+    description: '[FULL DESCRIPTION - 200-300 words]',
+    descriptions: { en: '[FULL DESCRIPTION - 200-300 words]' } };
+  const expected = buildTemplateDescription({ ...station, country: 'Germany' }).full;
+  bootstrap(station, language);
+  mount();
+  expect(screen.getAllByText(expected)).toHaveLength(1);
+  await act(async () => { finish(Response.json(station)); });
+  await waitFor(() => expect(client.getQueryData(['/api/station/fixture-radio'])).toEqual(station));
+  expect(screen.getAllByText(expected)).toHaveLength(1);
+  expect(screen.queryByText(/HD quality|You are now listening|Şu anda/)).not.toBeInTheDocument();
+});
+
+it.each(['en', 'de', 'tr'])('does not invent an article for sparse %s metadata', async language => {
+  state.language = language;
+  window.history.replaceState({}, '', `/${language}/station/${seed.slug}`);
+  const station = { ...seed, descriptions: {} };
+  bootstrap(station, language);
+  const view = mount();
+  expect(view.container.querySelector('p.line-clamp-3')).toBeEmptyDOMElement();
+  await act(async () => { finish(Response.json(station)); });
+  await waitFor(() => expect(client.getQueryData(['/api/station/fixture-radio'])).toEqual(station));
+  expect(view.container.querySelector('p.line-clamp-3')).toBeEmptyDOMElement();
+  expect(screen.queryByText(/HD quality|You are now listening|Şu anda|is listed as a radio station/)).not.toBeInTheDocument();
+});
+
+it('preserves the long legacy tail as safe React text in both the real bootstrap and full API render', async () => {
+  state.language = 'de';
+  window.history.replaceState({}, '', `/de/station/${seed.slug}`);
+  const tail = 'Literal </script><script>window.articleExecuted = true</script> & final programme detail.';
+  const prose = `${'Legacy programme information. '.repeat(100)}${tail}`;
+  const station = { ...seed, description: `[FULL DESCRIPTION - 200-300 words]\n${prose}` };
+  bootstrap(station, 'de');
+  mount();
+  const paragraph = screen.getByText(prose);
+  expect(paragraph.textContent).toBe(prose);
+  expect(paragraph).toHaveClass('line-clamp-3');
+  expect(paragraph.querySelector('script')).toBeNull();
+  expect(document.querySelectorAll('#station-bootstrap')).toHaveLength(1);
+  await act(async () => { finish(Response.json(station)); });
+  await waitFor(() => expect(client.getQueryData(['/api/station/fixture-radio'])).toEqual(station));
+  expect(screen.getByText(prose).textContent).toBe(prose);
+  expect(screen.getByText(prose).querySelector('script')).toBeNull();
+});
+
+it('substitutes placeholder names with literal dollar tokens after removing SSR marker prefixes', async () => {
+  state.language = 'de';
+  window.history.replaceState({}, '', `/de/station/${seed.slug}`);
+  const station = { ...seed, name: "Cash $& $$ $` $' $1 FM", description: '[TRANSLATED META DESCRIPTION]',
+    descriptions: { de: { full: '[Import note] [TRANSLATED FULL DESCRIPTION] Programme for {STATION_NAME}. Next: {STATION_NAME}.' } } };
+  const expected = `Programme for ${station.name}. Next: ${station.name}.`;
+  bootstrap(station, 'de');
+  mount();
+  expect(screen.getByText(expected).textContent).toBe(expected);
+  await act(async () => { finish(Response.json(station)); });
+  await waitFor(() => expect(client.getQueryData(['/api/station/fixture-radio'])).toEqual(station));
+  expect(screen.getByText(expected).textContent).toBe(expected);
 });
