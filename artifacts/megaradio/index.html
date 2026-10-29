@@ -241,9 +241,9 @@
          into non-English pages. -->
 
     <!-- 2026-05-12 perf: Partytown bootstrap. Forwards the well-known
-         analytics queue APIs (window.dataLayer.push for GA, window.gtag
-         for GA, window.clarity for Microsoft Clarity) to the Web Worker
-         that Partytown spins up. ONLY analytics scripts use
+         Clarity queue API to the Web Worker. Google Tag Manager owns its
+         dataLayer/gtag queues on the main thread. Partytown must not forward
+         those queues to a second runtime. Only Clarity uses
          type="text/partytown"; AdSense + Cast SDK stay on the main
          thread (see /replit.md "Performance optimization landmines").
 
@@ -267,7 +267,7 @@
           host === '0.0.0.0';
         if (isReplitOrLocal) return;
         window.partytown = {
-          forward: ['dataLayer.push', 'gtag', 'clarity']
+          forward: ['clarity']
         };
         var s = document.createElement('script');
         s.src = '/~partytown/partytown.js';

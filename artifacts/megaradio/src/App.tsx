@@ -45,7 +45,6 @@ import { useLocation } from "wouter";
 import { getLanguageFromPath } from "@workspace/seo-shared/seo-config";
 import { syncDocumentLocale } from '@/lib/document-locale';
 import { useScrollToTop } from "@/hooks/useScrollToTop";
-import { initGA } from "./lib/analytics";
 import { useAnalytics } from "./hooks/use-analytics";
 import { logger } from '@/lib/logger';
 // Lazy load all route pages for optimal performance (reduces initial bundle from 1.8MB to <100KB)
@@ -1224,19 +1223,10 @@ function App() {
   // must not navigate, scroll the page, or remount the player/route subtree.
 
   // 🚀 MAIN THREAD OPTIMIZATION: Defer non-critical initialization
-  // Initialize Google Analytics and background playback after initial render
+  // Google measurement initializes before mount in main.tsx; background audio
+  // setup can yield to the initial render.
   useEffect(() => {
     const deferInit = () => {
-      const isAdminRoute = /^\/admin(?:\/|$|-login(?:\/|$))/.test(window.location.pathname);
-      // Verify required environment variable is present
-      if (!isAdminRoute) {
-        // Admin activity must not bootstrap public analytics/Partytown.
-        if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
-          logger.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
-        } else {
-          initGA();
-        }
-      }
       // Initialize background playback if user previously accepted
       initializeBackgroundPlayback();
     };

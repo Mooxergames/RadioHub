@@ -1,114 +1,22 @@
 import { faTrackEvent, faTrackPageView } from './flowalive';
+import { initializeGoogleTagManager, googlePageView, googleEvent } from './google-tag-manager';
 
-// Define the gtag function globally
-declare global {
-  interface Window {
-    dataLayer: any[];
-    gtag: (...args: any[]) => void;
-  }
-}
+export const initGA = initializeGoogleTagManager;
 
-// Defer Google Analytics loading to after page is interactive
-// This prevents blocking the critical rendering path
-export const initGA = () => {
-  const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
-
-  if (!measurementId) {
-    console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
-    return;
-  }
-
-  // Load GA script asynchronously - optimized for minimal blocking
-  const loadGA = () => {
-    // Initialize dataLayer first
-    window.dataLayer = window.dataLayer || [];
-    
-    // Initialize gtag function
-    window.gtag = function() { 
-      window.dataLayer.push(arguments); 
-    };
-    
-    window.gtag('js', new Date());
-    window.gtag('config', measurementId);
-    
-    // 2026-05-12 perf: load Google Analytics inside Partytown's Web
-    // Worker (type='text/partytown') so the ~140 KB gtag.js bundle no
-    // longer steals main-thread time. window.dataLayer.push and
-    // window.gtag are forwarded by the Partytown bootstrap in
-    // index.html, so trackPageView/trackEvent below keep working as a
-    // synchronous main-thread API while the actual network + execution
-    // happens off-thread.
-    const script = document.createElement('script');
-    script.type = 'text/partytown';
-    script.async = true;
-    script.defer = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
-    script.onload = () => {
-      // Script loaded, gtag is now ready
-      if (window.gtag) {
-        window.gtag('config', measurementId);
-      }
-    };
-    document.head.appendChild(script);
-    
-    // Remove event listeners after loading
-    document.removeEventListener('scroll', handleUserInteraction);
-    document.removeEventListener('click', handleUserInteraction);
-    document.removeEventListener('touchstart', handleUserInteraction);
-  };
-
-  // Optimized: Load GTM in background after user first interacts with page
-  // This ensures page is fully rendered before GTM loads (140KB file)
-  let gaLoaded = false;
-  const handleUserInteraction = () => {
-    if (!gaLoaded) {
-      gaLoaded = true;
-      loadGA();
-    }
-  };
-
-  // Priority 1: Load on user interaction (scroll/click/touch) - most ideal
-  // This ensures GTM loads in background while user is actively engaging
-  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    document.addEventListener('scroll', handleUserInteraction, { once: true, passive: true });
-    document.addEventListener('click', handleUserInteraction, { once: true, passive: true });
-    document.addEventListener('touchstart', handleUserInteraction, { once: true, passive: true });
-    
-    // Fallback: Load after 8 seconds if user hasn't interacted (longer timeout for slower networks)
-    setTimeout(() => {
-      if (!gaLoaded) {
-        gaLoaded = true;
-        loadGA();
-      }
-    }, 8000);
-  }
-};
-
-// Track page views - useful for single-page applications
 export const trackPageView = (url: string) => {
-  if (typeof window !== 'undefined' && window.gtag) {
-    const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
-    if (measurementId) {
-      window.gtag('config', measurementId, { page_path: url });
-    }
-  }
+  googlePageView();
   faTrackPageView(url);
 };
 
-// Track events
 export const trackEvent = (
-  action: string, 
-  category?: string, 
-  label?: string, 
+  action: string,
+  _category?: string,
+  _label?: string,
   value?: number
 ) => {
-  if (typeof window === 'undefined' || !window.gtag) return;
-  
-  window.gtag('event', action, {
-    event_category: category,
-    event_label: label,
-    value: value,
-  });
+  // Raw labels may contain searches or account data; Google receives only the
+  // allowlisted event name and a bounded numeric value.
+  googleEvent(action, value);
 };
 
 // Radio-specific analytics events

@@ -3,9 +3,12 @@ import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest';
 import PrivacySettingsButton, { PRIVACY_SETTINGS_LABELS } from '../src/components/ads/PrivacySettingsButton';
 import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { suspendGoogleMeasurement } from '../src/lib/google-tag-manager';
+
+vi.mock('../src/lib/google-tag-manager', () => ({ suspendGoogleMeasurement: vi.fn() }));
 
 const host = window as any;
-afterEach(() => { cleanup(); delete host.googlefc; });
+afterEach(() => { cleanup(); delete host.googlefc; vi.clearAllMocks(); });
 
 it('waits without loading scripts, timers, or changing visitor consent', () => {
   delete host.googlefc;
@@ -25,6 +28,8 @@ it('uses the documented queue only after a visitor clicks, keeping the Google in
   fireEvent.click(screen.getByRole('button', { name: PRIVACY_SETTINGS_LABELS.de }));
   expect(host.googlefc).toBe(api);
   expect(show).toHaveBeenCalledTimes(1);
+  expect(suspendGoogleMeasurement).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(suspendGoogleMeasurement).mock.invocationCallOrder[0]).toBeLessThan(show.mock.invocationCallOrder[0]);
   expect(queue.push).toHaveBeenCalledTimes(3);
 });
 

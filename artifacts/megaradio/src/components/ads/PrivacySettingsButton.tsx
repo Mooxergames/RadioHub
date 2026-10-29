@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { suspendGoogleMeasurement } from '@/lib/google-tag-manager';
 
 export const PRIVACY_SETTINGS_LABELS: Record<string, string> = {
   en: 'Privacy and cookie settings', de: 'Datenschutz- und Cookie-Einstellungen',
@@ -39,6 +40,7 @@ export default function PrivacySettingsButton({ language }: { language: string }
   return <button type="button" data-testid="privacy-settings"
     className="inline-flex items-center min-h-[44px] md:min-h-[30px] text-left bg-transparent border-0 p-0 m-0 cursor-pointer text-xs sm:text-sm text-gray-100 hover:text-[#FF4199] transition-colors"
     onClick={() => {
+      suspendGoogleMeasurement();
       const api = (window as ConsentWindow).googlefc;
       // Queue only the visitor's explicit action. Never write consent cookies.
       if (typeof api?.showRevocationMessage === 'function') {

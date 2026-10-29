@@ -7,6 +7,9 @@ import { initAsyncStyles, loadWebFonts, addResourceHints } from './utils/async-c
 import { initOAuthTokenExchange } from './lib/oauth-token-exchange';
 import { preloadInitialHomeComponents } from './lib/initial-home-components';
 import { mountWithInitialHomeHandover } from './lib/initial-home-handover';
+import { initializeGoogleTagManager } from './lib/google-tag-manager';
+
+initializeGoogleTagManager();
 
 // CRITICAL: must run BEFORE App renders so the /api/auth/me query cache is
 // pre-seeded (with either {_pendingTokenExchange:true} placeholder OR the
