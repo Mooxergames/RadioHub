@@ -988,7 +988,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         })}
       </div>
     </div>
-    ${renderTranslationBootstrap(seoData.language, seoData.translations)}
+    ${renderTranslationBootstrap(seoData.language, seoData.translations, pageType)}
     ${pageType === 'station' && !seoData.pageData?.notFound && !seoData.pageData?.stationIsJunk ? renderStationBootstrap(seoData.pageData?.station, seoData.language) : ''}
     ${prodTags.scripts || '<script type="module" src="/src/main.tsx"></script>'}
     ${(() => {

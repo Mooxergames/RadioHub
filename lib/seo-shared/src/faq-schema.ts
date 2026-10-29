@@ -1,9 +1,16 @@
 // FAQ Schema.org structured data for help and about pages
 import { FAQ_PAGE_LOCALE_FALLBACKS } from './faq-page-fallbacks';
+import { FAQ_CORE_COPY, FAQ_HELP_TOPICS, getFaqHelpCopy } from './faq-help-copy';
+
+export { getFaqHelpCopy } from './faq-help-copy';
 
 export interface FAQItem {
   question: string;
   answer: string;
+}
+
+export interface FAQPageItem extends FAQItem {
+  id: string;
 }
 
 // Translation key + English fallback pairs for the public /faq page.
@@ -125,6 +132,12 @@ export const FAQ_PAGE_ITEMS: FAQTranslatedItem[] = [
     aFallback:
       "Use the Request Station form to submit your favourite broadcaster — our team reviews and adds new stations regularly.",
   },
+  ...FAQ_HELP_TOPICS.map((topic, index) => ({
+    qKey: `faq_help_${topic}`,
+    aKey: `faq_help_${topic}_answer`,
+    qFallback: getFaqHelpCopy('en').items[index][0],
+    aFallback: getFaqHelpCopy('en').items[index][1],
+  })),
 ];
 
 /**
@@ -273,18 +286,59 @@ const OLD_LANGUAGE_ANSWER = 'Our interface is available in 57 languages and stat
 
 /** One locale-aware source for visible React, initial HTML and FAQ JSON-LD.
  * Only known English seed fallbacks are replaced; meaningful custom copy wins. */
-export function resolveFaqPageItems(language: string, translate: (key: string, fallback: string) => string): FAQItem[] {
-  return FAQ_PAGE_ITEMS.map(item => {
+export function resolveFaqPageItems(language: string, translate: (key: string, fallback: string) => string): FAQPageItem[] {
+  const help = getFaqHelpCopy(language);
+  const items = FAQ_PAGE_ITEMS.map((item, itemIndex) => {
     const index = APPENDED_FAQ_KEYS.indexOf(item.qKey);
-    const localized = index >= 0 ? FAQ_PAGE_LOCALE_FALLBACKS[language]?.[index] : undefined;
+    const legacy = index >= 0 ? FAQ_PAGE_LOCALE_FALLBACKS[language]?.[index] : undefined;
+    const localized = itemIndex >= 15 ? help.items[itemIndex - 15]
+      : itemIndex < 10 ? FAQ_CORE_COPY[language]?.[itemIndex] : legacy;
+    const correctedAnswer = item.qKey === 'faq_supported_devices' ? help.deviceAnswer
+      : item.qKey === 'faq_no_ads_stations' ? help.advertisingAnswer
+      : item.qKey === 'faq_request_station' ? help.requestAnswer : undefined;
     const resolve = (key: string, english: string, local: string | undefined) => {
-      const fallback = local || english;
+      const isAnswer = key === item.aKey;
+      const fallback = (isAnswer && correctedAnswer) || local || english;
       const current = translate(key, fallback)?.trim();
       if (!current || current === key || (local && current === english) ||
+        (isAnswer && correctedAnswer && (current === english || current === legacy?.[1])) ||
         (key === 'faq_languages_supported_answer' && current === OLD_LANGUAGE_ANSWER)) return fallback;
       return current;
     };
-    return { question: resolve(item.qKey, item.qFallback, localized?.[0]),
+    return { id: item.qKey.replaceAll('_', '-'), question: resolve(item.qKey, item.qFallback, localized?.[0]),
       answer: resolve(item.aKey, item.aFallback, localized?.[1]) };
   });
+  return [...items.slice(15), ...items.slice(0, 15)];
 }
+
+/** Resolve against this locale only, never the translator's English dictionary. */
+export function resolveFaqPageText(language: string, translations: Record<string, string> = {}) {
+  const native = getFaqHelpCopy(language);
+  const english = getFaqHelpCopy('en');
+  const text = (key: string, fallback: string, englishFallback: string, seeds: string[] = []) => {
+    const current = translations[key]?.trim();
+    return !current || current === key || current === englishFallback || seeds.includes(current) ? fallback : current;
+  };
+  return {
+    ...native,
+    label: text('footer_faq', text('nav_faq', native.label, english.label, ['Faq']), english.label),
+    title: text('faq_page_title', native.title, english.title, [
+      'Radio Streaming FAQ — Common Questions about Online Radio | Mega Radio',
+    ]),
+    description: text('faq_page_description', native.description, english.description, [
+      'Frequently asked questions about Mega Radio: how to listen to online radio, supported devices, free streaming, mobile apps, station coverage, and account help.',
+    ]),
+    h1: text('faq_page_h1', native.title, english.title, ['Mega Radio Frequently Asked Questions']),
+    intro: text('faq_page_intro', native.description, english.description, [
+      'Answers to common questions about Mega Radio: how online radio streaming works, supported devices, free access, mobile apps, station coverage across 120+ countries, and account help.',
+    ]),
+    helpTitle: text('faq_more_help_title', native.helpTitle, english.helpTitle, ['Still need help?']),
+    helpText: text('faq_more_help_text', native.helpText, english.helpText, ['Reach out to our team or explore more of Mega Radio.']),
+  };
+}
+
+export const FAQ_PAGE_TRANSLATION_KEYS = [
+  ...FAQ_PAGE_ITEMS.flatMap(item => [item.qKey, item.aKey]),
+  'faq_page_title', 'faq_page_description', 'faq_page_h1', 'faq_page_intro',
+  'faq_more_help_title', 'faq_more_help_text', 'footer_faq', 'nav_faq',
+];

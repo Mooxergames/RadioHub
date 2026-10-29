@@ -6,6 +6,7 @@ import { useSeoRouting } from "@/hooks/useSeoRouting";
 import { useQuery } from "@tanstack/react-query";
 import { SEO_LANGUAGES, ACTIVE_SITEMAP_LANGUAGES } from "@workspace/seo-shared/seo-config";
 import { BLOG_LABELS, isBlogLocale, blogPath } from '@workspace/seo-shared/blog-manifest';
+import { resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
 // 🚀 LAZY: modals only load on first open — keeps Radix Select/Input
 // out of the footer chunk until the user clicks the action.
 const AddYourStationModal = lazy(() => import("@/components/modals/AddYourStationModal"));
@@ -76,7 +77,7 @@ export default function Footer() {
   const showCatalogAdvertisement = adPageType === 'home' || adPageType === 'catalog';
   const { currentStation } = useGlobalPlayer();
   const isPlayerEnabled = currentStation !== null;
-  const { t, isLoading: translationsLoading } = useTranslation();
+  const { t, isLoading: translationsLoading, localeTranslations = {} } = useTranslation();
   const { getLocalizedUrl, currentLanguage, changeLanguage } = useSeoRouting();
   
   // Language selector state
@@ -282,6 +283,9 @@ export default function Footer() {
                       </Link>
                       <Link to={getLocalizedUrl("/contact")} className={footerLinkClass}>
                         {ft('footer_contact', 'Contact')}
+                      </Link>
+                      <Link to={getLocalizedUrl('/faq')} className={footerLinkClass} data-testid="footer-faq">
+                        {resolveFaqPageText(currentLanguage, localeTranslations).label}
                       </Link>
                       {/* Internal-link boost: Semrush flagged ~60+ localized
                           URLs (per the May 2026 audit) for /lang/recommendations

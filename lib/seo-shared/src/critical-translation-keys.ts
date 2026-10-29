@@ -70,7 +70,7 @@ export const CRITICAL_TRANSLATION_KEYS = [
   'copy_link',
   
   // FAQ/Help
-  'faq_title', 'faq_seo_coverage_title',
+  'faq_title', 'faq_seo_coverage_title', 'nav_faq', 'footer_faq',
   
   // Trending
   'trending_stations_count',

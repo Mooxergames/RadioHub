@@ -5,6 +5,7 @@ import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
 import { useTranslation } from '@/hooks/useTranslation';
 import { PROFILE_CONTENT_INSET } from '@/lib/profile-layout';
+import { resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
 
 /**
  * Visible breadcrumb trail rendered on every non-home page in the React app —
@@ -150,7 +151,7 @@ function computeItems(params: {
       const accountLabelIndex = ['users', 'profile', 'settings'].indexOf(segment);
       // Account routes need a local fallback before the global translator's
       // English dictionary. Other breadcrumb labels keep their existing policy.
-      const baseName = accountLabelIndex >= 0
+      const baseName = segment === 'faq' ? resolveFaqPageText(lang, { ...localeTranslations }).label : accountLabelIndex >= 0
         ? localeTranslations?.[translationKey]?.trim() || (accountBreadcrumbLabels[lang] || accountBreadcrumbLabels.en)[accountLabelIndex]
         : t(translationKey, fallback);
       const displayName = isLastSegment && lastItemName ? lastItemName : baseName;

@@ -72,7 +72,7 @@ import {
   getCanonicalGenreSlug,
   MIN_STATIONS_FOR_GENRE_INDEX,
 } from './seo/genre-whitelist';
-import { resolveFaqPageItems } from '@workspace/seo-shared/faq-schema';
+import { resolveFaqPageItems, resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
 import { loadBlogContent, buildBlogSeo, buildBlogSchema } from '@workspace/seo-shared/blog';
 import { isBlogPath, parseBlogPath, BLOG_LABELS, isBlogLocale, blogPath } from '@workspace/seo-shared/blog-manifest';
 import { renderBlogHtml } from '@workspace/seo-shared/blog-html';
@@ -1927,8 +1927,13 @@ export class SeoRenderer {
     }
 
     if (pageType === 'faq') {
-      baseSeoTags.title = getTranslation('faq_page_title');
-      baseSeoTags.description = getTranslation('faq_page_description');
+      const faq = resolveFaqPageText(language, translations);
+      baseSeoTags.title = faq.title;
+      baseSeoTags.description = faq.description;
+      baseSeoTags.ogTitle = faq.title;
+      baseSeoTags.ogDescription = faq.description;
+      baseSeoTags.twitterTitle = faq.title;
+      baseSeoTags.twitterDescription = faq.description;
       baseSeoTags.ogType = 'website';
     }
 
@@ -2115,7 +2120,9 @@ export class SeoRenderer {
         items.push({ name, path: `/${language}${currentPath}` });
       } else if (segment !== 'stations' && segment !== 'station') {
         const translationKey = `nav_${segment}`;
-        const displayName = getLocalizedText(translationKey, segment.replace(/-/g, ' ').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
+        const displayName = segment === 'faq'
+          ? resolveFaqPageText(language, { nav_faq: getLocalizedText('nav_faq', '') }).label
+          : getLocalizedText(translationKey, segment.replace(/-/g, ' ').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
         // Match the client: profile links always target the single settings screen.
         const profileSegment = urlTranslations?.get(`${language}:profile`) || URL_TRANSLATIONS[language]?.profile || 'profile';
         const settingsSegment = urlTranslations?.get(`${language}:settings`) || URL_TRANSLATIONS[language]?.settings || 'settings';
@@ -2280,7 +2287,7 @@ export class SeoRenderer {
         return buildSearchSeo(language, translations).h1;
 
       case 'faq':
-        return getLocalizedText('faq_page_h1');
+        return resolveFaqPageText(language, translations).h1;
 
       default:
         return getLocalizedText('hero_worlds_best_radio') || FALLBACK_TEXTS.hero_worlds_best_radio;
@@ -2513,6 +2520,7 @@ export class SeoRenderer {
 
             <nav class="footer-links">
               <ul>
+                <li><a href="/${language}/faq">${this.escapeHtml(resolveFaqPageText(language, translations).label)}</a></li>
                 ${isBlogLocale(language) ? `<li><a href="${blogPath(language)}">${this.escapeHtml(BLOG_LABELS[language])}</a></li>` : ''}
                 <li><a href="/${language}/${urlTranslations?.get(`${language}:about`) || 'about'}">${this.escapeHtml(getLocalizedText('nav_about', 'About Us'))}</a></li>
                 <li><a href="/${language}/${urlTranslations?.get(`${language}:contact`) || 'contact'}">${this.escapeHtml(getLocalizedText('nav_contact', 'Contact'))}</a></li>
@@ -3128,11 +3136,13 @@ export class SeoRenderer {
       case 'faq':
         {
           const langPrefix = `/${language}`;
+          const copy = resolveFaqPageText(language, translations);
+          const localizedPath = (segment: string) => `${langPrefix}/${urlTranslations?.get(`${language}:${segment}`) || URL_TRANSLATIONS[language]?.[segment] || segment}`;
           // Task #129: render every FAQ Q&A server-side as <h2>+<p> so
           // Googlebot sees the exact text referenced by the FAQPage JSON-LD
           // on first fetch (no schema/visible-content mismatch).
           const faqBlocks = resolveFaqPageItems(language, getLocalizedText).map((item) => `
-              <section>
+              <section id="${item.id}">
                 <h2>${this.escapeHtml(item.question)}</h2>
                 <p>${this.escapeHtml(item.answer)}</p>
               </section>`).join('');
@@ -3140,14 +3150,22 @@ export class SeoRenderer {
           <main>
             <h1>${this.escapeHtml(h1Text)}</h1>
             <section>
-              <p>${this.escapeHtml(getLocalizedText('faq_page_intro', 'Answers to common questions about Mega Radio: how online radio streaming works, supported devices, free access, mobile apps, station coverage across 120+ countries, and account help.'))}</p>
+              <p>${this.escapeHtml(copy.intro)}</p>
             </section>${faqBlocks}
+            <section>
+              <h2>${this.escapeHtml(copy.helpTitle)}</h2>
+              <p>${this.escapeHtml(copy.helpText)}</p>
+            </section>
             <nav>
               <ul>
                 <li><a href="${langPrefix}">${this.escapeHtml(getLocalizedText('nav_home', 'Home'))}</a></li>
-                <li><a href="${langPrefix}/about">${this.escapeHtml(getLocalizedText('nav_about', 'About Mega Radio'))}</a></li>
-                <li><a href="${langPrefix}/contact">${this.escapeHtml(getLocalizedText('nav_contact', 'Contact Us'))}</a></li>
-                <li><a href="${langPrefix}/stations">${this.escapeHtml(getLocalizedText('nav_stations', 'Browse Stations'))}</a></li>
+                <li><a href="${localizedPath('about')}">${this.escapeHtml(getLocalizedText('nav_about', copy.about))}</a></li>
+                <li><a href="${localizedPath('contact')}">${this.escapeHtml(getLocalizedText('nav_contact', copy.contact))}</a></li>
+                <li><a href="${localizedPath('search')}">${this.escapeHtml(getLocalizedText('nav_search', copy.search))}</a></li>
+                <li><a href="${localizedPath('stations')}">${this.escapeHtml(copy.stations)}</a></li>
+                <li><a href="${localizedPath('genres')}">${this.escapeHtml(copy.genres)}</a></li>
+                <li><a href="${localizedPath('regions')}">${this.escapeHtml(copy.regions)}</a></li>
+                <li><a href="${localizedPath('applications')}">${this.escapeHtml(copy.applications)}</a></li>
               </ul>
             </nav>
           </main>
@@ -3339,11 +3357,17 @@ export class SeoRenderer {
     // FAQs in persistent JSON-LD would misrepresent the rendered page.
     let faqPageSchema: any = null;
     if (additionalData?.pageType === 'faq') {
+      const faqUrl = seoTags.canonical || `${baseDomain}/${language}/faq`;
       faqPageSchema = {
         "@context": "https://schema.org",
         "@type": "FAQPage",
+        "@id": `${faqUrl}#faq`,
+        "url": faqUrl,
+        "inLanguage": language,
         "mainEntity": resolveFaqPageItems(language, getLocalizedText).map((item) => ({
           "@type": "Question",
+          "@id": `${faqUrl}#${item.id}`,
+          "url": `${faqUrl}#${item.id}`,
           "name": item.question,
           "acceptedAnswer": {
             "@type": "Answer",

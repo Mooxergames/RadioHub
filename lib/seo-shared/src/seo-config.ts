@@ -3,6 +3,7 @@ import { buildTemplateDescription } from './station-description-template';
 import { reverseTranslateUrl, URL_TRANSLATIONS } from './url-translations';
 import { buildDirectoryIndexSeo } from './directory-index-seo';
 import { normalizePublicStationLogoUrl } from './station-logo-url';
+import { resolveFaqPageText } from './faq-schema';
 
 /**
  * Word-boundary safe truncation for meta descriptions.
@@ -2259,12 +2260,12 @@ export function generateSeoTags(
       robots: 'noindex, follow'
     },
     faq: {
-      title: getTranslation('faq_page_title'),
-      description: getTranslation('faq_page_description'),
+      title: resolveFaqPageText(language, translations).title,
+      description: resolveFaqPageText(language, translations).description,
       keywords: 'mega radio faq, online radio help, internet radio questions, free radio streaming faq',
       ogType: 'website',
-      twitterTitle: getTranslation('faq_page_title'),
-      twitterDescription: getTranslation('faq_page_description')
+      twitterTitle: resolveFaqPageText(language, translations).title,
+      twitterDescription: resolveFaqPageText(language, translations).description
     },
     station: {
       // Dynamic station page SEO with language-specific content for uniqueness

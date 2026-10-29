@@ -28,6 +28,8 @@ import { test, mock, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { resolveFaqPageItems, resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
+import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 
 // ---------------------------------------------------------------------------
 // Module mocks: the SeoRenderer module pulls in mongoose models and the
@@ -50,6 +52,10 @@ mock.module(new URL('../src/performance-cache.ts', import.meta.url).href, {
     PerformanceCache: class {},
     deepFreeze: <T,>(v: T) => v,
   },
+});
+
+mock.module(new URL('../src/seo/qualified-languages.ts', import.meta.url).href, {
+  namedExports: { getCachedQualifiedLanguages: async () => ['en','de','tr','es','fr','pt','it','ru','ar','zh','ja','ko','hi','he'] },
 });
 
 // ---------------------------------------------------------------------------
@@ -349,6 +355,55 @@ for (const surface of FAQ_EMITTING_PAGE_TYPES) {
     }
   });
 }
+
+for (const language of ['en','de','tr','es','fr','pt','it','ru','ar','zh','ja','ko','hi','he']) {
+  test(`FAQ ${language}: stable question links, native metadata, localized discovery links and scoped footer`, async () => {
+    const renderer = new SeoRenderer();
+    const canonical = `https://themegaradio.com/${language}/faq`;
+    const seoTags = {title: 'FAQ', description: 'FAQ', canonical, domain: 'https://themegaradio.com'};
+    const body = renderer.generateHtmlBody({pageType: 'faq', language, translations: {}, seoTags, cleanPath: '/faq'});
+    const head = renderer.generateHtmlHead(seoTags, language, {}, '/faq', undefined, new Map(), {pageType: 'faq'});
+    const schema = extractFaqPageSchemas(head)[0] as any;
+    assert.equal(schema.url, canonical);
+    assert.equal(schema.inLanguage, language);
+    const items = resolveFaqPageItems(language, (_key, fallback) => fallback);
+    assert.equal(new Set(items.map(item => item.id)).size, 23);
+    for (const item of items) {
+      assert.ok(body.includes(`<section id="${item.id}">`));
+      const entity = schema.mainEntity.find((entity: any) => entity.name === item.question);
+      assert.equal(entity['@id'], `${canonical}#${item.id}`);
+      assert.equal(entity.url, entity['@id']);
+    }
+    for (const segment of ['contact', 'about', 'stations', 'genres', 'regions', 'applications']) {
+      assert.ok(body.includes(`href="/${language}/${URL_TRANSLATIONS[language]?.[segment] || segment}"`));
+    }
+    const copy = resolveFaqPageText(language);
+    assert.ok(body.includes(`<h1>${escapeHtml(copy.h1)}</h1>`));
+    const homepage = renderer.generateHtmlBody({pageType: 'home', language, translations: {}, seoTags});
+    assert.ok(homepage.includes(`href="/${language}/faq">${escapeHtml(copy.label)}</a>`));
+    const enhanced = await (renderer as any).generateEnhancedSeoTags('faq', language, {}, '/faq', 'https://themegaradio.com');
+    assert.equal(enhanced.title, copy.title);
+    assert.equal(enhanced.description, copy.description);
+    assert.equal(enhanced.ogTitle, copy.title);
+    assert.equal(enhanced.twitterTitle, copy.title);
+  });
+}
+
+test('custom FAQ text remains identical and inert across SSR HTML, JSON-LD and bootstrap metadata', () => {
+  const renderer = new SeoRenderer();
+  const translations = {faq_help_platform: 'Custom <question> & " **literal**',
+    faq_help_platform_answer: '</script><script>not executable</script> [literal](answer)',
+    faq_page_h1: 'Custom heading', faq_page_intro: 'Custom intro'};
+  const seoTags = {title: 'FAQ', description: 'FAQ', canonical: 'https://themegaradio.com/tr/faq', domain: 'https://themegaradio.com'};
+  const body = renderer.generateHtmlBody({pageType: 'faq', language: 'tr', translations, seoTags});
+  const head = renderer.generateHtmlHead(seoTags, 'tr', translations, '/faq', undefined, new Map(), {pageType: 'faq'});
+  assert.ok(!head.includes('</script><script>not executable'));
+  assert.ok(!body.includes('<script>not executable'));
+  assert.ok(body.includes(escapeHtml(translations.faq_help_platform_answer)));
+  const schema = extractFaqPageSchemas(head)[0];
+  assert.equal(schema.mainEntity[0].name, translations.faq_help_platform);
+  assert.equal(schema.mainEntity[0].acceptedAnswer.text, translations.faq_help_platform_answer);
+});
 
 // ---------------------------------------------------------------------------
 // 3. Negative control: a non-FAQ page type must NOT emit FAQPage JSON-LD.
