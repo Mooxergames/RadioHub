@@ -2121,7 +2121,7 @@ export class SeoRenderer {
       } else if (segment !== 'stations' && segment !== 'station') {
         const translationKey = `nav_${segment}`;
         const displayName = segment === 'faq'
-          ? resolveFaqPageText(language, { nav_faq: getLocalizedText('nav_faq', '') }).label
+          ? resolveFaqPageText(language, { nav_faq: getLocalizedText('nav_faq', '') }).navLabel
           : getLocalizedText(translationKey, segment.replace(/-/g, ' ').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
         // Match the client: profile links always target the single settings screen.
         const profileSegment = urlTranslations?.get(`${language}:profile`) || URL_TRANSLATIONS[language]?.profile || 'profile';

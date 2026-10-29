@@ -151,7 +151,7 @@ function computeItems(params: {
       const accountLabelIndex = ['users', 'profile', 'settings'].indexOf(segment);
       // Account routes need a local fallback before the global translator's
       // English dictionary. Other breadcrumb labels keep their existing policy.
-      const baseName = segment === 'faq' ? resolveFaqPageText(lang, { ...localeTranslations }).label : accountLabelIndex >= 0
+      const baseName = segment === 'faq' ? resolveFaqPageText(lang, { ...localeTranslations }).navLabel : accountLabelIndex >= 0
         ? localeTranslations?.[translationKey]?.trim() || (accountBreadcrumbLabels[lang] || accountBreadcrumbLabels.en)[accountLabelIndex]
         : t(translationKey, fallback);
       const displayName = isLastSegment && lastItemName ? lastItemName : baseName;

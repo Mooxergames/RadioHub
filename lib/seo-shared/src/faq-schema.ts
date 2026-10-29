@@ -319,9 +319,11 @@ export function resolveFaqPageText(language: string, translations: Record<string
     const current = translations[key]?.trim();
     return !current || current === key || current === englishFallback || seeds.includes(current) ? fallback : current;
   };
+  const navLabel = text('nav_faq', native.label, english.label, ['Faq']);
   return {
     ...native,
-    label: text('footer_faq', text('nav_faq', native.label, english.label, ['Faq']), english.label),
+    navLabel,
+    label: text('footer_faq', navLabel, english.label),
     title: text('faq_page_title', native.title, english.title, [
       'Radio Streaming FAQ — Common Questions about Online Radio | Mega Radio',
     ]),

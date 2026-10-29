@@ -405,6 +405,26 @@ test('custom FAQ text remains identical and inert across SSR HTML, JSON-LD and b
   assert.equal(schema.mainEntity[0].acceptedAnswer.text, translations.faq_help_platform_answer);
 });
 
+for (const translations of [
+  {nav_faq: 'Özel gezinme etiketi', footer_faq: 'Özel alt menü etiketi'},
+  {footer_faq: 'Yalnız özel alt menü etiketi'},
+]) {
+  test(`FAQ breadcrumb ignores footer-only override: ${translations.footer_faq}`, () => {
+    const renderer = new SeoRenderer();
+    const canonical = 'https://themegaradio.com/tr/faq';
+    const seoTags = {title: 'FAQ', description: 'FAQ', canonical, domain: 'https://themegaradio.com'};
+    const body = renderer.generateHtmlBody({pageType: 'faq', language: 'tr', translations, seoTags, cleanPath: '/faq'});
+    const head = renderer.generateHtmlHead(seoTags, 'tr', translations, '/faq', undefined, new Map(), {pageType: 'faq'});
+    const expected = resolveFaqPageText('tr', translations).navLabel;
+    assert.ok(body.includes(`<a href="/tr/faq">${escapeHtml(expected)}</a>`));
+    const blocks = [...head.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)]
+      .map(match => JSON.parse(match[1]));
+    const breadcrumb = blocks.find(block => block['@type'] === 'BreadcrumbList');
+    assert.equal(breadcrumb.itemListElement.at(-1).name, expected);
+    assert.notEqual(expected, translations.footer_faq);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 3. Negative control: a non-FAQ page type must NOT emit FAQPage JSON-LD.
 //    Catches regressions like Task #129 (FAQPage on home) and Task #164
