@@ -5,6 +5,7 @@ import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { blogIdsForLocale, blogPath, type BlogLocale } from '@workspace/seo-shared/blog-manifest';
 import copy from '../src/seo/llms-locales.json';
 import { MIN_STATIONS_FOR_GENRE_INDEX } from '../src/seo/genre-whitelist-seed';
+import { readLlmsStationSelection, type LlmsLocale } from '../src/seo/llms-txt-content';
 
 let now = 1_000_000;
 const calls = { countries: 0, genres: 0, languages: 0, translations: 0, genreManifests: 0, genreDocs: 0 };
@@ -57,7 +58,15 @@ mock.module('../src/utils/logger', { namedExports: { logger: { warn() {} } } });
 const { buildLlmsTxtBody, clearLlmsTxtCache } = await import('../src/seo/llms-txt-builder');
 const base = 'https://themegaradio.com';
 
+function assertStationSelection(body: string, locale: LlmsLocale, origin = base): void {
+  const selection = readLlmsStationSelection(locale);
+  assert.ok(selection);
+  assert.equal(selection.stations.length, 40);
+  for (const station of selection.stations) assert.ok(body.includes(`](${origin}${station.path})`));
+}
+
 function assertCoreDiscovery(body: string): void {
+  assertStationSelection(body, 'en');
   assert.match(body, /\[All Stations\]\(https:\/\/themegaradio\.com\/en\/stations\)/);
   assert.match(body, /\[Radio Data Usage\]\(https:\/\/themegaradio\.com\/en\/blog\/radio-data-usage\)/);
   assert.match(body, /\[Listen to Radio Online\]\(https:\/\/themegaradio\.com\/en\/blog\/listen-to-radio-online\)/);
@@ -192,6 +201,7 @@ test('100 mixed-locale and mixed-origin cold reads share all four discovery prov
   assert.equal(blogCalls.size, 14);
   assert.ok([...blogCalls.values()].every(count => count === 1));
   for (const { locale, origin, body } of results) {
+    assertStationSelection(body, locale, origin);
     assert.ok(body.includes(copy[locale].summary));
     assert.ok(body.includes(`${origin}/${locale}/blog`));
     assert.equal((body.match(/^# /gm) || []).length, 1);
@@ -262,6 +272,7 @@ test('unqualified editions omit optional directories without suppressing qualifi
 test('failed local blog imports return the native core and are retried rather than cached forever', async () => {
   failBlog = true;
   const core = await buildLlmsTxtBody(base, 'ja', false);
+  assertStationSelection(core, 'ja');
   assert.ok(core.includes(copy.ja.summary));
   assert.ok(core.includes('/ja/blog)'));
   assert.doesNotMatch(core, /\/blog\/listen-to-radio-online/);
