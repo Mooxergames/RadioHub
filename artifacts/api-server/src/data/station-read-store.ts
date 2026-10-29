@@ -120,8 +120,6 @@ export async function getNearbyStationsFromPostgres(options: {
   latitude?: number; longitude?: number; radiusKm: number; limit: number;
   country?: string; excludeBroken?: boolean; userCountry?: string;
   compact?: boolean;
-  /** Internal SSR fallback only; public browsing retains its existing order. */
-  seoQualitySample?: boolean;
 }): Promise<any[]> {
   const hasCoordinates = options.latitude !== undefined || options.longitude !== undefined;
   if (!hasCoordinates) {
@@ -205,6 +203,8 @@ export interface PostgresStationListOptions {
   minVotes?: number; createdAfter?: Date; page: number; limit: number;
   hasLogo?: boolean; codec?: string; minBitrate?: number;
   compact?: boolean;
+  /** Internal SSR fallback only; public browsing retains its existing order. */
+  seoQualitySample?: boolean;
 }
 
 export async function listStationsFromPostgres(options: PostgresStationListOptions,
