@@ -121,7 +121,7 @@ export function buildHomeSeoTitle(language: string, rawTitle?: string): string {
   let title = rawTitle?.trim() || '';
   // Only recognize the exact Latin brand at separated edges, not in prose.
   title = title.replace(/(?:\s*\|\s*Mega\s+Radio)+\s*$/i, '').trim();
-  const prefix = /^Mega\s+Radio\s*(?:[:|]|\s[-–—])\s*/i;
+  const prefix = /^Mega\s+Radio\s*(?:[:\uFF1A|]|\s[-–—])\s*/i;
   while (prefix.test(title)) title = title.replace(prefix, '').trim();
   if (/^Mega\s+Radio$/i.test(title)) title = '';
   return `${title || getHomeSeoTemplate(language).title} | Mega Radio`;

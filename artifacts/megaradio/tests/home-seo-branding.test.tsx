@@ -49,6 +49,23 @@ beforeEach(() => {
 });
 
 describe('homepage-only branding', () => {
+  it.each([
+    ['zh', 'Mega Radio：来自 120 个国家的免费直播电台', '来自 120 个国家的免费直播电台 | Mega Radio'],
+    ['ja', 'Mega Radio：120カ国からの無料ライブラジオ', '120カ国からの無料ライブラジオ | Mega Radio'],
+  ])('handles the fullwidth colon in actual %s homepage copy', async (language, raw, expected) => {
+    expect(buildHomeSeoTitle(language, raw)).toBe(expected);
+    expect(buildHomeSeoTitle(language, expected)).toBe(expected);
+    const tags = generateSeoTags('home', language, { meta_title: raw }, '/', 'https://themegaradio.com');
+    expect(tags.title).toBe(expected);
+    expect(tags.ogTitle).toBe(expected);
+    expect(tags.twitterTitle).toBe(expected);
+    expect(expected.match(/Mega Radio/g)).toHaveLength(1);
+    state.language = language; state.location = `/${language}`;
+    state.translations = { meta_title: raw };
+    render(<SeoHead pageType="home" />);
+    await waitFor(() => expectHead(expected));
+  });
+
   it.each(legacyCases)('keeps the complete legacy %s sentence with one brand', (language, raw, expected) => {
     expect(buildHomeSeoTitle(language, raw)).toBe(expected);
     expect(buildHomeSeo(language, { meta_title: raw }).title).toBe(expected);

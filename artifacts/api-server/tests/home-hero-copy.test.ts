@@ -24,6 +24,21 @@ before(async () => {
 });
 after(() => mock.restoreAll());
 
+for (const [language, raw, expected] of [
+  ['zh', 'Mega Radio：来自 120 个国家的免费直播电台', '来自 120 个国家的免费直播电台 | Mega Radio'],
+  ['ja', 'Mega Radio：120カ国からの無料ライブラジオ', '120カ国からの無料ライブラジオ | Mega Radio'],
+]) {
+  test(`${language}: actual fullwidth-colon DB title has one brand in SSR and social metadata`, async () => {
+    const translations = { meta_title: raw };
+    const tags = await renderer.generateEnhancedSeoTags('home', language, translations, '/', 'https://themegaradio.com');
+    assert.equal(tags.title, expected);
+    assert.equal(tags.ogTitle, expected);
+    assert.equal(tags.twitterTitle, expected);
+    const head = renderer.generateHtmlHead(tags, language, translations, '/', undefined, new Map(), { pageType: 'home' });
+    assert.ok(head.includes(`<title>${expected}</title>`));
+  });
+}
+
 const RADIO_WORDS: Record<string, RegExp> = {
   en: /radio/i, de: /radio/i, tr: /radyo/i, es: /radio/i,
   fr: /radio/i, pt: /rádio/i, it: /radio/i, ru: /радио/i,
