@@ -21,6 +21,23 @@ beforeEach(() => { state.links = []; });
 
 describe('configured footer social destinations', () => {
   it.each([
+    'https://themegaradio.com', 'https://www.themegaradio.com/',
+    'https://themegaradio.com/?ref=footer#social', 'https://themegaradio.com/tr',
+    'https://themegaradio.com/EN/', 'https://www.themegaradio.com/de/?utm_source=facebook',
+    'https://THEMEGARADIO.com./%65n#top',
+  ])('does not present the site homepage as a social profile: %s', url => {
+    expect(isRenderableFooterSocialLink({ isActive: true, url })).toBe(false);
+  });
+
+  it.each([
+    'https://themegaradio.com/en/faq', 'https://themegaradio.com/go/facebook',
+    'https://not-themegaradio.com/', 'https://themegaradio.com.example/',
+    'https://social.example/%ZZ',
+  ])('keeps custom-host behavior and non-home destinations unchanged: %s', url => {
+    expect(isRenderableFooterSocialLink({ isActive: true, url })).toBe(true);
+  });
+
+  it.each([
     'https://facebook.com', 'https://www.facebook.com/',
     'https://www.facebook.com/?ref=footer#social', 'https://facebook.com/#profile',
     'https://m.facebook.com/', 'https://FACEBOOK.com./',
@@ -79,6 +96,23 @@ describe('configured footer social destinations', () => {
 });
 
 describe('footer social rendering', () => {
+  it('omits the three live placeholders while keeping normal footer controls', () => {
+    state.links = [
+      { _id: 'facebook', platform: 'facebook', url: 'https://themegaradio.com', isActive: true },
+      { _id: 'instagram', platform: 'instagram', url: 'https://themegaradio.com', isActive: true },
+      { _id: 'youtube', platform: 'youtube', url: 'https://youtube.com', isActive: true },
+    ];
+    render(<Footer />);
+    for (const platform of ['facebook', 'instagram', 'youtube']) {
+      expect(screen.queryByRole('link', { name: platform })).not.toBeInTheDocument();
+    }
+    expect(screen.queryByText('Share Mega Radio')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'About Us' })).toHaveAttribute('href', '/en/about');
+    expect(screen.getByTestId('footer-language-selector')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Privacy settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Your Station' })).toBeInTheDocument();
+  });
+
   it('keeps original hrefs, icons, order and styling for allowed links only', () => {
     const profile = 'https://www.facebook.com/example-radio?ref=footer#posts';
     const share = 'https://twitter.com/intent/tweet?text=Radio&url=https%3A%2F%2Fexample.com';

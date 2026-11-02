@@ -19,6 +19,10 @@ export function isRenderableFooterSocialLink(link: { isActive: boolean; url: str
     const url = new URL(link.url);
     if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return false;
     const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    if (host === 'themegaradio.com' || host === 'www.themegaradio.com') {
+      const path = decodeURIComponent(url.pathname).replace(/\/+$/, '').toLowerCase() || '/';
+      if (path === '/' || /^\/[a-z]{2}$/.test(path)) return false;
+    }
     const knownPlatform = platformDomains.some(domain => host === domain || host.endsWith(`.${domain}`));
     // Custom social hosts need not follow the major platforms' path conventions.
     if (!knownPlatform) return true;
