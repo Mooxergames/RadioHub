@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, mock, test } from 'node:test';
-import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { ACTIVE_SITEMAP_LANGUAGES, generateSeoTags, normalizeSeoTitle } from '@workspace/seo-shared/seo-config';
 import { HOME_HERO_COPY, getHomeHeroCopy } from '@workspace/seo-shared/home-hero-copy';
 import { buildHomeSeo } from '@workspace/seo-shared/home-seo-templates';
 
@@ -95,16 +95,29 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
       meta_title: 'Custom homepage search title',
       meta_description: 'Custom homepage search description.',
       hero_worlds_best_radio: 'Previous hero wording',
-    }]) {
+    },
+      { meta_title: 'Mega Radio: Custom homepage search title | Mega Radio | Mega Radio' },
+      { meta_title: 'Mega Radio' },
+      { meta_title: '  ', hero_worlds_best_radio: 'Custom legacy title' },
+      { meta_title: 'Mega Radio: Listen to Free Live Radio & Music from 120 Countries' },
+      { meta_title: 'Mega Radio: Kostenlos Live-Radio & Musik aus 120 Ländern hören' },
+    ]) {
       const seo = buildHomeSeo(language, translations);
       const actual = await renderer.generateEnhancedSeoTags('home', language, translations, '/', 'https://themegaradio.com');
-      assert.equal(actual.title, `${seo.title} | Mega Radio`);
+      const client = generateSeoTags('home', language, translations, '/', 'https://themegaradio.com');
+      assert.equal(actual.title, seo.title);
+      assert.equal(actual.title, client.title);
       assert.equal(actual.description, seo.description);
       assert.equal(actual.ogTitle, actual.title);
       assert.equal(actual.twitterTitle, actual.title);
       assert.equal(actual.ogDescription, seo.description);
       assert.equal(actual.twitterDescription, seo.description);
       assert.notEqual(actual.title, getHomeHeroCopy(language).headline);
+      const head = renderer.generateHtmlHead(actual, language, translations, '/');
+      const escapedTitle = normalizeSeoTitle(actual.title).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      assert.ok(head.includes(`<title>${escapedTitle}</title>`));
+      assert.ok(head.includes(`<meta property="og:title" content="${escapedTitle}">`));
+      assert.ok(head.includes(`<meta name="twitter:title" content="${escapedTitle}">`));
     }
   });
 }

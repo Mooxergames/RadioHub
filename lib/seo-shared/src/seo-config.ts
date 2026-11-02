@@ -4,6 +4,7 @@ import { reverseTranslateUrl, URL_TRANSLATIONS } from './url-translations';
 import { buildDirectoryIndexSeo } from './directory-index-seo';
 import { normalizePublicStationLogoUrl } from './station-logo-url';
 import { resolveFaqPageText } from './faq-schema';
+import { buildHomeSeo } from './home-seo-templates';
 
 /**
  * Word-boundary safe truncation for meta descriptions.
@@ -2192,22 +2193,8 @@ export function generateSeoTags(
     return val ? val : (SEO_FALLBACKS[key] || '');
   };
 
-  // Semrush 2026-05-13 audit: home <title> and <h1> were identical (the
-  // localized hero phrase like "Die beste radio in die wêreld") because
-  // both pulled from `hero_worlds_best_radio`. Append " | Mega Radio"
-  // to <title> unless that exact suffix is ALREADY present at the end of
-  // the title — we deliberately do NOT skip when "Mega Radio" appears
-  // mid-sentence (e.g. EN fallback "Mega Radio: Listen to Free Live
-  // Radio & Music" or AR "ميغا راديو: ..."), because in those cases
-  // skipping would leave <title> === <h1> and the Semrush warning would
-  // persist for the EN home and any language whose hero phrase opens
-  // with the brand. Brand mentioned twice in those titles is acceptable
-  // — Google does not penalize this and the H1/title divergence is
-  // guaranteed unconditionally.
-  const homeRawTitle = getTranslation('meta_title') || getTranslation('hero_worlds_best_radio');
-  const homeBrandedTitle = /\|\s*Mega\s*Radio\s*$/i.test(homeRawTitle)
-    ? homeRawTitle
-    : `${homeRawTitle} | Mega Radio`;
+  // Share homepage branding, DB precedence and localized title fallbacks with SSR.
+  const homeBrandedTitle = buildHomeSeo(language, translations).title;
 
   const genreIndexSeo = buildDirectoryIndexSeo('genres', language, translations);
   const regionIndexSeo = buildDirectoryIndexSeo('regions', language, translations);

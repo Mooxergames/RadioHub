@@ -77,6 +77,7 @@ interface StationCardProps {
   onToggleFavorite?: (stationId: string, isFavorite: boolean) => void;
   onFavorite?: (stationId: string, isFavorite: boolean) => void;
   showVotes?: boolean; // Control whether to show votes
+  headingLevel?: 3 | 4;
   showEngagement?: boolean;
   engagement?: StationEngagement;
 }
@@ -88,8 +89,10 @@ const StationCard = memo(function StationCard({
   onPlay,
   onStop,
   onToggleFavorite,
-  showVotes = false
+  showVotes = false,
+  headingLevel = 4
 }: StationCardProps) {
+  const Heading = headingLevel === 3 ? 'h3' : 'h4';
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -220,9 +223,9 @@ const StationCard = memo(function StationCard({
         }}
         className="ml-3 md:ml-[20px] truncate flex-1 cursor-pointer pr-2 flex flex-col justify-center gap-[4px] text-inherit no-underline"
       >
-        <h4 className="text-base md:text-[20px] font-medium text-white truncate leading-[20px] md:leading-[23px]">
+        <Heading className="text-base md:text-[20px] font-medium text-white truncate leading-[20px] md:leading-[23px]">
           {station.name}
-        </h4>
+        </Heading>
         {(() => {
           const originalCountry = station.country || 'Unknown';
           const displayCountry = getDisplayCountryName(getLocalizedCountryDisplayName(originalCountry, language));

@@ -66,6 +66,7 @@ import { buildSearchSeo } from '@workspace/seo-shared/search-seo-templates';
 import { buildLegalSeo } from '@workspace/seo-shared/legal-seo-templates';
 import { buildStaticPageSeo } from '@workspace/seo-shared/static-page-seo-templates';
 import { renderStaticInformationBody } from './seo/static-information-body';
+import { renderHomeFaqBody } from './seo/home-faq-body';
 import { buildHomeSeo } from '@workspace/seo-shared/home-seo-templates';
 import { getHomeHeroCopy } from '@workspace/seo-shared/home-hero-copy';
 import { buildCommunityPageSeo } from '@workspace/seo-shared/community-page-seo-templates';
@@ -1841,16 +1842,11 @@ export class SeoRenderer {
       // page. buildHomeSeo applies dbTitle || per-lang template BEFORE the
       // English FINAL_TITLE_FALLBACK at the foot of generateHtmlHead.
       const homeSeo = buildHomeSeo(language, translations);
-      // Preserve the existing " | Mega Radio" branding rule (seo-config.ts home
-      // case) so <title> stays distinct from the bare-hero <h1>.
-      const branded = /\|\s*Mega\s*Radio\s*$/i.test(homeSeo.title)
-        ? homeSeo.title
-        : `${homeSeo.title} | Mega Radio`;
-      baseSeoTags.title = branded;
+      baseSeoTags.title = homeSeo.title;
       baseSeoTags.description = homeSeo.description;
-      baseSeoTags.ogTitle = branded;
+      baseSeoTags.ogTitle = homeSeo.title;
       baseSeoTags.ogDescription = homeSeo.description;
-      baseSeoTags.twitterTitle = branded;
+      baseSeoTags.twitterTitle = homeSeo.title;
       baseSeoTags.twitterDescription = homeSeo.description;
     }
 
@@ -2530,26 +2526,7 @@ export class SeoRenderer {
               })()}
             </section>
             
-            <!-- About Mega Radio — restored long-form platform description -->
-            <section class="about-section">
-              <h2>${this.escapeHtml(getLocalizedText('faq_about_megaradio', 'About Mega Radio'))}</h2>
-              <p>${this.escapeHtml(getLocalizedText('faq_seo_intro', 'Mega Radio is your ultimate destination for discovering and streaming live radio stations from around the world. With over 60,000 free radio stations spanning 120+ countries, we deliver unlimited access to music, news, sports, and entertainment across every language and genre.'))}</p>
-              <p>${this.escapeHtml(getLocalizedText('faq_about_megaradio_text', 'Mega Radio stands as your ultimate destination for discovering and streaming live radio stations from every corner of the world, representing the cutting edge of internet radio streaming technology. As a leading online radio platform, we provide completely free, unlimited access to over 60,000 live radio stations spanning 120+ countries, delivering an unparalleled variety of music, news, sports commentary, talk shows, podcasts, and entertainment in virtually every language and genre imaginable. Our advanced web radio streaming infrastructure ensures crystal-clear audio quality and reliable connectivity, whether you\'re listening to pop radio from New York, classical broadcasts from Vienna, jazz stations from New Orleans, or electronic music from Berlin.'))}</p>
-              <p>${this.escapeHtml(getLocalizedText('faq_about_megaradio_features', 'Whether you\'re passionate about pop radio hits, rock stations, classical music, smooth jazz, electronic dance music, hip-hop, country, world music, news radio, or sports commentary, Mega Radio makes discovering your perfect live radio station absolutely effortless. Best of all, Mega Radio operates on a completely free model with zero registration requirements, no subscription fees, and no paywalls. Simply visit the website from any device, search for any station or genre, and start streaming live radio instantly.'))}</p>
-            </section>
-
-            <!-- FAQ Section -->
-            <section class="faq-section">
-              <h2>${this.escapeHtml(getLocalizedText('faq_section_title', 'Frequently Asked Questions'))}</h2>
-              <dl>
-                <dt>${this.escapeHtml(getLocalizedText('faq_q_what_is', 'What is Mega Radio?'))}</dt>
-                <dd>${this.escapeHtml(getLocalizedText('faq_a_what_is', 'Mega Radio is a free online radio platform that lets you stream live radio stations from around the world. You can listen to music, news, sports, talk shows, and more in dozens of languages — no subscription or account required.'))}</dd>
-                <dt>${this.escapeHtml(getLocalizedText('faq_q_how_many', 'How many radio stations are available?'))}</dt>
-                <dd>${this.escapeHtml(getLocalizedText('faq_a_how_many', 'Mega Radio provides access to over 60,000 live radio stations from more than 120 countries. Stations are continuously updated so you always have access to the latest broadcasts.'))}</dd>
-                <dt>${this.escapeHtml(getLocalizedText('faq_q_devices', 'What devices can I use to listen?'))}</dt>
-                <dd>${this.escapeHtml(getLocalizedText('faq_a_devices', 'You can listen on any web browser, as well as through dedicated apps for Android, iOS, Windows, and Smart TV platforms including Samsung and LG. All your favourite stations sync across devices automatically.'))}</dd>
-              </dl>
-            </section>
+            ${renderHomeFaqBody(language, translations, buildLocalizedUrl('/faq', language, undefined, urlTranslations))}
 
             <nav class="footer-links">
               <ul>

@@ -17,7 +17,7 @@
  * across every language).
  */
 export interface HomeSeoEntry {
-  /** ~50-60 char localized title (brand suffix appended by the renderer). */
+  /** Complete localized title phrase, without the brand suffix. */
   title: string;
   /** ~150-160 char localized meta description. */
   description: string;
@@ -116,11 +116,21 @@ export function getHomeSeoTemplate(language: string): HomeSeoEntry {
   return HOME_SEO_TEMPLATES[language] || HOME_SEO_TEMPLATES.en;
 }
 
+/** Brand homepage metadata once, without shortening meaningful custom copy. */
+export function buildHomeSeoTitle(language: string, rawTitle?: string): string {
+  let title = rawTitle?.trim() || '';
+  // Only recognize the exact Latin brand at separated edges, not in prose.
+  title = title.replace(/(?:\s*\|\s*Mega\s+Radio)+\s*$/i, '').trim();
+  const prefix = /^Mega\s+Radio\s*(?:[:|]|\s[-–—])\s*/i;
+  while (prefix.test(title)) title = title.replace(prefix, '').trim();
+  if (/^Mega\s+Radio$/i.test(title)) title = '';
+  return `${title || getHomeSeoTemplate(language).title} | Mega Radio`;
+}
+
 /**
  * DB keys take precedence (admin override) when present in the requested
  * language; else the per-language template; else the English template.
- * Returns `{ title, description, hero }` — the renderer appends the brand
- * suffix to `title` and uses `hero` for the <h1>.
+ * Returns `{ title, description, hero }` with a single brand suffix on `title`.
  */
 export function buildHomeSeo(
   language: string,
@@ -143,7 +153,7 @@ export function buildHomeSeo(
   }
 
   return {
-    title: dbTitle || tpl.title,
+    title: buildHomeSeoTitle(language, dbTitle),
     description,
     hero: dbHero || tpl.hero,
   };

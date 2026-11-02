@@ -23,9 +23,9 @@ export default function RecentlyPlayedSection({ onPlay }: RecentlyPlayedSectionP
     return (
       <div className="container">
         <div className="flex justify-between pb-4">
-          <h3 className="section-header">
+          <h2 className="section-header">
             {t('homepage_recently_played', 'Recently Played')}
-          </h3>
+          </h2>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-x-[21px] gap-y-[20px]">
           {Array(6).fill(0).map((_, i) => (
@@ -41,9 +41,9 @@ export default function RecentlyPlayedSection({ onPlay }: RecentlyPlayedSectionP
     return (
       <div className="container mt-8">
         <div className="flex justify-between pb-4">
-          <h3 className="section-header">
+          <h2 className="section-header">
             {t('homepage_recently_played', 'Recently Played')}
-          </h3>
+          </h2>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-x-[21px] gap-y-[20px]">
@@ -53,6 +53,7 @@ export default function RecentlyPlayedSection({ onPlay }: RecentlyPlayedSectionP
               station={station} 
               onPlay={onPlay}
               showVotes={false}
+              headingLevel={3}
             />
           ))}
         </div>

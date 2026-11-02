@@ -15,6 +15,7 @@ import AdSenseUnit from "@/components/ads/DeferredAdSenseUnit";
 import { getAdSensePageType } from '@/lib/adsense-runtime';
 import { AD_SLOTS, usesInlineMobileCatalogAd } from '@/lib/advertising-placements';
 import PrivacySettingsButton from "@/components/ads/PrivacySettingsButton";
+import { isRenderableFooterSocialLink } from '@/lib/footer-social-links';
 
 interface FooterSocialLink {
   _id: string;
@@ -153,6 +154,7 @@ export default function Footer() {
     queryKey: ["/api/footer-social-media"],
     staleTime: 30 * 60 * 1000,
   });
+  const visibleSocialLinks = socialLinks.filter(isRenderableFooterSocialLink);
   
   // Modal states
   const [showAddStationModal, setShowAddStationModal] = useState(false);
@@ -406,7 +408,7 @@ export default function Footer() {
           </div>
 
           {/* SOCIAL MEDIA LINKS - Responsive and bottom aligned with menu */}
-          <div className="flex min-w-0 justify-start border-t border-white/10 pt-6 md:border-0 md:pt-0 md:justify-end md:col-span-3 md:self-end md:mb-[47px]">
+          {visibleSocialLinks.length > 0 && <div className="flex min-w-0 justify-start border-t border-white/10 pt-6 md:border-0 md:pt-0 md:justify-end md:col-span-3 md:self-end md:mb-[47px]">
             <div className="flex min-w-0 flex-col items-start">
               <div className="mb-[14px] text-base font-medium leading-[19px] break-words">
                 {translationsLoading ? (
@@ -416,7 +418,7 @@ export default function Footer() {
                 )}
               </div>
               <div className="flex gap-6 flex-wrap justify-start">
-                {socialLinks.filter(link => link.isActive !== false).map((link) => (
+                {visibleSocialLinks.map((link) => (
                   <a
                     key={link._id}
                     href={link.url}
@@ -432,7 +434,7 @@ export default function Footer() {
                 ))}
               </div>
             </div>
-          </div>
+          </div>}
         </div>
         
         {/* COPYRIGHT & LANGUAGE SELECTOR - Below social media */}
