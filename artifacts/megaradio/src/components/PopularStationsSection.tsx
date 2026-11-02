@@ -21,16 +21,16 @@ export default function PopularStationsSection({ stations, isPending, activeCoun
       {(inView) => (
         <div className="container">
           <div className="my-8">
-            <h3 className="section-header pb-4">
+            <h2 className="section-header pb-4">
               {t('homepage_popular_stations', 'Popular Stations')}
               {!isPending && activeCountry !== 'all' && (
                 <span className="text-sm font-normal text-gray-400 ml-2">{t('from', 'from')} {getLocalizedCountryDisplayName(activeCountry, language)}</span>
               )}
-            </h3>
+            </h2>
             <div className="relative">
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-x-[21px] gap-y-[20px]">
                 {!isPending && inView ? visibleStations.map((station, i) => (
-                  <StationCard key={`popular-${station._id || i}`} station={station} onPlay={onPlay} showVotes={true} />
+                  <StationCard key={`popular-${station._id || i}`} station={station} onPlay={onPlay} showVotes={true} headingLevel={3} />
                 )) : Array.from({ length: isPending ? 12 : visibleStations.length }, (_, index) => (
                   <div key={index} className="animate-pulse h-32 bg-gray-600 rounded-lg" />
                 ))}

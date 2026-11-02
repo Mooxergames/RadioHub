@@ -700,7 +700,8 @@ img[loading="lazy"] {
   }
 
   /* Genre card text styling - Figma: 32px bold with text-shadow */
-  .genre-slide h4 {
+  .genre-slide h4,
+  .genre-slide h3.home-genre-title {
     font-family: 'Ubuntu', sans-serif !important;
     font-size: 32px !important;
     font-weight: 700 !important;
@@ -718,7 +719,8 @@ img[loading="lazy"] {
       border-radius: 5px;
     }
     
-    .genre-slide h4 {
+    .genre-slide h4,
+    .genre-slide h3.home-genre-title {
       font-family: 'Ubuntu', sans-serif !important;
       font-size: 18px !important;
       font-weight: 700 !important;
@@ -737,7 +739,8 @@ img[loading="lazy"] {
       border-radius: 5px;
     }
     
-    .genre-slide h4 {
+    .genre-slide h4,
+    .genre-slide h3.home-genre-title {
       font-family: 'Ubuntu', sans-serif !important;
       font-size: 18px !important;
       font-weight: 700 !important;

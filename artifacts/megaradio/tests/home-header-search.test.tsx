@@ -85,6 +85,23 @@ const heroInput = () => screen.getByTestId('input-hero-search');
 const trigger = () => screen.getByTestId(state.authenticated ? 'button-search-mobile' : 'button-search-mobile-guest');
 const results = () => screen.getByRole('listbox', { name: 'Search' });
 
+it('opens the bottom FAQ without remounting the hero, interrupting playback, or starting search', async () => {
+  const user = userEvent.setup();
+  mount();
+  const input = heroInput();
+  const hero = input.closest('.home-search-anchor');
+  const faq = screen.getByTestId('home-faq');
+  const details = faq.querySelector('details')!;
+  await user.click(details.querySelector('summary')!);
+  expect(details.open).toBe(true);
+  expect(heroInput()).toBe(input);
+  expect(input.closest('.home-search-anchor')).toBe(hero);
+  expect(state.play).not.toHaveBeenCalled();
+  expect(state.stop).not.toHaveBeenCalled();
+  expect(state.search).not.toHaveBeenCalled();
+  expect(state.navigate).not.toHaveBeenCalled();
+});
+
 it('keeps a direct hero click collapsed until typing two characters', async () => {
   const user = userEvent.setup();
   mount();

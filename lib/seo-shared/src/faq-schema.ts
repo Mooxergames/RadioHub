@@ -344,3 +344,29 @@ export const FAQ_PAGE_TRANSLATION_KEYS = [
   'faq_page_title', 'faq_page_description', 'faq_page_h1', 'faq_page_intro',
   'faq_more_help_title', 'faq_more_help_text', 'footer_faq', 'nav_faq',
 ];
+
+export const HOME_FAQ_ITEM_IDS = [
+  'faq-is-radio-free', 'faq-account-required', 'faq-supported-devices', 'faq-how-search',
+  'faq-help-offline', 'faq-help-mobile-data', 'faq-help-playback', 'faq-help-broadcast-language',
+] as const;
+
+export const HOME_FAQ_TRANSLATION_KEYS = [
+  ...FAQ_PAGE_ITEMS.filter(item => HOME_FAQ_ITEM_IDS.some(id => id === item.qKey.replaceAll('_', '-')))
+    .flatMap(item => [item.qKey, item.aKey]),
+  'faq_help_platform_answer', 'footer_faq', 'nav_faq', 'faq_page_title',
+];
+
+/** The same small, locale-only selection survives the SSR-to-React handover. */
+export function resolveHomeFaqContent(language: string, translations: Record<string, string> = {}) {
+  const items = resolveFaqPageItems(language, (key, fallback) => translations[key] || fallback);
+  const byId = new Map(items.map(item => [item.id, item]));
+  const copy = resolveFaqPageText(language, translations);
+  return {
+    language,
+    direction: ['ar', 'he'].includes(language) ? 'rtl' as const : 'ltr' as const,
+    title: copy.label,
+    intro: byId.get('faq-help-platform')!.answer,
+    linkLabel: copy.title,
+    items: HOME_FAQ_ITEM_IDS.map(id => byId.get(id)!),
+  };
+}
