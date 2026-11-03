@@ -379,6 +379,76 @@ after(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
+for (const apiOnly of [false, true]) {
+  test(`app-link documents override inherited cache headers in ${apiOnly ? 'apiOnly' : 'web'} mode`, async (t) => {
+    const { registerSeoSitemapRoutes } = await import('../src/routes/seo-sitemap-routes.ts');
+    const fixtureApp = express();
+    fixtureApp.use((_req, res, next) => {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Expires', new Date(Date.now() + 31_536_000_000).toUTCString());
+      res.setHeader('X-Fixture-Header', 'preserved');
+      next();
+    });
+    await registerSeoSitemapRoutes(fixtureApp, {
+      requireAdmin: (_req: Request, res: Response) => res.status(403).end(),
+    }, { apiOnly });
+    const fixtureServer = fixtureApp.listen(0, '127.0.0.1');
+    t.after(() => new Promise<void>((resolve) => fixtureServer.close(() => resolve())));
+    await new Promise<void>((resolve) => fixtureServer.once('listening', resolve));
+    const fixtureUrl = `http://127.0.0.1:${(fixtureServer.address() as AddressInfo).port}`;
+
+    for (const pathname of ['/.well-known/apple-app-site-association', '/.well-known/assetlinks.json']) {
+      for (const query of ['', '?v=1', '?v=2&source=smoke']) {
+        for (const method of ['GET', 'HEAD']) {
+          await t.test(`${method} ${pathname}${query}`, async () => {
+            const response = await fetch(`${fixtureUrl}${pathname}${query}`, { method, redirect: 'manual' });
+            assert.equal(response.status, 200);
+            assert.match(response.headers.get('content-type') || '', /^application\/json(?:;|$)/);
+            assert.equal(response.headers.get('location'), null);
+            assert.equal(response.headers.get('cache-control'), 'public, max-age=300, must-revalidate');
+            assert.doesNotMatch(response.headers.get('cache-control') || '', /immutable/i);
+            assert.equal(response.headers.get('expires'), null);
+            assert.equal(response.headers.get('x-fixture-header'), 'preserved');
+
+            const body = await response.text();
+            if (method === 'HEAD') {
+              assert.equal(body, '');
+            } else if (pathname.endsWith('assetlinks.json')) {
+              assert.deepEqual(JSON.parse(body), [
+                {
+                  relation: ['delegate_permission/common.handle_all_urls'],
+                  target: {
+                    namespace: 'android_app',
+                    package_name: 'com.visiongo.megaradio',
+                    sha256_cert_fingerprints: [
+                      '15:46:3D:5C:AA:67:5D:BE:80:80:09:53:28:E0:9A:24:1F:93:30:CE:D0:8E:96:F2:91:E0:EF:84:2B:FC:D3:CB',
+                    ],
+                  },
+                },
+                {
+                  relation: ['delegate_permission/common.handle_all_urls'],
+                  target: {
+                    namespace: 'android_app',
+                    package_name: 'com.megaradio',
+                    sha256_cert_fingerprints: [
+                      'B7:D7:BD:6A:A9:DA:2F:B8:FA:D1:71:B1:E3:11:77:F4:A4:7E:02:0D:36:5A:56:5C:8B:D1:62:52:0A:7F:55:3F',
+                    ],
+                  },
+                },
+              ]);
+            } else {
+              JSON.parse(body);
+              // Pin the original AASA JSON, including all 178 existing paths.
+              assert.equal(createHash('sha256').update(body).digest('hex'),
+                '171008f5e62971cf7c7d446f7f309ee8e7d8b9a56d5417434791ea56b6dac33e');
+            }
+          });
+        }
+      }
+    }
+  });
+}
+
 test('SEO page-data never returns synthetic metadata on transient errors, including slim navigation responses', async () => {
   const { SeoRenderer } = await import('../src/seo-renderer');
   const render = mock.method(SeoRenderer.prototype, 'renderStaticPage', async () => ({
