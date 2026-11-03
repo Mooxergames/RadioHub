@@ -22,7 +22,10 @@ vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [
 ] }) }));
 vi.mock('../src/lib/adsense-runtime', () => ({ getAdSensePageType: () => state.pageType }));
 vi.mock('../src/components/ads/DeferredAdSenseUnit', () => ({ default: () => <div data-testid="footer-ad" /> }));
-vi.mock('../src/components/ads/PrivacySettingsButton', () => ({ default: ({ language }: { language: string }) => <button>Privacy {language}</button> }));
+vi.mock('../src/components/ads/PrivacySettingsButton', () => ({
+  default: ({ language }: { language: string }) => <button>Privacy {language}</button>,
+  WebAnalyticsConsentNotice: () => null,
+}));
 vi.mock('../src/components/modals/AddYourStationModal', () => ({ default: ({ onClose }: { onClose: () => void }) => <div role="dialog"><button onClick={onClose}>Close station modal</button></div> }));
 
 beforeEach(() => {

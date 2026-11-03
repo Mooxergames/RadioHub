@@ -14,7 +14,10 @@ vi.mock('@/hooks/useSeoRouting', () => ({ useSeoRouting: () => ({
 }) }));
 vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: state.links }) }));
 vi.mock('@/components/ads/DeferredAdSenseUnit', () => ({ default: () => null }));
-vi.mock('@/components/ads/PrivacySettingsButton', () => ({ default: () => <button>Privacy settings</button> }));
+vi.mock('@/components/ads/PrivacySettingsButton', () => ({
+  default: () => <button>Privacy settings</button>,
+  WebAnalyticsConsentNotice: () => null,
+}));
 import Footer from '../src/components/layout/footer';
 
 beforeEach(() => { state.links = []; });

@@ -14,7 +14,7 @@ import "./footer-controls.css";
 import AdSenseUnit from "@/components/ads/DeferredAdSenseUnit";
 import { getAdSensePageType } from '@/lib/adsense-runtime';
 import { AD_SLOTS, usesInlineMobileCatalogAd } from '@/lib/advertising-placements';
-import PrivacySettingsButton from "@/components/ads/PrivacySettingsButton";
+import PrivacySettingsButton, { WebAnalyticsConsentNotice } from "@/components/ads/PrivacySettingsButton";
 import { isRenderableFooterSocialLink } from '@/lib/footer-social-links';
 
 interface FooterSocialLink {
@@ -209,6 +209,7 @@ export default function Footer() {
           pages already own their capped placements; private pages get none. */}
       {showCatalogAdvertisement && <AdSenseUnit adSlot={AD_SLOTS.catalogFooter} adFormat="horizontal"
         fullWidthResponsive={true} className={`${usesInlineMobileCatalogAd(window.location.pathname + window.location.search) ? 'hidden md:block ' : ''}w-full max-w-[1206px] mx-auto px-4 pt-8 mb-8`} />}
+      <WebAnalyticsConsentNotice language={currentLanguage} />
       <div className="container mx-auto">
         {/* Main footer grid - responsive from mobile to 4K */}
         <div className="relative flex flex-col gap-8 pb-6 pt-8 sm:pt-12 md:pt-16 lg:pt-20 xl:pt-24

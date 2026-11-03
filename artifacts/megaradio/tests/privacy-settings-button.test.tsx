@@ -5,7 +5,17 @@ import PrivacySettingsButton, { PRIVACY_SETTINGS_LABELS } from '../src/component
 import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { suspendGoogleMeasurement } from '../src/lib/google-tag-manager';
 
-vi.mock('../src/lib/google-tag-manager', () => ({ suspendGoogleMeasurement: vi.fn() }));
+vi.mock('../src/lib/google-tag-manager', () => ({
+  suspendGoogleMeasurement: vi.fn(),
+  isGoogleMeasurementConfigured: () => false,
+  isGoogleMeasurementLocked: () => false,
+  publicMeasurementUrl: () => null,
+}));
+vi.mock('../src/lib/web-analytics-consent', () => ({
+  getWebAnalyticsConsent: () => 'unknown',
+  setWebAnalyticsConsent: vi.fn(),
+  subscribeWebAnalyticsConsent: () => () => {},
+}));
 
 const host = window as any;
 afterEach(() => { cleanup(); delete host.googlefc; vi.clearAllMocks(); });
