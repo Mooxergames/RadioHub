@@ -421,6 +421,8 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
 
   app.get("/.well-known/apple-app-site-association", (req, res) => {
     res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+    res.removeHeader("Expires");
     res.json({
       applinks: {
         apps: [],
@@ -436,6 +438,8 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
 
   app.get("/.well-known/assetlinks.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+    res.removeHeader("Expires");
     res.json([
       {
         relation: ["delegate_permission/common.handle_all_urls"],
@@ -444,6 +448,16 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
           package_name: "com.visiongo.megaradio",
           sha256_cert_fingerprints: [
             "15:46:3D:5C:AA:67:5D:BE:80:80:09:53:28:E0:9A:24:1F:93:30:CE:D0:8E:96:F2:91:E0:EF:84:2B:FC:D3:CB"
+          ]
+        }
+      },
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: {
+          namespace: "android_app",
+          package_name: "com.megaradio",
+          sha256_cert_fingerprints: [
+            "B7:D7:BD:6A:A9:DA:2F:B8:FA:D1:71:B1:E3:11:77:F4:A4:7E:02:0D:36:5A:56:5C:8B:D1:62:52:0A:7F:55:3F"
           ]
         }
       }
