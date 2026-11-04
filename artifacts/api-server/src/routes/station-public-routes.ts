@@ -5,6 +5,7 @@ import { publicStationCache as CacheManager } from '../public-station-cache';
 import { publicStationResponseCache } from '../middleware/public-station-cache';
 import { logger } from '../utils/logger';
 import { withPilotEditorial } from '../seo/indexing-pilot';
+import { stationDetailCacheKey } from '../services/station-detail-cache';
 
 
 
@@ -99,7 +100,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
     try {
       const { identifier } = req.params;
 
-      const cacheKey = `station:detail:editorial-v2:${identifier}`;
+      const cacheKey = stationDetailCacheKey(identifier);
       const cached = await CacheManager.get(cacheKey);
       if (cached) return void res.json(cached);
 
@@ -139,7 +140,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
     } catch (error: any) {
       logger.error(`❌ /api/station/:identifier failed: code=${error?.code || 'unknown'} msg=${error?.message || error}`);
       let stale: any = null;
-      try { stale = await CacheManager.get(`station:detail:editorial-v2:${req.params.identifier}`); } catch {}
+      try { stale = await CacheManager.get(stationDetailCacheKey(req.params.identifier)); } catch {}
       res.set('Cache-Control', 'no-store');
       if (stale != null) { res.set('X-Data-Stale', 'true'); return void res.json(stale); }
       res.status(503).json({ error: 'Station data is temporarily unavailable' });
@@ -471,15 +472,15 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
 
   // LINKED STATIONS - Related stations for station detail page
   app.get("/api/stations/:stationId/linked", async (req, res) => {
+    const { stationId } = req.params;
+    const compact = req.query.slim === '1';
+    const cacheKey = `stations:linked:${compact ? 'cards-v1:' : ''}${stationId}`;
     try {
-      const { stationId } = req.params;
-
-      const cacheKey = `stations:linked:${stationId}`;
       const cached = await CacheManager.get(cacheKey);
       if (cached) return void res.json(cached);
 
       {
-        const linked = await getRelatedStationsFromPostgres(stationId, 12);
+        const linked = await getRelatedStationsFromPostgres(stationId, 12, compact);
         if (linked === null) return void res.status(404).json({ error: 'Station not found' });
         const result = { stations: linked };
         await CacheManager.set(cacheKey, result, { ttl: 1800 });
@@ -490,7 +491,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
     } catch (error: any) {
       logger.error(`❌ /api/stations/:stationId/linked failed: code=${error?.code || 'unknown'} msg=${error?.message || error}`);
       let stale: any = null;
-      try { stale = await CacheManager.get(`stations:linked:${req.params.stationId}`); } catch {}
+      try { stale = await CacheManager.get(cacheKey); } catch {}
       res.set('Cache-Control', 'no-store');
       if (stale != null) { res.set('X-Data-Stale', 'true'); return void res.json(stale); }
       res.status(503).json({ error: 'Station data is temporarily unavailable' });

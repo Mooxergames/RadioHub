@@ -17,6 +17,8 @@ const fail = (code: string) => Object.assign(new Error(code), { code });
 const REDIRECT_TARGET_LANGUAGES = ['en', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'ar', 'zh', 'tr', 'ja', 'ko', 'hi', 'he'] as const;
 const projection = `id,station_uuid AS stationuuid,name,slug,slug_aliases AS "slugAliases",url,
   no_index AS "noIndex",redirect_to_slug AS "redirectToSlug",descriptions,
+  CASE WHEN jsonb_typeof(source->'mergedStationIds')='array' THEN source->'mergedStationIds' ELSE '[]'::jsonb END AS "mergedStationIds",
+  CASE WHEN jsonb_typeof(source->'mergedStationUuids')='array' THEN source->'mergedStationUuids' ELSE '[]'::jsonb END AS "mergedStationUuids",
   (source IS NULL OR jsonb_typeof(source)='object') AS "sourceIsObject"`;
 
 function hasCompleteRedirectContent(descriptions: unknown): boolean {
@@ -79,6 +81,8 @@ export async function pgSetStationRedirect(change: StationRedirectChange,
     await query('COMMIT');
     return { stationId: source.id, slug: source.slug, redirectToSlug: change.targetSlug, changed,
       cacheKeys: [...new Set([source.id, source.stationuuid, source.slug, ...(source.slugAliases || []),
+        ...(Array.isArray(source.mergedStationIds) ? source.mergedStationIds : []),
+        ...(Array.isArray(source.mergedStationUuids) ? source.mergedStationUuids : []),
         current, change.targetSlug].filter((value): value is string => typeof value === 'string' && Boolean(value)))],
     };
   } catch (error: any) {

@@ -6,8 +6,7 @@ import { RecommendationEngine } from '../services/recommendation-engine';
 import { CacheKeys } from '../cache';
 import { publicStationCache as CacheManager } from '../public-station-cache';
 import { publicStationResponseCache } from '../middleware/public-station-cache';
-import { PrecomputedGenresService } from '../services/precomputed-genres';
-import { getCachedPublicGenres, publicGenreWhitelistVersion } from '../services/public-genre-navigation';
+import { getCachedPublicGenreSnapshot, invalidatePublicGenreCaches, publicGenreWhitelistVersion } from '../services/public-genre-navigation';
 import { resolveToDbName, getAllCountryInfoFromDb } from '../utils/normalize-country';
 import { tvValidateParams, tvSlimGenre } from './shared-utils';
 import { logger } from '../utils/logger';
@@ -269,7 +268,7 @@ export function registerGenresCountriesRoutes(app: Express, deps: any) {
     }
   });
 
-  // PRECOMPUTED GENRES API - 7-day cache, ultra-fast genre browsing
+  // Native genre snapshots share the bounded public station-health deadline.
   app.get("/api/genres/precomputed", async (req, res) => {
     try {
       const countryName = (req.query.countryName || req.query.country) as string | undefined;
@@ -282,8 +281,8 @@ export function registerGenresCountriesRoutes(app: Express, deps: any) {
         const resolvedCountry = identifier === 'global' ? undefined : (resolveToDbName(identifier) || identifier);
         // Share the native country aggregate across pages/searches and concurrent
         // visitors. Whitelist edits immediately select a different cache entry.
-        let genres = await getCachedPublicGenres(resolvedCountry);
-        genres = [...genres];
+        const snapshot = await getCachedPublicGenreSnapshot(resolvedCountry);
+        let genres = [...snapshot.genres];
         if (search) genres = genres.filter((genre: any) => genre.name?.toLowerCase().includes(search) || genre.slug?.toLowerCase().includes(search));
         genres.sort((a, b) => b.stationCount - a.stationCount || a.slug.localeCompare(b.slug));
         const total = genres.length;
@@ -291,7 +290,7 @@ export function registerGenresCountriesRoutes(app: Express, deps: any) {
         return void res.json({
           success: true, data: paginated, genres: paginated, count: total, total,
           currentPage: page, page, perPage: limit, limit, totalPages: Math.ceil(total / limit),
-          computedAt: Date.now(), countryName: identifier,
+          computedAt: snapshot.computedAt, countryName: identifier,
         });
       }
 
@@ -423,9 +422,9 @@ export function registerGenresCountriesRoutes(app: Express, deps: any) {
       }
 
       try {
-        await PrecomputedGenresService.refreshAll();
+        await invalidatePublicGenreCaches();
       } catch (err) {
-        logger.warn({ err }, 'Failed to refresh precomputed genres after create');
+        logger.warn({ err }, 'Failed to invalidate public genre caches after create');
       }
 
       return res.status(201).json(created);
@@ -500,9 +499,9 @@ export function registerGenresCountriesRoutes(app: Express, deps: any) {
       }
 
       try {
-        await PrecomputedGenresService.refreshAll();
+        await invalidatePublicGenreCaches();
       } catch (err) {
-        logger.warn({ err }, 'Failed to refresh precomputed genres after update');
+        logger.warn({ err }, 'Failed to invalidate public genre caches after update');
       }
 
       return res.json(updated);
@@ -530,9 +529,9 @@ export function registerGenresCountriesRoutes(app: Express, deps: any) {
       }
 
       try {
-        await PrecomputedGenresService.refreshAll();
+        await invalidatePublicGenreCaches();
       } catch (err) {
-        logger.warn({ err }, 'Failed to refresh precomputed genres after delete');
+        logger.warn({ err }, 'Failed to invalidate public genre caches after delete');
       }
 
       res.json({ success: true });

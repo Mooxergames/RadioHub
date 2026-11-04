@@ -46,6 +46,7 @@ interface GenreRow {
 
 let fixture: Awaited<ReturnType<typeof createNativePostgresFixture>>;
 let refreshAllCalls = 0;
+const invalidatedPatterns: string[] = [];
 async function genreCount(){return Number((await fixture.pool.query('SELECT count(*) AS count FROM genres')).rows[0].count);}
 
 mock.module(
@@ -70,6 +71,7 @@ mock.module(new URL('../src/cache.ts', import.meta.url).href, {
     get: async () => null,
     set: async () => {},
     del: async () => {},
+    clearByPattern: async (pattern: string) => { invalidatedPatterns.push(pattern); },
   },
 });
 
@@ -164,6 +166,7 @@ after(async () => {
 async function resetState() {
   await fixture.clear('genres');
   refreshAllCalls = 0;
+  invalidatedPatterns.length = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,11 +207,8 @@ test('POST /api/genres creates a new genre and returns 201 (admin)', async () =>
   assert.ok(body._id, 'created genre must have an _id');
 
   assert.equal(await genreCount(), 1, 'a single Genre row must be persisted');
-  assert.equal(
-    refreshAllCalls,
-    1,
-    'PrecomputedGenresService.refreshAll must be invoked exactly once after create',
-  );
+  assert.equal(refreshAllCalls, 0, 'The unused legacy genre cache must not be rebuilt');
+  assert.deepEqual(invalidatedPatterns.sort(), ['public-health:v2:genre-slug:', 'public-health:v2:genre-stations:', 'public-health:v2:genres:']);
 });
 
 test('POST /api/genres rejects an invalid slug with 400 (SAFE_GENRE_SLUG_RE)', async () => {
@@ -224,6 +224,7 @@ test('POST /api/genres rejects an invalid slug with 400 (SAFE_GENRE_SLUG_RE)', a
   assert.match(body.error ?? '', /invalid slug/i);
   assert.equal(await genreCount(), 0, 'invalid-slug request must NOT persist a row');
   assert.equal(refreshAllCalls, 0, 'refreshAll must NOT run when validation fails');
+  assert.deepEqual(invalidatedPatterns, []);
 });
 
 test('POST /api/genres rejects a duplicate slug with 409', async () => {

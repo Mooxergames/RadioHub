@@ -20,14 +20,14 @@ describe('native logo variant CAS and immutable source', { skip: !connectionStri
   before(async () => {
     await admin.query(`CREATE SCHEMA "${schema}"`);
     pool = new pg.Pool({ connectionString, ssl: false, max: 3, options: `-c search_path=${schema}` });
-    await pool.query(`CREATE TABLE stations(id text PRIMARY KEY,slug text,favicon text,country text,country_code text,
+    await pool.query(`CREATE TABLE stations(id text PRIMARY KEY,station_uuid text,slug text,favicon text,country text,country_code text,
       slug_aliases text[],logo_assets jsonb,source jsonb,unrelated_counter integer,updated_at timestamptz);
       CREATE TABLE legacy_documents(document_id text PRIMARY KEY,payload jsonb,checksum text)`);
     store = new PostgresLogoVariantStore(pool);
   });
   beforeEach(async () => {
     await pool.query('TRUNCATE stations,legacy_documents');
-    await pool.query(`INSERT INTO stations VALUES($1,'radio',NULL,'Germany','DE',ARRAY['old-radio'],$2::jsonb,
+    await pool.query(`INSERT INTO stations VALUES($1,'fixture-logo-uuid','radio',NULL,'Germany','DE',ARRAY['old-radio'],$2::jsonb,
       $3::jsonb,42,'2026-01-01T00:00:00Z')`, [id, JSON.stringify(assets), JSON.stringify({ logoAssets: assets, sourceOnly: 'immutable-original' })]);
     await pool.query('INSERT INTO legacy_documents VALUES($1,$2::jsonb,$3)', [id, JSON.stringify({ original: assets }), 'immutable-checksum']);
   });

@@ -90,6 +90,22 @@ function mountRelated(language = 'en') {
   mount();
 }
 
+it('requests the compact linked variant without changing the legacy envelope or media-group visibility', async () => {
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!;
+  const legacy = { stations: [{ _id: 'legacy-related', descriptions: { en: 'Full legacy cache' } }] };
+  const cards = { stations: [{ _id: 'compact-related', name: 'Compact Related', slug: 'compact-related' }] };
+  client.setQueryDefaults(['/api/stations', seed._id, 'linked'], { gcTime: 60_000 });
+  client.setQueryData(['/api/stations', seed._id, 'linked'], legacy);
+  vi.mocked(fetch).mockImplementation((url: string) => url === `/api/stations/${seed._id}/linked?slim=1`
+    ? Promise.resolve(Response.json(cards)) : originalFetch(url));
+  bootstrap(); mount();
+  await waitFor(() => expect(client.getQueryData(['/api/stations', seed._id, 'linked', 'cards-v1'])).toEqual(cards));
+  expect(fetch).toHaveBeenCalledWith(`/api/stations/${seed._id}/linked?slim=1`);
+  expect(client.getQueryData(['/api/stations', seed._id, 'linked'])).toEqual(legacy);
+  expect(screen.queryByRole('heading', { name: 'Media Group Radios' })).not.toBeInTheDocument();
+  expectArticle();
+});
+
 it.each(['en', 'de', 'tr'])('keeps both related sections crawlable with localized %s links', language => {
   mountRelated(language);
   expect(screen.getByRole('link', { name: /Related Jazz/ })).toHaveAttribute('href', `/${language}/station/related-jazz`);
