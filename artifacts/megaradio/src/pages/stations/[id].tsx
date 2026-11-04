@@ -240,9 +240,9 @@ export default function StationDetails() {
 
   // Fetch linked stations (Media Group Radios) - use station._id if available
   const { data: linkedStations } = useQuery({
-    queryKey: ['/api/stations', station?._id, 'linked'],
+    queryKey: ['/api/stations', station?._id, 'linked', 'cards-v1'],
     queryFn: async () => {
-      const response = await fetch(`/api/stations/${station?._id}/linked`);
+      const response = await fetch(`/api/stations/${station?._id}/linked?slim=1`);
       if (!response.ok) return [];
       return response.json();
     },

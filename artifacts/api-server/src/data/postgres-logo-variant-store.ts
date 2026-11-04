@@ -3,11 +3,14 @@ import { getPostgresPool } from '../postgres-runtime';
 
 export interface LogoVariantStation {
   id: string;
+  stationuuid?: string | null;
   slug: string | null;
   favicon: string | null;
   country?: string | null;
   countryCode?: string | null;
   slugAliases?: string[] | null;
+  mergedStationIds?: string[] | null;
+  mergedStationUuids?: string[] | null;
   logoAssets: Record<string, unknown> | null;
 }
 
@@ -17,7 +20,9 @@ export class PostgresLogoVariantStore {
 
   async findByIds(ids: string[]): Promise<LogoVariantStation[]> {
     const { rows } = await this.pool.query(
-      `SELECT id,slug,favicon,country,country_code AS "countryCode",slug_aliases AS "slugAliases",
+      `SELECT id,station_uuid AS stationuuid,slug,favicon,country,country_code AS "countryCode",slug_aliases AS "slugAliases",
+       CASE WHEN jsonb_typeof(source->'mergedStationIds')='array' THEN source->'mergedStationIds' ELSE '[]'::jsonb END AS "mergedStationIds",
+       CASE WHEN jsonb_typeof(source->'mergedStationUuids')='array' THEN source->'mergedStationUuids' ELSE '[]'::jsonb END AS "mergedStationUuids",
        logo_assets AS "logoAssets" FROM stations WHERE id=ANY($1::text[]) ORDER BY id`, [ids],
     );
     return rows;

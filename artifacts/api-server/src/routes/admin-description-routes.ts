@@ -4,6 +4,7 @@ import { pgCatalog } from '../data/postgres-catalog-store';
 import { parseStationDescriptionPatch } from '../utils/station-description-patch';
 import { performanceCache } from '../performance-cache';
 import CacheManager from '../cache';
+import { invalidatePublicStationDetails, stationDetailIdentifiers } from '../services/station-detail-cache';
 
 export function registerAdminDescriptionRoutes(app: Express, requireAdmin: any): void {
   // Match IDs only, so existing /duplicates, /precomputed, etc. keep their routes.
@@ -24,12 +25,12 @@ export function registerAdminDescriptionRoutes(app: Express, requireAdmin: any):
       if (result.status === 'missing') return void res.status(404).json({ error: 'Station not found' });
       if (result.status === 'conflict') return void res.status(409).json({ error: 'Station descriptions changed; reload before saving' });
       const station = result.station;
-      let cacheInvalidated = true;
-      try {
-        performanceCache.invalidateStationCache(station.slug);
-        for (const key of new Set([station._id, station.slug, ...(station.slugAliases || [])])) await CacheManager.del(`station:detail:${key}`);
-        await CacheManager.clearByPattern('admin_stations:');
-      } catch { cacheInvalidated = false; }
+      const cacheResults = await Promise.allSettled([
+        Promise.resolve().then(() => performanceCache.invalidateStationCache(station.slug)),
+        invalidatePublicStationDetails([patch.slug, ...stationDetailIdentifiers(station)]),
+        Promise.resolve().then(() => CacheManager.clearByPattern('admin_stations:')),
+      ]);
+      const cacheInvalidated = cacheResults.every(result => result.status === 'fulfilled');
       // A cache problem must not misreport an already committed content edit as failed.
       res.json({ success: true, stationId: station._id, slug: station.slug, changedFields: patch.changes.map(change => `descriptions.${change.locale}.${change.field}`), descriptions: station.descriptions, cacheInvalidated });
     } catch { res.status(503).json({ error: 'Description update is temporarily unavailable' }); }

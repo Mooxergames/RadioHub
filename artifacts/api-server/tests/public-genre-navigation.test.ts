@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, it, mock } from 'node:test';
-import type { Server } from 'node:http';
+import { request, type Server } from 'node:http';
 import express from 'express';
 
 // Actual taxonomy and HTTP handlers, with only storage/network boundaries mocked.
@@ -136,5 +136,30 @@ it('expires native genre visibility after 60 seconds without extending the deadl
     const fresh = await getCachedPublicGenres();
     assert.equal(reads, 2);
     assert.ok(!fresh.some(genre => genre.slug === 'rock'), 'A new health-aware native read replaces expired membership');
+  } finally { clock.mock.restore(); }
+});
+
+it('revalidates the same native genre generation with 304 and changes the validator after expiry', async () => {
+  const nativeGet = (headers: Record<string, string> = {}) => new Promise<{ status: number; etag?: string; body: string }>((resolve, reject) => {
+    const req = request(`${base}/api/genres/precomputed`, { headers }, response => {
+      const chunks: Buffer[] = [];
+      response.on('data', chunk => chunks.push(chunk)); response.on('error', reject);
+      response.on('end', () => resolve({ status: response.statusCode!, etag: response.headers.etag, body: Buffer.concat(chunks).toString() }));
+    });
+    req.on('error', reject); req.end();
+  });
+  let now = 1_000_000;
+  const clock = mock.method(Date, 'now', () => now);
+  try {
+    const first = await nativeGet(); assert.equal(first.status, 200); assert.ok(first.etag);
+    now += 500;
+    const conditional = await nativeGet({ 'If-None-Match': first.etag });
+    assert.equal(conditional.status, 304); assert.equal(conditional.body, ''); assert.equal(conditional.etag, first.etag);
+    const reload = await nativeGet({ 'If-None-Match': first.etag, 'Cache-Control': 'no-cache' });
+    assert.equal(reload.status, 200); assert.equal(reload.body, first.body); assert.equal(reads, 1);
+    now += 60_000;
+    const refreshed = await nativeGet({ 'If-None-Match': first.etag });
+    assert.equal(refreshed.status, 200); assert.notEqual(refreshed.etag, first.etag); assert.equal(reads, 2);
+    assert.equal(JSON.parse(refreshed.body).computedAt, now);
   } finally { clock.mock.restore(); }
 });

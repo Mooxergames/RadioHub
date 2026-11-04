@@ -176,11 +176,11 @@ export async function getStationStatsFromPostgres(): Promise<{
   };
 }
 
-export async function getRelatedStationsFromPostgres(stationId: string, limit: number): Promise<any[] | null> {
+export async function getRelatedStationsFromPostgres(stationId: string, limit: number, compact = false): Promise<any[] | null> {
   const source = await postgresStation(stationId);
   if (!source) return null;
   const result = await getPostgresPool().query(
-    `SELECT * FROM stations WHERE id<>$1 AND (is_list_visible IS TRUE OR COALESCE(visibility_expires_at<=now(),false))
+    `SELECT ${compact ? CARD_SELECTION : '*'} FROM stations WHERE id<>$1 AND (is_list_visible IS TRUE OR COALESCE(visibility_expires_at<=now(),false))
        AND ($2='' OR country=$2)
        AND ($3='' OR tags_raw ILIKE '%' || $3 || '%')
      ORDER BY votes DESC LIMIT $4`,

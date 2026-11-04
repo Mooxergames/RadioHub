@@ -26,14 +26,34 @@ const memoryCache = new NodeCache({
 // rebuilt the same list because set() silently skipped the only active cache.
 const largeValueCache = new BoundedValueCache();
 
+function setSmallMemoryValue<T>(key: string, value: T, ttl: number): void {
+  try {
+    memoryCache.set(key, value, ttl);
+  } catch (error) {
+    if ((error as { errorcode?: string })?.errorcode !== 'ECACHEFULL') return;
+    // Admit one new value without raising the memory bound or changing TTLs.
+    const candidate = memoryCache.keys()[0];
+    if (candidate === undefined) return;
+    memoryCache.del(candidate);
+    try { memoryCache.set(key, value, ttl); } catch {}
+  }
+}
+
 // Redis client for production (optional)
 let redisClient: any = null;
+let lastRedisErrorLogAt = -Infinity;
 
 // Initialize Redis if available
 async function initRedis() {
   try {
     if (process.env.REDIS_URL) {
-      redisClient = createClient({ url: process.env.REDIS_URL });
+      redisClient = createClient({ url: process.env.REDIS_URL, disableOfflineQueue: true });
+      redisClient.on('error', () => {
+        const now = Date.now();
+        if (now - lastRedisErrorLogAt < 60_000) return;
+        lastRedisErrorLogAt = now;
+        try { logger.warn('[cache] Redis unavailable; using process memory cache'); } catch {}
+      });
       await redisClient.connect();
       // console.log('✅ Connected to Redis cache');
     }
@@ -64,7 +84,7 @@ export class CacheManager {
       const largeResult = largeValueCache.get<T>(key);
       if (largeResult !== undefined) return largeResult;
 
-      if (redisClient && redisClient.isOpen) {
+      if (redisClient && redisClient.isReady) {
         const redisResult = await redisClient.get(key);
         if (redisResult) {
           // Detect raw string payloads (set() may have stored a string without
@@ -89,7 +109,7 @@ export class CacheManager {
             parsed = redisResult as unknown as T;
           }
           if (redisResult.length < 256_000) {
-            try { memoryCache.set(key, parsed, 300); } catch {}
+            setSmallMemoryValue(key, parsed, 300);
           } else {
             largeValueCache.set(key, parsed, redisResult.length * 2, 300);
           }
@@ -153,20 +173,18 @@ export class CacheManager {
     // Memory write — independent failure path. NodeCache may throw ECACHEFULL
     // if maxKeys is exceeded; that must NOT prevent the Redis write.
     if (!isLargeValue) {
-      try {
-        const memTtl = Math.min(ttl, 3600);
-        memoryCache.set(key, value, memTtl);
-      } catch {}
+      const memTtl = Math.min(ttl, 3600);
+      setSmallMemoryValue(key, value, memTtl);
     } else {
       largeValueCache.set(key, value, payloadBytes, ttl);
     }
 
     // Redis write — independent failure path.
-    if (redisClient && redisClient.isOpen && serialized !== null) {
+    if (redisClient && redisClient.isReady && serialized !== null) {
       try {
         await redisClient.setEx(key, ttl, serialized);
       } catch {}
-    } else if (redisClient && redisClient.isOpen && typeof value === 'string') {
+    } else if (redisClient && redisClient.isReady && typeof value === 'string') {
       try {
         await redisClient.setEx(key, ttl, value as unknown as string);
       } catch {}
@@ -337,7 +355,7 @@ export class CacheManager {
     try {
       memoryCache.del(key);
       
-      if (redisClient && redisClient.isOpen) {
+      if (redisClient && redisClient.isReady) {
         await redisClient.del(key);
       }
     } catch (error) {
@@ -368,7 +386,7 @@ export class CacheManager {
       // non-blocking; it yields control back between batches.
       // Batched DEL (chunks of 500) avoids sending one giant DEL command
       // for very large pattern matches.
-      if (redisClient && redisClient.isOpen) {
+      if (redisClient && redisClient.isReady) {
         const matchPattern = `*${pattern}*`;
         const toDelete: string[] = [];
         // node-redis v4 exposes scanIterator; iterate in batches of 500.
@@ -402,8 +420,8 @@ export class CacheManager {
         largeValues: largeValueCache.stats(),
       },
       redis: {
-        connected: redisClient && redisClient.isOpen,
-        status: redisClient?.status || 'not available'
+        connected: Boolean(redisClient?.isReady),
+        status: redisClient?.status || (redisClient?.isReady ? 'ready' : redisClient?.isOpen ? 'connecting' : 'not available')
       }
     };
   }

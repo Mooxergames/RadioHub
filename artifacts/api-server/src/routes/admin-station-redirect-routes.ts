@@ -1,8 +1,8 @@
 import express, { type Express, type Request, type Response, type NextFunction, type RequestHandler, type ErrorRequestHandler } from 'express';
 import { pgSetStationRedirect, type StationRedirectResult } from '../data/postgres-station-redirect';
 import { performanceCache } from '../performance-cache';
-import { publicStationCache } from '../public-station-cache';
 import CacheManager from '../cache';
+import { invalidatePublicStationDetails } from '../services/station-detail-cache';
 
 async function invalidateRedirectCaches(result: StationRedirectResult): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -10,7 +10,7 @@ async function invalidateRedirectCaches(result: StationRedirectResult): Promise<
     return await Promise.race([
       Promise.allSettled([
         ...result.cacheKeys.map(key => Promise.resolve().then(() => performanceCache.invalidateStationCache(key))),
-        ...result.cacheKeys.map(key => publicStationCache.del(`station:detail:visibility-v2:${key}`)),
+        invalidatePublicStationDetails(result.cacheKeys),
         CacheManager.clearByPattern('admin_stations:'),
       ]).then(results => results.every(result => result.status === 'fulfilled')),
       new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), 1000); timer.unref(); }),
