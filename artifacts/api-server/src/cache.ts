@@ -74,15 +74,21 @@ interface CacheOptions {
 
 export class CacheManager {
   // Get cached data with TTL info
-  static async get<T>(key: string): Promise<T | null> {
+  static async get<T>(key: string, accept?: (value: T) => boolean): Promise<T | null> {
     try {
       // Try memory cache first (fastest)
       const memoryResult = memoryCache.get<T>(key);
       if (memoryResult !== undefined) {
-        return memoryResult;
+        if (!accept || accept(memoryResult)) return memoryResult;
+        // A promoted envelope may expire before this tier's TTL. Evict only
+        // locally so a newer Redis value remains available to this request.
+        memoryCache.del(key);
       }
       const largeResult = largeValueCache.get<T>(key);
-      if (largeResult !== undefined) return largeResult;
+      if (largeResult !== undefined) {
+        if (!accept || accept(largeResult)) return largeResult;
+        largeValueCache.delete(key);
+      }
 
       if (redisClient && redisClient.isReady) {
         const redisResult = await redisClient.get(key);
@@ -108,6 +114,7 @@ export class CacheManager {
           } catch {
             parsed = redisResult as unknown as T;
           }
+          if (accept && !accept(parsed)) return null;
           if (redisResult.length < 256_000) {
             setSmallMemoryValue(key, parsed, 300);
           } else {

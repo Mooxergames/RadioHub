@@ -45,7 +45,26 @@ test('community SSR covers exact roots in all14 languages, never private descend
     assert.equal(matchers.usersPage.test(`/${language}/${root}`), true, language);
     assert.equal(eligible(`/${language}/${root}/someone`), false, language);
     assert.equal(eligible(`/${language}/profile/settings`), false, language);
-    assert.equal(eligible(`/${language}/recommendations`), false, language);
+    assert.equal(eligible(`/${language}/favorites`), false, language);
+  }
+});
+
+test('public discovery is eligible only at exact localized roots, never personal or arbitrary descendants', () => {
+  for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+    for (const key of ['trending', 'recommendations']) {
+      for (const root of new Set([key, URL_TRANSLATIONS[language]?.[key] || key])) {
+        for (const prefix of ['', `/${language}`]) {
+          const path = `${prefix}/${root}`;
+          assert.equal(matchers.discoveryPage.test(path), true, path);
+          assert.equal(matchers.discoveryPage.test(`${path}/`), true, path);
+          assert.equal(matchers.discoveryPage.test(`${path}/someone`), false, path);
+          assert.equal(matchers.discoveryPage.test(`${path}-unknown`), false, path);
+        }
+      }
+    }
+    for (const root of ['favorites', URL_TRANSLATIONS[language]?.favorites || 'favorites', 'profile', 'login']) {
+      assert.equal(matchers.discoveryPage.test(`/${language}/${root}`), false);
+    }
   }
 });
 
@@ -82,6 +101,8 @@ test('web SSR uses the tested matchers and unknown SSO probes reach a real404', 
   assert.match(source, /\.\.\.buildPublicSeoRouteMatchers\(\)/);
   assert.match(source, /const cleanUrlForMatching = decodePublicSeoPath\(url\)/);
   assert.match(source, /isApplicationsPage \|\| isUsersPage/);
+  assert.match(source, /const isDiscoveryPage = SEO_PRECOMPILED_REGEX\.discoveryPage\.test\(cleanUrlForMatching\)/);
+  assert.match(source, /const isSeoEligiblePage = [^;]*\bisDiscoveryPage\b/);
   assert.match(source, /req.method !== 'GET' && req.method !== 'HEAD'/);
   const app = express();
   app.use((req, res, next) => {

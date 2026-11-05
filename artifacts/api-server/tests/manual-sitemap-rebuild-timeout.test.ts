@@ -6,6 +6,7 @@ import express from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { forwardApiRequest } from '../src/middleware/forward-api-request';
 import { MANUAL_SITEMAP_REBUILD_TIMEOUT_MS, manualSitemapRebuildTimeout } from '../src/middleware/manual-sitemap-rebuild-timeout';
+import { webRequestTimeout, WEB_API_PROXY_TIMEOUTS, sendWebApiProxyError } from '../src/middleware/web-request-timeout';
 
 let api: Server, web: Server, base: string;
 const deadlines: Array<{path: string; milliseconds: number}> = [];
@@ -37,9 +38,15 @@ before(async () => {
   app.get('/api/public', delayed);
   api = await listen(app);
   const proxyApp = express();
-  proxyApp.use((req, _res, next) => { req.setTimeout(300); next(); });
-  const proxy = createProxyMiddleware({target: `http://127.0.0.1:${(api.address() as any).port}`, timeout: 600, proxyTimeout: 600,
-    on: {error: (_error, _req, res) => { if ('writeHead' in res && !res.headersSent) res.writeHead(502).end(); }},
+  proxyApp.use((_req, res, next) => {
+    const setTimeout = res.setTimeout.bind(res);
+    res.setTimeout = (milliseconds, callback) => setTimeout(milliseconds / 100, callback);
+    next();
+  });
+  proxyApp.use(webRequestTimeout);
+  const proxy = createProxyMiddleware({target: `http://127.0.0.1:${(api.address() as any).port}`,
+    timeout: WEB_API_PROXY_TIMEOUTS.timeout / 100, proxyTimeout: WEB_API_PROXY_TIMEOUTS.proxyTimeout / 100,
+    on: {error: (_error, _req, res) => sendWebApiProxyError(res)},
   });
   proxyApp.use('/api', forwardApiRequest(proxy));
   web = await listen(proxyApp); base = `http://127.0.0.1:${(web.address() as any).port}`;
@@ -53,6 +60,7 @@ after(async () => {
 
 test('authenticated rebuild survives the ordinary 30s deadline through the existing 60s web proxy', async () => {
   assert.equal(MANUAL_SITEMAP_REBUILD_TIMEOUT_MS, 55_000);
+  assert.ok(MANUAL_SITEMAP_REBUILD_TIMEOUT_MS < WEB_API_PROXY_TIMEOUTS.proxyTimeout);
   const response = await fetch(base+'/api/admin/sitemap/rebuild', {method: 'POST', headers: {'x-fixture-admin': 'yes'}});
   assert.equal(response.status, 200); assert.deepEqual(await response.json(), {ok: true});
   assert.deepEqual(deadlines.filter(row => row.path === '/api/admin/sitemap/rebuild').map(row => row.milliseconds), [30_000, 55_000]);
@@ -77,9 +85,13 @@ test('production extends only the rebuild after authentication and preserves pro
   assert.equal((routes.match(/requireAdmin, manualSitemapRebuildTimeout/g) || []).length, 1);
   for (const entry of ['index-api.ts', 'index-web.ts']) {
     const source = await readFile(new URL('../src/'+entry, import.meta.url), 'utf8');
-    assert.match(source, /req\.setTimeout\(30000,/);
-    assert.match(source, /Date\.now\(\) - requestStartedAt/);
+    if (entry === 'index-api.ts') {
+      assert.match(source, /req\.setTimeout\(30000,/);
+      assert.match(source, /Date\.now\(\) - requestStartedAt/);
+    } else {
+      assert.match(source, /app\.use\(webRequestTimeout\)/);
+      assert.match(source, /\.\.\.WEB_API_PROXY_TIMEOUTS/);
+    }
     assert.doesNotMatch(source, /Request timeout \(30s\)/);
-    if (entry === 'index-web.ts') { assert.match(source, /timeout: 60000/); assert.match(source, /proxyTimeout: 60000/); }
   }
 });

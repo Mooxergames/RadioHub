@@ -6,6 +6,7 @@ import { assessDuplicateMerge, compareDuplicateSurvivors, partitionDuplicateGrou
 
 const SUMMARY_LIMIT = 20;
 export const DUPLICATE_MERGE_FAILURE_BACKOFF_MS = 60_000;
+export const DUPLICATE_AUTO_DISCOVERY_BACKOFF_MS = 15 * 60_000;
 const jobError = (message: string, status: number) => Object.assign(new Error(message), { status });
 const newId = () => randomBytes(12).toString('hex');
 const safeId = (id: unknown): id is string => typeof id === 'string' && /^[a-f0-9]{24}$/i.test(id);
@@ -134,7 +135,7 @@ export class PostgresDuplicateJobsStore {
       const last = (await client.query(`SELECT g.group_name AS name,g.country,btrim(s.url) AS stream
         FROM station_duplicate_job_groups g JOIN stations s ON s.id=g.station_ids[1]
         WHERE g.job_id=$1 ORDER BY g.ordinal DESC LIMIT 1`, [job.id])).rows[0];
-      await client.query("UPDATE station_duplicate_merge_control SET summary=jsonb_set(summary,'{automaticCursor}',$1::jsonb) WHERE id=1", [JSON.stringify(last || null)]);
+      await client.query("UPDATE station_duplicate_merge_control SET summary=jsonb_set(summary-'automaticDiscoveryRetryAt','{automaticCursor}',$1::jsonb) WHERE id=1", [JSON.stringify(last || null)]);
     }
     const count = (await client.query('SELECT count(*)::integer total FROM station_duplicate_job_groups WHERE job_id=$1', [job.id])).rows[0].total;
     await client.query("UPDATE station_duplicate_jobs SET phase='evaluate',total_groups=$2 WHERE id=$1", [job.id, count]);
@@ -174,16 +175,22 @@ export class PostgresDuplicateJobsStore {
       planned, deleted, summary ? JSON.stringify(summary) : null, reason]);
   }
 
-  private async deferFailedCycle(client: pg.PoolClient, now: Date, expectedNextCycleAt: string) {
+  private async deferFailedCycle(client: pg.PoolClient, now: Date, expectedNextCycleAt: string, automaticDiscoveryTimedOut: boolean) {
     await client.query('BEGIN');
     await client.query("SET LOCAL statement_timeout='600ms'; SET LOCAL lock_timeout='50ms'");
     const locked = (await client.query("SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema() || ':station-duplicate-merge',0)) locked")).rows[0].locked;
     if (locked) {
       // The failed transaction lost its cooldown. Do not overwrite a replica
       // that advanced the schedule after rollback released our advisory lock.
+      // Delay automatic discovery, including an already queued scan, not manual work.
       await client.query(`UPDATE station_duplicate_merge_control
-        SET next_cycle_at=GREATEST($1::timestamptz,clock_timestamp())+$3*interval '1 millisecond'
-        WHERE id=1 AND next_cycle_at=$2::timestamptz`, [now, expectedNextCycleAt, DUPLICATE_MERGE_FAILURE_BACKOFF_MS]);
+        SET next_cycle_at=GREATEST($1::timestamptz,clock_timestamp())+$3*interval '1 millisecond',
+          next_auto_at=CASE WHEN $4::boolean THEN GREATEST(next_auto_at,
+            GREATEST($1::timestamptz,clock_timestamp())+$5*interval '1 millisecond') ELSE next_auto_at END,
+          summary=CASE WHEN $4::boolean THEN summary || jsonb_build_object('automaticDiscoveryRetryAt',
+            GREATEST($1::timestamptz,clock_timestamp())+$5*interval '1 millisecond') ELSE summary END
+        WHERE id=1 AND next_cycle_at=$2::timestamptz`, [now, expectedNextCycleAt, DUPLICATE_MERGE_FAILURE_BACKOFF_MS,
+        automaticDiscoveryTimedOut, DUPLICATE_AUTO_DISCOVERY_BACKOFF_MS]);
     }
     await client.query('COMMIT');
   }
@@ -198,6 +205,7 @@ export class PostgresDuplicateJobsStore {
     const started = performance.now(), client = await this.pool.connect();
     let processed = 0, deleted = 0, completed = false, refreshCounts = false;
     let expectedNextCycleAt: string | undefined, discardClient = false;
+    let discoveringAutomatic = false;
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL statement_timeout='600ms'; SET LOCAL lock_timeout='50ms'");
@@ -208,14 +216,20 @@ export class PostgresDuplicateJobsStore {
       expectedNextCycleAt = control.expected_next_cycle_at;
       await client.query(`UPDATE station_duplicate_merge_control SET next_cycle_at=$1::timestamptz+interval '15 seconds',
         last_run_at=$1,lease_owner=$2,lease_until=$1::timestamptz+interval '15 seconds' WHERE id=1`, [now, randomUUID()]);
-      let job = (await client.query("SELECT * FROM station_duplicate_jobs WHERE status IN ('queued','running') ORDER BY created_at,id LIMIT 1 FOR UPDATE")).rows[0];
-      if (!job && new Date(control.next_auto_at).getTime() <= now.getTime()) {
+      const discoveryDeferred = new Date(control.summary?.automaticDiscoveryRetryAt || 0).getTime() > now.getTime();
+      let job = (await client.query(`SELECT * FROM station_duplicate_jobs WHERE status IN ('queued','running')
+        AND (NOT $1::boolean OR kind<>'automatic' OR phase<>'scan') ORDER BY created_at,id LIMIT 1 FOR UPDATE`, [discoveryDeferred])).rows[0];
+      if (!job && !discoveryDeferred && new Date(control.next_auto_at).getTime() <= now.getTime()) {
         job = (await client.query("INSERT INTO station_duplicate_jobs(id,kind) VALUES($1,'automatic') RETURNING *", [newId()])).rows[0];
         await client.query("UPDATE station_duplicate_merge_control SET next_auto_at=$1::timestamptz+interval '24 hours' WHERE id=1", [now]);
       }
       if (job) {
         await client.query("UPDATE station_duplicate_jobs SET status='running',started_at=COALESCE(started_at,$2),updated_at=$2 WHERE id=$1", [job.id, now]);
-        if (job.phase === 'scan') await this.seed(client, job, control.summary?.automaticCursor || undefined);
+        if (job.phase === 'scan') {
+          discoveringAutomatic = job.kind === 'automatic';
+          await this.seed(client, job, control.summary?.automaticCursor || undefined);
+          discoveringAutomatic = false;
+        }
         const groups = (await client.query("SELECT * FROM station_duplicate_job_groups WHERE job_id=$1 AND status='pending' ORDER BY ordinal LIMIT 10 FOR UPDATE", [job.id])).rows;
         for (const group of groups) {
           if (performance.now() - started >= 750 || this.pool.waitingCount) break;
@@ -281,7 +295,9 @@ export class PostgresDuplicateJobsStore {
     } catch (error) {
       try {
         await client.query('ROLLBACK');
-        if (expectedNextCycleAt !== undefined) await this.deferFailedCycle(client, now, expectedNextCycleAt);
+        if (expectedNextCycleAt !== undefined) await this.deferFailedCycle(client, now, expectedNextCycleAt,
+          discoveringAutomatic && error !== null && typeof error === 'object'
+            && Object.getOwnPropertyDescriptor(error, 'code')?.value === '57014');
       } catch {
         // Destroy a connection with uncertain transaction state. Cleanup must
         // never replace the cycle error or retry a failing deferral in a loop.

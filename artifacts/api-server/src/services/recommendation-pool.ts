@@ -17,7 +17,8 @@ export function recommendationPoolScope(country: unknown, genres: unknown) {
 /** One indexed, bounded quality pool per country/genre filter. Visit rotation is
  * client-side, so every visitor shares the same health-aware origin cache. */
 export async function getRecommendationPool(scope: ReturnType<typeof recommendationPoolScope>) {
-  const key = `recommendations:pool:v1:${JSON.stringify(scope)}`;
+  // v2 carries native indexing eligibility; v1 entries cannot inform SSR.
+  const key = `recommendations:pool:v2:${JSON.stringify(scope)}`;
   return publicStationCache.getOrSetSingleFlight(key, async () => {
     const values: unknown[] = [];
     const conditions = [stationVisibilitySql('s')];
@@ -29,7 +30,7 @@ export async function getRecommendationPool(scope: ReturnType<typeof recommendat
     const query = {
       text: `SELECT s.id,s.name,s.slug,s.url,s.url_resolved,s.homepage,s.favicon,s.country,s.country_code,s.state,
         s.language,s.tags_raw,s.votes,s.click_count,s.codec,s.bitrate,s.logo_assets,s.has_logo,s.last_check_ok,
-        s.is_list_visible,s.visibility_expires_at,s.availability_outcome,s.availability_checked_at,
+        s.is_list_visible,s.visibility_expires_at,s.availability_outcome,s.availability_checked_at,s.no_index,
         jsonb_build_object('genre',s.source->'genre','localImagePath',s.source->'localImagePath') source
         FROM stations s WHERE ${conditions.join(' AND ')}
         ORDER BY s.votes DESC NULLS LAST,s.click_count DESC NULLS LAST,s.id LIMIT 100`,
@@ -40,7 +41,7 @@ export async function getRecommendationPool(scope: ReturnType<typeof recommendat
     // Do not return station.source wholesale (descriptions/admin metadata are large).
     const fields = ['_id','name','slug','url','urlResolved','homepage','favicon','country','countryCode','state',
       'language','tags','genre','votes','clickCount','codec','bitrate','logoAssets','hasLogo','localImagePath',
-      'lastCheckOk','isListVisible','availabilityStatus'];
+      'lastCheckOk','isListVisible','availabilityStatus','noIndex'];
     const stations = result.rows.map(row => {
       const station = catalogShape(row);
       return Object.fromEntries(fields.map(field => [field, station[field]]));

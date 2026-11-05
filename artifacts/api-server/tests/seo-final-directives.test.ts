@@ -20,6 +20,10 @@ const station = {
   _id: 'fixture-station', name: 'Fixture FM', slug: 'fixture-fm', country: 'Germany',
   url: 'https://stream.example.invalid/live', tags: 'pop', noIndex: false, lastCheckOk: true,
 };
+const discovery = await import('../src/seo/public-discovery');
+mock.module('../src/seo/public-discovery', { namedExports: {
+  ...discovery, loadPublicDiscoveryStations: async () => [{ ...station }],
+} });
 
 mock.module('@workspace/seo-shared/seo-config', { namedExports: {
   ...seoConfig,
@@ -128,7 +132,7 @@ function assertDirectives(page: any, robots: string, noIndex: boolean) {
   }
 }
 
-for (const path of ['/en', '/en/station/fixture-fm', '/en/genres/pop', '/en/about', '/en/users']) {
+for (const path of ['/en', '/en/station/fixture-fm', '/en/genres/pop', '/en/about', '/en/users', '/en/trending', '/en/recommendations']) {
   for (const noIndex of [undefined, false, true]) {
     test(`${path}: custom noIndex=${noIndex} agrees across final SSR, SPA and renderer cache MISS/HIT`, async () => {
       metadata = noIndex === undefined ? null : { noIndex };
@@ -140,8 +144,9 @@ for (const path of ['/en', '/en/station/fixture-fm', '/en/genres/pop', '/en/abou
   }
 }
 
-for (const path of ['/en/profile/settings', '/en/users/private-listener', '/en/search', '/en/recommendations']) {
-  test(`${path}: custom false cannot remove a private/search/personalized exclusion`, async () => {
+for (const path of ['/en/profile/settings', '/en/users/private-listener', '/en/search',
+  '/en/favorites', '/az/sevimliler', '/de/favoriten', '/en/login', '/en/auth/login', '/en/settings']) {
+  test(`${path}: custom false cannot remove a private/search exclusion`, async () => {
     metadata = { noIndex: false, noFollow: false };
     for (const page of await missAndHit(path)) assertDirectives(page, 'noindex, follow', true);
   });

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { beforeEach, mock, test } from 'node:test';
+import { afterEach, beforeEach, mock, test } from 'node:test';
 import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { buildCommunityPageSeo } from '@workspace/seo-shared/community-page-seo-templates';
 import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
@@ -12,6 +12,15 @@ const urlMap = new Map(Object.entries(URL_TRANSLATIONS).flatMap(([language, valu
 let translations: Record<string, string> = {};
 let metadata: Record<string, any> | null = null;
 let unexpectedReads = 0;
+let publicPoolReads = 0;
+mock.module('../src/services/recommendation-pool', { namedExports: {
+  getRecommendationPool: async (scope: unknown) => {
+    publicPoolReads++;
+    assert.deepEqual(scope, { country: null, genres: [] }, 'SSR uses only the anonymous global pool');
+    return { stations: [{ _id: 'public-radio', slug: 'public-radio', name: 'Public Radio',
+      url: 'https://stream.invalid/live', noIndex: false, isListVisible: true }] };
+  },
+} });
 const forbiddenRead = () => { unexpectedReads++; throw new Error('Community SSR must not read private profiles or a real database'); };
 mock.module('../src/postgres-runtime', { namedExports: { getPostgresPool: forbiddenRead } });
 mock.module('../src/data/postgres-seo-read-store', { namedExports: { pgSeoCatalog: () => ({
@@ -33,7 +42,8 @@ mock.module('../src/utils/logger', { namedExports: { logger: { log() {}, warn() 
 const { SeoRenderer } = await import('../src/seo-renderer');
 const renderer = new SeoRenderer();
 
-beforeEach(() => { pageCache.clear(); translations = {}; metadata = null; unexpectedReads = 0; });
+beforeEach(() => { pageCache.clear(); translations = {}; metadata = null; unexpectedReads = 0; publicPoolReads = 0; });
+afterEach(() => assert.equal(unexpectedReads, 0, 'Even swallowed real/private database reads must fail the fixture'));
 const decode = (text: string) => text.replace(/&amp;/g, '&').replace(/&quot;/g, '"')
   .replace(/&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 const communityH1 = (language: string) => buildCommunityPageSeo('users', language, translations).title
@@ -65,7 +75,8 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
 
   test(`${language}: personal profile paths remain noindex without reading profile data`, async () => {
     metadata = { noIndex: false };
-    for (const cleanPath of ['/users/private-listener', '/users/private-listener/favorites', '/profile/settings']) {
+    for (const cleanPath of ['/users/private-listener', '/users/private-listener/favorites', '/profile/settings',
+      '/profile/favorites', '/favorites']) {
       const path = buildLocalizedUrl(cleanPath, language, undefined, urlMap);
       const page = await renderer.renderStaticPage(path, origin);
       assert.equal(page.pageData.pageType, 'utility', path);
@@ -75,23 +86,29 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
       assert.doesNotMatch(renderBody(page), /class="users-intro"/);
     }
     assert.equal(unexpectedReads, 0, 'neither public nor private profile data is fetched by generic SEO rendering');
+    assert.equal(publicPoolReads, 0, 'personal pages do not substitute a public list');
   });
 
-  test(`${language}: personalized recommendations keep noindex/follow and no alternates`, async () => {
+  test(`${language}: anonymous public recommendations are indexable with localized canonical content and alternates`, async () => {
     metadata = { noIndex: false };
     const path = buildLocalizedUrl('/recommendations', language, undefined, urlMap);
     for (let pass = 0; pass < 2; pass++) {
       const page = await renderer.renderStaticPage(path, origin);
       assert.equal(page.pageData.pageType, 'recommendations');
-      assert.equal(page.seoTags.noIndex, true);
-      assert.equal(page.seoTags.robots, 'noindex, follow');
-      assert.deepEqual(page.seoTags.hreflangs, []);
+      assert.notEqual(page.seoTags.noIndex, true);
+      assert.equal(page.seoTags.robots, 'index, follow');
+      assert.equal(page.seoTags.canonical, origin + path);
+      assert.ok(page.seoTags.hreflangs.some((entry: any) => entry.lang === language && entry.url === origin + path));
+      assert.equal(page.pageData.stationDbError, undefined);
+      assert.match(renderBody(page), /Public Radio/);
+      assert.ok(renderBody(page).includes(buildLocalizedUrl('/station/public-radio', language, undefined, urlMap)));
       const head = renderer.generateHtmlHead(page.seoTags, language, page.translations,
         page.cleanPath, undefined, page.urlTranslations, page.pageData);
-      assert.match(head, /<meta name="robots" content="noindex, follow">/);
-      assert.doesNotMatch(head, /<link rel="alternate" hreflang=/);
+      assert.match(head, /<meta name="robots" content="index, follow">/);
+      assert.match(head, /<link rel="alternate" hreflang=/);
     }
     assert.equal(unexpectedReads, 0);
+    assert.equal(publicPoolReads, 1, 'cache hits reuse the public list, without real database fallback');
   });
 }
 

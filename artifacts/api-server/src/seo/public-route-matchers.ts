@@ -51,6 +51,7 @@ export function buildPublicSeoRouteMatchers() {
     termsPage: new RegExp(`${prefix}(?:${alternatives('terms-and-conditions')})\\/?$`, 'u'),
     applicationsPage: new RegExp(`${prefix}(?:${alternatives('applications')})\\/?$`, 'u'),
     usersPage: new RegExp(`${prefix}(?:${alternatives('users')})\\/?$`, 'u'),
+    discoveryPage: new RegExp(`${prefix}(?:${alternatives('trending')}|${alternatives('recommendations')})\\/?$`, 'u'),
     blogPage: new RegExp(`${prefix}blog(?:\\/|$)`, 'u'),
   };
 }

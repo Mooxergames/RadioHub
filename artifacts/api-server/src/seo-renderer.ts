@@ -1,4 +1,4 @@
-import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, CODE_TO_COUNTRY, SEO_LANGUAGES, MAX_GENRE_DIRECTORY_PAGE, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
+import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, CODE_TO_COUNTRY, SEO_LANGUAGES, ACTIVE_SITEMAP_LANGUAGES, MAX_GENRE_DIRECTORY_PAGE, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { buildDirectoryIndexSeo } from '@workspace/seo-shared/directory-index-seo';
 import { isStationDirectoryPath, isStationDirectoryData, type StationDirectoryData } from '@workspace/seo-shared/station-directory';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
@@ -27,6 +27,7 @@ import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from '
 import { withPilotEditorial } from './seo/indexing-pilot';
 import { collectStationLinkTargets, resolveStationLinkLanguages, buildStationLinkUrl } from './seo/station-link-locale';
 import { readSeoStationLinkMetadata } from './data/postgres-seo-station-link-store';
+import { loadPublicDiscoveryStations, trendingPageSeo } from './seo/public-discovery';
 
 // The renderer only needs this small subset of the normalized catalog shape.
 interface LeanStationCard {
@@ -55,10 +56,20 @@ const SSR_CARD_FIELDS = ['_id', 'name', 'slug', 'url', 'noIndex', 'isListVisible
 const SSR_METADATA_READER = { query: (text: string, values: any[]) => boundedSeoReadQuery(text, values, 'metadata') };
 const SSR_GENRE_READER = { query: (text: string, values: any[]) => boundedSeoReadQuery(text, values, 'genre') };
 
+// These shells have no public list. Their SEO API metadata must agree with
+// the HTTP noindex policy even when robots allows crawlers to read the shell.
+const PRIVATE_PAGE_ROOTS = new Set([
+  'admin', 'admin-login', 'auth', 'login', 'signup', 'profile', 'favorites',
+  'settings', 'notifications', 'messages', 'analytics', 'import-export',
+  'dashboard', 'premium', 'premium-success', 'activate', 'activate-success',
+  'reset-password', 'forgot-password', 'change-password', 'tv-login',
+  'station-requests', 'station-submissions', 'request-station', 'status-monitoring', 'sync',
+]);
+
 type LeanSeoMetadataDoc = Record<string, any>;
 import { performanceCache } from './performance-cache';
 import { logger } from './utils/logger';
-import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
+import { GLOBAL_REVERSE_URL_TRANSLATIONS, URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { renderLegalPageHtml } from '@workspace/seo-shared/legal-content-html';
 import { trackOperation } from './utils/operation-tracker';
 import { isJunkStation } from './seo/junk-station-rules';
@@ -361,6 +372,15 @@ export class SeoRenderer {
 
     // Get language from URL path, but prefer user's stored preference if available
     let { language, cleanPath } = getLanguageFromPath(cleanUrl);
+    // Bare translated discovery roots use the same policy as their localized
+    // routes. Do not reinterpret station identities or arbitrary descendants.
+    const bareRoot = cleanPath.replace(/^\/|\/$/g, '');
+    const bareMapping = cleanPath === cleanUrl ? GLOBAL_REVERSE_URL_TRANSLATIONS.get(bareRoot) : undefined;
+    if (bareMapping && ['trending', 'recommendations', 'favorites'].includes(bareMapping.english)) {
+      if (bareMapping.english !== bareRoot) language = ACTIVE_SITEMAP_LANGUAGES.find(
+        locale => URL_TRANSLATIONS[locale]?.[bareMapping.english] === bareRoot) || bareMapping.sourceLanguage;
+      cleanPath = `/${bareMapping.english}`;
+    }
     // Editorial URLs own their locale. A preference cookie must not substitute
     // another language at a crawlable, self-canonical article URL. No DB reads
     // are needed to render these versioned articles.
@@ -966,6 +986,7 @@ export class SeoRenderer {
         additionalData.hubReadFailed = true;
       }
     } else if (
+      PRIVATE_PAGE_ROOTS.has(cleanPath.split('/')[1]) ||
       cleanPath === '/feedback' || cleanPath.startsWith('/feedback/') ||
       cleanPath === '/llms' || cleanPath.startsWith('/llms/') ||
       cleanPath === '/notifications' || cleanPath.startsWith('/notifications/') ||
@@ -988,11 +1009,17 @@ export class SeoRenderer {
       // and fell through to the home bucket, producing duplicate-title
       // audit errors (every locale's /users page reused meta_title).
       pageType = 'users';
-    } else if (cleanPath === '/recommendations' || cleanPath.startsWith('/recommendations/')) {
-      // 2026-05-12 SEO audit: same root cause as /users — TR
-      // /tr/tavsiyeler was inheriting the home meta_title, which
-      // Semrush flagged as a duplicate-title error.
-      pageType = 'recommendations';
+    } else if (cleanPath === '/recommendations' || cleanPath === '/trending') {
+      pageType = cleanPath.slice(1);
+      try {
+        additionalData.popularStations = await withSignal(
+          loadPublicDiscoveryStations(pageType as 'trending' | 'recommendations'), signal);
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || signal?.aborted) throw error;
+        additionalData.hubReadFailed = true;
+      }
+    } else if (cleanPath.startsWith('/recommendations/') || cleanPath.startsWith('/trending/')) {
+      pageType = 'utility';
     } else if (cleanPath.startsWith('/regions') || cleanPath.startsWith('/country')) {
       pageType = 'regions';
       if (cleanPath === '/regions') {
@@ -1903,9 +1930,6 @@ export class SeoRenderer {
       if (communitySeo.keywords) baseSeoTags.keywords = communitySeo.keywords;
       baseSeoTags.ogType = 'website';
 
-      // Personalised discovery keeps its existing crawl exclusion.
-      if (pageType === 'recommendations') baseSeoTags.noIndex = true;
-
       // A-Z letter pages (Task #11): every letter needs a UNIQUE title and
       // description or all 27 pages become a duplicate-title cluster. Insert
       // the letter label before the "| Mega Radio" brand suffix when present.
@@ -1917,6 +1941,23 @@ export class SeoRenderer {
           ? `${t.slice(0, brandIdx)} — ${disp}${t.slice(brandIdx)}`
           : `${t} — ${disp}`;
         baseSeoTags.description = `${String(baseSeoTags.description || '').replace(/\.?\s*$/, '')} — ${disp}.`;
+      }
+    }
+
+    if (pageType === 'trending') {
+      const copy = trendingPageSeo(language, translations);
+      baseSeoTags.title = copy.title;
+      baseSeoTags.description = copy.description;
+      baseSeoTags.ogType = 'website';
+    }
+    if (pageType === 'trending' || pageType === 'recommendations') {
+      baseSeoTags.ogTitle = baseSeoTags.twitterTitle = baseSeoTags.title;
+      baseSeoTags.ogDescription = baseSeoTags.twitterDescription = baseSeoTags.description;
+      // Genuine empty lists have no public catalog content to index. Failures
+      // remain retryable 503s via hubReadFailed, never permanent noindex gates.
+      if (!additionalData?.hubReadFailed && !additionalData?.popularStations?.length) {
+        baseSeoTags.noIndex = true;
+        baseSeoTags.robots = 'noindex, follow';
       }
     }
 
@@ -2321,7 +2362,11 @@ export class SeoRenderer {
       
       case 'users':
       case 'stations':
+      case 'recommendations':
         return deriveH1FromTitle(buildCommunityPageSeo(pageType, language, translations).title);
+
+      case 'trending':
+        return trendingPageSeo(language, translations).h1;
       
       case 'about':
         return deriveH1FromTitle(buildStaticPageSeo('about', language, translations).title);
@@ -3234,6 +3279,21 @@ export class SeoRenderer {
           </main>
         `;
         }
+        break;
+
+      case 'trending':
+      case 'recommendations':
+        content = `
+          <main>
+            <h1>${this.escapeHtml(h1Text)}</h1>
+            <p>${this.escapeHtml(seoTags?.description || '')}</p>
+            <ul class="popular-stations-list">
+              ${(additionalData?.popularStations || []).map((station: any) => {
+                const href = buildStationLinkUrl(station, language, undefined, urlTranslations);
+                return `<li><a href="${this.escapeHtml(href)}">${this.escapeHtml(station.name || '')}</a></li>`;
+              }).join('')}
+            </ul>
+          </main>`;
         break;
 
       case 'stations':
