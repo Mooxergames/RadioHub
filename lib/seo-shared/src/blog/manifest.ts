@@ -13,7 +13,23 @@ export type { BlogId, BlogLocale, CoreBlogId } from "./types";
 // Change only when editorial content changes, never on a request or catalog sync.
 export const BLOG_PUBLISHED = "2026-09-25T00:00:00+02:00";
 export const BLOG_UPDATED = "2026-09-25T00:00:00+02:00";
-export const BLOG_REVISION = "radio-guides-2026-10-27-trends-v3";
+export const BLOG_REVISION = "radio-guides-2026-11-05-seo-v4";
+export const BLOG_REVIEWED = "2026-11-05T19:55:00+01:00";
+export const BLOG_REVISED_CORE_IDS: readonly CoreBlogId[] = [
+  "listen-to-radio-online",
+  "internet-radio-explained",
+  "radio-app-iphone-android",
+  "radio-data-usage",
+  "news-talk-radio-guide",
+  "80s-90s-radio-guide",
+];
+export const BLOG_REVISED_MARKET_IDS: readonly BlogId[] = [
+  "npr-local-station-stream",
+  "bbc-radio-outside-uk",
+  "premier-league-radio-commentary-uk",
+  "orf-sound-sendung-nachhoeren",
+  "deutschlandfunk-kultur-nova-unterschied",
+];
 export const BLOG_ARTICLE_IDS: readonly BlogId[] = Object.freeze([
   ...BLOG_IDS,
   ...(Object.keys(MARKET_BLOG_MANIFEST) as Array<
@@ -35,8 +51,12 @@ const coreMetadata = Object.freeze(
     Readonly<{ imageId: CoreBlogId; publishedAt: string; updatedAt: string }>
   >,
 );
-export function blogMetadata(id: BlogId) {
-  return isCoreBlogId(id) ? coreMetadata[id] : MARKET_BLOG_MANIFEST[id];
+export function blogMetadata(id: BlogId, locale?: BlogLocale) {
+  const metadata = isCoreBlogId(id) ? coreMetadata[id] : MARKET_BLOG_MANIFEST[id];
+  const revised = isCoreBlogId(id)
+    ? !!locale && ["en", "de", "tr"].includes(locale) && BLOG_REVISED_CORE_IDS.includes(id)
+    : BLOG_REVISED_MARKET_IDS.includes(id);
+  return revised ? Object.freeze({ ...metadata, updatedAt: BLOG_REVIEWED }) : metadata;
 }
 export function isCoreBlogId(id: string): id is CoreBlogId {
   return (BLOG_IDS as readonly string[]).includes(id);
@@ -62,7 +82,7 @@ export function blogLanguage(locale: BlogLocale, id?: BlogId): string {
 }
 export function blogIndexUpdated(locale: BlogLocale): string {
   return blogIdsForLocale(locale)
-    .map((id) => blogMetadata(id).updatedAt)
+    .map((id) => blogMetadata(id, locale).updatedAt)
     .reduce(
       (latest, date) => (Date.parse(date) > Date.parse(latest) ? date : latest),
       BLOG_UPDATED,

@@ -59,6 +59,38 @@ Then visit `http://127.0.0.1:4179/tr/blog`. The local preview is deliberately no
 
 Google references: [Article](https://developers.google.com/search/docs/appearance/structured-data/article), [localized versions](https://developers.google.com/search/docs/specialty/international/localized-versions), [images](https://developers.google.com/search/docs/appearance/google-images), [people-first content](https://developers.google.com/search/docs/fundamentals/creating-helpful-content).
 
+## Editorial SEO Review — 5 November 2026
+
+The production crawl covered all 188 articles and 14 indexes, their 20 distinct
+hero/preview image assets, 504 distinct linked destinations, and all 100 station
+URLs in the supplied `megaradio-100-radyo.html`. All editorial pages and supplied
+station URLs returned HTTP 200. All image assets returned actual WebP bytes.
+Canonicals were self-referencing; pages had one H1, valid JSON-LD and no noindex
+directive. Several external publishers refused automated requests with HTTP 403;
+these are unverified references, not proven broken links. One external reference
+timed out. The old Ö3 forecast URL returned 404 and the old Nippon Broadcasting
+mobile domain did not resolve; their replacements were directly verified as 200.
+
+The review adds contextual guide links to the 30 English, German and Turkish core
+editions, with selected station links drawn from the supplied URL list where the
+topic fits. Eighteen core editions and five market articles gain concrete listening
+examples. Genre articles without a suitable station in the supplied list retain
+their genre discovery links. These are internal links, not acquired backlinks.
+Original publication dates stay fixed. `blogMetadata(id, locale)` advances only
+substantively revised editions; link-only edits do not refresh their dates.
+
+All 202 editorial pages now provide localized OG/Twitter image descriptions.
+Article social dates, visible dates, JSON-LD and sitemap dates use the same
+edition metadata. SPA navigation clears article-only tags when leaving an
+article. Index and related cards use responsive image candidates. Existing artwork
+was healthy, so no replacement imagery was necessary.
+
+The local checks cover every edition through the real SSR renderer, reciprocal
+hreflang/sitemap membership, image dimensions, contextual route safety and SPA
+head cleanup/player preservation. The preview is database-free and noindex.
+Production publication is a separate normal release step; this review does not
+establish Search Console indexing, search rankings or stream playback.
+
 ## Historical Local Verification — 25 September 2026
 
 - **258 backend tests passed** across blog SEO (including all 140 real renderer entries), sitemap HTTP/XML/ETag/robots smoke tests, existing localized static pages and station transient-recovery behavior.

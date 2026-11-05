@@ -59,7 +59,7 @@ export function renderBlogHtml(page: BlogPageData): string {
   const { locale, content, article } = page;
   const { ui } = content;
   const updatedAt = article
-    ? blogMetadata(article.id).updatedAt
+    ? blogMetadata(article.id, locale).updatedAt
     : blogIndexUpdated(locale);
   const sources =
     article?.sources ??
@@ -74,8 +74,15 @@ export function renderBlogHtml(page: BlogPageData): string {
     dateStyle: "long",
     timeZone: "Europe/Berlin",
   }).format(new Date(updatedAt));
+  const contextualLinks = (links: BlogArticle["links"] = []) => {
+    const entries = links.flatMap((link) => {
+      const href = blogExplorePath(link.route, locale);
+      return href ? [`<li><a href="${esc(href)}">${esc(link.label)}</a></li>`] : [];
+    });
+    return entries.length ? `<ul>${entries.join("")}</ul>` : "";
+  };
   const cards = (articles: BlogArticle[]) =>
-    `<div class="radio-journal-grid">${articles.map((entry, i) => `<a class="radio-journal-card" href="${blogPath(locale, entry.id)}"><img src="${blogImage(entry.id, 640)}" alt="${esc(entry.imageAlt)}" width="640" height="336" loading="${!article && i === 0 ? "eager" : "lazy"}" fetchpriority="${!article && i === 0 ? "high" : "auto"}" decoding="async"><div><${article ? "h3" : "h2"}>${esc(entry.title)}</${article ? "h3" : "h2"}><p>${esc(entry.description)}</p><span>${esc(ui.read)} <b aria-hidden="true">↗</b></span></div></a>`).join("")}</div>`;
+    `<div class="radio-journal-grid">${articles.map((entry, i) => `<a class="radio-journal-card" href="${blogPath(locale, entry.id)}"><img src="${blogImage(entry.id, 640)}" srcset="${blogImage(entry.id, 640)} 640w, ${blogImage(entry.id)} 1200w" sizes="(max-width: 760px) 100vw, (max-width: 1100px) 50vw, 360px" alt="${esc(entry.imageAlt)}" width="640" height="336" loading="${!article && i === 0 ? "eager" : "lazy"}" fetchpriority="${!article && i === 0 ? "high" : "auto"}" decoding="async"><div><${article ? "h3" : "h2"}>${esc(entry.title)}</${article ? "h3" : "h2"}><p>${esc(entry.description)}</p><span>${esc(ui.read)} <b aria-hidden="true">↗</b></span></div></a>`).join("")}</div>`;
   const breadcrumbs = `<nav aria-label="breadcrumb"><ol class="radio-journal-crumbs">${blogBreadcrumbs(
     page,
   )
@@ -95,7 +102,7 @@ export function renderBlogHtml(page: BlogPageData): string {
   const body = article
     ? `<article><header class="radio-journal-heading"><a class="radio-journal-eyebrow" href="${blogPath(locale)}">${esc(BLOG_LABELS[locale])}</a><h1>${esc(article.title)}</h1><p class="radio-journal-intro">${esc(article.intro)}</p><div class="radio-journal-byline"><span>${esc(ui.author)}</span><span>${esc(ui.updated)} <time datetime="${updatedAt}">${esc(date)}</time></span></div></header>
     <img class="radio-journal-hero" src="${blogImage(article.id)}" srcset="${blogImage(article.id, 640)} 640w, ${blogImage(article.id)} 1200w" sizes="(max-width: 760px) 100vw, 1100px" width="1200" height="630" alt="${esc(article.imageAlt)}" fetchpriority="high">
-    <div class="radio-journal-layout"><aside class="radio-journal-toc"><h2>${esc(ui.contents)}</h2><ol>${article.sections.map((section, i) => `<li><a href="#section-${i + 1}">${esc(section.heading)}</a></li>`).join("")}</ol></aside><div class="radio-journal-prose">${article.sections.map((section, i) => `<section id="section-${i + 1}"><h2>${esc(section.heading)}</h2>${section.paragraphs.map((p) => `<p>${esc(p)}</p>`).join("")}${section.items?.length ? `<ul>${section.items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : ""}</section>`).join("")}
+    <div class="radio-journal-layout"><aside class="radio-journal-toc"><h2>${esc(ui.contents)}</h2><ol>${article.sections.map((section, i) => `<li><a href="#section-${i + 1}">${esc(section.heading)}</a></li>`).join("")}</ol></aside><div class="radio-journal-prose">${article.sections.map((section, i) => `<section id="section-${i + 1}"><h2>${esc(section.heading)}</h2>${section.paragraphs.map((p) => `<p>${esc(p)}</p>`).join("")}${section.items?.length ? `<ul>${section.items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : ""}${contextualLinks(section.links)}</section>`).join("")}
     <section><h2>${esc(ui.questions)}</h2>${article.faq.map((item) => `<h3>${esc(item.question)}</h3><p>${esc(item.answer)}</p>`).join("")}</section>
     <section class="radio-journal-explore"><h2>${esc(ui.explore)}</h2>${article.links
       .map((link) => {

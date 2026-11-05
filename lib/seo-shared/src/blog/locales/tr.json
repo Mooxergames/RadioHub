@@ -32,7 +32,18 @@
         {
           "heading": "Aramaya doğru ipucuyla başla",
           "paragraphs": [
-            "İstasyonun adını biliyorsan önce bu adı ara ve çıkan sonucun hangi ülke veya bölgeye ait olduğunu kontrol et. Birbirine benzeyen adlar farklı yayıncılara ait olabilir. Belirli bir müzik istiyorsan tür sayfasından başlamak daha kullanışlıdır. Bölge seçimi ise yerel sesleri ve programları bulmana yardımcı olur; tek başına müziğin tarzını anlatmaz. İlk sonuçlar beklentini karşılamıyorsa bu bilgileri birlikte değerlendir. Böylece geniş bir listede rastgele dolaşmak yerine neden seçtiğini bildiğin birkaç aday oluşturursun."
+            "İstasyonun adını biliyorsan önce bu adı ara ve çıkan sonucun hangi ülke veya bölgeye ait olduğunu kontrol et. Birbirine benzeyen adlar farklı yayıncılara ait olabilir. Belirli bir müzik istiyorsan tür sayfasından başlamak daha kullanışlıdır. Bölge seçimi ise yerel sesleri ve programları bulmana yardımcı olur; tek başına müziğin tarzını anlatmaz. İlk sonuçlar beklentini karşılamıyorsa bu bilgileri birlikte değerlendir. Böylece geniş bir listede rastgele dolaşmak yerine neden seçtiğini bildiğin birkaç aday oluşturursun.",
+            "Kral FM veya TRT FM sayfasını açarak istasyon adıyla aramayı deneyebilirsin. Kanal adını kontrol et, oynatmayı kendin başlat ve ses çıkışını doğrula. Bir yayın açılmazsa diğerini karşılaştır; bu adım sorunun tek bir akışla sınırlı olup olmadığını anlamaya yardımcı olur."
+          ],
+          "links": [
+            {
+              "route": "station:kral-fm",
+              "label": "Kral FM istasyon sayfası"
+            },
+            {
+              "route": "station:trt-fm",
+              "label": "TRT FM istasyon sayfası"
+            }
           ]
         },
         {
@@ -45,6 +56,12 @@
           "heading": "Ücretsiz erişim ile bağlantı maliyetini ayır",
           "paragraphs": [
             "Ücretsiz açılan bir yayın yine de mobil internet kotanı kullanabilir. Yayıncı programın içine reklam da yerleştirebilir. Erişim için ücret istenmesi, internet bağlantısının maliyeti ve programda reklam bulunması ayrı konulardır. Wi-Fi dışında uzun süre dinlemeden önce kendi tarifendeki veri hakkını kontrol et. Bir hizmet üyelik veya abonelik istiyorsa o hizmetin açıklamalarını oku. Tek bir istasyonda gördüğün koşulların bütün radyolar için geçerli olduğunu varsayma. Dinleme planını kendi bağlantına ve seçtiğin yayına göre yap."
+          ],
+          "links": [
+            {
+              "route": "blog:internet-radio-explained",
+              "label": "İnternet radyosu nedir? Yayın, FM ve podcast farkları"
+            }
           ]
         },
         {
@@ -114,7 +131,18 @@
         {
           "heading": "Listelenmek her yerde erişim garantisi değildir",
           "paragraphs": [
-            "Bir dizinde görünen yayın geçici olarak durabilir veya yalnızca bazı bölgelerde dinlenebilir. Bu nedenle bulunduğun yer ve yayıncının dağıtım tercihleri erişimi etkileyebilir. Tek bir istasyonun açılmaması bütün internet radyolarının çalışmadığını göstermez. Aynı bağlantıda başka bir istasyonu dene, ardından yayıncının erişim açıklamalarına bak. Özellikle belirli bir programı bekliyorsan genel istasyon kaydını tek başına yeterli kabul etme. Her içerik veya etkinliğin her yerde aynı şekilde sunulduğunu söylemek için ayrıca bilgi gerekir."
+            "Bir dizinde görünen yayın geçici olarak durabilir veya yalnızca bazı bölgelerde dinlenebilir. Bu nedenle bulunduğun yer ve yayıncının dağıtım tercihleri erişimi etkileyebilir. Tek bir istasyonun açılmaması bütün internet radyolarının çalışmadığını göstermez. Aynı bağlantıda başka bir istasyonu dene, ardından yayıncının erişim açıklamalarına bak. Özellikle belirli bir programı bekliyorsan genel istasyon kaydını tek başına yeterli kabul etme. Her içerik veya etkinliğin her yerde aynı şekilde sunulduğunu söylemek için ayrıca bilgi gerekir.",
+            "NTV Radyo sayfasındaki internet akışı ile bir FM alıcısının kullandığı yayın yolu farklıdır. İnternet seçeneğini denerken cihazın bağlantısını ve istasyonun durumunu kontrol et. Web üzerinden dinlemek, FM frekansını almadan çalışabilir; buna karşılık bağlantı kesilirse çevrim içi akış da durabilir."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-data-usage",
+              "label": "İnternet radyosu ne kadar mobil veri kullanır?"
+            },
+            {
+              "route": "station:ntv-radyo",
+              "label": "NTV Radyo internet yayını"
+            }
           ]
         },
         {
@@ -178,13 +206,30 @@
         {
           "heading": "Ekran kilitlendiğinde ne olduğunu dene",
           "paragraphs": [
-            "Önce bir yayını başlat ve sesi duyduğundan emin ol. Sonra ekranı kısa süreliğine kilitle. Yayın durursa tarayıcıyı veya uygulamayı yeniden açıp devam edip etmediğini gözlemle. Arka planda çalışma, kullanılan yazılıma ve cihaz ayarlarına bağlı olabilir. İlgili pil veya arka plan etkinliği ayarlarını kontrol et; bunun için ilgisiz bütün seçenekleri değiştirme. Evde yapılan birkaç dakikalık deneme, yürüyüşün ortasında beklemediğin bir davranışla karşılaşmaktan daha fazla bilgi sağlar. Sonucu kendi cihazın için değerlendir."
+            "Önce bir yayını başlat ve sesi duyduğundan emin ol. Sonra ekranı kısa süreliğine kilitle. Yayın durursa tarayıcıyı veya uygulamayı yeniden açıp devam edip etmediğini gözlemle. Arka planda çalışma, kullanılan yazılıma ve cihaz ayarlarına bağlı olabilir. İlgili pil veya arka plan etkinliği ayarlarını kontrol et; bunun için ilgisiz bütün seçenekleri değiştirme. Evde yapılan birkaç dakikalık deneme, yürüyüşün ortasında beklemediğin bir davranışla karşılaşmaktan daha fazla bilgi sağlar. Sonucu kendi cihazın için değerlendir.",
+            "Telefondaki denemeyi TRT FM veya Power FM Türkiye gibi belirli bir istasyon sayfasıyla yap. Aynı yayın açıkken önce ekran kilidini, ardından Bluetooth çıkışını ayrı ayrı kontrol et. Sonucu cihaz ve tarayıcı sürümüyle birlikte not etmek, sorunu yeniden tarif etmeyi kolaylaştırır."
+          ],
+          "links": [
+            {
+              "route": "station:trt-fm",
+              "label": "TRT FM ile telefonunda dene"
+            },
+            {
+              "route": "station:power-fm-turkiye",
+              "label": "Power FM Türkiye istasyon sayfası"
+            }
           ]
         },
         {
           "heading": "Bluetooth kullanırken sesin nereye gittiğine bak",
           "paragraphs": [
             "Oynatıcı çalışıyor gibi görünüyor ama ses gelmiyorsa telefonun hangi çıkışı kullandığını kontrol et. Daha önce bağlanan bir hoparlör veya kulaklık hâlâ seçili olabilir. Hem telefondaki hem dinleme cihazındaki ses düzeyine bak. Bluetooth bağlantısını kısa süre kapatıp telefonun kendi hoparlörünü dene, sonra istediğin aksesuarı yeniden bağla. Bu adım, sesin başka yere yönlenmesi ile yayının hiç yüklenmemesini ayırmaya yardımcı olur. Birden fazla ayarı aynı anda değiştirmemek karşılaştırmanın sonucunu daha anlaşılır kılar."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-data-usage",
+              "label": "İnternet radyosu ne kadar mobil veri kullanır?"
+            }
           ]
         },
         {
@@ -254,7 +299,18 @@
         {
           "heading": "Hesabı kendi dinleme sürene uygula",
           "paragraphs": [
-            "Önce yaklaşık kaç saat dinleyeceğini belirle, sonra bu süreyi uygun saatlik tahminle çarp. Ek veri aktarımı ve telefondaki diğer işlemler için de pay bırak. İstasyon bit hızını açıklamıyorsa tahmin ettiğin bir değeri kesin bilgi gibi sunma. Kısa bir dinleme oturumundan sonra cihazdaki kullanım bilgisine bakmak pratik bir karşılaştırma sağlayabilir. Bununla birlikte aynı sürede başka uygulamaların veri kullanması sonucu etkiler. Hangi bağlantıyı ve hangi zaman aralığını değerlendirdiğini not etmek karşılaştırmayı daha anlaşılır yapar."
+            "Önce yaklaşık kaç saat dinleyeceğini belirle, sonra bu süreyi uygun saatlik tahminle çarp. Ek veri aktarımı ve telefondaki diğer işlemler için de pay bırak. İstasyon bit hızını açıklamıyorsa tahmin ettiğin bir değeri kesin bilgi gibi sunma. Kısa bir dinleme oturumundan sonra cihazdaki kullanım bilgisine bakmak pratik bir karşılaştırma sağlayabilir. Bununla birlikte aynı sürede başka uygulamaların veri kullanması sonucu etkiler. Hangi bağlantıyı ve hangi zaman aralığını değerlendirdiğini not etmek karşılaştırmayı daha anlaşılır yapar.",
+            "Ölçüm için TRT FM gibi tek bir istasyon sayfasını seç ve oturum süresini not et. Diğer indirmeleri durdurup cihaz sayacını önce ve sonra karşılaştır. İstasyon adından bit hızı çıkarma; bu sayfadaki hesap örnekleri herhangi bir kanalın ölçülmüş tüketimi değildir."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-app-iphone-android",
+              "label": "iPhone ve Android telefonda radyo dinleme rehberi"
+            },
+            {
+              "route": "station:trt-fm",
+              "label": "TRT FM ile bir dinleme oturumu başlat"
+            }
           ]
         },
         {
@@ -325,6 +381,12 @@
           "heading": "Saat, bölge ve sunum dilini karşılaştır",
           "paragraphs": [
             "Bir rock istasyonu akşamki özel programında gündüzden farklı duyulabilir. Bölge de duyduğun sanatçıları ve müzikle ilgili göndermeleri etkileyebilir. Sunucunun dili ise açıklamalardan ne kadar yararlanacağını değiştirir. Bir istasyonu tamamen elemeden önce başka bir zamanda yeniden dene. Amacın her şarkıyı tanımaktan çok yeni gruplar keşfetmekse farklı bir bölgeden programı karşılaştırmaya ekleyebilirsin. Dinleme saatini not etmek, sevdiğin karışımın istasyonun genel akışı mı yoksa belirli bir program mı olduğunu anlamana yardımcı olur."
+          ],
+          "links": [
+            {
+              "route": "blog:blues-radio-guide",
+              "label": "Blues radyosu seçimi: akustik, elektrik ve soul"
+            }
           ]
         },
         {
@@ -395,6 +457,12 @@
           "heading": "Tanımadığın müziği yeni bir ipucuna dönüştür",
           "paragraphs": [
             "Bir kayıt ilgini çekerse mevcutsa sanatçı veya eser bilgisini not et. Ekranda bilgi yoksa yayıncının program sayfasına bakabilirsin; ancak her yerde eksiksiz liste bulunmasını bekleme. Zevkini netleştirmek için bütün kayıtları tanımlaman gerekmez. Ses, üflemeli çalgılar, piyano, küçük topluluk veya büyük orkestra gibi açıklamalar da bir sonraki aramayı yönlendirir. Hangi özelliği tekrar duymak istediğini yazmak rastgele denemeleri daha anlamlı bir keşfe dönüştürür. Program adı ve saat de sonradan karşılaştırmana yardımcı olabilir."
+          ],
+          "links": [
+            {
+              "route": "blog:blues-radio-guide",
+              "label": "Blues radyosu seçimi: akustik, elektrik ve soul"
+            }
           ]
         },
         {
@@ -465,6 +533,12 @@
           "heading": "İstasyon kadar programı da takip et",
           "paragraphs": [
             "Tür etiketi bütün bir yayın hizmetini özetler, fakat sunucular belirli bir sanatçıya, döneme veya müzik ilişkisine odaklanan programlar hazırlayabilir. Farklı zamanlarda dinle ve bulunuyorsa yayın akışını incele. İlk denemede fazla geniş gelen bir istasyon, başka bir saatte daha odaklı bir blues programı sunabilir. Programın adını dinlediğin saatle birlikte yazmak aynı seçimi yeniden bulmanı kolaylaştırır. Böylece her seferinde genel listeden başlaman gerekmez ve sevdiğin karışımın ne zaman sunulduğunu daha iyi anlarsın."
+          ],
+          "links": [
+            {
+              "route": "blog:jazz-radio-guide",
+              "label": "Caz radyosu keşfi: akustik, vokal ve smooth jazz"
+            }
           ]
         },
         {
@@ -535,6 +609,12 @@
           "heading": "Americana ile yakın sesleri keşfet",
           "paragraphs": [
             "Americana, country ile ilişkili köklü müzik tarzlarının kesiştiği programlara yönlendirebilir. Geniş bir tanımdır ve yayıncılar farklı yorumlayabilir. Bir country istasyonu sana fazla parlak veya dar geliyorsa daha çeşitli düzenlemeler ve yakın türler içeren programları dinle. Amaç, müziğin hoşuna giden bağlantılarını bulmaktır; dinlemeden önce kesin bir tür tanımı üzerinde anlaşman gerekmez. Özellikle hangi çalgıların, seslerin veya geçişlerin ilgini çektiğini not et. Böylece sonraki seçiminde yalnızca etikete dayanmak yerine kendi somut dinleme izlenimini kullanırsın."
+          ],
+          "links": [
+            {
+              "route": "blog:rock-radio-guide",
+              "label": "Zevkine uygun rock radyosu nasıl bulunur?"
+            }
           ]
         },
         {
@@ -605,18 +685,31 @@
           "heading": "Önemli iddiaların kaynağına ulaşmaya çalış",
           "paragraphs": [
             "Bir haber kararını etkiliyorsa mümkün olduğunda ilk açıklamayı, belgeyi veya adı belli kaynağı bul. Başka bir yayın kuruluşunun anlatımıyla karşılaştır ve ortak gerçeklerle farklı yorumları ayır. Telefonla katılan bir dinleyicinin sözü onun görüşünü gösterebilir, fakat aynı görüşün toplumda ne kadar yaygın olduğunu kanıtlamaz. Doğrulanmamış bir iddianın belirsizliğini koru. Kendinden emin anlatım, dayanağın yerine geçmez. Kaynak gösterilmeyen bir söz için daha fazla bağlam aramak, dinlediğin programın tamamını peşinen reddetmeni de gerektirmez."
+          ],
+          "links": [
+            {
+              "route": "blog:internet-radio-explained",
+              "label": "İnternet radyosu nedir? Yayın, FM ve podcast farkları"
+            }
           ]
         },
         {
           "heading": "İstasyonu bilgi ihtiyacına göre seç",
           "paragraphs": [
-            "Yerel haber, uzun söyleşi ve genel sohbet farklı ihtiyaçlara karşılık gelir. Sadece kategoriye güvenmeden önce programı dinle. Spor karşılaşmalarının sunulması ve acil durum bilgileri de yayıncıya ve dağıtım koşullarına bağlıdır. Bir dizindeki kayıt bunların her biri için garanti oluşturmaz."
+            "Yerel haber, uzun söyleşi ve genel sohbet farklı ihtiyaçlara karşılık gelir. Sadece kategoriye güvenmeden önce programı dinle. Spor karşılaşmalarının sunulması ve acil durum bilgileri de yayıncıya ve dağıtım koşullarına bağlıdır. Bir dizindeki kayıt bunların her biri için garanti oluşturmaz.",
+            "NTV Radyo gibi bir haber kanalını seçtiğinde programın saatini ve konusunu yayıncının akışından kontrol et. Canlı sesin varlığı, duyduğun her bilginin yeni olduğu anlamına gelmez. Bir açıklama veya önemli iddiayla karşılaştığında tarihini ve asıl kaynağını ayrıca incele."
           ],
           "items": [
             "Program türünü, konuşmacıların kimliğini ve hangi rolle konuştuğunu kontrol et.",
             "İlgili tarihi, yerel saati ve tekrar yayını işaretlerini not et.",
             "Önemli iddiaları başka bir kaynak veya özgün açıklamayla karşılaştır.",
             "Acil yerel yönlendirmeler gerektiğinde ilgili resmî bilgi kanallarını kullan."
+          ],
+          "links": [
+            {
+              "route": "station:ntv-radyo",
+              "label": "NTV Radyo dinleme sayfası"
+            }
           ]
         }
       ],
@@ -674,7 +767,18 @@
         {
           "heading": "İlk tanıdık şarkının ötesini dinle",
           "paragraphs": [
-            "İlk parçayı tanımak güçlü bir izlenim yaratabilir, ancak daha uzun bir örnek istasyonun genel tercihlerini gösterir. Dar bir hit listesinde mi kaldığına, daha az bilinen kayıtlara mı açıldığına veya komşu dönemleri mi eklediğine dikkat et. Sunucu konuşmaları ve özel programlar da deneyimi şekillendirir. İlk denemen bir tema programıyla başladıysa başka bir saatte yeniden gel. Tek bir özel bölüm, istasyonun günlük yayın akışını temsil etmeyebilir. Kararını birkaç şarkının birlikte oluşturduğu karışıma göre vermek daha yararlıdır."
+            "İlk parçayı tanımak güçlü bir izlenim yaratabilir, ancak daha uzun bir örnek istasyonun genel tercihlerini gösterir. Dar bir hit listesinde mi kaldığına, daha az bilinen kayıtlara mı açıldığına veya komşu dönemleri mi eklediğine dikkat et. Sunucu konuşmaları ve özel programlar da deneyimi şekillendirir. İlk denemen bir tema programıyla başladıysa başka bir saatte yeniden gel. Tek bir özel bölüm, istasyonun günlük yayın akışını temsil etmeyebilir. Kararını birkaç şarkının birlikte oluşturduğu karışıma göre vermek daha yararlıdır.",
+            "Radyo 45lik sayfasını, dönem müziği karşılaştırmana bir başlangıç olarak kullanabilirsin. Aradığın 80’ler veya 90’lar seçkisinin o anda yayında olduğunu varsayma; birkaç parçayı dinle ve program akışına bak. Bir şarkının tanıdık gelmesi, bütün kanalın aynı döneme odaklandığını göstermez."
+          ],
+          "links": [
+            {
+              "route": "blog:rock-radio-guide",
+              "label": "Zevkine uygun rock radyosu nasıl bulunur?"
+            },
+            {
+              "route": "station:radyo-45lik-yeni",
+              "label": "Radyo 45lik programını dinleyerek karşılaştır"
+            }
           ]
         },
         {

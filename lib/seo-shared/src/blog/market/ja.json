@@ -131,7 +131,7 @@
     ],
     "sources": [
       {"name": "ニッポン放送：公式週間番組表", "url": "https://www.1242.com/timetable/weekly.php"},
-      {"name": "ニッポン放送モバイル：番組表と番組紹介", "url": "https://docomo.1242.com/program/"}
+      {"name": "ニッポン放送：公式番組表", "url": "https://www.1242.com/timetable/"}
     ],
     "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "listen-to-radio-online"]
   }

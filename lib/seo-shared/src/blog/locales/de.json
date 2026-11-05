@@ -32,7 +32,18 @@
         {
           "heading": "Mit dem passenden Suchmerkmal beginnen",
           "paragraphs": [
-            "Kennst du den Namen eines Senders, suche zuerst danach und prüfe anschließend die zugehörige Region. Ähnliche Namen können zu unterschiedlichen Angeboten gehören. Geht es dir vor allem um Musik, ist die Auswahl nach Genre meist hilfreicher. Die Region verrät etwas über den Standort eines Senders, aber nicht automatisch über seine musikalische Ausrichtung. Kombiniere Name, Sprache und Musikrichtung, wenn die ersten Ergebnisse nicht zu deiner Vorstellung passen. So wird aus einer sehr breiten Suche eine überschaubare Auswahl."
+            "Kennst du den Namen eines Senders, suche zuerst danach und prüfe anschließend die zugehörige Region. Ähnliche Namen können zu unterschiedlichen Angeboten gehören. Geht es dir vor allem um Musik, ist die Auswahl nach Genre meist hilfreicher. Die Region verrät etwas über den Standort eines Senders, aber nicht automatisch über seine musikalische Ausrichtung. Kombiniere Name, Sprache und Musikrichtung, wenn die ersten Ergebnisse nicht zu deiner Vorstellung passen. So wird aus einer sehr breiten Suche eine überschaubare Auswahl.",
+            "Für einen konkreten Einstieg kannst du Hitradio Ö3 oder Radio Wien öffnen. Prüfe den vollständigen Sendernamen und starte die Wiedergabe selbst. Bleibt ein Stream stumm, vergleiche den zweiten Sender unter derselben Verbindung. Damit lässt sich ein einzelnes Streamproblem leichter von einer Geräteeinstellung unterscheiden."
+          ],
+          "links": [
+            {
+              "route": "station:orf-hitradio-o3",
+              "label": "Hitradio Ö3 auf MegaRadio öffnen"
+            },
+            {
+              "route": "station:orf-radio-wien",
+              "label": "Radio Wien auf MegaRadio öffnen"
+            }
           ]
         },
         {
@@ -45,6 +56,12 @@
           "heading": "Kostenlosen Zugang und Datenkosten unterscheiden",
           "paragraphs": [
             "Ein frei zugänglicher Stream kann trotzdem mobile Daten verbrauchen, die über deinen Tarif abgerechnet werden. Außerdem kann der Sender Werbung in seinem Programm ausstrahlen. Das sind getrennte Fragen: Kostet der Zugang etwas, entstehen Verbindungskosten und welche Inhalte sendet der Anbieter? Prüfe vor einer längeren Sitzung unterwegs dein verfügbares Datenvolumen. Falls ein Dienst eine Anmeldung oder ein Abonnement verlangt, lies dessen Angaben. Die Bedingungen eines einzelnen Angebots lassen sich nicht auf alle Sender übertragen."
+          ],
+          "links": [
+            {
+              "route": "blog:internet-radio-explained",
+              "label": "Internetradio erklärt: Streams, UKW und Podcasts"
+            }
           ]
         },
         {
@@ -114,7 +131,18 @@
         {
           "heading": "Ein Verzeichniseintrag garantiert keinen Zugang",
           "paragraphs": [
-            "Ein gelisteter Stream kann vorübergehend unterbrochen sein oder nur in bestimmten Gebieten zur Verfügung stehen. Deshalb können sowohl dein Aufenthaltsort als auch die Entscheidungen des Senders den Zugang beeinflussen. Funktioniert eine Station nicht, bedeutet das noch keinen allgemeinen Ausfall des Internetradios. Teste einen anderen Sender über dieselbe Verbindung und lies gegebenenfalls die Zugangshinweise des Anbieters. Auch einzelne Sendungen oder Veranstaltungen müssen nicht überall über jeden Verbreitungsweg verfügbar sein."
+            "Ein gelisteter Stream kann vorübergehend unterbrochen sein oder nur in bestimmten Gebieten zur Verfügung stehen. Deshalb können sowohl dein Aufenthaltsort als auch die Entscheidungen des Senders den Zugang beeinflussen. Funktioniert eine Station nicht, bedeutet das noch keinen allgemeinen Ausfall des Internetradios. Teste einen anderen Sender über dieselbe Verbindung und lies gegebenenfalls die Zugangshinweise des Anbieters. Auch einzelne Sendungen oder Veranstaltungen müssen nicht überall über jeden Verbreitungsweg verfügbar sein.",
+            "Der Interneteintrag von Deutschlandfunk ist ein Beispiel für den Online-Zugangsweg zu einem Radioprogramm. Er ersetzt keinen UKW- oder DAB-Empfangstest. Prüfe beim Vergleichen den Sendernamen, deine Internetverbindung und den tatsächlichen Programmstart; ein Katalogeintrag allein bestätigt weder Empfang noch regionale Verfügbarkeit."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-data-usage",
+              "label": "Wie viel Datenvolumen verbraucht Internetradio?"
+            },
+            {
+              "route": "station:deutschlandfunk-dlf-mp3-128k",
+              "label": "Deutschlandfunk: Internetstream im Verzeichnis"
+            }
           ]
         },
         {
@@ -178,13 +206,30 @@
         {
           "heading": "Die Wiedergabe bei gesperrtem Bildschirm testen",
           "paragraphs": [
-            "Starte einen Stream und vergewissere dich, dass du ihn hörst. Sperre anschließend für kurze Zeit den Bildschirm. Stoppt die Wiedergabe, öffne den Browser oder die App erneut und beobachte, ob sie weiterläuft. Das Verhalten im Hintergrund kann von Software und Geräteeinstellungen abhängen. Prüfe passende Einstellungen für Akku oder Hintergrundaktivität, ohne wahllos andere Optionen zu verändern. Ein kurzer Versuch zu Hause zeigt dir, was du später beim Spaziergang oder auf einer Fahrt erwarten kannst."
+            "Starte einen Stream und vergewissere dich, dass du ihn hörst. Sperre anschließend für kurze Zeit den Bildschirm. Stoppt die Wiedergabe, öffne den Browser oder die App erneut und beobachte, ob sie weiterläuft. Das Verhalten im Hintergrund kann von Software und Geräteeinstellungen abhängen. Prüfe passende Einstellungen für Akku oder Hintergrundaktivität, ohne wahllos andere Optionen zu verändern. Ein kurzer Versuch zu Hause zeigt dir, was du später beim Spaziergang oder auf einer Fahrt erwarten kannst.",
+            "Nutze für den Test eine feste Senderseite, etwa Hitradio Ö3 oder FM4. Prüfe mit demselben Stream zuerst die Bildschirmsperre und danach die Bluetooth-Ausgabe. Notiere Gerät, Browser und den beobachteten Abbruch. Ein erfolgreicher kurzer Test bestätigt nur dieses Gerät und diese Sitzung."
+          ],
+          "links": [
+            {
+              "route": "station:orf-hitradio-o3",
+              "label": "Hitradio Ö3 auf dem Handy testen"
+            },
+            {
+              "route": "station:fm4-orf",
+              "label": "FM4 auf dem Handy testen"
+            }
           ]
         },
         {
           "heading": "Bei Bluetooth den Weg des Tons verfolgen",
           "paragraphs": [
             "Zeigt der Player eine laufende Wiedergabe, obwohl du nichts hörst, kontrolliere zuerst die gewählte Audioausgabe. Vielleicht sind noch ein Lautsprecher oder andere Kopfhörer verbunden. Prüfe die Lautstärke sowohl am Telefon als auch am Wiedergabegerät. Trenne Bluetooth kurz, teste den eingebauten Lautsprecher und verbinde anschließend das gewünschte Zubehör erneut. Damit lässt sich ein Problem der Tonausgabe von einem Stream unterscheiden, der gar nicht richtig geladen wird. Ändere dabei möglichst nur einen Punkt gleichzeitig."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-data-usage",
+              "label": "Wie viel Datenvolumen verbraucht Internetradio?"
+            }
           ]
         },
         {
@@ -254,7 +299,18 @@
         {
           "heading": "Die Schätzung an deine Hörgewohnheiten anpassen",
           "paragraphs": [
-            "Überlege zuerst, wie lange du voraussichtlich hören wirst, und multipliziere diese Dauer mit dem passenden Stundenwert. Plane außerdem Platz für zusätzliche Übertragungen und andere Aktivitäten auf dem Handy ein. Gibt der Sender keine Bitrate an, behandle einen angenommenen Wert nicht als gesicherte Angabe. Eine kurze Hörsitzung mit anschließendem Blick auf die Datenanzeige kann dir Orientierung geben. Achte dabei darauf, dass weitere Datenübertragungen im selben Zeitraum den Vergleich ungenauer machen können."
+            "Überlege zuerst, wie lange du voraussichtlich hören wirst, und multipliziere diese Dauer mit dem passenden Stundenwert. Plane außerdem Platz für zusätzliche Übertragungen und andere Aktivitäten auf dem Handy ein. Gibt der Sender keine Bitrate an, behandle einen angenommenen Wert nicht als gesicherte Angabe. Eine kurze Hörsitzung mit anschließendem Blick auf die Datenanzeige kann dir Orientierung geben. Achte dabei darauf, dass weitere Datenübertragungen im selben Zeitraum den Vergleich ungenauer machen können.",
+            "Wähle für die Messung einen festen Sender, zum Beispiel Hitradio Ö3, und notiere die Hördauer. Vergleiche den Datenzähler vor und nach der Sitzung, möglichst ohne parallele Downloads. Leite die Bitrate nicht aus dem Sendernamen ab; die Rechenbeispiele sind keine Verbrauchsmessung dieses Senders."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-app-iphone-android",
+              "label": "Radio auf iPhone und Android: Browser oder App?"
+            },
+            {
+              "route": "station:orf-hitradio-o3",
+              "label": "Eine Hörsitzung mit Hitradio Ö3 starten"
+            }
           ]
         },
         {
@@ -313,6 +369,16 @@
           "heading": "Mit dem bevorzugten Rockklang anfangen",
           "paragraphs": [
             "Classic Rock kann ein guter Ausgangspunkt für ältere, vertraute Gitarrenmusik sein. Alternative und härtere Rockrichtungen führen häufig zu anderen Schwerpunkten. Solche Bezeichnungen helfen bei der Orientierung, versprechen aber keine feste Auswahl für jeden Titel. Notiere zwei oder drei Künstler oder musikalische Eigenschaften, die du hören möchtest: markante Riffs, ruhigere Arrangements oder weniger bekannte Veröffentlichungen. Diese Hinweise sind besonders nützlich, wenn mehrere Senderbeschreibungen zunächst fast gleich klingen und du konkrete Unterschiede finden möchtest."
+          ],
+          "links": [
+            {
+              "route": "station:rock-antenne",
+              "label": "Rock Antenne: Programm vergleichen"
+            },
+            {
+              "route": "station:radio-bob-4",
+              "label": "Radio BOB!: Programm vergleichen"
+            }
           ]
         },
         {
@@ -325,6 +391,12 @@
           "heading": "Sendezeit, Region und Sprache vergleichen",
           "paragraphs": [
             "Ein Sender kann während einer abendlichen Spezialsendung anders klingen als im Tagesprogramm. Auch die Region beeinflusst, welche Künstler und musikalischen Bezüge du häufiger hörst. Die Sprache der Moderation entscheidet mit darüber, wie viel Hintergrund du mitbekommst. Probiere denselben Sender zu einer anderen Zeit aus, bevor du ihn aussortierst. Wenn du vor allem neue Bands entdecken möchtest, kann ein Vergleich mit einer anderen Region sinnvoller sein als die Suche nach möglichst vielen vertrauten Titeln."
+          ],
+          "links": [
+            {
+              "route": "blog:blues-radio-guide",
+              "label": "Bluesradio wählen: akustisch, elektrisch und mit Soul"
+            }
           ]
         },
         {
@@ -395,6 +467,12 @@
           "heading": "Unbekannte Musik als Hinweis nutzen",
           "paragraphs": [
             "Wenn dich eine Aufnahme anspricht, notiere Künstler oder Titel, sofern entsprechende Angaben verfügbar sind. Fehlen sie, können Programminformationen des Senders weiterhelfen; solche Listen sind jedoch nicht überall vorhanden. Du musst nicht jedes Stück bestimmen können, um deinen Geschmack genauer zu beschreiben. Stimme, Blechbläser, Klavier, kleine Gruppe oder großes Ensemble sind bereits nützliche Hinweise. Zusammen mit einer kurzen Notiz zum gehörten Programm helfen sie dir, die nächste Suche gezielter anzugehen und ähnliche Klänge wiederzufinden."
+          ],
+          "links": [
+            {
+              "route": "blog:blues-radio-guide",
+              "label": "Bluesradio wählen: akustisch, elektrisch und mit Soul"
+            }
           ]
         },
         {
@@ -465,6 +543,12 @@
           "heading": "Neben dem Sender auch die Sendung beachten",
           "paragraphs": [
             "Das Genre fasst häufig ein ganzes Angebot zusammen. Einzelne Moderatoren können sich dagegen einem Künstler, einer Zeit oder einer musikalischen Verbindung widmen. Höre zu verschiedenen Zeiten und lies vorhandene Programminformationen. Ein Sender, der dir bei der ersten Probe zu breit erscheint, kann später eine stärker konzentrierte Bluessendung ausstrahlen. Notiere deshalb Sendungsname und Hörzeit gemeinsam. Damit wird es leichter, ein passendes Programm erneut zu finden, statt jedes Mal wieder bei der allgemeinen Sendersuche anzufangen."
+          ],
+          "links": [
+            {
+              "route": "blog:jazz-radio-guide",
+              "label": "Jazzradio entdecken: akustisch, vokal und Smooth Jazz"
+            }
           ]
         },
         {
@@ -535,6 +619,12 @@
           "heading": "Americana als Weg zu weiteren Klängen nutzen",
           "paragraphs": [
             "Americana kann zu Programmen führen, die Country mit verwandten musikalischen Traditionen verbinden. Der Begriff ist breit, und Sender legen ihn unterschiedlich aus. Wirkt eine Auswahl auf dich zu glatt oder zu eng, achte bei anderen Programmen auf abwechslungsreichere Besetzungen und angrenzende Stile. Es geht dabei um interessante musikalische Verbindungen. Du musst keine endgültige Definition festlegen, bevor du eine Sendung genießen kannst. Halte lieber fest, welche Übergänge und Aufnahmen du gern wieder hören würdest."
+          ],
+          "links": [
+            {
+              "route": "blog:rock-radio-guide",
+              "label": "Rockradio finden: Classic, Alternative und Hard Rock"
+            }
           ]
         },
         {
@@ -605,18 +695,35 @@
           "heading": "Wichtige Behauptungen zu ihren Quellen verfolgen",
           "paragraphs": [
             "Wenn ein Bericht eine Entscheidung beeinflusst, suche nach Möglichkeit die ursprüngliche Erklärung, das Dokument oder eine benennbare Quelle. Vergleiche zusätzlich die Darstellung eines anderen Anbieters. Achte darauf, welche Fakten übereinstimmen und wo sich Bewertungen unterscheiden. Ein Anruf in einer Gesprächssendung zeigt die Meinung einer Person, aber nicht automatisch deren Verbreitung in der Bevölkerung. Behalte erkennbare Unsicherheit bei einer unbestätigten Aussage bei. Eine überzeugende Stimme ersetzt keinen nachvollziehbaren Beleg für den Inhalt."
+          ],
+          "links": [
+            {
+              "route": "blog:internet-radio-explained",
+              "label": "Internetradio erklärt: Streams, UKW und Podcasts"
+            }
           ]
         },
         {
           "heading": "Das Programm nach deinem Informationsbedarf wählen",
           "paragraphs": [
-            "Lokale Berichte, ausführliche Interviews und offene Gespräche erfüllen unterschiedliche Bedürfnisse. Höre zunächst in die Sendung hinein. Auch Sportübertragungen und dringende Informationen hängen vom Anbieter und seinen Verbreitungswegen ab. Ein Verzeichniseintrag garantiert weder bestimmte Übertragungsrechte noch einen umfassenden Warndienst."
+            "Lokale Berichte, ausführliche Interviews und offene Gespräche erfüllen unterschiedliche Bedürfnisse. Höre zunächst in die Sendung hinein. Auch Sportübertragungen und dringende Informationen hängen vom Anbieter und seinen Verbreitungswegen ab. Ein Verzeichniseintrag garantiert weder bestimmte Übertragungsrechte noch einen umfassenden Warndienst.",
+            "Deutschlandfunk und Ö1 bieten zwei konkrete Ausgangspunkte für deine Programmsuche. Vergleiche die jeweilige Sendungsbeschreibung, Sprache und Ausstrahlungszeit, bevor du eine Ausgabe einordnest. Ein laufender Stream kann auch eine Wiederholung enthalten. Für eine wichtige Behauptung bleibt die ursprüngliche Quelle entscheidend."
           ],
           "items": [
             "Prüfe die Sendungsform sowie Namen und Rollen der beteiligten Personen.",
             "Notiere Datum, Ortszeit und mögliche Hinweise auf eine Wiederholung.",
             "Vergleiche folgenreiche Aussagen mit weiteren Quellen oder dem Originalmaterial.",
             "Nutze für dringende örtliche Handlungsanweisungen die zuständigen offiziellen Informationsangebote."
+          ],
+          "links": [
+            {
+              "route": "station:deutschlandfunk-dlf-mp3-128k",
+              "label": "Deutschlandfunk im Radioverzeichnis"
+            },
+            {
+              "route": "station:o1-orf",
+              "label": "Ö1 im Radioverzeichnis"
+            }
           ]
         }
       ],
@@ -674,7 +781,18 @@
         {
           "heading": "Über den ersten bekannten Hit hinaus zuhören",
           "paragraphs": [
-            "Ein vertrautes Lied hinterlässt schnell einen starken Eindruck. Erst eine längere Hörprobe zeigt jedoch die Entscheidungen des Senders. Achte darauf, ob eine eher enge Auswahl bekannter Hits läuft, weniger offensichtliche Titel auftauchen oder benachbarte Jahrzehnte hinzukommen. Moderation und Spezialsendungen prägen das Hörerlebnis ebenfalls. Beginnt dein erster Versuch während einer Themensendung, höre zu einer anderen Zeit erneut hinein. Die besondere Auswahl eines einzelnen Programms muss nicht den gesamten Alltag des Senders abbilden."
+            "Ein vertrautes Lied hinterlässt schnell einen starken Eindruck. Erst eine längere Hörprobe zeigt jedoch die Entscheidungen des Senders. Achte darauf, ob eine eher enge Auswahl bekannter Hits läuft, weniger offensichtliche Titel auftauchen oder benachbarte Jahrzehnte hinzukommen. Moderation und Spezialsendungen prägen das Hörerlebnis ebenfalls. Beginnt dein erster Versuch während einer Themensendung, höre zu einer anderen Zeit erneut hinein. Die besondere Auswahl eines einzelnen Programms muss nicht den gesamten Alltag des Senders abbilden.",
+            "Bayern 1 kann als konkreter Ausgangspunkt für den Vergleich älterer Musik dienen. Prüfe die aktuelle Titelauswahl und den Sendeplan, statt dem Sender eine feste 80er- oder 90er-Playlist zuzuschreiben. Wiederhole den Vergleich zu einer anderen Uhrzeit, wenn du eine bestimmte Epoche suchst."
+          ],
+          "links": [
+            {
+              "route": "blog:rock-radio-guide",
+              "label": "Rockradio finden: Classic, Alternative und Hard Rock"
+            },
+            {
+              "route": "station:bayern-1-oberbayern",
+              "label": "Bayern 1: aktuelle Musikauswahl vergleichen"
+            }
           ]
         },
         {
