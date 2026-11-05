@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import AdminDuplicateMergePanel from '@/components/stations/admin-duplicate-merge-panel';
+import ManualStationMergeDialog from '@/components/stations/manual-station-merge-dialog';
+import { confirmedManualMergeBody, parseManualMergePreview, type ManualMergePreview } from '@/lib/admin-station-merge';
 import { readAdminMergeJob } from '@/hooks/useAdminDuplicateMerge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -12,7 +14,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -53,8 +54,10 @@ interface DuplicatesResponse {
   totalStations?: number;
 }
 
+
+
 export default function AdminDuplicates() {
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
   const [duplicates, setDuplicates] = useState<DuplicatesResponse | null>(null);
   const [bulkActionTarget, setBulkActionTarget] = useState<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +70,14 @@ export default function AdminDuplicates() {
   const [selectedStations, setSelectedStations] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeletingStations, setIsDeletingStations] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [mergeReview, setMergeReview] = useState<ManualMergePreview | null>(null);
+  const [identityConfirmed, setIdentityConfirmed] = useState(false);
+  const [mergeReviewError, setMergeReviewError] = useState<string | null>(null);
+  const actionLock = useRef(false);
+  const actionController = useRef<AbortController | null>(null);
+  const candidateController = useRef<AbortController | null>(null);
+  const [isApplyingMerge, setIsApplyingMerge] = useState(false);
   
   // Track manually selected primary stations per group (key: group name + country)
   const [selectedPrimaryStations, setSelectedPrimaryStations] = useState<{[groupKey: string]: string}>({});
@@ -79,7 +90,11 @@ export default function AdminDuplicates() {
     rowsRedirected: number;
     message: string;
     sampleClusters: Array<{ canonical: string; losers: string[] }>;
+    skippedClusters?: number;
+    sampleSkipped?: Array<{ ids?: string[]; reason: string }>;
   } | null>(null);
+
+  const actionsDisabled = isLoading || isDeletingStations || processingMerge !== null || freqLoading;
 
   const activeIntervalsRef = useRef<Map<string, { timer?: ReturnType<typeof setTimeout>; controller: AbortController }>>(new Map());
   const [pollingFailures, setPollingFailures] = useState<Record<string, { groupName?: string; message: string }>>({});
@@ -88,16 +103,26 @@ export default function AdminDuplicates() {
     return () => {
       activeIntervalsRef.current.forEach(entry => { if (entry.timer) clearTimeout(entry.timer); entry.controller.abort(); });
       activeIntervalsRef.current.clear();
+      actionController.current?.abort();
+      candidateController.current?.abort();
     };
   }, []);
 
-  const detectDuplicates = async () => {
+  const detectDuplicates = async (clearResults = true) => {
+    candidateController.current?.abort();
+    const controller = new AbortController();
+    candidateController.current = controller;
+    const timer = setTimeout(() => controller.abort(), 20_000);
     setIsLoading(true);
-    setMergeResults([]);
+    if (clearResults) setMergeResults([]);
+    setMergeReview(null);
+    setPendingDeleteIds([]);
+    setShowDeleteConfirm(false);
     setSelectedStations(new Set()); // Clear selections when detecting new duplicates
     try {
-      const response = await apiFetch('/api/admin/stations/duplicates');
+      const response = await apiFetch('/api/admin/stations/duplicates', { signal: controller.signal });
       const data = await response.json();
+      if (candidateController.current !== controller) return;
       
       // Check for API errors
       if (!response.ok || data.error) {
@@ -151,6 +176,8 @@ export default function AdminDuplicates() {
         });
       }
     } catch (error) {
+      if (candidateController.current !== controller) return;
+      setDuplicates(null);
       console.error('Failed to detect duplicates:', error);
       toast({
         title: 'Error',
@@ -158,7 +185,11 @@ export default function AdminDuplicates() {
         variant: 'destructive'
       });
     } finally {
-      setIsLoading(false);
+      clearTimeout(timer);
+      if (candidateController.current === controller) {
+        candidateController.current = null;
+        setIsLoading(false);
+      }
     }
   };
 
@@ -182,7 +213,7 @@ export default function AdminDuplicates() {
     });
 
   // Get the group key for accessing selected primary stations
-  const getGroupKey = (group: DuplicateGroup) => `${group.name}-${group.country}`;
+  const getGroupKey = (group: DuplicateGroup) => JSON.stringify([group.name, group.country]);
 
   // Get the primary station (manually selected, or image+votes-first default)
   const getPrimaryStationForGroup = (group: DuplicateGroup) => {
@@ -194,46 +225,74 @@ export default function AdminDuplicates() {
     return sortStationsImageFirst(group.stations)[0];
   };
 
-  // Merge group keeping only the highest voted station
-  const mergeKeepHighestVoted = async (group: DuplicateGroup) => {
-    const primaryStation = getPrimaryStationForGroup(group);
-    const duplicateIds = group.stations.filter(s => s._id !== primaryStation._id).map(s => s._id);
-    
-    setProcessingMerge(primaryStation._id);
+  const actionRequest = async (path: string, options: RequestInit, requireSuccess = true) => {
+    const controller = new AbortController();
+    actionController.current = controller;
+    const timer = setTimeout(() => controller.abort(), 20_000);
     try {
-      const response = await apiFetch('/api/admin/stations/merge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          primaryStationId: primaryStation._id,
-          duplicateStationIds: duplicateIds
-        })
+      const response = await apiFetch(path, { ...options, signal: controller.signal });
+      const data = await response.json();
+      if (!response.ok || data.error || (requireSuccess && !data.success)) throw new Error(data.error || `Request failed (HTTP ${response.status})`);
+      return data;
+    } finally {
+      clearTimeout(timer);
+      if (actionController.current === controller) actionController.current = null;
+    }
+  };
+
+  const requestManualMerge = async (group: DuplicateGroup) => {
+    if (actionLock.current || actionsDisabled) return;
+    dismiss?.();
+    actionLock.current = true;
+    setProcessingMerge(getGroupKey(group));
+    setMergeReviewError(null);
+    setIdentityConfirmed(false);
+    const primaryStationId = getPrimaryStationForGroup(group)._id;
+    const duplicateStationIds = group.stations.filter(s => s._id !== primaryStationId).map(s => s._id);
+    try {
+      const data = await actionRequest('/api/admin/stations/merge-preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primaryStationId, duplicateStationIds }),
       });
-      
-      const result = await response.json();
-      if (result.success && result.async) {
-        setMergeResults(prev => [...prev, `🏆 Started merge keeping highest-voted: ${group.name} (${primaryStation.votes} votes)`]);
-        setMergeResults(prev => [...prev, `🗑️  Will delete ${duplicateIds.length} duplicate station(s)`]);
-        setMergeResults(prev => [...prev, `ℹ️ Merge is running in background. You can safely close this tab.`]);
-        
-        // Start polling for job status
-        pollJobStatus(result.jobId, group.name);
-      } else if (result.success) {
-        // Fallback for synchronous response
-        setMergeResults(prev => [...prev, `✅ Merged ${group.name}: Kept highest-voted station (${primaryStation.votes} votes), deleted ${duplicateIds.length} duplicates`]);
-        await detectDuplicates();
-      } else {
-        setMergeResults(prev => [...prev, `❌ Failed to merge ${group.name}: ${result.error}`]);
-      }
+      const review = parseManualMergePreview(data.preview, { primaryStationId, duplicateStationIds });
+      setMergeReview(review);
     } catch (error) {
-      setMergeResults(prev => [...prev, `❌ Error merging ${group.name}: ${error}`]);
+      toast({ title: 'Merge preview failed', description: error instanceof Error ? error.message : 'Refresh candidates and try again.', variant: 'destructive' });
     } finally {
       setProcessingMerge(null);
+      actionLock.current = false;
+    }
+  };
+
+  const confirmManualMerge = async () => {
+    if (!mergeReview || mergeReviewError || actionLock.current ||
+      (mergeReview.requiresIdentityConfirmation && !identityConfirmed)) return;
+    actionLock.current = true;
+    setIsApplyingMerge(true);
+    setProcessingMerge('applying');
+    try {
+      const result = await actionRequest('/api/admin/stations/merge', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(confirmedManualMergeBody(mergeReview, identityConfirmed)),
+      });
+      setMergeResults(previous => [...previous,
+        `Merged into ${result.mergedStation?.name || mergeReview.primaryStation.name}: ${result.deletedCount} duplicate record(s) removed.`,
+        ...(result.cacheInvalidated === false ? ['Merge completed. Some caches could not be refreshed immediately; cached responses may remain briefly.'] : []),
+      ]);
+      setMergeReview(null);
+      void detectDuplicates(false);
+    } catch (error) {
+      setMergeReviewError(`${error instanceof Error ? error.message : 'Request failed'}. Do not retry this preview. Close and refresh candidates to check the current records before a new review.`);
+    } finally {
+      setIsApplyingMerge(false);
+      setProcessingMerge(null);
+      actionLock.current = false;
     }
   };
 
   // Toggle station selection
   const toggleStationSelection = (stationId: string) => {
+    if (actionsDisabled || duplicates?.duplicateGroups.some(group => getPrimaryStationForGroup(group)._id === stationId)) return;
     setSelectedStations(prev => {
       const newSet = new Set(prev);
       if (newSet.has(stationId)) {
@@ -247,6 +306,7 @@ export default function AdminDuplicates() {
 
   // Toggle selection of all duplicates in a group (except the image-first primary)
   const toggleSelectAllInGroup = (group: DuplicateGroup) => {
+    if (actionsDisabled) return;
     const primary = getPrimaryStationForGroup(group);
     const duplicateIds = new Set(group.stations.filter(s => s._id !== primary._id).map(s => s._id));
     setSelectedStations(prev => {
@@ -273,7 +333,7 @@ export default function AdminDuplicates() {
 
   // Select all duplicates across ALL groups (excluding the image-first primary in each group)
   const selectAllDuplicates = () => {
-    if (!duplicates?.duplicateGroups) return;
+    if (actionsDisabled || !duplicates?.duplicateGroups) return;
 
     const allDuplicateIds = new Set<string>();
     duplicates.duplicateGroups.forEach(group => {
@@ -291,6 +351,7 @@ export default function AdminDuplicates() {
 
   // Deselect all stations
   const deselectAll = () => {
+    if (actionsDisabled) return;
     setSelectedStations(new Set());
     toast({
       title: 'Selection cleared',
@@ -298,17 +359,38 @@ export default function AdminDuplicates() {
     });
   };
 
-  // Delete selected stations (with favicon copying across all affected groups)
+  const safeDeleteIds = (ids: string[]) => {
+    const groups = duplicates?.duplicateGroups || [];
+    const loadedIds = new Set(groups.flatMap(group => group.stations.map(s => s._id)));
+    const primaryIds = new Set(groups.map(group => getPrimaryStationForGroup(group)._id));
+    return [...new Set(ids)].filter(id => loadedIds.has(id) && !primaryIds.has(id));
+  };
+
+  const requestDelete = (group?: DuplicateGroup) => {
+    if (actionsDisabled || actionLock.current) return;
+    const ids = safeDeleteIds([...selectedStations]).filter(id => !group || group.stations.some(s => s._id === id));
+    if (!ids.length) return;
+    dismiss?.();
+    setPendingDeleteIds(ids);
+    setShowDeleteConfirm(true);
+  };
+
+  // Freeze deletion scope at confirmation; never delete a selected primary.
   const deleteSelectedStations = async () => {
-    if (selectedStations.size === 0) {
+    if (actionLock.current) return;
+    const stationIds = safeDeleteIds(pendingDeleteIds);
+    if (!stationIds.length || stationIds.length !== pendingDeleteIds.length) {
+      setShowDeleteConfirm(false);
+      setPendingDeleteIds([]);
       toast({
-        title: 'No stations selected',
-        description: 'Please select at least one station to delete',
+        title: 'Selection changed',
+        description: 'Review the remaining records and confirm a new deletion.',
         variant: 'destructive'
       });
       return;
     }
 
+    actionLock.current = true;
     setIsDeletingStations(true);
     try {
       // Helper: true if URL is a valid non-empty non-sentinel string
@@ -320,11 +402,9 @@ export default function AdminDuplicates() {
 
       // SMART IMAGE COPYING: before deleting, ensure the surviving station keeps an image
       if (duplicates?.duplicateGroups) {
-        let faviconsCopied = 0;
-
         for (const group of duplicates.duplicateGroups) {
           const groupStationIds = new Set(group.stations.map(s => s._id));
-          const selectedInGroup = Array.from(selectedStations).filter(id => groupStationIds.has(id));
+          const selectedInGroup = stationIds.filter(id => groupStationIds.has(id));
 
           if (selectedInGroup.length === 0) continue;
 
@@ -346,21 +426,15 @@ export default function AdminDuplicates() {
 
             if (sourceFaviconUrl) {
               try {
-                const updateResponse = await apiFetch(`/api/admin/stations/${bestRemaining._id}`, {
+                await actionRequest(`/api/admin/stations/${bestRemaining._id}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ favicon: sourceFaviconUrl }),
+                }, false);
+                toast({
+                  title: 'Image preserved',
+                  description: `Copied image from "${faviconSource!.name}" to "${bestRemaining.name}"`,
                 });
-                if (updateResponse.ok) {
-                  faviconsCopied++;
-                  toast({
-                    title: 'Image preserved',
-                    description: `Copied image from "${faviconSource!.name}" to "${bestRemaining.name}"`,
-                  });
-                } else {
-                  const errorData = await updateResponse.json();
-                  console.error('Failed to update favicon:', errorData);
-                }
               } catch (error) {
                 console.error('Failed to copy favicon:', error);
                 // Continue with deletion even if favicon copy fails
@@ -371,13 +445,12 @@ export default function AdminDuplicates() {
       }
 
       // Now delete the selected stations
-      const response = await apiFetch('/api/admin/delete-stations', {
+      const result = await actionRequest('/api/admin/delete-stations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stationIds: Array.from(selectedStations) })
+        body: JSON.stringify({ stationIds })
       });
 
-      const result = await response.json();
       if (result.success) {
         toast({
           title: 'Stations deleted',
@@ -386,7 +459,7 @@ export default function AdminDuplicates() {
         setSelectedStations(new Set());
         setShowDeleteConfirm(false);
         // Refresh duplicates list
-        await detectDuplicates();
+        void detectDuplicates(false);
       } else {
         toast({
           title: 'Delete failed',
@@ -395,148 +468,22 @@ export default function AdminDuplicates() {
         });
       }
     } catch (error) {
+      setShowDeleteConfirm(false);
+      setPendingDeleteIds([]);
+      setSelectedStations(new Set());
+      setDuplicates(null);
       toast({
-        title: 'Error',
-        description: 'An error occurred while deleting stations',
+        title: 'Check deletion status',
+        description: 'The request did not complete cleanly. Refresh candidates before retrying; some records may already have been deleted.',
         variant: 'destructive'
       });
     } finally {
       setIsDeletingStations(false);
+      actionLock.current = false;
     }
   };
 
-  // Delete selected stations from a specific group
-  const deleteSelectedFromGroup = async (group: DuplicateGroup) => {
-    // Get selected stations that belong to this group
-    const groupStationIds = new Set(group.stations.map(s => s._id));
-    const selectedInGroup = Array.from(selectedStations).filter(id => groupStationIds.has(id));
 
-    if (selectedInGroup.length === 0) {
-      toast({
-        title: 'No stations selected',
-        description: 'Please select at least one station from this group to delete',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    setIsDeletingStations(true);
-    try {
-      // SMART IMAGE COPYING: best remaining station = image-first, then votes
-      const bestRemaining = sortStationsImageFirst(
-        group.stations.filter(s => !selectedInGroup.includes(s._id))
-      )[0];
-
-      const isValidUrl = (url: string | null | undefined): boolean => {
-        if (!url) return false;
-        const t = url.trim();
-        return t !== '' && t !== 'null' && t !== 'undefined';
-      };
-
-      if (bestRemaining && !stationHasImage(bestRemaining)) {
-        const stationsBeingDeleted = group.stations.filter(s => selectedInGroup.includes(s._id));
-        const faviconSource = stationsBeingDeleted.find(s => isValidUrl(s.favicon) || isValidUrl(s.localImagePath));
-        const sourceFaviconUrl = isValidUrl(faviconSource?.favicon)
-          ? faviconSource!.favicon!
-          : isValidUrl(faviconSource?.localImagePath)
-            ? faviconSource!.localImagePath!
-            : '';
-
-        if (sourceFaviconUrl) {
-          try {
-            const updateResponse = await apiFetch(`/api/admin/stations/${bestRemaining._id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ favicon: sourceFaviconUrl }),
-            });
-            if (updateResponse.ok) {
-              toast({
-                title: 'Image preserved',
-                description: `Copied image from "${faviconSource!.name}" to "${bestRemaining.name}"`,
-              });
-            } else {
-              console.error('Failed to update favicon:', await updateResponse.json());
-            }
-          } catch (error) {
-            console.error('Failed to copy favicon:', error);
-          }
-        }
-      }
-
-      // Proceed with deletion
-      const response = await apiFetch('/api/admin/delete-stations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stationIds: selectedInGroup })
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        toast({
-          title: 'Stations deleted',
-          description: `Successfully deleted ${result.deletedCount} station(s) from this group`,
-        });
-        // Remove deleted stations from selection
-        setSelectedStations(prev => {
-          const newSet = new Set(prev);
-          selectedInGroup.forEach(id => newSet.delete(id));
-          return newSet;
-        });
-        // Refresh duplicates list
-        await detectDuplicates();
-      } else {
-        toast({
-          title: 'Delete failed',
-          description: result.error || 'Failed to delete stations',
-          variant: 'destructive'
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'An error occurred while deleting stations',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsDeletingStations(false);
-    }
-  };
-
-  const mergeGroup = async (group: DuplicateGroup) => {
-    const primaryStation = getPrimaryStationForGroup(group);
-    const duplicateIds = group.stations.filter(s => s._id !== primaryStation._id).map(s => s._id);
-    
-    setProcessingMerge(primaryStation._id);
-    try {
-      const response = await apiFetch('/api/admin/stations/merge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          primaryStationId: primaryStation._id,
-          duplicateStationIds: duplicateIds
-        })
-      });
-      
-      const result = await response.json();
-      if (result.success && result.async) {
-        setMergeResults(prev => [...prev, `🔄 Started async merge for ${group.name} (Job ID: ${result.jobId})`]);
-        setMergeResults(prev => [...prev, `ℹ️ Merge is running in background. You can safely close this tab.`]);
-        
-        // Start polling for job status
-        pollJobStatus(result.jobId, group.name);
-      } else if (result.success) {
-        // Fallback for synchronous response
-        setMergeResults(prev => [...prev, `✅ Merged ${group.name}: ${result.fallbackUrlsAdded} fallback URLs added`]);
-        await detectDuplicates();
-      } else {
-        setMergeResults(prev => [...prev, `❌ Failed to merge ${group.name}: ${result.error}`]);
-      }
-    } catch (error) {
-      setMergeResults(prev => [...prev, `❌ Error merging ${group.name}: ${error}`]);
-    } finally {
-      setProcessingMerge(null);
-    }
-  };
 
   const pollJobStatus = (jobId: string, groupName?: string) => {
     if (activeIntervalsRef.current.has(jobId)) return;
@@ -590,21 +537,14 @@ export default function AdminDuplicates() {
   // frequency punctuation (classical-95-9-wcri vs classical-959-wcri) onto one
   // canonical URL via a 301. Dry-run first (confirm=false), then apply.
   const runFreqDedup = async (confirm: boolean) => {
+    if (actionLock.current || actionsDisabled) return;
+    actionLock.current = true;
     setFreqLoading(true);
     try {
-      const response = await apiFetch(
+      const data = await actionRequest(
         `/api/admin/stations/dedup-frequency${confirm ? '?confirm=true' : ''}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }, false,
       );
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        toast({
-          title: 'Frequency dedup failed',
-          description: data.error || `HTTP ${response.status}: ${response.statusText}`,
-          variant: 'destructive',
-        });
-        return;
-      }
       setFreqResult(data);
       toast({
         title: confirm ? 'Frequency duplicates redirected' : 'Dry run complete',
@@ -620,6 +560,7 @@ export default function AdminDuplicates() {
       });
     } finally {
       setFreqLoading(false);
+      actionLock.current = false;
     }
   };
 
@@ -648,7 +589,7 @@ export default function AdminDuplicates() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={detectDuplicates} disabled={isLoading} size="sm" variant="outline">
+          <Button onClick={() => void detectDuplicates()} disabled={actionsDisabled} size="sm" variant="outline">
             {isLoading ? <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" /> : <AlertTriangle aria-hidden="true" className="mr-2 h-4 w-4" />}
             Detect candidates for manual review
           </Button>
@@ -665,16 +606,15 @@ export default function AdminDuplicates() {
           <CardDescription>
             Collapses station records whose slugs differ only in frequency punctuation
             (e.g. <code>classical-95-9-wcri</code> vs <code>classical-959-wcri</code>) onto a single
-            canonical URL with a 301. The highest-engagement record is kept; the others are
-            redirected to it (non-destructive — nothing is deleted, safe to re-run after a sync).
-            This fixes the "Crawled – currently not indexed" duplicate pages in Google Search Console.
+            canonical URL with a 301 when broadcast identity checks pass. Records are retained;
+            unsafe clusters are skipped. Consolidation does not guarantee search indexing.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => runFreqDedup(false)}
-              disabled={freqLoading}
+              disabled={actionsDisabled}
               variant="outline"
               size="sm"
               className="text-xs sm:text-sm"
@@ -686,12 +626,12 @@ export default function AdminDuplicates() {
             <Button
               onClick={() => {
                 if (window.confirm(
-                  'Apply frequency-duplicate redirects now?\n\nThe highest-engagement station in each cluster is kept; the others are 301-redirected to it (redirectToSlug + noIndex). Non-destructive and reversible.'
+                  'Apply redirects for verified frequency-duplicate clusters?\n\nUnsafe clusters are skipped. Duplicate records are retained and redirected to an indexable primary.'
                 )) {
                   runFreqDedup(true);
                 }
               }}
-              disabled={freqLoading || !freqResult || freqResult.clustersFound === 0}
+              disabled={actionsDisabled || !freqResult || freqResult.clustersFound === 0}
               variant="default"
               size="sm"
               className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700"
@@ -711,12 +651,22 @@ export default function AdminDuplicates() {
                   <span className="text-sm">{freqResult.message}</span>
                   <div className="mt-1 text-xs text-muted-foreground">
                     Clusters: <strong>{freqResult.clustersFound}</strong>
+                    {' · '}Skipped: <strong>{freqResult.skippedClusters || 0}</strong>
                     {freqResult.confirm && (
                       <> · Redirected: <strong>{freqResult.rowsRedirected}</strong></>
                     )}
                   </div>
                 </AlertDescription>
               </Alert>
+
+              {!!freqResult.sampleSkipped?.length && (
+                <Alert variant="destructive"><AlertDescription>
+                  <p className="font-medium">Skipped clusters</p>
+                  <ul className="mt-2 space-y-1 text-xs break-words">
+                    {freqResult.sampleSkipped.map((cluster, index) => <li key={index}>{cluster.reason}</li>)}
+                  </ul>
+                </AlertDescription></Alert>
+              )}
 
               {freqResult.sampleClusters.length > 0 && (
                 <div className="rounded border divide-y">
@@ -768,7 +718,7 @@ export default function AdminDuplicates() {
                 onClick={selectAllDuplicates}
                 size="sm"
                 variant="outline"
-                disabled={duplicates.potentialMerges === 0}
+                disabled={actionsDisabled || duplicates.potentialMerges === 0}
                 data-testid="button-select-all-duplicates"
                 className="text-xs"
               >
@@ -780,6 +730,7 @@ export default function AdminDuplicates() {
                 <>
                   <Button
                     onClick={deselectAll}
+                    disabled={actionsDisabled}
                     size="sm"
                     variant="outline"
                     data-testid="button-deselect-all"
@@ -789,10 +740,10 @@ export default function AdminDuplicates() {
                     <span className="hidden sm:inline">Deselect</span>
                   </Button>
                   <Button
-                    onClick={() => setShowDeleteConfirm(true)}
+                    onClick={() => requestDelete()}
                     size="sm"
                     variant="destructive"
-                    disabled={isDeletingStations}
+                    disabled={actionsDisabled}
                     data-testid="button-delete-selected-global"
                     className="text-xs"
                   >
@@ -886,6 +837,7 @@ export default function AdminDuplicates() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Checkbox
+                    disabled={actionsDisabled}
                     checked={areAllDuplicatesSelected(group)}
                     onCheckedChange={() => toggleSelectAllInGroup(group)}
                     data-testid="checkbox-select-all-group"
@@ -898,31 +850,30 @@ export default function AdminDuplicates() {
               {/* Action Buttons - Mobile Grid */}
               <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:justify-end">
                 <Button
-                  onClick={() => mergeKeepHighestVoted(group)}
-                  disabled={processingMerge === group.stations[0]._id}
+                  onClick={() => void requestManualMerge(group)}
+                  disabled={actionsDisabled}
                   size="sm"
                   variant="default"
                   className="flex items-center justify-center gap-1 sm:gap-2 bg-amber-600 hover:bg-amber-700 text-xs sm:text-sm"
                   data-testid="button-keep-highest"
-                  title="Keep highest-voted station and delete all duplicates"
+                  title="Review a merge retaining the selected primary station"
                 >
-                  {processingMerge === group.stations[0]._id ? (
+                  {processingMerge === getGroupKey(group) ? (
                     <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                   ) : (
                     <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
                   )}
-                  <span className="hidden sm:inline">Keep Highest</span>
-                  <span className="sm:hidden">Keep Best</span>
+                  <span>Keep Primary</span>
                 </Button>
                 <Button
-                  onClick={() => mergeGroup(group)}
-                  disabled={processingMerge === group.stations[0]._id}
+                  onClick={() => void requestManualMerge(group)}
+                  disabled={actionsDisabled}
                   size="sm"
                   variant="outline"
                   className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm"
                   data-testid="button-merge-group"
                 >
-                  {processingMerge === group.stations[0]._id ? (
+                  {processingMerge === getGroupKey(group) ? (
                     <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                   ) : (
                     <Merge className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -930,8 +881,8 @@ export default function AdminDuplicates() {
                   Merge
                 </Button>
                 <Button
-                  onClick={() => deleteSelectedFromGroup(group)}
-                  disabled={isDeletingStations || !group.stations.some(s => selectedStations.has(s._id))}
+                  onClick={() => requestDelete(group)}
+                  disabled={actionsDisabled || !group.stations.some(s => selectedStations.has(s._id))}
                   size="sm"
                   variant="destructive"
                   className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm"
@@ -947,8 +898,8 @@ export default function AdminDuplicates() {
                   <span className="sm:hidden">Delete</span>
                 </Button>
                 <Button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  disabled={selectedStations.size === 0 || isDeletingStations}
+                  onClick={() => requestDelete()}
+                  disabled={selectedStations.size === 0 || actionsDisabled}
                   size="sm"
                   variant="outline"
                   className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm border-destructive text-destructive hover:bg-destructive/10"
@@ -977,12 +928,19 @@ export default function AdminDuplicates() {
                 ) : null;
               })()}
               <RadioGroup
+                disabled={actionsDisabled}
                 value={selectedPrimaryStations[getGroupKey(group)] || getPrimaryStationForGroup(group)._id}
                 onValueChange={(value) => {
+                  if (actionsDisabled) return;
                   setSelectedPrimaryStations(prev => ({
                     ...prev,
                     [getGroupKey(group)]: value,
                   }));
+                  setSelectedStations(previous => {
+                    const next = new Set(previous);
+                    next.delete(value);
+                    return next;
+                  });
                 }}
               >
                 {group.stations.map((station) => {
@@ -1007,6 +965,7 @@ export default function AdminDuplicates() {
                             {isSelected && <Crown className="h-3 w-3 sm:h-4 sm:w-4 text-amber-600" />}
                             {!isSelected && (
                               <Checkbox
+                                disabled={actionsDisabled}
                                 checked={selectedStations.has(station._id)}
                                 onCheckedChange={() => toggleStationSelection(station._id)}
                                 data-testid={`checkbox-station-${station._id}`}
@@ -1086,19 +1045,24 @@ export default function AdminDuplicates() {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialog open={showDeleteConfirm} onOpenChange={open => {
+        if (isDeletingStations) return;
+        setShowDeleteConfirm(open);
+        if (!open) setPendingDeleteIds([]);
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Selected Stations?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {selectedStations.size} station(s)? This action cannot be undone.
+              Delete {pendingDeleteIds.length} selected station(s)? Unlike merging, deletion does not
+              combine favorites or listening history. This action cannot be undone from this screen.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeletingStations} data-testid="button-cancel-delete">
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction
+            <Button
               onClick={deleteSelectedStations}
               disabled={isDeletingStations}
               className="bg-destructive hover:bg-destructive/90"
@@ -1112,10 +1076,14 @@ export default function AdminDuplicates() {
               ) : (
                 'Delete'
               )}
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ManualStationMergeDialog review={mergeReview} isApplying={isApplyingMerge} error={mergeReviewError}
+        identityConfirmed={identityConfirmed} onIdentityChange={setIdentityConfirmed}
+        onConfirm={() => void confirmManualMerge()} onClose={() => setMergeReview(null)} />
     </div>
   );
 }

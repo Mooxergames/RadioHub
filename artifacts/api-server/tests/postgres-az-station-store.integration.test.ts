@@ -234,8 +234,15 @@ describe('native A-Z reader and migration (explicit disposable PostgreSQL only)'
           assert.ok(rendered.seoTags.hreflangs.every((entry: any) => suffix ? entry.url.endsWith(suffix) : !entry.url.includes('?')));
           const html = renderer.generateHtmlBody({ pageType: 'stations', language, translations: {},
             additionalData: rendered.pageData.additionalData, urlTranslations: rendered.urlTranslations });
-          const stationUrl = buildLocalizedUrl('/station/' + rendered.pageData.catalogStations[0].slug, language, undefined, new Map());
-          assert.ok(html.includes(`href="${stationUrl}"`)); assert.match(html, /class="pagination"/);
+          // These fixtures have no translated descriptions or country/broadcast
+          // language. Non-numeric targets qualify only for English; numeric
+          // callsigns are excluded by policy, not assigned a fabricated locale.
+          const target = rendered.pageData.catalogStations[0];
+          const targetLanguage = /^-?\d+$/.test(target.slug) ? language : 'en';
+          const stationUrl = buildLocalizedUrl('/station/' + target.slug, targetLanguage, undefined, new Map());
+          assert.ok(html.includes(`href="${stationUrl}"`), JSON.stringify({ key, language, page, stationUrl,
+            decision: rendered.pageData.stationLinkLanguages?.[target._id] }));
+          assert.match(html, /class="pagination"/);
         }
       }
       for (const page of [last + 1, Number.MAX_SAFE_INTEGER]) {

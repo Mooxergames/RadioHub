@@ -13,6 +13,49 @@ and a shared actual HTTP(S) stream endpoint. Query strings and protocols remain
 significant. Ambiguous/changed/oversized groups stay separate for manual review.
 This is an identity check, not a fresh live stream availability test.
 
+## Reviewed manual merges
+
+Both duplicate screens preview a selected primary and donor records before a
+manual merge. **Keep Primary** retains the selected station, not necessarily the
+highest-voted record. The primary must be indexable and have no existing redirect.
+Names or streams that fail the automatic identity policy require a separate
+explicit broadcast-identity confirmation; this does not relax automatic merging.
+
+`POST /api/admin/stations/merge-preview` is admin-only and read-only. It accepts
+2-50 distinct current catalog IDs and optional supported string field changes.
+`POST /api/admin/stations/merge` requires the returned fingerprint, `confirm: true`,
+and `confirmIdentityOverride: true` when indicated by the preview. Missing members
+or identity/URL/manual-flag/visibility changes invalidate the review under row
+locks with HTTP 409 before any writes. Hot votes/play counters do not invalidate
+a preview and totals are recomputed from current locked records. The fingerprint
+is optimistic concurrency control, not a signed authorization ticket.
+
+Manual merges are synchronous. A lost response must not be blindly replayed:
+refresh the records and obtain a new preview. The UI blocks duplicate submissions
+and aborts stalled requests after 20 seconds. Manual transactions have a 2-second
+statement timeout and 200-ms lock wait; automatic worker limits are unchanged.
+Successful commit feedback and mutation locks do not wait for list refreshes;
+the dedicated screen also bounds candidate reads and ignores superseded responses.
+
+Post-commit cache errors do not turn a successful merge into HTTP 500. The response
+includes the actual `deletedCount` and `cacheInvalidated`, which reports bounded
+local cache-adapter attempts only, not an acknowledgement from every replica or
+proof that a concurrent loader cannot refill an older entry. No CDN purge occurs.
+
+## Deletion Is Not Merging
+
+The dedicated duplicate screen removes a newly selected primary from deletion
+selections and excludes all current primary IDs defensively. Group and global
+deletion use a frozen selection and explicit confirmation; group deletion does
+not include selected records from other groups. A changed primary invalidates
+that confirmation. An uncertain response requires a fresh candidate scan.
+
+Deleting records does **not** consolidate favorites, history or URL aliases.
+Use a reviewed merge for verified duplicate broadcasts. A merge archive retains
+original donor data but is not a complete one-click undo operation. Frequency
+redirect previews display skipped-cluster counts and reasons even with zero
+eligible clusters; neither redirects nor merges guarantee search indexing.
+
 ## Automatic operation
 
 - PostgreSQL migrations `0030` and `0031` run through normal deployment startup.

@@ -9,8 +9,9 @@ import Filters from '../src/components/stations/filters';
 import AdminStationPagination from '../src/components/stations/admin-station-pagination';
 
 const mocks = vi.hoisted(() => ({
-  options: vi.fn(), stations: vi.fn(), request: vi.fn(), toast: vi.fn(), play: vi.fn(), pause: vi.fn(),
+  options: vi.fn(), stations: vi.fn(), request: vi.fn(), fetch: vi.fn(), toast: vi.fn(), play: vi.fn(), pause: vi.fn(),
   player: { currentStation: null as any, isPlaying: false, isLoading: false },
+  stallInvalidation: false,
   translations: {} as Record<string, string>,
 }));
 vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => ({ t: (key: string, fallback: string) => mocks.translations[key] || fallback }) }));
@@ -20,7 +21,9 @@ vi.mock('@/hooks/useAdminAuth', () => ({ useAdminAuth: () => ({ isAuthenticated:
 vi.mock('@/lib/api', () => ({ api: { getAdminStationFilterOptions: mocks.options, getAdminStations: mocks.stations, getStationsTagsStatusSummary: async () => ({ neverChecked: 0, emptyCooldown: 0 }) } }));
 vi.mock('@/lib/queryClient', async () => {
   const { QueryClient } = await import('@tanstack/react-query');
-  return { queryClient: new QueryClient(), apiRequest: mocks.request, apiFetch: (url: string, init?: RequestInit) => fetch(url, init) };
+  const client = new QueryClient();
+  client.invalidateQueries = vi.fn(() => mocks.stallInvalidation ? new Promise<void>(() => {}) : Promise.resolve());
+  return { queryClient: client, apiRequest: mocks.request, apiFetch: mocks.fetch };
 });
 vi.mock('@/components/stations/station-form', () => ({ default: ({ open }: { open: boolean }) => open ? <div role="dialog">Station editor</div> : null }));
 import Stations from '../src/pages/stations';
@@ -34,6 +37,7 @@ function wrapper(children: React.ReactNode) {
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear();
   mocks.translations = {};
+  mocks.stallInvalidation = false;
   mocks.player.currentStation = null; mocks.player.isPlaying = false; mocks.player.isLoading = false;
   mocks.options.mockResolvedValue({ countries: [{ name: 'Austria', code: 'AT' }], languages: ['German'], genres: Array.from({ length: 70 }, (_, index) => 'Genre ' + index), codecs: ['AAC', 'MP3'] });
   mocks.stations.mockImplementation(async filters => ({ stations: [station], total: filters.healthStatus === 'unavailable' ? 1 : 1000 }));
@@ -138,6 +142,46 @@ describe('scannable, scoped filters and page navigation', () => {
 });
 
 describe('station management integration', () => {
+  it.each([true, false, 'stalled-refresh'])('reviews the alternate duplicate screen before applying (result: %s)', async result => {
+    const success = result !== false;
+    mocks.stallInvalidation = result === 'stalled-refresh';
+    const ids = ['1'.padStart(24, '0'), '2'.padStart(24, '0')];
+    const records = ids.map((_id, index) => ({ ...station, _id, name: `Review ${index}`, votes: index }));
+    mocks.request.mockResolvedValue({ json: async () => ({ duplicates: [{ _id: { name: 'Review candidate', country: 'Austria' }, count: 2, stations: records }] }) });
+    mocks.fetch.mockImplementation(async (url, options) => {
+      const body = JSON.parse(options.body);
+      const data = url.endsWith('/merge-preview') ? { success: true, preview: {
+        ...body, primaryStation: records[1], duplicateStations: [records[0]], fingerprint: 'b'.repeat(64),
+        identity: { eligible: false, reason: 'Different names' }, requiresIdentityConfirmation: true, changes: {}, warnings: [],
+      } } : success ? { success: true, deletedCount: 1, cacheInvalidated: false } : { error: 'Selected records changed' };
+      return { ok: url.endsWith('/merge-preview') || success, status: success ? 200 : 409, json: async () => data };
+    });
+    wrapper(<Stations />);
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicates' }));
+    fireEvent.click(await screen.findByText('"Review candidate" - Austria'));
+    fireEvent.click(screen.getByRole('checkbox', { name: `Select duplicate Review 1 (${ids[1]})` }));
+    fireEvent.click(screen.getByRole('checkbox', { name: `Select duplicate Review 0 (${ids[0]})` }));
+    fireEvent.click(screen.getByRole('button', { name: 'Merge 2 stations' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toEqual({ primaryStationId: ids[1], duplicateStationIds: [ids[0]] });
+    const confirm = within(dialog).getByRole('button', { name: 'Confirm manual merge' });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+    fireEvent.click(confirm); fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(mocks.fetch.mock.calls[1][1].body)).toEqual({ primaryStationId: ids[1], duplicateStationIds: [ids[0]],
+      mergeData: {}, expectedFingerprint: 'b'.repeat(64), confirm: true, confirmIdentityOverride: true });
+    if (success) {
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Stations Merged', description: '1 duplicate record(s) merged. Some cached responses may remain briefly.' }));
+      expect(screen.queryByRole('button', { name: 'Processing...' })).not.toBeInTheDocument();
+    } else {
+      await within(dialog).findByText(/do not retry this review/);
+      expect(confirm).toBeDisabled(); fireEvent.click(confirm);
+      expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    }
+  });
   it('does not call a completed repair fully successful when sitemap publishing failed', async () => {
     localStorage.setItem('bulkAiJobId', 'bulk-desc-repair');
     mocks.request.mockResolvedValue({ json: async () => ({ jobId: 'bulk-desc-repair', status: 'completed', total: 1, processed: 1, successful: 1, failed: 0, skipped: 0, publishStatus: 'failed', error: 'Descriptions saved; sitemap refresh needs retry from SEO maintenance.' }) });

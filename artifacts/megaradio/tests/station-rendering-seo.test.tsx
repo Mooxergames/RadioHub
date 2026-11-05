@@ -90,19 +90,42 @@ function mountRelated(language = 'en') {
   mount();
 }
 
-it('requests the compact linked variant without changing the legacy envelope or media-group visibility', async () => {
-  const originalFetch = vi.mocked(fetch).getMockImplementation()!;
-  const legacy = { stations: [{ _id: 'legacy-related', descriptions: { en: 'Full legacy cache' } }] };
-  const cards = { stations: [{ _id: 'compact-related', name: 'Compact Related', slug: 'compact-related' }] };
-  client.setQueryDefaults(['/api/stations', seed._id, 'linked'], { gcTime: 60_000 });
-  client.setQueryData(['/api/stations', seed._id, 'linked'], legacy);
-  vi.mocked(fetch).mockImplementation((url: string) => url === `/api/stations/${seed._id}/linked?slim=1`
-    ? Promise.resolve(Response.json(cards)) : originalFetch(url));
-  bootstrap(); mount();
-  await waitFor(() => expect(client.getQueryData(['/api/stations', seed._id, 'linked', 'cards-v1'])).toEqual(cards));
-  expect(fetch).toHaveBeenCalledWith(`/api/stations/${seed._id}/linked?slim=1`);
-  expect(client.getQueryData(['/api/stations', seed._id, 'linked'])).toEqual(legacy);
+it('uses the existing related lists without fetching a redundant linked list or claiming media ownership', async () => {
+  mountRelated();
+  await act(async () => { finish(Response.json({ ...seed, country: 'Austria' })); });
+  expect(client.getQueryState(['/api/stations', seed._id, 'linked', 'cards-v1'])).toBeUndefined();
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/linked'))).toBe(false);
   expect(screen.queryByRole('heading', { name: 'Media Group Radios' })).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Similar stations' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'More radio stations from Austria' })).toBeInTheDocument();
+  expect(screen.getAllByRole('link', { name: /Related Jazz/ })).toHaveLength(1);
+  expect(screen.getAllByRole('link', { name: /Country News/ })).toHaveLength(1);
+  expect(state.playStation).not.toHaveBeenCalled();
+  expectArticle();
+});
+
+it.each([
+  { shape: 'envelope', payload: { stations: [{ _id: 'related-id', name: 'Related Jazz' }] } },
+  { shape: 'legacy array', payload: [{ _id: 'related-id', name: 'Related Jazz' }] },
+  { shape: 'empty envelope', payload: { stations: [] } },
+  { shape: 'malformed envelope', payload: { stations: { length: 1 } } },
+  { shape: 'unrelated object', payload: { data: 'not a station list' } },
+  { shape: 'null', payload: null },
+])('ignores $shape linked cache data without duplicating existing recommendations', async ({ payload }) => {
+  const legacyKey = ['/api/stations', seed._id, 'linked'];
+  const compactKey = [...legacyKey, 'cards-v1'];
+  client.setQueryDefaults(legacyKey, { gcTime: 60_000 });
+  client.setQueryData(legacyKey, payload);
+  client.setQueryData(compactKey, payload);
+  mountRelated();
+  await act(async () => { finish(Response.json({ ...seed, country: 'Austria' })); });
+  expect(client.getQueryData(legacyKey)).toEqual(payload);
+  expect(client.getQueryData(compactKey)).toEqual(payload);
+  expect(client.getQueryCache().find({ queryKey: compactKey, exact: true })?.getObserversCount()).toBe(0);
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/linked'))).toBe(false);
+  expect(screen.queryByRole('heading', { name: 'Media Group Radios' })).not.toBeInTheDocument();
+  expect(screen.getAllByRole('link', { name: /Related Jazz/ })).toHaveLength(1);
+  expect(screen.getAllByRole('link', { name: /Country News/ })).toHaveLength(1);
   expectArticle();
 });
 
