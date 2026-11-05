@@ -28,6 +28,7 @@ import { INDEXING_PILOT } from '../src/seo/indexing-pilot';
 import { MARKET_BLOG_MANIFEST, BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
 import { PUBLIC_SEO_LOCALE_CODES } from '../src/seo/public-route-matchers';
+import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { SITEMAP_STYLESHEET, SITEMAP_STYLESHEET_INSTRUCTION } from '../src/seo/sitemap-presentation';
 
 /**
@@ -1296,7 +1297,12 @@ function parseRobotsRules(body: string) {
   };
 }
 
-for (const userAgent of ['generic-crawler', 'Googlebot', 'Google-Extended', 'bingbot', 'OAI-SearchBot', 'Google-InspectionTool', 'Baiduspider', 'Sogou']) {
+const CRAWLERS = ['generic-crawler', 'Googlebot', 'Google-Extended', 'bingbot', 'OAI-SearchBot',
+  'Google-InspectionTool', 'Baiduspider', 'Sogou', 'GPTBot', 'CCBot', 'Bytespider', 'cohere-ai',
+  'Meta-ExternalAgent', 'Diffbot', 'ChatGPT-User', 'anthropic-ai', 'Claude-Web', 'ClaudeBot',
+  'PerplexityBot', 'Perplexity-User', 'Applebot-Extended', 'Amazonbot', 'DuckAssistBot', 'YouBot'];
+
+for (const userAgent of CRAWLERS) {
   test(`robots allows only the two exact public discovery URLs for ${userAgent}`, async () => {
     const response = await fetch(`${baseUrl}/robots.txt`);
     assert.equal(response.status, 200);
@@ -1328,114 +1334,73 @@ for (const userAgent of ['generic-crawler', 'Googlebot', 'Google-Extended', 'bin
       '/api/users/search/', '/api/users/search/private', '/api/users/searching', '/api/users/search.json',
       '/api/users/private-listener', '/api/users/private-listener/favorites',
       '/api/user/favorites', '/api/auth/me', '/api/auth/token-session', '/api/admin/users',
-      '/en/profile', '/en/recommendations',
+      '/api/admin', '/api/auth',
     ]) {
       assert.equal(allows(path, userAgent), false, `${userAgent} must not fetch ${path}`);
     }
   });
 }
 
-test('robots applies generic crawl bounds to Google-Extended and search bots without blocking public discovery', async () => {
+test('one compact robots policy permits every HTML route and protects operational APIs for every crawler', async () => {
   const response = await fetch(`${baseUrl}/robots.txt`);
-  assert.equal(response.status, 200);
   const body = await response.text();
-  assert.doesNotMatch(body, /^User-agent: (?:Google-Extended|OAI-SearchBot|bingbot)\s*$/im);
+  assert.deepEqual(body.match(/^User-agent:.*$/gm), ['User-agent: *']);
+  assert.deepEqual(body.match(/^Allow:.*$/gm), [
+    'Allow: /api/users/search$',
+    'Allow: /api/users/search?page=1&limit=20&sortBy=recent_favorites$',
+  ]);
+  assert.ok(body.split('\n').length < 40, 'No locale or bot multiplication');
+  assert.equal(body.match(/^Sitemap:/gm)?.length, 2);
+  assert.ok(body.endsWith('/sitemap-blog.xml'));
+  assert.doesNotMatch(body, /Google-Extended|GPTBot|utm_|fbclid|gclid/);
+  assert.ok(body.split('\n').filter(line => line.startsWith('Disallow:')).every(line => line.startsWith('Disallow: /api/')));
+
   const allows = parseRobotsRules(body);
-  const publicPaths = [
-    '/en/station/fixture-radio', '/fr/station/fixture-radio', '/ar/mahta/fixture-radio',
-    '/en/stations', '/en/stations?page=2', '/en/genres/rock?page=2',
-    '/en/regions/europe/germany/stations?page=2', '/en/about',
-    '/en/blog/radio-data-usage', '/en/blog/listen-to-radio-online',
-    '/images/fixture.webp', '/station-logos/fixture.webp',
-    '/api/image/fixture?w=256', '/api/og-image/fixture',
-    '/assets/app.js', '/assets/app.css', '/api/stations?page=2', '/api/genres', '/api/regions',
-    '/search?q=fixture', '/en/search?q=fixture', '/llms', '/en/llms',
-    '/api/users/search', '/api/users/search?page=1&limit=20&sortBy=recent_favorites',
+  const readable = [
+    '/', '/recommendations', '/trending', '/favorites', '/profile', '/admin', '/auth/login',
+    '/en/station/premium', '/de/sender/admin', '/en/genres/trending', '/en/stations?page=2',
+    '/en/regions/europe/germany/stations?page=2', '/en/about', '/en/blog/radio-data-usage',
+    '/en/search?q=fixture', '/en/profile/settings', '/en/login', '/en/favorites', '/en/notifications',
+    '/assets/app.js', '/assets/app.css', '/images/fixture.webp', '/station-logos/fixture.webp',
+    '/api/image/fixture?w=256', '/api/og-image/fixture', '/api/stations?page=2',
+    '/api/genres', '/api/regions', '/api/user-engagement/trending',
+    '/api/user-engagement/community/favorites', '/api/recommendations/pool',
   ];
-  const privatePaths = [
-    '/api/admin/stations', '/api/auth/me', '/api/user/favorites', '/api/users/private-listener',
+  for (const parameter of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'ref', 'fbclid', 'gclid']) {
+    readable.push(`/en/stations?page=2&${parameter}=fixture`);
+  }
+  const restricted = [
+    '/api/admin', '/api/admin/', '/api/admin?probe=1', '/api/admin/stations',
+    '/api/auth', '/api/auth/', '/api/auth/me', '/api/user/favorites', '/api/users/private-listener',
     '/api/sync/stations', '/api/test/probe', '/api/payments/checkout', '/api/iap/verify',
     '/api/push/register', '/api/stream/proxy', '/api/stream-analysis', '/api/stream-https-analysis',
     '/api/tv/session', '/api/analytics', '/api/messages/inbox', '/api/cast/session', '/api/ml/model',
     '/api/internal/stats', '/api/cache/keys', '/api/logs/recent',
-    '/en/admin', '/en/admin/stations', '/en/profile', '/en/profile/settings', '/en/settings',
-    '/en/messages', '/messages', '/en/analytics', '/en/import-export', '/en/login', '/en/signup',
-    '/en/premium', '/en/premium-success', '/en/activate', '/en/activate-success', '/en/reset-password',
-    '/en/notifications', '/en/recommendations', '/en/trending', '/en/favorites', '/en/request-station',
-    '/en/dashboard', '/en/feedback', '/en/station-requests', '/en/station-submissions',
-    '/en/status-monitoring', '/en/sync', '/en/change-password', '/en/forgot-password', '/en/tv-login',
   ];
-  for (const parameter of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'ref', 'fbclid', 'gclid']) {
-    privatePaths.push(`/en/stations?${parameter}=fixture`, `/en/stations?page=2&${parameter}=fixture`);
-  }
-  for (const userAgent of ['generic-crawler', 'Googlebot', 'Google-Extended', 'bingbot', 'OAI-SearchBot']) {
-    for (const path of publicPaths) {
-      assert.equal(allows(path, userAgent), true, `${userAgent} must fetch public/noindex-readable ${path}`);
-      assert.equal(allows(path, userAgent), allows(path, 'generic-crawler'), `${userAgent} must match the generic rules for ${path}`);
-    }
-    for (const path of privatePaths) {
-      assert.equal(allows(path, userAgent), false, `${userAgent} must not fetch ${path}`);
-      assert.equal(allows(path, userAgent), allows(path, 'generic-crawler'), `${userAgent} must match the generic rules for ${path}`);
-    }
-  }
-  for (const userAgent of ['GPTBot', 'CCBot', 'Bytespider', 'cohere-ai', 'Meta-ExternalAgent', 'Diffbot']) {
-    for (const path of [...publicPaths, ...privatePaths]) {
-      assert.equal(allows(path, userAgent), false, `${userAgent} must remain blocked on ${path}`);
-    }
-  }
-  assert.equal(allows('/en/about', 'ChatGPT-User'), true);
-});
-
-test('robots private namespaces never swallow canonical catalogue identities', async () => {
-  const response = await fetch(`${baseUrl}/robots.txt`);
-  const allows = parseRobotsRules(await response.text());
-  const slugs = ['premium', 'premium-fm', 'premium-fm-94-7-mhz-muriae-mg', 'activate-fm', 'trending', 'trending-radio',
-    'admin', 'admin-fm', 'profile', 'profile-fm', 'settings-radio'];
-  for (const language of QUALIFIED_LANGS) {
-    for (const slug of slugs) {
-      const path = buildLocalizedUrl(`/station/${slug}`, language, undefined, new Map());
-      for (const agent of ['Googlebot', 'Google-Extended', 'bingbot', 'OAI-SearchBot']) {
-        assert.equal(allows(path, agent), true, `${agent} must fetch the public identity ${path}`);
-        assert.equal(allows(`${path}?utm_source=fixture`, agent), false, 'Tracking bounds must not be overridden by a public-prefix Allow');
-      }
-    }
-  }
-  for (const path of ['/en/blog/premium', '/en/genres/trending', '/de/sender/profile-fm']) {
-    assert.equal(allows(path, 'Googlebot'), true, `A private word is not private outside its namespace: ${path}`);
+  for (const agent of CRAWLERS) {
+    for (const path of readable) assert.equal(allows(path, agent), true, `${agent}: ${path}`);
+    for (const path of restricted) assert.equal(allows(path, agent), false, `${agent}: ${path}`);
   }
 });
 
-test('robots private namespaces retain routing locales, country aliases and localized profile subtrees', async () => {
-  const response = await fetch(`${baseUrl}/robots.txt`);
-  const allows = parseRobotsRules(await response.text());
+test('all14 languages and country aliases allow public discovery and private HTML noindex to be read', async () => {
+  const body = await (await fetch(`${baseUrl}/robots.txt`)).text();
+  const allows = parseRobotsRules(body);
   for (const locale of PUBLIC_SEO_LOCALE_CODES) {
-    for (const root of ['admin', 'profile', 'settings', 'dashboard', 'tv-login']) {
-      for (const suffix of ['', '?tab=settings', '/settings']) {
-        const path = `/${locale}/${root}${suffix}`;
-        for (const agent of ['Googlebot', 'Google-Extended']) {
-          assert.equal(allows(path, agent), false, `${agent} must retain the private namespace: ${path}`);
-        }
+    for (const root of ['trending', 'recommendations', 'favorites', 'profile', 'admin', 'settings', 'search']) {
+      for (const agent of CRAWLERS) assert.equal(allows(`/${locale}/${root}`, agent), true);
+    }
+  }
+  for (const language of QUALIFIED_LANGS) {
+    for (const key of ['trending', 'recommendations', 'favorites', 'profile', 'login', 'search']) {
+      const path = buildLocalizedUrl(`/${key}`, language, undefined, new Map());
+      const encoded = `/${language}/${encodeURIComponent(URL_TRANSLATIONS[language]?.[key] || key)}`;
+      for (const agent of CRAWLERS) {
+        assert.equal(allows(path, agent), true, `${agent}: ${path}`);
+        assert.equal(allows(encoded, agent), true, `${agent}: ${encoded}`);
       }
     }
   }
-  for (const path of ['/de/profil/settings', '/de/profil/einstellungen', '/at/profil/settings', '/nl/profiel/settings',
-    '/fr/profil/notifications', '/zh/%E4%B8%AA%E4%BA%BA%E8%B5%84%E6%96%99/settings']) {
-    for (const agent of ['Googlebot', 'Google-Extended', 'bingbot', 'OAI-SearchBot', 'Baiduspider', 'Sogou']) {
-      assert.equal(allows(path, agent), false, `${agent} must retain the localized private profile boundary: ${path}`);
-    }
-  }
-});
-
-test('robots expanded private namespaces remain below the Google parser limit with trailing policies intact', async () => {
-  const response = await fetch(`${baseUrl}/robots.txt`);
-  const body = await response.text();
-  assert.ok(Buffer.byteLength(body, 'utf8') < 500 * 1024, 'Crawler policies and sitemap declarations must not be truncated');
-  assert.doesNotMatch(body, /^User-agent: Google-Extended\s*$/im);
-  assert.match(body, /User-agent: GPTBot\nDisallow: \/\s/);
-  assert.match(body, /User-agent: DuckAssistBot\nAllow: \/\s/);
-  assert.ok(body.endsWith('/sitemap-blog.xml'));
-  assert.doesNotMatch(body, /^Disallow: \/\*\/[a-z-]+/m, 'A greedy multi-segment private prefix must not return');
-  assert.doesNotMatch(body, /^Allow: \/(?:en\/station|de\/sender)\//m, 'Do not fix this by overriding other bounds with a broad catalogue Allow');
 });
 
 test('/sitemap.xml returns the sitemap-index XML directly (Task #128 contract)', async () => {

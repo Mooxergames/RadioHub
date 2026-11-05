@@ -21,7 +21,7 @@ if (previousEnforce === undefined) delete process.env.ENFORCE_CF_ONLY;
 else process.env.ENFORCE_CF_ONLY = previousEnforce;
 
 function observe(country: string, method: string, path: string) {
-  const result = { continued: false, destroyed: false };
+  const result: { continued: boolean; destroyed: boolean; status?: number } = { continued: false, destroyed: false };
   const headers: Record<string, string> = {};
   const req = {
     method, path,
@@ -32,6 +32,9 @@ function observe(country: string, method: string, path: string) {
   const res = {
     getHeader(name: string) { return headers[name]; },
     setHeader(name: string, value: string) { headers[name] = value; },
+    status(code: number) { result.status = code; return this; },
+    type() { return this; },
+    send() { return this; },
   } as unknown as Response;
   geoBlockMiddleware(req, res, () => { result.continued = true; });
   return result;
@@ -84,14 +87,14 @@ test('unrelated browsing, admin, auth-debug, unsupported methods and path disgui
   for (const [method, path] of denied) {
     assert.equal(isPublicTvAccessRequest(method, path), false, `${method} ${path}`);
     for (const country of ['SG', 'TH']) {
-      assert.deepEqual(observe(country, method, path), { continued: false, destroyed: true }, `${country} ${method} ${path}`);
+      assert.deepEqual(observe(country, method, path), { continued: false, destroyed: false, status: 403 }, `${country} ${method} ${path}`);
     }
   }
 });
 
 test('the TV exception does not bypass CF-only origin protection or change nonblocked-country behavior', () => {
   for (const [method, path] of [['GET', '/en/tv'], ['POST', '/api/auth/login']]) {
-    assert.deepEqual(observe('', method, path), { continued: false, destroyed: true });
+    assert.deepEqual(observe('', method, path), { continued: false, destroyed: false, status: 403 });
   }
   assert.deepEqual(observe('AT', 'GET', '/en/station/example'), { continued: true, destroyed: false });
   assert.deepEqual(observe('US', 'POST', '/api/auth/login'), { continued: true, destroyed: false });

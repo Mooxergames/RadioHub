@@ -19,6 +19,9 @@ vi.mock('@/hooks/useSeoRouting', () => ({
 vi.mock('@/hooks/useTranslation', () => ({
   useTranslation: () => ({ language: state.language, t: (_key: string, fallback?: string) => fallback || _key }),
 }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ isAuthenticated: false }) }));
+vi.mock('@/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => ({ playStation: vi.fn() }) }));
+vi.mock('@/components/ui/station-card', () => ({ default: () => null }));
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (options: any) => {
     state.options.push(options);
@@ -32,9 +35,11 @@ vi.mock('@/utils/ssr-seo-head', async (importOriginal) => ({
 
 import { createInitialSsrHeadGuard } from '../src/utils/ssr-seo-head';
 import { SeoPageWrapper } from '../src/components/SeoPageWrapper';
+import TrendingStations from '../src/pages/TrendingStations';
 import { SeoHead as PageSeoHead } from '../src/components/SeoHead';
 import ListStructuredData from '../src/components/seo/ListStructuredData';
 import { generateSeoTags, SITEMAP_PRIORITY_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 
 function seedSsr() {
   document.head.innerHTML = `<title>Test Radyo — Canlı Dinle</title>
@@ -63,6 +68,43 @@ beforeEach(() => {
 });
 
 describe('one owner for the initial SSR head and subsequent navigation', () => {
+  it('direct trending routes replace private metadata in all14 locales and restore private noindex on navigation back', () => {
+    const view = render(<TrendingStations />);
+    for (const language of SITEMAP_PRIORITY_LANGUAGES.universal14) {
+      for (const kind of ['favorites', 'trending', 'recommendations', 'favorites']) {
+        const path = `/${language}/${URL_TRANSLATIONS[language]?.[kind] || kind}`;
+        const canonical = `https://themegaradio.com${path}`;
+        const robots = kind === 'favorites' ? 'noindex, follow' : 'index, follow';
+        const hreflangs = kind === 'favorites' ? [] : [{ hreflang: language, url: canonical }];
+        state.location = path; state.language = language;
+        state.data.set(`/api/seo/page-data|${path}|${language}`, { seoTags: {
+          title: `${language}: ${kind}`, canonical, robots, hreflangs,
+        } });
+        view.rerender(kind === 'trending' ? <TrendingStations /> : <SeoPageWrapper><div /></SeoPageWrapper>);
+        expect(document.title).toBe(`${language}: ${kind}`);
+        expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+        expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', canonical);
+        expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', robots);
+        expect(document.querySelectorAll('link[hreflang]')).toHaveLength(hreflangs.length);
+      }
+    }
+  });
+
+  it('trending preserves initial SSR metadata and does not add a second owner inside PlayerWrapper', () => {
+    state.location = '/en/trending'; state.language = 'en';
+    initialGuard = createInitialSsrHeadGuard(state.location);
+    document.title = 'Server trending title';
+    const view = render(<TrendingStations />);
+    const queries = () => state.options.filter(option => option.queryKey[0] === '/api/seo/page-data');
+    expect(queries()).toHaveLength(1);
+    expect(queries()[0].enabled).toBe(false);
+    expect(document.title).toBe('Server trending title');
+    state.options = [];
+    view.rerender(<SeoPageWrapper><TrendingStations /></SeoPageWrapper>);
+    expect(queries()).toHaveLength(1);
+    expect(document.title).toBe('Server trending title');
+  });
+
   it('keeps the shared localized-meta choice through station navigation in all 14 locales', async () => {
     const content = <PageSeoHead pageType="station" stationData={null} />;
     const view = render(<SeoPageWrapper>{content}</SeoPageWrapper>);

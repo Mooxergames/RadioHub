@@ -4,9 +4,8 @@ import { isPublicTvAccessRequest } from './public-tv-access';
 /**
  * Geo-Block Middleware
  *
- * Drops TCP connections from blocked countries with no HTTP response,
- * forcing the client to see a connection reset (RST) instead of a 403.
- * This saves bandwidth and CPU vs sending a response body.
+ * Rejects blocked requests with an uncacheable HTTP 403. Destroying the
+ * connection here makes reverse proxies report a false origin outage (502).
  *
  * Source of truth: Cloudflare's `cf-ipcountry` request header (ISO-3166-1 alpha-2).
  * Cloudflare sets this on every request that hits our origin.
@@ -28,7 +27,7 @@ const BLOCKED_COUNTRIES: Set<string> = new Set(
 
 // Production hosts that MUST go through Cloudflare. If a request claims
 // one of these Host headers but has no `cf-ipcountry`, it is a direct
-// origin connection (CF bypass attempt) — drop it.
+// origin connection (CF bypass attempt) -- reject it.
 const PROTECTED_HOSTS: Set<string> = new Set(
   (process.env.PROTECTED_HOSTS ||
     'themegaradio.com,www.themegaradio.com,api.themegaradio.com,stream.themegaradio.com'
@@ -46,9 +45,13 @@ const PROTECTED_HOSTS: Set<string> = new Set(
 // have been allowlisted by path/source-IP.
 const ENFORCE_CF_ONLY = process.env.ENFORCE_CF_ONLY === 'true';
 
-// Health check / internal paths that must NEVER be blocked, regardless of source.
+// Read-only health probes must reach their downstream readiness/liveness checks.
 const HEALTH_PATHS = new Set([
   '/healthz', '/health', '/ready', '/readyz', '/live', '/livez', '/status', '/ping',
+]);
+
+const PUBLIC_ASSOCIATION_PATHS = new Set([
+  '/.well-known/assetlinks.json', '/.well-known/apple-app-site-association',
 ]);
 
 // Private/loopback IPs are always trusted (Railway internal network, localhost).
@@ -69,12 +72,9 @@ let blockedCount = 0;
 let bypassCount = 0;
 let lastLoggedAt = 0;
 
-function dropSocket(req: Request): void {
-  try {
-    req.socket?.destroy();
-  } catch {
-    // Socket already gone
-  }
+function rejectRequest(res: Response): void {
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.status(403).type('text/plain').send('Forbidden');
 }
 
 function maybeFlushLog(): void {
@@ -82,7 +82,7 @@ function maybeFlushLog(): void {
   if (now - lastLoggedAt > 60_000) {
     if (blockedCount > 0 || bypassCount > 0) {
       console.log(
-        `🚫 GEO-BLOCK: ${blockedCount} blocked-country drops, ${bypassCount} CF-bypass drops in last window ` +
+        `GEO-BLOCK: ${blockedCount} blocked-country responses, ${bypassCount} CF-bypass responses in last window ` +
         `(blocked=${Array.from(BLOCKED_COUNTRIES).join(',')})`
       );
     }
@@ -92,24 +92,8 @@ function maybeFlushLog(): void {
   }
 }
 
-// SEO FIX (2026-05-08): bypass geo-blocking for verified search-engine
-// crawlers. Google/Bing/Yandex distribute their crawl across regions and
-// will sometimes hit us from a "blocked" country (e.g. SG datacenter).
-// Dropping their socket = "host unreachable" in GSC, which throttles
-// indexing site-wide. We trust the UA string here because reverse-DNS
-// verification is too slow for the request hot path and the worst-case
-// downside (an attacker spoofing Googlebot to bypass a country block)
-// is acceptable: they still hit our normal app surface.
-// 2026-05-12 update: AI crawlers (GPTBot, ChatGPT-User, OAI-SearchBot,
-// CCBot, anthropic-ai, ClaudeBot/Claude-Web, PerplexityBot/Perplexity-User,
-// Bytespider, cohere-ai, Google-Extended, Meta-ExternalAgent, Amazonbot,
-// DuckAssistBot, YouBot, Diffbot, Applebot-Extended) are now ADDED to the
-// bypass list — they were previously omitted because robots.txt Disallow:/'d
-// them, but per the 30/04/2026 SEO audit and user direction we want full AI
-// presence (ChatGPT/Claude/Perplexity citations + Google AI Overviews +
-// Apple Intelligence). Letting them through geo-block ensures crawls from
-// any datacenter region succeed, mirroring the rate-limiter exemption in
-// index-web.ts and the Allow:/ stanzas in /robots.txt.
+// Existing crawler UA exceptions preserve cross-region access. These strings
+// are spoofable and are not identity verification or an authentication bypass.
 const SEARCH_BOT_BYPASS_RE = /\b(googlebot|google-inspectiontool|google-extended|bingbot|yandexbot|slurp|duckduckbot|baiduspider|applebot|applebot-extended|sogou|petalbot|seznambot|naverbot|facebookexternalhit|twitterbot|linkedinbot|gptbot|chatgpt-user|oai-searchbot|ccbot|anthropic-ai|claude-web|claudebot|bytespider|perplexitybot|perplexity-user|cohere-ai|meta-externalagent|amazonbot|duckassistbot|youbot|diffbot)\b/i;
 
 export function geoBlockMiddleware(req: Request, res: Response, next: NextFunction): void {
@@ -119,19 +103,24 @@ export function geoBlockMiddleware(req: Request, res: Response, next: NextFuncti
     ''
   ).toUpperCase();
 
-  // 0. Always let verified crawlers through, even from blocked geos.
+  // Preserve the existing UA-based crawler exception; this is not bot verification.
   const ua = String(req.headers['user-agent'] || '');
   if (SEARCH_BOT_BYPASS_RE.test(ua)) {
     next();
     return;
   }
 
-  // 1. Block known bad countries
+  const isRead = req.method === 'GET' || req.method === 'HEAD';
+  const isHealth = isRead && HEALTH_PATHS.has(req.path);
+  const isPublicAssociation = isRead && PUBLIC_ASSOCIATION_PATHS.has(req.path);
+
+  // App-link verification is public metadata, not authenticated application data.
   if (BLOCKED_COUNTRIES.size > 0 && cc && BLOCKED_COUNTRIES.has(cc)
+    && !isHealth && !isPublicAssociation
     && !isPublicTvAccessRequest(req.method, req.path)) {
     blockedCount++;
     maybeFlushLog();
-    dropSocket(req);
+    rejectRequest(res);
     return;
   }
 
@@ -141,22 +130,18 @@ export function geoBlockMiddleware(req: Request, res: Response, next: NextFuncti
   //    (Railway internal network, container self-pings).
   if (ENFORCE_CF_ONLY && !cc) {
     const host = String(req.headers.host || '').toLowerCase().split(':')[0];
-    const path = (req.path || req.url || '').split('?')[0];
     const srcIp = (req.ip || req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
-    const isHealth = HEALTH_PATHS.has(path);
     const isInternal = isPrivateOrLoopback(srcIp);
     if (host && PROTECTED_HOSTS.has(host) && !isHealth && !isInternal) {
       bypassCount++;
       maybeFlushLog();
-      dropSocket(req);
+      rejectRequest(res);
       return;
     }
   }
 
-  // 3. Tell Cloudflare to vary cache by country, so SG/TH cannot be served
-  //    a cached response that was originally generated for another country.
-  //    Combined with a CF Cache Rule, this guarantees SG/TH always reach the
-  //    origin (where the geo-block above will drop them).
+  // Preserve the existing country variation hint. Denials must never be cached;
+  // a CDN's actual cache-key policy is configured separately from this header.
   res.setHeader('Vary', appendVary(res.getHeader('Vary'), 'CF-IPCountry'));
 
   next();
