@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { getPublicStationDeadline, withPublicStationDeadline, limitPublicStationDeadline } from '../src/utils/public-station-deadline';
 import { getSeoReadDeadline, withSeoReadDeadline } from '../src/utils/seo-read-deadline';
-import { completeDescriptionLanguagesSql } from '../src/data/station-description-sql';
+import { SITEMAP_PRIORITY_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
 const calls: any[] = [];
 const rows = [{ _id: 'fixture', slug: 'fixture-radio', completeDescriptionLanguages: ['de'] }];
@@ -15,17 +15,20 @@ mock.module('../src/data/postgres-seo-read-query', { namedExports: { boundedSeoR
 const { readSeoStationLinkMetadata } = await import('../src/data/postgres-seo-station-link-store');
 beforeEach(() => { calls.length = 0; failure = false; });
 
-test('one parameterized ID batch uses the existing trusted presence expression without returning prose/source', async () => {
+test('one parameterized ID batch uses transactional presence masks without reading prose/source', async () => {
   const ids = ['fixture', 'other'];
   assert.deepEqual(await readSeoStationLinkMetadata(ids), rows);
   assert.equal(calls.length, 1);
   const { sql, values } = calls[0];
-  assert.deepEqual(values, [ids]);
-  assert.ok(sql.includes('WHERE id=ANY($1::text[])'));
-  assert.ok(sql.includes(completeDescriptionLanguagesSql('descriptions') + ' AS "completeDescriptionLanguages"'));
+  assert.deepEqual(values, [ids, SITEMAP_PRIORITY_LANGUAGES.universal14]);
+  assert.ok(sql.includes('WHERE s.id=ANY($1::text[])'));
+  assert.ok(sql.includes('JOIN station_description_summary d ON d.station_id=s.id'));
+  assert.ok(!sql.includes('LEFT JOIN') && !sql.includes('COALESCE'));
+  assert.ok(sql.includes('d.full_mask & d.meta_mask & (1 << (locale.position::integer-1))'));
+  assert.ok(sql.includes('unnest($2::text[]) WITH ORDINALITY'));
   assert.ok(sql.includes('country_code AS "countryCode"') && sql.includes('language_codes AS "languageCodes"'));
   assert.ok(sql.includes('no_index AS "noIndex"') && sql.includes('redirect_to_slug AS "redirectToSlug"'));
-  assert.ok(!sql.includes('SELECT *') && !sql.includes('source') && !sql.includes(',descriptions,'));
+  assert.ok(!sql.includes('SELECT *') && !sql.includes('source') && !sql.includes('descriptions') && !sql.includes('jsonb_each'));
 });
 
 test('empty/oversized batches never issue SQL, and bounded read errors remain unknown to the caller', async () => {

@@ -6,6 +6,7 @@ import { createNativePostgresFixture, type NativePostgresFixture } from './helpe
 import { resolveStationLinkLanguages } from '../src/seo/station-link-locale';
 import { readSeoStationLinkMetadata } from '../src/data/postgres-seo-station-link-store';
 import { withSeoReadDeadline } from '../src/utils/seo-read-deadline';
+import { completeDescriptionLanguagesSql } from '../src/data/station-description-sql';
 
 mock.module('../src/performance-cache', { namedExports: { performanceCache: {
   getPageData: () => undefined, setPageData: () => {}, getTranslations: () => ({}), getUrlTranslations: async () => new Map(),
@@ -52,6 +53,63 @@ describe('native SSR station target locale projection (explicit disposable Postg
       assert.deepEqual(await readSeoStationLinkMetadata(['missing-fixture']), []);
     });
 
+    test('all fourteen single-bit summaries match the native JSON presence expression', async () => {
+      const ids = [];
+      for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+        const id = `bit-${language}`; ids.push(id);
+        await fixture.insert('stations', { _id: id, stationuuid: id, name: 'Bit fixture', slug: id,
+          url: 'https://stream.invalid/live', descriptions: { [language]: { full: 'Full', meta: 'Meta' } } });
+      }
+      const rows = await readSeoStationLinkMetadata(ids);
+      assert.equal(rows.length, 14);
+      for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+        assert.deepEqual(rows.find(row => row._id === `bit-${language}`)?.completeDescriptionLanguages, [language]);
+      }
+      const native = (await fixture.pool.query(`SELECT id AS _id,
+        ${completeDescriptionLanguagesSql('descriptions')} AS "completeDescriptionLanguages"
+        FROM stations WHERE id=ANY($1::text[]) ORDER BY id`, [ids])).rows;
+      assert.deepEqual(rows.map(row => ({ _id: row._id, completeDescriptionLanguages: row.completeDescriptionLanguages }))
+        .sort((a, b) => a._id.localeCompare(b._id)), native);
+    });
+
+    test('separate full/meta bits, non-string fields and Unicode whitespace are not complete languages', async () => {
+      const id = 'incomplete-bits';
+      await fixture.insert('stations', { _id: id, stationuuid: id, name: 'Presence fixture', slug: id,
+        url: 'https://stream.invalid/live', descriptions: { en: { full: 'Full' }, de: { meta: 'Meta' },
+          tr: { full: '\u00a0\ufeff', meta: 'Meta' }, fr: { full: false, meta: 'Meta' },
+          ja: { full: ['Text'], meta: 'Meta' }, ko: { full: 'Text', meta: { text: 'Meta' } } } });
+      const rows = await readSeoStationLinkMetadata([id]);
+      assert.deepEqual(rows[0]?.completeDescriptionLanguages, []);
+    });
+
+    test('a missing native summary is unknown and never invents an English fallback', async () => {
+      const id = 'missing-summary';
+      await fixture.insert('stations', { _id: id, stationuuid: id, name: 'Missing summary fixture', slug: id,
+        url: 'https://stream.invalid/live', countryCode: 'US', descriptions: {} });
+      await fixture.pool.query('DELETE FROM station_description_summary WHERE station_id=$1', [id]);
+      const rows = await readSeoStationLinkMetadata([id, 'us-untranslated']);
+      assert.deepEqual(rows.map(row => row._id), ['us-untranslated']);
+      assert.equal(Object.hasOwn(resolveStationLinkLanguages([{ _id: id, slug: id }], rows, 'de', ACTIVE_SITEMAP_LANGUAGES), id), false);
+    });
+
+    test('committed description updates change the summary while rollback preserves the prior presence', async () => {
+      const id = 'transactional-summary';
+      await fixture.insert('stations', { _id: id, stationuuid: id, name: 'Transactional fixture', slug: id,
+        url: 'https://stream.invalid/live', descriptions: { en: { full: 'Full', meta: 'Meta' } } });
+      const descriptions = JSON.stringify({ de: { full: 'Volltext', meta: 'Meta' } });
+      const client = await fixture.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('UPDATE stations SET descriptions=$2::jsonb WHERE id=$1', [id, descriptions]);
+        const own = await client.query('SELECT full_mask & meta_mask AS complete FROM station_description_summary WHERE station_id=$1', [id]);
+        assert.equal(own.rows[0].complete, 1 << ACTIVE_SITEMAP_LANGUAGES.indexOf('de'));
+        assert.deepEqual((await readSeoStationLinkMetadata([id]))[0]?.completeDescriptionLanguages, ['en']);
+      } finally { await client.query('ROLLBACK'); client.release(); }
+      assert.deepEqual((await readSeoStationLinkMetadata([id]))[0]?.completeDescriptionLanguages, ['en']);
+      await fixture.pool.query('UPDATE stations SET descriptions=$2::jsonb WHERE id=$1', [id, descriptions]);
+      assert.deepEqual((await readSeoStationLinkMetadata([id]))[0]?.completeDescriptionLanguages, ['de']);
+    });
+
     test('real native A-Z reader shares resolved hrefs with its DTO/JSON-LD; home retains its original locale', async () => {
       const { SeoRenderer } = await import('../src/seo-renderer');
       const renderer = new SeoRenderer(), origin = 'https://themegaradio.com';
@@ -95,7 +153,7 @@ describe('native SSR station target locale projection (explicit disposable Postg
       assert.ok(rows.every(row => row.completeDescriptionLanguages.length === 14 && ids.includes(row._id)));
       const bytes = Buffer.byteLength(JSON.stringify(rows));
       assert.ok(bytes < 100000);
-      t.diagnostic(JSON.stringify({ fixtureRows: 10105, targetRows: 100, articleBytesPerStation: Buffer.byteLength(JSON.stringify(descriptions)),
+      t.diagnostic(JSON.stringify({ targetRows: 100, articleBytesPerStation: Buffer.byteLength(JSON.stringify(descriptions)),
         responseBytes: bytes, elapsedMs, note: 'Local synthetic observation, not production latency or a load test' }));
     });
 
