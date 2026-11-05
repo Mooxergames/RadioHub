@@ -58,6 +58,9 @@ const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const strings = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(text);
+const links = (value: unknown): boolean =>
+  Array.isArray(value) && value.length > 0 &&
+  value.every((link) => object(link) && text(link.route) && text(link.label));
 
 export function validateMarketArticles(
   locale: BlogLocale,
@@ -94,18 +97,15 @@ export function validateMarketArticles(
           !text(section.heading) ||
           !strings(section.paragraphs) ||
           !section.paragraphs.length ||
-          (section.items !== undefined && !strings(section.items)),
+          (section.items !== undefined && !strings(section.items)) ||
+          (section.links !== undefined && !links(section.links)),
       ) ||
       !Array.isArray(article.faq) ||
       !article.faq.length ||
       article.faq.some(
         (faq) => !object(faq) || !text(faq.question) || !text(faq.answer),
       ) ||
-      !Array.isArray(article.links) ||
-      !article.links.length ||
-      article.links.some(
-        (link) => !object(link) || !text(link.route) || !text(link.label),
-      ) ||
+      !links(article.links) ||
       (article.relatedIds !== undefined &&
         (!strings(article.relatedIds) ||
           article.relatedIds.some((id) => !blogAvailable(id, locale)))) ||
@@ -198,6 +198,10 @@ export function buildBlogSeo({
     twitterTitle: title,
     twitterDescription: description,
     twitterImage: image,
+    ogImageAlt: article?.imageAlt || content.articles.find((entry) => entry.id === "listen-to-radio-online")?.imageAlt,
+    twitterImageAlt: article?.imageAlt || content.articles.find((entry) => entry.id === "listen-to-radio-online")?.imageAlt,
+    articlePublishedTime: article ? blogMetadata(article.id, locale).publishedAt : undefined,
+    articleModifiedTime: article ? blogMetadata(article.id, locale).updatedAt : undefined,
     hreflangs: blogAlternates(article?.id),
   };
 }
@@ -256,8 +260,8 @@ export function buildBlogSchema(page: BlogPageData): object[] {
       headline: article.title,
       description: article.description,
       inLanguage: blogLanguage(locale, article.id),
-      datePublished: blogMetadata(article.id).publishedAt,
-      dateModified: blogMetadata(article.id).updatedAt,
+      datePublished: blogMetadata(article.id, locale).publishedAt,
+      dateModified: blogMetadata(article.id, locale).updatedAt,
       image: {
         "@type": "ImageObject",
         url: origin + blogImage(article.id),

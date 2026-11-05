@@ -251,7 +251,21 @@
     "sections": [
       {
         "heading": "Start with the local station's identity",
-        "paragraphs": ["Write down the call letters or station name, the city and, if you know it, the programme you want. 'NPR live' does not tell a directory which local service you mean. A saved link from another state may explain unfamiliar local references without a playback fault.", "For Boston's WBUR, check that name rather than accept the first public-radio result. WBUR's own listening page distinguishes its live service from on-demand programmes and podcasts. Use that distinction as a way to read other station pages, not as a promise that every station offers exactly the same controls or apps."]
+        "paragraphs": [
+          "Write down the call letters or station name, the city and, if you know it, the programme you want. 'NPR live' does not tell a directory which local service you mean. A saved link from another state may explain unfamiliar local references without a playback fault.",
+          "For Boston's WBUR, check that name rather than accept the first public-radio result. WBUR's own listening page distinguishes its live service from on-demand programmes and podcasts. Use that distinction as a way to read other station pages, not as a promise that every station offers exactly the same controls or apps.",
+          "For a concrete local example, open the WBUR Boston station page and compare its programme with WBUR’s own schedule. The separate NPR 24 Hour Program Stream is another feed, not a guarantee of the same local programme. Check both identities before treating different audio as a playback fault."
+        ],
+        "links": [
+          {
+            "route": "station:wbur-90-9-fm-boston-mp3",
+            "label": "Open the WBUR Boston station page"
+          },
+          {
+            "route": "station:npr-24-hour-program-stream",
+            "label": "Compare the separate NPR program stream"
+          }
+        ]
       },
       {
         "heading": "Recognise a live feed before pressing play",
@@ -345,7 +359,17 @@
       },
       {
         "heading": "Use the official international route for the station",
-        "paragraphs": ["The BBC's update links to a directory for live listening and explains that Radio 4 and World Service English remain available through BBC.com and the BBC app. Choose the station you want using that official guidance.", "If you are looking for a music station, avoid concluding that it has closed simply because it is not the first item shown on a general audio page. Locate its entry in the official directory. Keep that reference separate from any third-party directory result so you can compare the intended station identity without assuming that all delivery paths are equivalent."]
+        "paragraphs": [
+          "The BBC's update links to a directory for live listening and explains that Radio 4 and World Service English remain available through BBC.com and the BBC app. Choose the station you want using that official guidance.",
+          "If you are looking for a music station, avoid concluding that it has closed simply because it is not the first item shown on a general audio page. Locate its entry in the official directory. Keep that reference separate from any third-party directory result so you can compare the intended station identity without assuming that all delivery paths are equivalent.",
+          "The BBC World Service page gives you a specific station to check alongside the BBC’s official international listening instructions. Regional availability can change, so use the broadcaster’s current guidance when a stream fails. A listing on MegaRadio does not remove geographic restrictions or confirm access to every BBC service."
+        ],
+        "links": [
+          {
+            "route": "station:bbc-world-service",
+            "label": "Check the BBC World Service station page"
+          }
+        ]
       },
       {
         "heading": "Separate live listening from catching up",
@@ -395,8 +419,23 @@
       },
       {
         "heading": "Verify the broadcaster's actual listening instructions",
-        "paragraphs": ["Once a current listing identifies the commentary, follow the broadcaster's instructions for that event. A main channel, an additional service and an online event page should not be treated as interchangeable without confirmation. If the game is not where you expected, return to the listing rather than cycling blindly through channels. Keep a note of the exact service name."],
-        "items": ["Confirm teams, date and any revised kick-off.", "Check whether the listing promises commentary or only updates.", "Read the named channel or event-page instructions.", "Allow for pre-match coverage without confusing it with kick-off.", "Check location restrictions separately from the UK rights announcement."]
+        "paragraphs": [
+          "Once a current listing identifies the commentary, follow the broadcaster's instructions for that event. A main channel, an additional service and an online event page should not be treated as interchangeable without confirmation. If the game is not where you expected, return to the listing rather than cycling blindly through channels. Keep a note of the exact service name.",
+          "BBC Radio 5 Live is one station page to check after confirming the fixture’s announced audio broadcaster. Its ordinary stream can carry discussion, updates or a different programme. Follow the broadcaster’s match-specific instructions and territorial rules rather than assuming the directory stream includes commentary."
+        ],
+        "items": [
+          "Confirm teams, date and any revised kick-off.",
+          "Check whether the listing promises commentary or only updates.",
+          "Read the named channel or event-page instructions.",
+          "Allow for pre-match coverage without confusing it with kick-off.",
+          "Check location restrictions separately from the UK rights announcement."
+        ],
+        "links": [
+          {
+            "route": "station:bbc-radio-5-live-128k",
+            "label": "BBC Radio 5 Live: check the station and match listing"
+          }
+        ]
       },
       {
         "heading": "Keep rights, playback and timing separate",

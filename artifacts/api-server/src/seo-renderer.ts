@@ -3766,6 +3766,9 @@ export class SeoRenderer {
     <meta property="og:type" content="${safeOgType}">
     <meta property="og:url" content="${safeCanonical}">
     <meta property="og:image" content="${safeOgImage}">
+    ${seoTags.ogImageAlt ? `<meta property="og:image:alt" content="${esc(seoTags.ogImageAlt)}">` : ''}
+    ${seoTags.ogType === 'article' && seoTags.articlePublishedTime ? `<meta property="article:published_time" content="${esc(seoTags.articlePublishedTime)}">` : ''}
+    ${seoTags.ogType === 'article' && seoTags.articleModifiedTime ? `<meta property="article:modified_time" content="${esc(seoTags.articleModifiedTime)}">` : ''}
     ${ogImageDimensions ? `<meta property="og:image:width" content="${ogImageDimensions.width}">\n    <meta property="og:image:height" content="${ogImageDimensions.height}">` : ''}
     <meta property="og:site_name" content="MegaRadio">
     <meta property="og:locale" content="${safeOgLocale}">
@@ -3776,6 +3779,7 @@ export class SeoRenderer {
     <meta name="twitter:title" content="${safeTwitterTitle}">
     <meta name="twitter:description" content="${safeTwitterDescription}">
     <meta name="twitter:image" content="${safeTwitterImage}">
+    ${seoTags.twitterImageAlt ? `<meta name="twitter:image:alt" content="${esc(seoTags.twitterImageAlt)}">` : ''}
     <meta name="twitter:site" content="@MegaRadio">
     <meta name="twitter:creator" content="@MegaRadio">
     

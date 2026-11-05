@@ -1550,6 +1550,9 @@ export interface SeoMetaTags {
   ogTitle?: string;
   ogDescription?: string;
   ogImage?: string;
+  ogImageAlt?: string;
+  articlePublishedTime?: string;
+  articleModifiedTime?: string;
   ogUrl?: string;
   ogType?: string;
   ogSiteName?: string;
@@ -1565,6 +1568,7 @@ export interface SeoMetaTags {
   twitterTitle?: string;
   twitterDescription?: string;
   twitterImage?: string;
+  twitterImageAlt?: string;
   canonical?: string;
   robots?: string;
   language?: string;

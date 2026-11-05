@@ -153,7 +153,7 @@ for (const locale of BLOG_LOCALES)
       assert.equal(schema[1].headline, article.title);
       assert.equal(schema[1].description, article.description);
       assert.equal(schema[1].image.caption, article.imageAlt);
-      const metadata = blogMetadata(article.id);
+      const metadata = blogMetadata(article.id, locale);
       assert.equal(schema[1].datePublished, metadata.publishedAt);
       assert.equal(schema[1].dateModified, metadata.updatedAt);
       assert.ok(Object.isFrozen(metadata));
@@ -275,7 +275,7 @@ test("editorial sitemap preserves 140 editions and lists only actual market edit
     assert.equal(
       entry.lastmod,
       route.id
-        ? blogMetadata(route.id).updatedAt
+        ? blogMetadata(route.id, route.locale).updatedAt
         : blogIndexUpdated(route.locale),
     );
     assert.ok(alternates.some((alt: any) => alt["@_href"] === entry.loc));
@@ -469,6 +469,10 @@ test("SSR entrypoint renders every actual edition and rejects absent editions", 
       );
       assert.ok(html.includes("<h1>"));
       assert.ok(head.includes("BlogPosting"));
+      assert.match(head, /property="og:image:alt"/);
+      assert.match(head, /name="twitter:image:alt"/);
+      assert.match(head, /property="article:published_time"/);
+      assert.match(head, /property="article:modified_time"/);
       assert.ok(head.includes("/blog.css"));
       assert.ok(!head.includes('themegaradio.com/zh-Hant-HK/'));
       const structured = renderer.generateStructuredData(

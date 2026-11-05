@@ -100,6 +100,17 @@ export function SeoHead({ seoData, structuredData, clearCanonical = false }: Seo
       ? twitterImage 
       : `${window.location.origin}${twitterImage.startsWith('/') ? '' : '/'}${twitterImage}`;
     updateMetaTag('twitter:image', absoluteTwitterImage);
+
+    for (const [property, content] of [
+      ['og:image:alt', seoData.ogImageAlt],
+      ['article:published_time', seoData.ogType === 'article' ? seoData.articlePublishedTime : undefined],
+      ['article:modified_time', seoData.ogType === 'article' ? seoData.articleModifiedTime : undefined],
+    ]) {
+      if (content) updateMetaTag('', content, property);
+      else document.querySelectorAll(`meta[property="${property}"]`).forEach(meta => meta.remove());
+    }
+    if (seoData.twitterImageAlt) updateMetaTag('twitter:image:alt', seoData.twitterImageAlt);
+    else document.querySelectorAll('meta[name="twitter:image:alt"]').forEach(meta => meta.remove());
     
     // Canonical URL
     if (clearCanonical) {
