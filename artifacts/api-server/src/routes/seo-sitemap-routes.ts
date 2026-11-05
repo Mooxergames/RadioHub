@@ -1107,9 +1107,6 @@ Disallow: /
 User-agent: CCBot
 Disallow: /
 
-User-agent: Google-Extended
-Disallow: /
-
 User-agent: Bytespider
 Disallow: /
 
