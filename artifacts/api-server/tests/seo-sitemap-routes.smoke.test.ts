@@ -27,6 +27,8 @@ import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { INDEXING_PILOT } from '../src/seo/indexing-pilot';
 import { MARKET_BLOG_MANIFEST, BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
+import { PUBLIC_SEO_LOCALE_CODES } from '../src/seo/public-route-matchers';
+import { SITEMAP_STYLESHEET, SITEMAP_STYLESHEET_INSTRUCTION } from '../src/seo/sitemap-presentation';
 
 /**
  * Task #194: assert XML well-formedness in addition to regex smoke
@@ -822,6 +824,8 @@ test('English pilot sitemaps expose only live eligible exact identities and rema
       assert.equal(response.status, 200);
       const xml = await response.text();
       const parsed = assertValidXml(xml, `pilot ${country}`) as any;
+      assert.equal(xml.split(SITEMAP_STYLESHEET_INSTRUCTION).length - 1, 1);
+      assert.equal(response.headers.get('etag'), xmlCacheFixture(xml).etag);
       assert.deepEqual(parsed.urlset.url.map((row: any) => new URL(row.loc).pathname),
         INDEXING_PILOT.filter(profile => profile.countryCode.toLowerCase() === country).map(profile => `/en/station/${profile.slug}`));
       assert.doesNotMatch(xml, /<lastmod>/);
@@ -1079,7 +1083,7 @@ test('owned image URLs replace both old station XML and validators without fresh
     }
     assert.equal(response.headers.get('last-modified'), null);
     assert.notEqual(response.headers.get('etag'), '"old-s3-image-xml"');
-    const newKey = oldKey.replace('xml-v3:', 'xml-v5-az-safe-owned-images:');
+    const newKey = oldKey.replace('xml-v3:', 'xml-v6-css-az-safe-owned-images:');
     assert.ok(fakeCacheStore.has(newKey));
     assert.ok(fakeCacheStore.has(`${newKey}:validator`));
     assert.equal((fakeCacheStore.get(oldKey) as any).xml, oldXml, 'unrelated old cache is not globally purged');
@@ -1098,7 +1102,7 @@ test('v5 ignores a prefilled v4 A-Z body and validator, returns changed XML 200,
   const ids = Object.freeze(rows.map(row => row._id));
   const suffix = `en:1:${TEST_HASH}:az-cache-migration:${NOW.getTime()}`;
   const oldKey = `sitemap:stations:xml-v4-owned-images:${suffix}`;
-  const newKey = `sitemap:stations:xml-v5-az-safe-owned-images:${suffix}`;
+  const newKey = `sitemap:stations:xml-v6-css-az-safe-owned-images:${suffix}`;
   const old = xmlCacheFixture('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>https://themegaradio.com/en/station/k</loc><xhtml:link rel="alternate" hreflang="de" href="https://themegaradio.com/de/sender/k"/></url><url><loc>https://themegaradio.com/en/station/ab</loc></url></urlset>');
   fakeCacheStore.clear();
   fakeCacheStore.set(oldKey, old);
@@ -1136,7 +1140,7 @@ test('an unchanged normal chunk still accepts its checksum ETag across the v4-to
   const ids = Object.freeze(rows.map(row => row._id));
   const suffix = `en:1:${TEST_HASH}:unchanged-normal:${NOW.getTime()}`;
   const oldKey = `sitemap:stations:xml-v4-owned-images:${suffix}`;
-  const newKey = `sitemap:stations:xml-v5-az-safe-owned-images:${suffix}`;
+  const newKey = `sitemap:stations:xml-v6-css-az-safe-owned-images:${suffix}`;
   sitemapReadRows = rows;
   builderOverrides.getActiveStationChunk = async () => ({ stationIds: ids, maxUpdatedAt: NOW, qualifiedLanguagesHash: TEST_HASH, version: 'unchanged-normal' });
   fakeCacheStore.clear();
@@ -1183,7 +1187,7 @@ test('reserved-only old chunks return uncached 503 in all 14 locales even with o
     for (const language of QUALIFIED_LANGS) {
       const suffix = `${language}:1:${TEST_HASH}:reserved-only:${NOW.getTime()}`;
       const oldKey = `sitemap:stations:xml-v4-owned-images:${suffix}`;
-      const newKey = `sitemap:stations:xml-v5-az-safe-owned-images:${suffix}`;
+      const newKey = `sitemap:stations:xml-v6-css-az-safe-owned-images:${suffix}`;
       const old = xmlCacheFixture(`<urlset><url><loc>https://themegaradio.com${buildLocalizedUrl('/station/k', language, undefined, new Map())}</loc></url></urlset>`);
       fakeCacheStore.set(oldKey, old);
       fakeCacheStore.set(`${oldKey}:validator`, Object.freeze({ etag: old.etag }));
@@ -1380,6 +1384,55 @@ test('robots applies generic crawl bounds equally to bingbot and OAI-SearchBot w
     }
   }
   assert.equal(allows('/en/about', 'ChatGPT-User'), true);
+});
+
+test('robots private namespaces never swallow canonical catalogue identities', async () => {
+  const response = await fetch(`${baseUrl}/robots.txt`);
+  const allows = parseRobotsRules(await response.text());
+  const slugs = ['premium', 'premium-fm', 'premium-fm-94-7-mhz-muriae-mg', 'activate-fm', 'trending', 'trending-radio',
+    'admin', 'admin-fm', 'profile', 'profile-fm', 'settings-radio'];
+  for (const language of QUALIFIED_LANGS) {
+    for (const slug of slugs) {
+      const path = buildLocalizedUrl(`/station/${slug}`, language, undefined, new Map());
+      for (const agent of ['Googlebot', 'bingbot', 'OAI-SearchBot']) {
+        assert.equal(allows(path, agent), true, `${agent} must fetch the public identity ${path}`);
+        assert.equal(allows(`${path}?utm_source=fixture`, agent), false, 'Tracking bounds must not be overridden by a public-prefix Allow');
+      }
+    }
+  }
+  for (const path of ['/en/blog/premium', '/en/genres/trending', '/de/sender/profile-fm']) {
+    assert.equal(allows(path, 'Googlebot'), true, `A private word is not private outside its namespace: ${path}`);
+  }
+});
+
+test('robots private namespaces retain routing locales, country aliases and localized profile subtrees', async () => {
+  const response = await fetch(`${baseUrl}/robots.txt`);
+  const allows = parseRobotsRules(await response.text());
+  for (const locale of PUBLIC_SEO_LOCALE_CODES) {
+    for (const root of ['admin', 'profile', 'settings', 'dashboard', 'tv-login']) {
+      for (const suffix of ['', '?tab=settings', '/settings']) {
+        const path = `/${locale}/${root}${suffix}`;
+        assert.equal(allows(path, 'Googlebot'), false, `The private namespace must stay closed: ${path}`);
+      }
+    }
+  }
+  for (const path of ['/de/profil/settings', '/de/profil/einstellungen', '/at/profil/settings', '/nl/profiel/settings',
+    '/fr/profil/notifications', '/zh/%E4%B8%AA%E4%BA%BA%E8%B5%84%E6%96%99/settings']) {
+    for (const agent of ['Googlebot', 'bingbot', 'OAI-SearchBot', 'Baiduspider', 'Sogou']) {
+      assert.equal(allows(path, agent), false, `${agent} must retain the localized private profile boundary: ${path}`);
+    }
+  }
+});
+
+test('robots expanded private namespaces remain below the Google parser limit with trailing policies intact', async () => {
+  const response = await fetch(`${baseUrl}/robots.txt`);
+  const body = await response.text();
+  assert.ok(Buffer.byteLength(body, 'utf8') < 500 * 1024, 'Crawler policies and sitemap declarations must not be truncated');
+  assert.match(body, /User-agent: Google-Extended\nDisallow: \/\s/);
+  assert.match(body, /User-agent: DuckAssistBot\nAllow: \/\s/);
+  assert.ok(body.endsWith('/sitemap-blog.xml'));
+  assert.doesNotMatch(body, /^Disallow: \/\*\/[a-z-]+/m, 'A greedy multi-segment private prefix must not return');
+  assert.doesNotMatch(body, /^Allow: \/(?:en\/station|de\/sender)\//m, 'Do not fix this by overriding other bounds with a broad catalogue Allow');
 });
 
 test('/sitemap.xml returns the sitemap-index XML directly (Task #128 contract)', async () => {
@@ -1810,6 +1863,89 @@ test('Task #344: sitemap-index defensively skips a station chunk numbered 0 (wou
     enStations.chunks = originalChunks;
     fakeCacheStore.clear();
   }
+});
+
+test('sitemap CSS is public, cache bounded and independent of DB, without an HTML fallback', async (t) => {
+  const { registerSeoSitemapRoutes } = await import('../src/routes/seo-sitemap-routes');
+  const fixtureApp = express();
+  fixtureApp.use((_req, res, next) => {
+    res.setHeader('Expires', 'Tue, 05 Nov 2030 00:00:00 GMT');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    next();
+  });
+  await registerSeoSitemapRoutes(fixtureApp, { requireAdmin: (_req, res) => res.status(403).end() });
+  const fixtureServer = fixtureApp.listen(0, '127.0.0.1');
+  t.after(() => new Promise<void>(resolve => fixtureServer.close(() => resolve())));
+  await new Promise<void>(resolve => fixtureServer.once('listening', resolve));
+  const url = `http://127.0.0.1:${(fixtureServer.address() as AddressInfo).port}/sitemap.css`;
+  const readsBefore = fakeCacheReads.length;
+  stationBatchReadFails = true;
+  try {
+    for (const method of ['GET', 'HEAD']) {
+      const response = await fetch(url, { method });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('content-type'), 'text/css; charset=utf-8');
+      assert.equal(response.headers.get('cache-control'), 'public, max-age=3600, s-maxage=3600');
+      assert.equal(response.headers.get('expires'), null);
+      assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(await response.text(), method === 'HEAD' ? '' : SITEMAP_STYLESHEET);
+    }
+    assert.equal(fakeCacheReads.length, readsBefore);
+  } finally { stationBatchReadFails = false; }
+});
+
+test('all sitemap families retain parser-valid XML with one CSS instruction and representation validators', async () => {
+  fakeCacheStore.clear();
+  const paths = ['/sitemap.xml', '/sitemap-index.xml', '/sitemap-blog.xml',
+    ...QUALIFIED_LANGS.flatMap(lang => [`/sitemap-${lang}.xml`, `/sitemap-main-${lang}.xml`, `/sitemap-genres-${lang}.xml`, `/sitemap-stations-${lang}-1.xml`])];
+  for (const path of paths) {
+    const response = await fetch(baseUrl + path);
+    assert.equal(response.status, 200, path);
+    assert.match(response.headers.get('content-type') || '', /^application\/xml/);
+    const body = await response.text();
+    assertValidXml(body, path);
+    assert.equal(body.split(SITEMAP_STYLESHEET_INSTRUCTION).length - 1, 1, path);
+    assert.ok(body.startsWith(`<?xml version="1.0" encoding="UTF-8"?>\n${SITEMAP_STYLESHEET_INSTRUCTION}`));
+    assert.equal(response.headers.get('etag'), xmlCacheFixture(body).etag);
+    assert.equal(Number(response.headers.get('content-length')), Buffer.byteLength(body));
+    assert.equal(response.headers.get('x-spa-catchall'), null);
+    const conditional = await fetch(baseUrl + path, { headers: { 'If-None-Match': response.headers.get('etag')! } });
+    assert.equal(conditional.status, 304, path);
+    assert.equal(await conditional.text(), '');
+  }
+  fakeCacheStore.clear();
+});
+
+test('CSS presentation invalidates old XML body and validator-only caches without changing sitemap data', async () => {
+  const suffix = `en:${TEST_HASH}:v1-test:${NOW.getTime()}`;
+  const paths = [
+    ['/sitemap-main-en.xml', `sitemap:main:xml-v3:${suffix}`],
+    ['/sitemap-genres-en.xml', `sitemap:genres:xml-v3:${suffix}`],
+    ['/sitemap-stations-en-1.xml', `sitemap:stations:xml-v5-az-safe-owned-images:en:1:${TEST_HASH}:v1-test:${NOW.getTime()}`],
+  ];
+  try {
+    for (const [path, oldKey] of paths) {
+      fakeCacheStore.clear();
+      const body = await (await fetch(baseUrl + path)).text();
+      const old = xmlCacheFixture(body.replace(`\n${SITEMAP_STYLESHEET_INSTRUCTION}`, ''));
+      for (const validatorOnly of [false, true]) {
+        fakeCacheStore.clear();
+        if (!validatorOnly) fakeCacheStore.set(oldKey, old);
+        fakeCacheStore.set(`${oldKey}:validator`, { etag: old.etag });
+        fakeCacheReads.length = 0;
+        const response = await fetch(baseUrl + path, { headers: { 'If-None-Match': old.etag } });
+        assert.equal(response.status, 200, `${path} must not reuse an unstyled validator`);
+        assert.equal(await response.text(), body, 'Only the presentation instruction changes');
+        assert.equal(response.headers.get('etag'), xmlCacheFixture(body).etag);
+        assert.equal(fakeCacheReads.includes(oldKey), false);
+        assert.equal(fakeCacheReads.includes(`${oldKey}:validator`), false);
+        assert.equal(fakeCacheStore.has(`${oldKey}:validator`), true, 'No global purge');
+        const conditional = await fetch(baseUrl + path, { headers: { 'If-None-Match': response.headers.get('etag')! } });
+        assert.equal(conditional.status, 304);
+        assert.equal(await conditional.text(), '');
+      }
+    }
+  } finally { fakeCacheStore.clear(); }
 });
 
 test('blog sitemap serves core editions plus actual market articles with editorial validators', async () => {

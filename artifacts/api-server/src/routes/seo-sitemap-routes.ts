@@ -4,6 +4,7 @@ import { mobileAppLinkPaths } from '../seo/mobile-app-links';
 import { isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 import crypto from 'crypto';
 import { buildBlogSitemap } from '../seo/blog-sitemap';
+import { SITEMAP_STYLESHEET, withSitemapStylesheet } from '../seo/sitemap-presentation';
 import { INDEXING_PILOT, matchingPilotProfile, type IndexingPilotProfile } from '../seo/indexing-pilot';
 import { BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
 import { pgReportStationDebugLog, pgListStationDebugLogs } from '../data/postgres-station-debug-store';
@@ -12,7 +13,25 @@ import { markSeoTemporarilyUnavailable } from '../seo/temporary-unavailable';
 import { manualSitemapRebuildTimeout } from '../middleware/manual-sitemap-rebuild-timeout';
 import { logger } from "../utils/logger";
 import { SeoRenderer, buildLocalizedUrl } from "../seo-renderer";
-import { SITEMAP_CONFIG, ACTIVE_SITEMAP_LANGUAGES, REQUIRED_STATION_SEO_KEYS, hasCompleteSeoTranslations, SEO_LANGUAGES, LOCALIZED_LOGO_WORD, LOCALIZED_RADIO_STATION_WORD, normalizeSeoTitleTags } from '@workspace/seo-shared/seo-config';
+import { SITEMAP_CONFIG, ACTIVE_SITEMAP_LANGUAGES, REQUIRED_STATION_SEO_KEYS, hasCompleteSeoTranslations, SEO_LANGUAGES, COUNTRY_TO_LANGUAGE, LOCALIZED_LOGO_WORD, LOCALIZED_RADIO_STATION_WORD, normalizeSeoTitleTags } from '@workspace/seo-shared/seo-config';
+import { PUBLIC_SEO_LOCALE_CODES } from '../seo/public-route-matchers';
+
+const PRIVATE_HTML_ROBOTS_ROOTS = [
+  'admin', 'settings', 'import-export', 'analytics', 'messages', 'profile', 'login', 'signup',
+  'premium', 'activate', 'reset-password', 'notifications', 'recommendations', 'trending', 'favorites',
+  'request-station', 'dashboard', 'feedback', 'station-requests', 'station-submissions',
+  'status-monitoring', 'sync', 'change-password', 'forgot-password', 'tv-login',
+] as const;
+
+// REP wildcards span slashes: /*/premium also blocks /en/station/premium.
+// Keep private roots at the routing locale depth, including country aliases.
+const localizedPrivateRobotsRules = [...PUBLIC_SEO_LOCALE_CODES].flatMap(prefix => {
+  const language = SEO_LANGUAGES.find(locale => locale.enabled && locale.code === prefix)?.code
+    || COUNTRY_TO_LANGUAGE[prefix] || 'en';
+  const profile = URL_TRANSLATIONS[language]?.profile;
+  const roots = new Set<string>([...PRIVATE_HTML_ROBOTS_ROOTS, ...(profile ? [profile] : [])]);
+  return [...roots].map(root => `Disallow: /${prefix}/${encodeURIComponent(root)}`);
+}).join('\n');
 
 // Map a SEO language code (e.g. "nb") to its BCP47/hreflang tag (e.g. "nb-NO")
 // so XML sitemap alternates match the HTML <link rel="alternate"> tags emitted
@@ -169,6 +188,7 @@ function send503EmptySitemapIndex(res: any): void {
 interface CachedSitemapXml { xml: string; etag: string; byteLength: number }
 
 function cacheSitemapXml(xml: string): CachedSitemapXml {
+  xml = withSitemapStylesheet(xml);
   return { xml, etag: `"${crypto.createHash('sha256').update(xml).digest('hex')}"`, byteLength: Buffer.byteLength(xml) };
 }
 
@@ -926,59 +946,32 @@ Allow: /api/og-image/
 Disallow: /api/internal/
 Disallow: /api/cache/
 Disallow: /api/logs/
-Disallow: /*/admin/
-Disallow: /*/admin
-Disallow: /*/settings
-Disallow: /*/import-export
-Disallow: /*/analytics
-Disallow: /*/messages
-Disallow: /*/profile
+${localizedPrivateRobotsRules}
 # /search is intentionally NOT disallowed: the SSR layer emits
 # "noindex, follow" on search pages, and Google can only honor that directive
 # if it is allowed to crawl the URL. A robots Disallow would instead leave
 # search URLs "indexed, though blocked by robots.txt". See re-audit 2026-06-20 Item 5.
 Disallow: /login
-Disallow: /*/login
 Disallow: /signup
-Disallow: /*/signup
 Disallow: /premium
-Disallow: /*/premium
 Disallow: /premium-success
-Disallow: /*/premium-success
 Disallow: /activate
-Disallow: /*/activate
 Disallow: /activate-success
-Disallow: /*/activate-success
 Disallow: /reset-password
-Disallow: /*/reset-password
 Disallow: /notifications
-Disallow: /*/notifications
 Disallow: /recommendations
-Disallow: /*/recommendations
 Disallow: /trending
-Disallow: /*/trending
 Disallow: /favorites
-Disallow: /*/favorites
 Disallow: /request-station
-Disallow: /*/request-station
 Disallow: /dashboard
-Disallow: /*/dashboard$
 Disallow: /feedback
-Disallow: /*/feedback$
 Disallow: /station-requests
-Disallow: /*/station-requests$
 Disallow: /station-submissions
-Disallow: /*/station-submissions$
 Disallow: /status-monitoring
-Disallow: /*/status-monitoring$
 Disallow: /sync
-Disallow: /*/sync$
 Disallow: /change-password
-Disallow: /*/change-password$
 Disallow: /forgot-password
-Disallow: /*/forgot-password$
 Disallow: /tv-login
-Disallow: /*/tv-login$
 Disallow: /settings
 Disallow: /messages
 Disallow: /analytics
@@ -1023,55 +1016,28 @@ Allow: /api/og-image/
 Disallow: /api/internal/
 Disallow: /api/cache/
 Disallow: /api/logs/
-Disallow: /*/admin/
-Disallow: /*/admin
-Disallow: /*/settings
-Disallow: /*/import-export
-Disallow: /*/analytics
-Disallow: /*/messages
-Disallow: /*/profile
+${localizedPrivateRobotsRules}
 Disallow: /login
-Disallow: /*/login
 Disallow: /signup
-Disallow: /*/signup
 Disallow: /premium
-Disallow: /*/premium
 Disallow: /premium-success
-Disallow: /*/premium-success
 Disallow: /activate
-Disallow: /*/activate
 Disallow: /activate-success
-Disallow: /*/activate-success
 Disallow: /reset-password
-Disallow: /*/reset-password
 Disallow: /notifications
-Disallow: /*/notifications
 Disallow: /recommendations
-Disallow: /*/recommendations
 Disallow: /trending
-Disallow: /*/trending
 Disallow: /favorites
-Disallow: /*/favorites
 Disallow: /request-station
-Disallow: /*/request-station
 Disallow: /dashboard
-Disallow: /*/dashboard$
 Disallow: /feedback
-Disallow: /*/feedback$
 Disallow: /station-requests
-Disallow: /*/station-requests$
 Disallow: /station-submissions
-Disallow: /*/station-submissions$
 Disallow: /status-monitoring
-Disallow: /*/status-monitoring$
 Disallow: /sync
-Disallow: /*/sync$
 Disallow: /change-password
-Disallow: /*/change-password$
 Disallow: /forgot-password
-Disallow: /*/forgot-password$
 Disallow: /tv-login
-Disallow: /*/tv-login$
 Disallow: /settings
 Disallow: /messages
 Disallow: /analytics
@@ -1105,55 +1071,28 @@ Allow: /api/og-image/
 Disallow: /api/internal/
 Disallow: /api/cache/
 Disallow: /api/logs/
-Disallow: /*/admin/
-Disallow: /*/admin
-Disallow: /*/settings
-Disallow: /*/import-export
-Disallow: /*/analytics
-Disallow: /*/messages
-Disallow: /*/profile
+${localizedPrivateRobotsRules}
 Disallow: /login
-Disallow: /*/login
 Disallow: /signup
-Disallow: /*/signup
 Disallow: /premium
-Disallow: /*/premium
 Disallow: /premium-success
-Disallow: /*/premium-success
 Disallow: /activate
-Disallow: /*/activate
 Disallow: /activate-success
-Disallow: /*/activate-success
 Disallow: /reset-password
-Disallow: /*/reset-password
 Disallow: /notifications
-Disallow: /*/notifications
 Disallow: /recommendations
-Disallow: /*/recommendations
 Disallow: /trending
-Disallow: /*/trending
 Disallow: /favorites
-Disallow: /*/favorites
 Disallow: /request-station
-Disallow: /*/request-station
 Disallow: /dashboard
-Disallow: /*/dashboard$
 Disallow: /feedback
-Disallow: /*/feedback$
 Disallow: /station-requests
-Disallow: /*/station-requests$
 Disallow: /station-submissions
-Disallow: /*/station-submissions$
 Disallow: /status-monitoring
-Disallow: /*/status-monitoring$
 Disallow: /sync
-Disallow: /*/sync$
 Disallow: /change-password
-Disallow: /*/change-password$
 Disallow: /forgot-password
-Disallow: /*/forgot-password$
 Disallow: /tv-login
-Disallow: /*/tv-login$
 Disallow: /settings
 Disallow: /messages
 Disallow: /analytics
@@ -1235,6 +1174,14 @@ Sitemap: ${baseUrl}/sitemap-blog.xml`;
     return;
   }
 
+  app.get('/sitemap.css', (_req, res) => {
+    res.removeHeader('Expires');
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+    res.send(SITEMAP_STYLESHEET);
+  });
+
   // The qualified-language cache has been hoisted to
   // `server/seo/qualified-languages.ts` so the SSR renderer can consult the
   // same source of truth. Sitemap uses the shared helper below.
@@ -1282,7 +1229,7 @@ Sitemap: ${baseUrl}/sitemap-blog.xml`;
 
       // The main manifest aggregates operational station timestamps, not
       // page content revisions. Keep invalidation, but do not publish dates.
-      const cacheKey = `sitemap:main:xml-v3:${lang}:${state.hash}:${manifest.version}:${manifest.maxUpdatedAt instanceof Date ? manifest.maxUpdatedAt.getTime() : 0}`;
+      const cacheKey = `sitemap:main:xml-v4-css:${lang}:${state.hash}:${manifest.version}:${manifest.maxUpdatedAt instanceof Date ? manifest.maxUpdatedAt.getTime() : 0}`;
       if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
       const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
       if (cached) {
@@ -1448,9 +1395,9 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
 
       // Keep operational writes as cache invalidators, not public content dates.
       // Station.updatedAt also changes on health checks; there is no separate
-      // editorial timestamp yet. v5 excludes directory identities from old
-      // manifests while retaining owned image URLs.
-      const cacheKey = `sitemap:stations:xml-v5-az-safe-owned-images:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
+      // editorial timestamp yet. v6 also versions the CSS processing instruction;
+      // directory identity exclusions and owned image URLs remain unchanged.
+      const cacheKey = `sitemap:stations:xml-v6-css-az-safe-owned-images:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
       if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
       const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
       if (cached) {
@@ -1571,7 +1518,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
 
       // Nightly station-count refreshes also advance Genre.updatedAt. Until
       // editorial dates exist, v3 excludes those operational dates from XML.
-      const cacheKey = `sitemap:genres:xml-v3:${lang}:${state.hash}:${manifest.version}:${manifest.maxUpdatedAt instanceof Date ? manifest.maxUpdatedAt.getTime() : 0}`;
+      const cacheKey = `sitemap:genres:xml-v4-css:${lang}:${state.hash}:${manifest.version}:${manifest.maxUpdatedAt instanceof Date ? manifest.maxUpdatedAt.getTime() : 0}`;
       if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
       const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
       if (cached) {
