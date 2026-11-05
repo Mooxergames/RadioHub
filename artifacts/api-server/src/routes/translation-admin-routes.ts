@@ -24,6 +24,9 @@ import { syncService } from "../services/sync";
 import { registerAdminStationSyncPolicyRoutes } from './admin-station-sync-policy-routes';
 import { isQuotaExceeded, isQuotaError, handleQuotaError, safeWrite } from "../utils/quota-guard";
 import { performanceCache } from "../performance-cache";
+import { invalidatePublicStationDetails, stationDetailIdentifiers } from '../services/station-detail-cache';
+import { triggerGenreStationCountsRecompute } from '../services/genre-station-counts';
+import { buildManualStationMergePreview, ManualStationMergeError, parseManualStationMerge } from '../utils/manual-station-merge-review';
 import { getPhaseCTranslations } from "../data/phase-c-translations";
 import { UserEngagementService } from "../services/user-engagement-service";
 import { getCommunityProfiles } from '../services/community-profiles';
@@ -41,6 +44,38 @@ import { pgFindUserByEmail, pgFindUserByIdOrSlug, pgUpdateUser, pgUserFavoriteCo
 // per-language Set fails fast locally; the PostgreSQL singleton below also
 // excludes other replicas and background sync while fencing every write.
 const inFlightTranslateJobs = new Set<string>();
+
+async function invalidateManualMergeCaches(result: { primary: Record<string, any> | null; duplicates: Record<string, any>[]; deletedCount: number }): Promise<boolean> {
+    const attempts: (() => unknown)[] = [
+        () => invalidatePublicStationDetails(stationDetailIdentifiers(...[result.primary, ...result.duplicates].filter(station => station !== null))),
+        ...['stations:', 'popular_stations:', 'precomputed_stations:', 'similar_stations:', 'similar:', 'nearby:',
+            'community_favorites:', 'radio-browser:', 'station_stats', 'filters:', 'user-favorites:', 'recently-played:']
+            .map(pattern => () => publicStationCache.clearByPattern(pattern)),
+        () => CacheManager.clearByPattern('admin_stations:'),
+        () => CacheManager.clearByPattern('admin:stations:'),
+        () => CacheManager.del('admin-station-filter-options:v1'),
+        () => performanceCache.clearSeoAndQuickCaches(),
+        () => performanceCache.clearSimilarStationPools(),
+    ];
+    if (result.deletedCount > 0) attempts.push(() => triggerGenreStationCountsRecompute('manual-station-merge'));
+    const settled = Promise.allSettled(attempts.map(attempt => Promise.resolve().then(attempt)))
+        .then(results => results.every(result => result.status === 'fulfilled'));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        // Report only the local adapters' outcome, never all-replica acknowledgement.
+        return await Promise.race([settled, new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), 500); })]);
+    } finally { clearTimeout(timer); }
+}
+
+function manualMergeError(res: any, error: unknown): void {
+    if (error instanceof ManualStationMergeError) {
+        res.status(error.status).json({ error: error.message, code: error.code });
+    } else if ((error as any)?.code === 'MERGE_ALIAS_CONFLICT') {
+        res.status(409).json({ error: 'Station alias ownership changed; review the group again', code: 'MANUAL_MERGE_ALIAS_CONFLICT' });
+    } else {
+        res.status(503).json({ error: 'Station merge is temporarily unavailable', code: 'MANUAL_MERGE_UNAVAILABLE' });
+    }
+}
 async function healthyRadioBrowserStations(order: 'clickCount' | 'votes' | 'updatedAt', requested: unknown) {
     const limit = Math.max(1, Math.min(Math.trunc(Number(requested)) || 100, 500));
     return publicStationCache.getOrSetSingleFlight(`radio-browser:${order}:${limit}`, async () => {
@@ -642,26 +677,26 @@ ${keysText}`;
             res.status(500).json({ error: 'Failed to fetch real languages' });
         }
     });
-    // ADMIN MERGE STATIONS API - Merge duplicate stations manually (Admin Only)
-    app.post("/api/admin/stations/merge", requireAdmin, async (req, res) => {
+    app.post("/api/admin/stations/merge-preview", requireAdmin, async (req, res) => {
+        res.set('Cache-Control', 'no-store');
         try {
-            const { primaryStationId, duplicateStationIds, mergeData = {} } = req.body;
-            if (typeof primaryStationId !== 'string' || !Array.isArray(duplicateStationIds) || duplicateStationIds.some(id => typeof id !== 'string') || duplicateStationIds.includes(primaryStationId)) {
-                return void res.status(400).json({ error: 'A primary station and distinct duplicate IDs are required' });
-            }
-            const result = await pgCatalog().mergeDuplicates([primaryStationId, ...new Set<string>(duplicateStationIds)], { primaryId: primaryStationId, validateGroup: false, patch: mergeData });
-            if (!result.primary)
-                return void res.status(404).json({ error: 'Primary station not found' });
-            for (const station of [result.primary, ...result.duplicates])
-                if (station.slug)
-                    performanceCache.invalidateStationCache(station.slug);
-            res.json({ success: true, message: `Successfully merged ${result.deletedCount} stations`, mergedStation: result.primary });
+            const selection = parseManualStationMerge(req.body);
+            const documents = await pgCatalog().find({ _id: { $in: [selection.primaryStationId, ...selection.duplicateStationIds] } });
+            res.json({ success: true, preview: buildManualStationMergePreview(selection, documents) });
+        } catch (error) { manualMergeError(res, error); }
+    });
+    // Manual override stays available, but only for the explicitly reviewed snapshot.
+    app.post("/api/admin/stations/merge", requireAdmin, async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        try {
+            const selection = parseManualStationMerge(req.body, true);
+            const result = await pgCatalog().mergeDuplicates([selection.primaryStationId, ...selection.duplicateStationIds], {
+                primaryId: selection.primaryStationId, validateGroup: false, patch: selection.changes, manualReview: selection.review,
+            });
+            const cacheInvalidated = await invalidateManualMergeCaches(result).catch(() => false);
+            res.json({ success: true, deletedCount: result.deletedCount, mergedStation: result.primary, cacheInvalidated });
         }
-        catch (error) {
-            if ((error as any)?.code === 'PRIMARY_NOT_FOUND')
-                return void res.status(404).json({ error: 'Primary station not found' });
-            res.status(500).json({ error: 'Failed to merge stations' });
-        }
+        catch (error) { manualMergeError(res, error); }
     });
     // ADMIN GENRES API - Returns only real genres from database for management (Admin Only)
     app.get("/api/admin/genres", requireAdmin, async (req, res) => {

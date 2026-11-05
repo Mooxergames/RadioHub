@@ -5,6 +5,7 @@ import { PostgresCatalogStore } from './postgres-catalog-store';
 import { assessDuplicateMerge, compareDuplicateSurvivors, partitionDuplicateGroup } from '../utils/station-duplicate-policy';
 
 const SUMMARY_LIMIT = 20;
+export const DUPLICATE_MERGE_FAILURE_BACKOFF_MS = 60_000;
 const jobError = (message: string, status: number) => Object.assign(new Error(message), { status });
 const newId = () => randomBytes(12).toString('hex');
 const safeId = (id: unknown): id is string => typeof id === 'string' && /^[a-f0-9]{24}$/i.test(id);
@@ -173,6 +174,20 @@ export class PostgresDuplicateJobsStore {
       planned, deleted, summary ? JSON.stringify(summary) : null, reason]);
   }
 
+  private async deferFailedCycle(client: pg.PoolClient, now: Date, expectedNextCycleAt: string) {
+    await client.query('BEGIN');
+    await client.query("SET LOCAL statement_timeout='600ms'; SET LOCAL lock_timeout='50ms'");
+    const locked = (await client.query("SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema() || ':station-duplicate-merge',0)) locked")).rows[0].locked;
+    if (locked) {
+      // The failed transaction lost its cooldown. Do not overwrite a replica
+      // that advanced the schedule after rollback released our advisory lock.
+      await client.query(`UPDATE station_duplicate_merge_control
+        SET next_cycle_at=GREATEST($1::timestamptz,clock_timestamp())+$3*interval '1 millisecond'
+        WHERE id=1 AND next_cycle_at=$2::timestamptz`, [now, expectedNextCycleAt, DUPLICATE_MERGE_FAILURE_BACKOFF_MS]);
+    }
+    await client.query('COMMIT');
+  }
+
   /** One replica-safe transaction, max10 groups and a 750ms soft cycle budget.
    * Each SQL statement is separately capped at600ms, lock waits at50ms. A
    * started group may finish after the soft budget; never begin another then.
@@ -182,13 +197,15 @@ export class PostgresDuplicateJobsStore {
     if (this.pool.waitingCount) return idle;
     const started = performance.now(), client = await this.pool.connect();
     let processed = 0, deleted = 0, completed = false, refreshCounts = false;
+    let expectedNextCycleAt: string | undefined, discardClient = false;
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL statement_timeout='600ms'; SET LOCAL lock_timeout='50ms'");
       const locked = (await client.query("SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema() || ':station-duplicate-merge',0)) locked")).rows[0].locked;
       if (!locked) { await client.query('ROLLBACK'); return idle; }
-      const control = (await client.query('SELECT * FROM station_duplicate_merge_control WHERE id=1 FOR UPDATE')).rows[0];
+      const control = (await client.query('SELECT *,next_cycle_at::text AS expected_next_cycle_at FROM station_duplicate_merge_control WHERE id=1 FOR UPDATE')).rows[0];
       if (!control || new Date(control.next_cycle_at).getTime() > now.getTime()) { await client.query('ROLLBACK'); return idle; }
+      expectedNextCycleAt = control.expected_next_cycle_at;
       await client.query(`UPDATE station_duplicate_merge_control SET next_cycle_at=$1::timestamptz+interval '15 seconds',
         last_run_at=$1,lease_owner=$2,lease_until=$1::timestamptz+interval '15 seconds' WHERE id=1`, [now, randomUUID()]);
       let job = (await client.query("SELECT * FROM station_duplicate_jobs WHERE status IN ('queued','running') ORDER BY created_at,id LIMIT 1 FOR UPDATE")).rows[0];
@@ -261,7 +278,17 @@ export class PostgresDuplicateJobsStore {
       await client.query('UPDATE station_duplicate_merge_control SET lease_owner=NULL,lease_until=NULL,summary=summary || $1::jsonb WHERE id=1', [JSON.stringify({ processed, deleted, completed })]);
       await client.query('COMMIT');
       return { processed, deleted, completed, deferred: false, refreshCounts };
-    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+        if (expectedNextCycleAt !== undefined) await this.deferFailedCycle(client, now, expectedNextCycleAt);
+      } catch {
+        // Destroy a connection with uncertain transaction state. Cleanup must
+        // never replace the cycle error or retry a failing deferral in a loop.
+        discardClient = true;
+      }
+      throw error;
+    } finally { client.release(discardClient); }
   }
 
   private summary(group: Row, primary: Row, duplicates: Row[]) {

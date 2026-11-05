@@ -112,7 +112,7 @@ it('station details wires localized share/play/alt values while all existing pla
   expect(source.match(/<span className="sr-only">\{controlLabels.play\}<\/span>/g)).toHaveLength(2);
   expect(source).toContain('getStationImageAlt(similarStation, language, t)');
   expect(source).toContain('getStationImageAlt(countryStation, language, t)');
-  expect(source).toContain('getStationImageAlt(linkedStation, language, t)');
+  expect(source).not.toContain('station_media_group_radios');
   expect(source).toContain('<StationStreamAvailability station={station} language={language} />');
   expect(/alt="Share"|aria-label="Share station"|alt=\{`Listen \$\{|>Play Radio</.test(source)).toBe(false);
   for (const filename of ['src/components/global-player.tsx', 'src/components/ui/bottom-player.tsx', 'src/pages/stations/[id].tsx']) {

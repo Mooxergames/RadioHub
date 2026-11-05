@@ -1,0 +1,49 @@
+import assert from 'node:assert/strict';
+import { beforeEach, mock, test } from 'node:test';
+import { getPublicStationDeadline, withPublicStationDeadline, limitPublicStationDeadline } from '../src/utils/public-station-deadline';
+import { getSeoReadDeadline, withSeoReadDeadline } from '../src/utils/seo-read-deadline';
+import { completeDescriptionLanguagesSql } from '../src/data/station-description-sql';
+
+const calls: any[] = [];
+const rows = [{ _id: 'fixture', slug: 'fixture-radio', completeDescriptionLanguages: ['de'] }];
+let failure = false;
+mock.module('../src/data/postgres-seo-read-query', { namedExports: { boundedSeoReadQuery: async (sql: string, values: any[]) => {
+  calls.push({ sql, values, visibilityDeadline: getPublicStationDeadline(), deadline: getSeoReadDeadline()?.expiresAt });
+  if (failure) throw new Error('Read timeout');
+  return { rows };
+} } });
+const { readSeoStationLinkMetadata } = await import('../src/data/postgres-seo-station-link-store');
+beforeEach(() => { calls.length = 0; failure = false; });
+
+test('one parameterized ID batch uses the existing trusted presence expression without returning prose/source', async () => {
+  const ids = ['fixture', 'other'];
+  assert.deepEqual(await readSeoStationLinkMetadata(ids), rows);
+  assert.equal(calls.length, 1);
+  const { sql, values } = calls[0];
+  assert.deepEqual(values, [ids]);
+  assert.ok(sql.includes('WHERE id=ANY($1::text[])'));
+  assert.ok(sql.includes(completeDescriptionLanguagesSql('descriptions') + ' AS "completeDescriptionLanguages"'));
+  assert.ok(sql.includes('country_code AS "countryCode"') && sql.includes('language_codes AS "languageCodes"'));
+  assert.ok(sql.includes('no_index AS "noIndex"') && sql.includes('redirect_to_slug AS "redirectToSlug"'));
+  assert.ok(!sql.includes('SELECT *') && !sql.includes('source') && !sql.includes(',descriptions,'));
+});
+
+test('empty/oversized batches never issue SQL, and bounded read errors remain unknown to the caller', async () => {
+  assert.deepEqual(await readSeoStationLinkMetadata([]), []);
+  await assert.rejects(readSeoStationLinkMetadata(Array(101).fill('fixture')), /exceeds 100/);
+  assert.equal(calls.length, 0);
+  failure = true;
+  await assert.rejects(readSeoStationLinkMetadata(['fixture']), /Read timeout/);
+});
+
+test('metadata uses the existing execution context without extending or narrowing public freshness', async () => {
+  const freshness = Date.now() + 30000, deadline = Date.now() + 1000;
+  await withPublicStationDeadline(async () => {
+    limitPublicStationDeadline(freshness);
+    await withSeoReadDeadline({ expiresAt: deadline }, () => readSeoStationLinkMetadata(['fixture']));
+    assert.equal(getPublicStationDeadline(), freshness);
+  });
+  assert.equal(calls[0].visibilityDeadline, freshness);
+  assert.ok(calls[0].deadline <= deadline - 250);
+  assert.ok(calls[0].deadline <= Date.now() + 500);
+});

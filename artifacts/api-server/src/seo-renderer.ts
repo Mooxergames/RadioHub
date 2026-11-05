@@ -25,6 +25,8 @@ import { regionRouteExistence, canonicalRegionPath } from './seo/region-route-ex
 import { buildRegionStationScope } from './services/region-location-data';
 import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from './seo/verified-legacy-station-alias';
 import { withPilotEditorial } from './seo/indexing-pilot';
+import { collectStationLinkTargets, resolveStationLinkLanguages, buildStationLinkUrl } from './seo/station-link-locale';
+import { readSeoStationLinkMetadata } from './data/postgres-seo-station-link-store';
 
 // The renderer only needs this small subset of the normalized catalog shape.
 interface LeanStationCard {
@@ -946,9 +948,8 @@ export class SeoRenderer {
         const page = pagination.page;
         const { PrecomputedStationsService } = await import('./services/precomputed-stations');
         const result = await PrecomputedStationsService.getGlobalStations(page, PAGE_SIZE);
-        // Same light junk-gate the home/genre/region grids use so no link
-        // points at a 410/noindex station (full per-language gate is overkill
-        // here — Universal-14 stations are indexable in every one of the 14).
+        // Match the other grids' quality gate. Target locale qualification is
+        // resolved in one bounded metadata read after the directory is ready.
         const catalog = (result?.stations || [])
           .filter((s: any) => s && s.slug && s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s));
         additionalData.catalogStations = catalog;
@@ -1301,7 +1302,9 @@ export class SeoRenderer {
     // Pass localized path to use translated paths in canonical URL
     // Also pass urlTranslations map for hreflang tags with translated paths
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    let seoTags = await this.generateEnhancedSeoTags(pageType, language, translations, cleanPath, domain, stationData, additionalData, cleanUrl, localizedPath, urlTranslations);
+    const stationLinkQualification: { languages?: readonly string[] } = {};
+    let seoTags = await this.generateEnhancedSeoTags(pageType, language, translations, cleanPath, domain, stationData, additionalData, cleanUrl, localizedPath, urlTranslations,
+      pageType === 'stations' ? stationLinkQualification : undefined);
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const initialRobots = seoTags.robots;
 
@@ -1701,6 +1704,26 @@ export class SeoRenderer {
       }
     }
 
+    // Only directory links propagate the same href into the React DTO. Other
+    // grids retain their existing locale until they have an equivalent contract.
+    const stationLinkTargets = pageType === 'stations' && isStationDirectoryPath(cleanPath)
+      ? collectStationLinkTargets(additionalData) : [];
+    const qualifiedStationLinkLanguages = stationLinkQualification.languages;
+    if (language !== 'en' && qualifiedStationLinkLanguages?.length && stationLinkTargets.length
+      && !stationDbErrorFlag && !additionalData.httpNotFound && !langRedirectUrl) {
+      try {
+        // Reuse the successful initial qualification, never a second lookup or
+        // the minimal hreflang fallback from a failed qualification read.
+        const metadata = await readSeoStationLinkMetadata(stationLinkTargets.map(target => String(target._id)));
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        additionalData.stationLinkLanguages = resolveStationLinkLanguages(stationLinkTargets, metadata, language, qualifiedStationLinkLanguages);
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || signal?.aborted) throw error;
+        // Optional enrichment: unknown eligibility preserves the requested
+        // locale instead of inventing an English fallback or an empty page.
+      }
+    }
+
     // Compile the static page data
     const pageData = {
       language,
@@ -1747,7 +1770,8 @@ export class SeoRenderer {
     additionalData?: any,
     originalPath?: string,  // Original URL path to preserve country codes
     translatedPath?: string,  // Translated path from database for canonical URL
-    urlTranslations?: Map<string, string>  // URL translations map for all languages
+    urlTranslations?: Map<string, string>,  // URL translations map for all languages
+    qualifiedLanguagesResult?: { languages?: readonly string[] },
   ): Promise<any> {
     // Use the existing generateSeoTags function as base
     // Pass translated path to use localized paths in canonical URL (e.g., /sq/zhanret instead of /sq/genres)
@@ -1980,9 +2004,11 @@ export class SeoRenderer {
     // pages override this below in renderStaticPage with the per-station
     // indexable set (eligible ∩ qualified).
     let allowedLanguages: string[] | undefined;
+    if (qualifiedLanguagesResult) delete qualifiedLanguagesResult.languages;
     try {
       const { getCachedQualifiedLanguages } = await import('./seo/qualified-languages');
       allowedLanguages = await getCachedQualifiedLanguages();
+      if (qualifiedLanguagesResult) qualifiedLanguagesResult.languages = [...allowedLanguages];
     } catch (e: any) {
       // FAIL-CLOSED (Webmaster #1 HIGH-2 fix, 2026-04-30): if the cache is
       // unavailable mid-request we MUST NOT fall back to all 57 enabled
@@ -2347,7 +2373,7 @@ export class SeoRenderer {
       navLabel: localizedText('stations_az_nav', 'Radio stations A to Z'),
       paginationLabel: localizedText('pagination', 'Pagination'),
       stations: data.catalogStations.map((station: LeanStationCard) => ({
-        href: localUrl(`/station/${station.slug || station._id}`),
+        href: buildStationLinkUrl(station, source.language, data.stationLinkLanguages, source.urlTranslations),
         name: station.name || 'Radio Station',
         logoUrl: this.pickLogoUrl(station),
         alt: getStationImageAlt(station, source.language, localizedText),
@@ -3251,8 +3277,7 @@ export class SeoRenderer {
               <h2>${this.escapeHtml(getLocalizedText('all_stations', LOCALIZED_RADIO_STATIONS[language] || 'Radio Stations'))}</h2>
               <ul class="popular-stations-list">
                 ${cats.map((station: any) => {
-                  const slug = station.slug || station._id;
-                  const stationUrl = buildLocalizedUrl(`/station/${slug}`, language, undefined, urlTranslations);
+                  const stationUrl = buildStationLinkUrl(station, language, additionalData?.stationLinkLanguages, urlTranslations);
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
                   const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
@@ -3391,7 +3416,9 @@ export class SeoRenderer {
     if (additionalData?.popularStations && additionalData.popularStations.length > 0) {
       const stationSegmentForJsonLd = urlTranslations?.get(`${language}:station`) || 'station';
       const stationItems = additionalData.popularStations.map((station: any, index: number) => {
-        const stationUrl = `${baseDomain}/${language}/${stationSegmentForJsonLd}/${station.slug || station._id}`;
+        const stationUrl = additionalData.pageType === 'stations' && isStationDirectoryPath(cleanPath)
+          ? `${baseDomain}${buildStationLinkUrl(station, language, additionalData?.stationLinkLanguages, urlTranslations)}`
+          : `${baseDomain}/${language}/${stationSegmentForJsonLd}/${station.slug || station._id}`;
         // SEO audit 2026-06, Finding C1: only emit a verified absolute image;
         // omit `image` rather than ship the shared `default-station.png`
         // placeholder (or a relative local-disk filename) to Google.

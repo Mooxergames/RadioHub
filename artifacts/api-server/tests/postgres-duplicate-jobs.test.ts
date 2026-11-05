@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
+import type pg from 'pg';
 import { createNativePostgresFixture, type NativePostgresFixture } from './helpers/native-postgres-fixture';
 import { PostgresCatalogStore, pgSyncBlacklist, pgBlacklistAdd, pgBlacklistFind } from '../src/data/postgres-catalog-store';
-import { PostgresDuplicateJobsStore } from '../src/data/postgres-duplicate-jobs-store';
+import { DUPLICATE_MERGE_FAILURE_BACKOFF_MS, PostgresDuplicateJobsStore } from '../src/data/postgres-duplicate-jobs-store';
 import { buildSyncBlacklist } from '../src/utils/sync-blacklist';
 
 const url = process.env.PG_TEST_DATABASE_URL;
@@ -31,6 +32,18 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
       url: 'https://example.invalid/' + encodeURIComponent(name), votes: sequence, ...patch });
   };
   const advance = () => { now = new Date(+now + 16_000); return now; };
+  const interceptCycle = (query: (client: pg.PoolClient, sql: string, values?: unknown[]) => Promise<pg.QueryResult>,
+    onRelease?: (destroy?: boolean | Error) => void) => new PostgresDuplicateJobsStore({
+    get waitingCount() { return fixture.pool.waitingCount; },
+    async connect() {
+      const client = await fixture.pool.connect();
+      return {
+        query: (sql: string, values?: unknown[]) => query(client, sql, values),
+        release: (destroy?: boolean | Error) => { onRelease?.(destroy); client.release(destroy); },
+      };
+    },
+  } as pg.Pool);
+  const controlRow = async () => (await fixture.pool.query('SELECT * FROM station_duplicate_merge_control WHERE id=1')).rows[0];
   const finish = async (jobId: string, max = 40) => {
     for (let index = 0; index < max; index++) {
       const job = await store.getJob(jobId);
@@ -167,6 +180,135 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
     store = new PostgresDuplicateJobsStore(fixture.pool);
     const complete = await finish(id);
     assert.equal(complete.results.eligibleGroups, 21); assert.equal(complete.progress.groupsProcessed, 21);
+  });
+
+  it('persists a bounded cooldown after an automatic seed timeout and honors it across replicas and restart', async () => {
+    await add('Slow seed'); await add('Slow seed');
+    await fixture.pool.query(`UPDATE station_duplicate_merge_control SET next_auto_at=$1,
+      next_cycle_at=$1::timestamptz-interval '1 millisecond'+interval '123 microseconds'`, [now]);
+    const before = await controlRow();
+    await fixture.pool.query(`CREATE FUNCTION slow_duplicate_seed() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN PERFORM pg_sleep(1); RETURN NEW; END $$;
+      CREATE TRIGGER slow_duplicate_seed BEFORE INSERT ON station_duplicate_job_groups FOR EACH ROW EXECUTE FUNCTION slow_duplicate_seed()`);
+    try {
+      await assert.rejects(store.runCycle(advance()), { code: '57014' });
+    } finally {
+      await fixture.pool.query('DROP TRIGGER slow_duplicate_seed ON station_duplicate_job_groups; DROP FUNCTION slow_duplicate_seed()');
+    }
+    const deferred = await controlRow(), retryAt = +new Date(deferred.next_cycle_at);
+    assert.ok(retryAt >= +now + DUPLICATE_MERGE_FAILURE_BACKOFF_MS);
+    assert.ok(retryAt <= +now + DUPLICATE_MERGE_FAILURE_BACKOFF_MS + 1_000);
+    assert.deepEqual({ ...deferred, next_cycle_at: before.next_cycle_at }, before);
+    assert.equal((await fixture.pool.query('SELECT count(*)::int n FROM station_duplicate_jobs')).rows[0].n, 0);
+    assert.equal((await fixture.pool.query('SELECT count(*)::int n FROM station_duplicate_job_groups')).rows[0].n, 0);
+    assert.equal(await catalog.count(), 2);
+    for (const offset of [5_000, 15_000, DUPLICATE_MERGE_FAILURE_BACKOFF_MS - 1]) {
+      const result = await new PostgresDuplicateJobsStore(fixture.pool).runCycle(new Date(+now + offset));
+      assert.equal(result.deferred, true); assert.equal(result.deleted, 0);
+    }
+    assert.deepEqual(await controlRow(), deferred);
+    now = new Date(retryAt + 1);
+    const result = await new PostgresDuplicateJobsStore(fixture.pool).runCycle(now);
+    assert.equal(result.deferred, false); assert.equal(result.deleted, 1); assert.equal(result.refreshCounts, true);
+    assert.equal(await catalog.count(), 1);
+  });
+
+  it('does not overwrite a concurrent replica that advances the cycle after rollback', async () => {
+    await add('Replica race'); await add('Replica race');
+    const preview = await store.createPreview(), original = new Error('fixture seed failure');
+    let advanced: Record<string, unknown> | undefined;
+    const failing = interceptCycle(async (client, sql, values) => {
+      if (sql.startsWith('WITH grouped AS')) throw original;
+      const result = await client.query(sql, values);
+      if (sql === 'ROLLBACK' && !advanced) {
+        const completed = await new PostgresDuplicateJobsStore(fixture.pool).runCycle(now);
+        assert.equal(completed.completed, true);
+        advanced = await controlRow();
+      }
+      return result;
+    });
+    await assert.rejects(failing.runCycle(now), error => error === original);
+    assert.ok(advanced);
+    assert.deepEqual(await controlRow(), advanced);
+    assert.equal((await store.getJob(preview))?.status, 'completed');
+    assert.equal(+new Date((await controlRow()).next_cycle_at), +now + 15_000);
+  });
+
+  it('does not wait for a replica holding the advisory lock during deferral', async () => {
+    const original = new Error('fixture seed failure'), blocker = await fixture.pool.connect();
+    await store.createPreview(); const before = await controlRow();
+    let deferralUpdates = 0;
+    const failing = interceptCycle(async (client, sql, values) => {
+      if (sql.startsWith('WITH grouped AS')) throw original;
+      if (sql.includes('GREATEST')) deferralUpdates++;
+      const result = await client.query(sql, values);
+      if (sql === 'ROLLBACK') {
+        await blocker.query('BEGIN');
+        await blocker.query("SELECT pg_advisory_xact_lock(hashtextextended(current_schema() || ':station-duplicate-merge',0))");
+      }
+      return result;
+    });
+    try {
+      await assert.rejects(failing.runCycle(now), error => error === original);
+      assert.equal(deferralUpdates, 0); assert.deepEqual(await controlRow(), before);
+    } finally { await blocker.query('ROLLBACK'); blocker.release(); }
+  });
+
+  for (const failure of ['statement', 'lock', 'commit', 'rollback'] as const) {
+    it(`preserves the original error and releases an unusable client when deferral ${failure} fails`, async () => {
+      const preview = await store.createPreview(), before = await controlRow();
+      const original = new Error('fixture original seed failure'), cleanupError = new Error('fixture cleanup failure');
+      const blocker = failure === 'lock' ? await fixture.pool.connect() : undefined;
+      let begins = 0, deferralUpdates = 0, releases = 0, discarded: boolean | Error | undefined;
+      let limits: { statement: string; lock: string } | undefined;
+      const failing = interceptCycle(async (client, sql, values) => {
+        if (sql === 'BEGIN') begins++;
+        if (sql.startsWith('WITH grouped AS')) throw original;
+        if (failure === 'rollback' && sql === 'ROLLBACK') throw cleanupError;
+        if (sql.includes('GREATEST')) {
+          deferralUpdates++;
+          limits = (await client.query("SELECT current_setting('statement_timeout') AS statement,current_setting('lock_timeout') AS lock")).rows[0];
+          if (failure === 'statement') return client.query('SELECT pg_sleep(1)');
+        }
+        if (failure === 'commit' && begins === 2 && sql === 'COMMIT') throw cleanupError;
+        const result = await client.query(sql, values);
+        if (blocker && sql === 'ROLLBACK') {
+          await blocker.query('BEGIN');
+          await blocker.query('SELECT id FROM station_duplicate_merge_control WHERE id=1 FOR UPDATE');
+        }
+        return result;
+      }, destroy => { releases++; discarded = destroy; });
+      try {
+        await assert.rejects(failing.runCycle(now), error => error === original);
+        assert.equal(releases, 1); assert.equal(discarded, true);
+        assert.equal(begins, failure === 'rollback' ? 1 : 2);
+        assert.equal(deferralUpdates, failure === 'rollback' ? 0 : 1);
+        assert.deepEqual(limits, failure === 'rollback' ? undefined : { statement: '600ms', lock: '50ms' });
+        assert.deepEqual(await controlRow(), before);
+        assert.equal((await store.getJob(preview))?.status, 'running');
+      } finally {
+        if (blocker) { await blocker.query('ROLLBACK'); blocker.release(); }
+      }
+      assert.equal((await new PostgresDuplicateJobsStore(fixture.pool).runCycle(now)).completed, true);
+    });
+  }
+
+  it('retains a queued apply and rolls back merged work if the final cycle checkpoint fails', async () => {
+    await add('Final checkpoint'); await add('Final checkpoint');
+    const preview = await store.createPreview(); await finish(preview);
+    const apply = await store.createApply(preview), original = new Error('fixture final checkpoint failure');
+    const failing = interceptCycle(async (client, sql, values) => {
+      if (sql.startsWith('UPDATE station_duplicate_merge_control SET lease_owner=NULL')) throw original;
+      return client.query(sql, values);
+    });
+    await assert.rejects(failing.runCycle(advance()), error => error === original);
+    assert.equal(await catalog.count(), 2);
+    assert.equal((await store.getJob(apply))?.progress.groupsProcessed, 0);
+    assert.equal((await fixture.pool.query('SELECT count(*)::int n FROM station_merge_aliases')).rows[0].n, 0);
+    now = new Date(+new Date((await controlRow()).next_cycle_at) + 1);
+    const retried = await new PostgresDuplicateJobsStore(fixture.pool).runCycle(now);
+    assert.equal(retried.deleted, 1); assert.equal(retried.refreshCounts, true);
+    assert.equal(await catalog.count(), 1);
   });
 
   it('rolls back a merge when its checkpoint fails, then safely retries on restart', async () => {

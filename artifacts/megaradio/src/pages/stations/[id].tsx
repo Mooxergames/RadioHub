@@ -29,7 +29,6 @@ import StationLogo from "@/components/ui/station-logo";
 import { readStationBootstrap } from '@/lib/station-bootstrap';
 import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
-import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
 import { getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { getStationRelatedHeading } from '@workspace/seo-shared/station-page-copy';
@@ -134,7 +133,7 @@ interface Station {
 export default function StationDetails() {
   const isMobile = useIsMobile();
   // Use useSeoRouting to get cleanPath which handles ALL translated URLs automatically
-  const { cleanPath, getLocalizedUrl, navigateWithLanguage, currentLanguage } = useSeoRouting();
+  const { cleanPath, getLocalizedUrl, navigateWithLanguage } = useSeoRouting();
   const [, setLocation] = useLocation();
   useSearch();
   
@@ -237,18 +236,6 @@ export default function StationDetails() {
   // of the title-cased URL slug.
   useBreadcrumbLastItemName(station?.name);
   
-
-  // Fetch linked stations (Media Group Radios) - use station._id if available
-  const { data: linkedStations } = useQuery({
-    queryKey: ['/api/stations', station?._id, 'linked', 'cards-v1'],
-    queryFn: async () => {
-      const response = await fetch(`/api/stations/${station?._id}/linked?slim=1`);
-      if (!response.ok) return [];
-      return response.json();
-    },
-    enabled: !!station?._id,
-    ...stationQueryFreshness,
-  });
 
   // Fetch user location for country-specific similar stations - Long cache (location rarely changes)
   // OPTIMIZED: Use cached location data from localStorage
@@ -960,57 +947,6 @@ export default function StationDetails() {
               </div>
             </div>
           </div>
-
-          {/* Media Group Radios Section - Enhanced to match original exactly */}
-          {linkedStations && linkedStations.length > 0 && (
-            <div className="bg-[#181818] py-6">
-              <div className="container m-auto">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                  <h2 className="text-xl md:text-2xl font-bold text-white whitespace-nowrap">{t('station_media_group_radios', 'Media Group Radios')}</h2>
-                  <div className="flex-1 w-full overflow-hidden">
-                    <div className="flex gap-4 overflow-x-auto pb-2">
-                      {linkedStations.slice(0, 8).map((linkedStation: Station) => (
-                        <Link key={`${currentLanguage}-${linkedStation._id}`} to={getLocalizedUrl(`/station/${linkedStation.slug || linkedStation._id}`)}>
-                          <div className="flex items-center gap-4 border p-4 rounded-lg border-[#292929] hover:bg-[#252525] hover:border-[#7B7B7B] cursor-pointer overflow-hidden min-w-[250px] transition-colors">
-                            <div className="w-14 h-14 flex-shrink-0">
-                              <img
-                                loading="lazy"
-                                decoding="async"
-                                height={56}
-                                width={56}
-                                src={(() => {
-                                  const value = linkedStation.logoAssets?.webp256 || linkedStation.logoAssets?.webp96;
-                                  return normalizePublicStationLogoUrl(value
-                                    ? (value.startsWith('http') || value.startsWith('/') ? value : `/station-logos/${linkedStation.logoAssets?.folder}/${value}`)
-                                    : linkedStation.favicon || '/images/no-image.webp');
-                                })()}
-                                alt={getStationImageAlt(linkedStation, language, t)}
-                                className="w-14 h-14 rounded object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = "/images/no-image.webp";
-                                }}
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-lg font-semibold text-white truncate mb-1">
-                                {linkedStation.name}
-                              </h3>
-                              <p className="text-sm font-medium text-gray-300 truncate">
-                                {getStationCountryName(linkedStation, language)}
-                                {linkedStation.state && linkedStation.state !== "" && (
-                                  <span className="font-normal text-gray-400">, {linkedStation.state}</span>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="container m-auto space-y-4 pb-10 text-white">
             {/* Similar Radios Section - Independent Loading */}

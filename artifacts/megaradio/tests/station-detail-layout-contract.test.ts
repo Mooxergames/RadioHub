@@ -95,16 +95,12 @@ it('keeps mobile and desktop content ad blocks mutually exclusive and gives the 
   expect(AD_SLOTS.catalogFooter).not.toBe(AD_SLOTS.stationContent);
 });
 
-for (const variable of ['linkedStation', 'similarStation', 'countryStation']) {
+for (const variable of ['similarStation', 'countryStation']) {
   it(`${variable} title follows its H2 section with an H3 and retains the existing visual classes`, () => {
     const title = station.match(new RegExp(`<h([1-6])\\b([^>]*)>\\s*\\{${variable}\\.name\\}\\s*</h([1-6])>`));
     expect(title).not.toBeNull();
     expect(title![1]).toBe('3'); expect(title![3]).toBe('3');
-    if (variable === 'linkedStation') {
-      expect(title![2]).toContain('className="text-lg font-semibold text-white truncate mb-1"');
-    } else {
-      expect(title![2]).toContain('className="text-[16px] font-medium text-white truncate"');
-      expect(title![2]).toContain('fontWeight: 500');
-    }
+    expect(title![2]).toContain('className="text-[16px] font-medium text-white truncate"');
+    expect(title![2]).toContain('fontWeight: 500');
   });
 }

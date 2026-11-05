@@ -126,16 +126,17 @@ it.each([s3 + rootPath, s3 + nestedPath, 'https://logos.example/fixture.png'])('
   expect(fetch).not.toHaveBeenCalled();
 });
 
-it('home/detail emission and active MediaSession use the shared normalizer at their existing URL boundaries', () => {
+it('home/detail emission and active MediaSession retain their shared logo boundaries', () => {
   const source = (file: string) => readFileSync(path.resolve(process.cwd(), 'src', file), 'utf8');
   const home = source('pages/radio-frontend.tsx');
   expect(home).toMatch(/<OptimizedImage\s+src=\{normalizePublicStationLogoUrl\(/);
   expect(home).toContain("v.startsWith('http') || v.startsWith('/') ? v");
   expect(home).toContain('alt={`${station.name} favicon`}');
   const detail = source('pages/stations/[id].tsx');
-  expect(detail).toMatch(/return normalizePublicStationLogoUrl\(value[\s\S]*?linkedStation\.favicon \|\| '\/images\/no-image\.webp'\)/);
-  expect(detail).toContain("value.startsWith('http') || value.startsWith('/') ? value");
-  expect(detail).toContain('alt={getStationImageAlt(linkedStation, language, t)}');
+  for (const station of ['similarStation', 'countryStation']) {
+    expect(detail).toMatch(new RegExp(`<StationLogo\\s+station=\\{${station}\\}`));
+    expect(detail).toContain(`alt={getStationImageAlt(${station}, language, t)}`);
+  }
   const player = source('hooks/useGlobalPlayer.tsx');
   expect(player).toContain('return normalizePublicStationLogoUrl(station.favicon);');
   expect(player).toContain('return getStreamProxyUrl(`/api/image/${encodedUrl}`);');

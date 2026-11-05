@@ -8,6 +8,7 @@ import { providerHealthIsNewer, PROVIDER_HEALTH_FIELDS } from '../utils/provider
 import { stationVisibilityFields, stationVisibilitySql, stationAvailabilitySql } from '../utils/station-visibility';
 import { assessDuplicateMerge, compareDuplicateSurvivors } from '../utils/station-duplicate-policy';
 import { preserveMergedStationMetadata } from '../utils/station-merge-preservation';
+import { ManualStationMergeError, parseManualStationMerge, validateManualStationMergeReview, type ManualStationMergeReview } from '../utils/manual-station-merge-review';
 import { allocateUniqueCatalogSlug } from './postgres-slug-store';
 import { automaticNoIndexPatch, evaluateJunkStation } from '../seo/junk-station-rules';
 import { STATION_SYNC_POLICY_KEY, stationIntakeEnabled } from '../utils/station-sync-policy';
@@ -668,16 +669,27 @@ export class PostgresCatalogStore {
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
   /** Recompute totals under row locks; concurrent merges cannot double-count. */
-  async mergeDuplicates(ids: string[], options: { primaryId?:string; validateGroup?:boolean; patch?:CatalogDocument; requireSafeIdentity?:boolean; client?:pg.PoolClient } = {}): Promise<{ deletedCount: number; primary: CatalogDocument | null; duplicates: CatalogDocument[] }> {
+  async mergeDuplicates(ids: string[], options: { primaryId?:string; validateGroup?:boolean; patch?:CatalogDocument; requireSafeIdentity?:boolean; client?:pg.PoolClient; manualReview?:ManualStationMergeReview } = {}): Promise<{ deletedCount: number; primary: CatalogDocument | null; duplicates: CatalogDocument[] }> {
+    const manualSelection = options.manualReview ? parseManualStationMerge({ primaryStationId: options.primaryId,
+      duplicateStationIds: ids.filter(id => id !== options.primaryId), mergeData: options.patch,
+      ...options.manualReview, confirm: true }, true) : undefined;
+    if (manualSelection && (ids.length !== manualSelection.duplicateStationIds.length + 1 || !ids.includes(manualSelection.primaryStationId))) {
+      throw new ManualStationMergeError('Manual merge selection does not match the locked IDs', 400, 'INVALID_MANUAL_MERGE');
+    }
     const client = options.client || await this.pool.connect();
     const ownsTransaction = !options.client;
     const savepoint = ownsTransaction ? null : `station_merge_${crypto.randomBytes(6).toString('hex')}`;
     try {
       if (ownsTransaction) await client.query('BEGIN');
       else await client.query(`SAVEPOINT ${savepoint}`);
+      if (ownsTransaction && manualSelection) {
+        await client.query("SET LOCAL statement_timeout='2s'");
+        await client.query("SET LOCAL lock_timeout='200ms'");
+      }
       const rows = await client.query('SELECT * FROM stations WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[ids]);
       const docs = rows.rows.map(catalogShape).sort(options.requireSafeIdentity ? compareDuplicateSurvivors
         : (a,b)=>(b.votes || 0)-(a.votes || 0) || a._id.localeCompare(b._id));
+      if (manualSelection) validateManualStationMergeReview(manualSelection, docs, manualSelection.review!);
       if (options.requireSafeIdentity) {
         const assessment = docs.length === new Set(ids).size ? assessDuplicateMerge(docs) : { eligible: false, reason: 'Detected station group changed or a member is missing' };
         if (!assessment.eligible) throw Object.assign(new Error(assessment.reason), { code: 'UNSAFE_DUPLICATE_GROUP' });
@@ -695,7 +707,7 @@ export class PostgresCatalogStore {
       const duplicates = docs.filter(doc=>doc._id!==before._id), loserIds = duplicates.map(doc=>doc._id);
       primary = preserveMergedStationMetadata(primary, duplicates);
       for (const field of ['name','url','homepage','favicon','country','language','genre']) {
-        const value = options.patch?.[field];
+        const value = (manualSelection?.changes || options.patch)?.[field];
         if (typeof value==='string' && value.trim()) { primary[field] = value.trim();primary.manualEditFields = { ...primary.manualEditFields,[field]:true }; }
       }
       if (primary.url !== before.url) {
