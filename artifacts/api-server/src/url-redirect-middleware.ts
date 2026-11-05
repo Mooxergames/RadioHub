@@ -478,7 +478,9 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
   //     removed or its canonical re-mapped, that pin would route
   //     visitors to the wrong URL until the cache evicts.
   let aliasRedirectApplied = false;
-  if (segments.length === 3 && isSlugExistenceReady()) {
+  // Some locales use the same token for station details and the A-Z list.
+  // A legacy one-letter alias must never consume a reserved directory key.
+  if (segments.length === 3 && !AZ_KEY_RE.test(segments[2]) && isSlugExistenceReady()) {
     const currentFirst = segments[0];
     const currentIsLanguageCode = SEO_LANGUAGES.some((l) => l.code === currentFirst);
     const currentIsCountryCode =

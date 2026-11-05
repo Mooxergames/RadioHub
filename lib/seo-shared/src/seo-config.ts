@@ -1457,10 +1457,11 @@ export function generateLanguageUrls(
         const translatedSegments = pathSegments.map((segment, index) => {
           // Check if this is a station/station ID segment
           const isStationPath = cleanPath.includes('/station/') || cleanPath.includes('/stations/');
-          const isStationSlug = isStationPath && index === 1; // Second segment is the slug
+          const isGenrePath = pathSegments.length === 2 && pathSegments[0] === 'genres';
+          const isIdentitySlug = (isStationPath || isGenrePath) && index === 1;
           
-          // Never translate station slugs - they're unique identifiers
-          if (isStationSlug) {
+          // Station and genre slugs are identities, not translated route labels.
+          if (isIdentitySlug) {
             return segment;
           }
           

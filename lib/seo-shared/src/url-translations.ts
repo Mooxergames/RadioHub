@@ -1961,20 +1961,20 @@ function decodeStationSegment(segment: string): string {
   }
 }
 
-function stationRouteKey(segment: string, language: string, crossLanguage = false): string | undefined {
+function identityRouteKey(segment: string, language: string, crossLanguage = false): string | undefined {
   const decoded = decodeStationSegment(segment);
   const localMapping = databaseReverseTranslationsCache?.get(`${language}:${decoded}`)
     || REVERSE_URL_TRANSLATIONS[language]?.[decoded];
   const english = localMapping || decoded;
-  if (english === 'station' || english === 'stations') return english;
+  if (english === 'station' || english === 'stations' || english === 'genres') return english;
   if (!crossLanguage || localMapping) return undefined;
   if (databaseReverseTranslationsCache) {
     for (const [key, value] of databaseReverseTranslationsCache) {
-      if (key.slice(key.indexOf(':') + 1) === decoded && (value === 'station' || value === 'stations')) return value;
+      if (key.slice(key.indexOf(':') + 1) === decoded && (value === 'station' || value === 'stations' || value === 'genres')) return value;
     }
   }
   const global = GLOBAL_REVERSE_URL_TRANSLATIONS.get(decoded)?.english;
-  return global === 'station' || global === 'stations' ? global : undefined;
+  return global === 'station' || global === 'stations' || global === 'genres' ? global : undefined;
 }
 
 
@@ -2010,9 +2010,9 @@ export function normalizeUrlForLanguage(urlPath: string, targetLanguage: string)
     return { normalized: urlPath, needsRedirect: false };
   }
 
-  const stationKey = pathSegments.length === 2 && stationRouteKey(pathSegments[0], targetLanguage, true);
-  if (stationKey) {
-    const route = translateUrlSegment(stationKey, targetLanguage);
+  const identityKey = pathSegments.length === 2 && identityRouteKey(pathSegments[0], targetLanguage, true);
+  if (identityKey) {
+    const route = translateUrlSegment(identityKey, targetLanguage);
     const prefix = isFirstSegmentLangCode ? `/${targetLanguage}` : '';
     return {
       normalized: `${prefix}/${route}/${decodeStationSegment(pathSegments[1])}${suffix}`,
@@ -2099,7 +2099,8 @@ export function translateUrl(urlPath: string, targetLanguage: string): string {
 
   const [pathname, suffix] = splitUrlSuffix(urlPath);
   const segments = pathname.split('/').filter(Boolean);
-  if (segments.length === 2 && (segments[0] === 'station' || segments[0] === 'stations')) {
+  // Catalog slugs are identities, even when they equal translated route words.
+  if (segments.length === 2 && (segments[0] === 'station' || segments[0] === 'stations' || segments[0] === 'genres')) {
     return `/${translateUrlSegment(segments[0], targetLanguage)}/${segments[1]}${suffix}`;
   }
   const translatedSegments = segments.map(segment => {
@@ -2139,9 +2140,9 @@ export function reverseTranslateUrl(urlPath: string, sourceLanguage: string): st
   if (/^\/blog(?:\/|$)/.test(urlPath)) return urlPath;
   const [pathname, suffix] = splitUrlSuffix(urlPath);
   const segments = pathname.split('/').filter(Boolean);
-  const stationKey = segments.length === 2 && stationRouteKey(segments[0], sourceLanguage);
-  if (stationKey) {
-    return `/${stationKey}/${decodeStationSegment(segments[1])}${suffix}`;
+  const identityKey = segments.length === 2 && identityRouteKey(segments[0], sourceLanguage);
+  if (identityKey) {
+    return `/${identityKey}/${decodeStationSegment(segments[1])}${suffix}`;
   }
   const englishSegments = segments.map(segment => {
     // CRITICAL: Decode URL-encoded characters (e.g., %D5%BD%D5%BF%D5%A1%D6%81%D5%AB%D5%A1 → ստացիա)

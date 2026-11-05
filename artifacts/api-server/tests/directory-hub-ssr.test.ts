@@ -64,6 +64,18 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
       if (kind === 'genres') {
         for (const slug of ['pop', 'rock']) assert.ok(body.includes(`href="${escape(path + '/' + slug)}"`));
         assert.ok(!body.includes('/105"') && !body.includes('/jazz"') && !body.includes('/thin"'));
+        const schemas = renderer.generateStructuredData(page.seoTags, language, {}, page.cleanPath,
+          undefined, page.urlTranslations, page.pageData.additionalData);
+        const list = schemas.page.find((schema: any) => schema['@type'] === 'ItemList');
+        assert.ok(list, 'The native genre directory is also machine-readable');
+        assert.equal(list.numberOfItems, 2);
+        assert.deepEqual(list.itemListElement, page.pageData.directoryGenres.map((genre: any, index: number) => ({
+          '@type': 'ListItem', position: index + 1, name: genre.name,
+          url: `https://themegaradio.com${path}/${encodeURIComponent(genre.slug)}`,
+        })));
+        const collection = schemas.page.find((schema: any) => schema['@type'] === 'CollectionPage');
+        assert.deepEqual(collection.mainEntity, list);
+        assert.ok(list.itemListElement.every((item: any) => body.includes(`href="${escape(new URL(item.url).pathname)}"`)));
       } else {
         const germany = buildLocalizedUrl('/regions/europe/germany', language, undefined, new Map());
         assert.ok(body.includes(`href="${escape(germany)}"`));

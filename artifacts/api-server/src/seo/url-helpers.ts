@@ -45,8 +45,9 @@ export function buildLocalizedUrl(
   // 2026-06-20, Finding A (slug-collision hardening).
   const isStationPath =
     englishPath.includes('/station/') || englishPath.includes('/stations/');
+  const isGenrePath = segments.length === 2 && segments[0] === 'genres';
   const translatedSegments = segments.map((segment, index) => {
-    if (isStationPath && index === 1) {
+    if ((isStationPath || isGenrePath) && index === 1) {
       // Skip translation; still percent-encode unsafe characters.
       return encodeURIComponent(segment).replace(
         /[!*'()]/g,
