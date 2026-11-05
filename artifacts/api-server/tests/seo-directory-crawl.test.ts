@@ -58,6 +58,20 @@ const body = (data: any) => renderer.generateHtmlBody({ pageType: data.pageData.
   cleanPath: data.cleanPath, additionalData: data.pageData.additionalData, translations: {},
   seoTags: data.seoTags, urlTranslations: data.urlTranslations });
 
+test('French chanson reaches the whitelisted genre rather than noindex song', async () => {
+  const page = await renderer.renderStaticPage('/fr/genres/chanson', origin);
+  assert.equal(page.cleanPath, '/genres/chanson');
+  assert.deepEqual(calls, [['genre', 'chanson', 1, undefined]]);
+  assert.equal(page.seoTags.canonical, `${origin}/fr/genres/chanson`);
+  assert.notEqual(page.seoTags.noIndex, true);
+  assert.ok(page.seoTags.hreflangs.every((link: any) => link.url.endsWith('/chanson')));
+  assert.match(body(page), /Chanson/);
+  cache.clear();
+  const noise = await renderer.renderStaticPage('/fr/genres/song', origin);
+  assert.equal(noise.cleanPath, '/genres/song');
+  assert.equal(noise.seoTags.noIndex, true, 'Unknown genres retain their existing indexability guard');
+});
+
 for (const language of ACTIVE_SITEMAP_LANGUAGES) {
   test(`${language}: genre pages have distinct native slices, self canonicals and sequential hrefs`, async () => {
     const path = buildLocalizedUrl('/genres/jazz', language, undefined, new Map());

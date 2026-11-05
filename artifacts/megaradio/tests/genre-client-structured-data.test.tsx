@@ -167,8 +167,8 @@ describe('genre client station-list ownership with real SEO and station anchors'
     expect(document.querySelectorAll('[data-schema-scope="global"]')).toHaveLength(2);
   });
 
-  it('does not strip lists on the genre index or another page family', () => {
-    for (const url of ['/en/genres', '/en/station/pop', '/en/genres-not/pop']) {
+  it('does not strip lists on another page family', () => {
+    for (const url of ['/en/station/pop', '/en/genres-not/pop']) {
       seedSsr(url);
       const view = render(tree());
       expect(pageSchemas()).toEqual(structuredData.page);

@@ -22,7 +22,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   const search = useSearch();
   
   const routePath = (englishPath || '').split(/[?#]/)[0];
-  const isGenreDetail = /^\/genres\/.+/.test(routePath);
+  const isGenrePage = /^\/genres(?:\/|$)/.test(routePath);
   const isDirectory = isStationDirectoryPath(routePath);
   const isBlog = /^\/[a-z]{2}\/blog(?:\/|$)/.test(location);
   // Wouter decodes paths/search. Catalog validation and cache identity must
@@ -40,10 +40,10 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   // Layout timing ensures a cached current-route head can apply afterwards.
   useLayoutEffect(() => {
     if (!ssrHeadAlreadyCorrect) clearPageStructuredData();
-    // Even the correct initial SSR metadata can describe a different station
-    // selection from the browser's saved country filter.
-    if (isGenreDetail) clearGenreStationLists();
-  }, [fullUrl, ssrHeadAlreadyCorrect, isGenreDetail]);
+    // Genre hubs and detail lists change with browser filters and pagination.
+    // Keep their raw SSR lists, but do not retain a stale list after mounting.
+    if (isGenrePage) clearGenreStationLists();
+  }, [fullUrl, ssrHeadAlreadyCorrect, isGenrePage]);
 
   // Fetch SEO data from server using FULL URL with country code.
   // slim=1 omits dictionaries; only exact catalog routes include the bounded DTO.
@@ -76,9 +76,9 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
     ...(isDirectory ? { retry: false } : {}),
   });
   const seoData = query.data;
-  const structuredData = useMemo(() => seoData?.structuredData && isGenreDetail
+  const structuredData = useMemo(() => seoData?.structuredData && isGenrePage
     ? withoutGenreStationLists(seoData.structuredData) : seoData?.structuredData,
-  [seoData?.structuredData, isGenreDetail]);
+  [seoData?.structuredData, isGenrePage]);
 
   return (
     <ServerSeoHeadContext.Provider value={true}>

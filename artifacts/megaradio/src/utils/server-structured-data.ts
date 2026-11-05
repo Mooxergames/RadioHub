@@ -20,7 +20,7 @@ function withoutStationList(schema: Record<string, unknown>): Record<string, unk
   return schema;
 }
 
-/** The genre UI owns its filtered/paginated stations, not the server's popular list. */
+/** The genre UI owns filtered/paginated genres and stations, not the server's initial list. */
 export function withoutGenreStationLists(data: ServerStructuredData): ServerStructuredData {
   if (!Array.isArray(data?.page) || !data.page.every(schema =>
     schema && typeof schema === 'object' && !Array.isArray(schema))) return data;

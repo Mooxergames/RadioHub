@@ -124,6 +124,32 @@ const fixture = (patch: Record<string, unknown> = {}) => ({ _id: 'safe-existing-
   url: 'https://stream.example.invalid/live', lastCheckOk: true,
   descriptions: Object.fromEntries(ACTIVE_SITEMAP_LANGUAGES.map(language => [language, { full: `Full ${language}`, meta: `Meta ${language}` }])), ...patch });
 
+test('warm alias cache cannot redirect any localized A-Z directory to a station', async () => {
+  const { AZ_INDEX_KEYS } = await import('../src/seo/az-station-index');
+  stationRows = [fixture({ slug: 'radio-gomer', slugAliases: [...AZ_INDEX_KEYS, 'old-radio-gomer'] })];
+  slugCacheReady = true;
+  pageCache.clear();
+  for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+    const listSegment = URL_TRANSLATIONS[language]?.stations || 'stations';
+    for (const letter of AZ_INDEX_KEYS) {
+      const path = encodeURI(`/${language}/${listSegment}/${letter}`) + '?page=2';
+      const response = await fetch(baseUrl + path, { redirect: 'manual', headers: { 'x-test-direct': 'url-only' } });
+      assert.equal(response.status, 204, `${path} is a directory, not the radio-gomer alias`);
+      assert.equal(response.headers.get('location'), null);
+    }
+  }
+});
+
+test('non-directory station aliases still redirect to their canonical identity', async () => {
+  stationRows = [fixture({ slug: 'radio-gomer', slugAliases: ['i', 'old-radio-gomer'] })];
+  slugCacheReady = true;
+  const response = await fetch(baseUrl + '/de/sender/old-radio-gomer?utm_source=ahrefs', {
+    redirect: 'manual', headers: { 'x-test-direct': 'url-only' },
+  });
+  assert.equal(response.status, 301);
+  assert.equal(response.headers.get('location'), '/de/sender/radio-gomer?utm_source=ahrefs');
+});
+
 async function followLocal(source: string) {
   const chain: Array<{ path: string; status: number; location: string | null }> = [];
   let path = source;

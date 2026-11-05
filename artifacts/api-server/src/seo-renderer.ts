@@ -3470,6 +3470,20 @@ export class SeoRenderer {
       };
     }
 
+    if (cleanPath === '/genres' && additionalData?.directoryGenres?.length > 0 && seoTags?.noIndex !== true) {
+      const genresPath = buildLocalizedUrl('/genres', language, undefined, urlTranslations || new Map());
+      popularStationsSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        name: buildDirectoryIndexSeo('genres', language, translations).h1,
+        numberOfItems: additionalData.directoryGenres.length,
+        itemListElement: additionalData.directoryGenres.map((genre: { slug: string; name: string }, index: number) => ({
+          '@type': 'ListItem', position: index + 1, name: genre.name,
+          url: `${baseDomain}${genresPath}/${encodeURIComponent(genre.slug)}`,
+        })),
+      };
+    }
+
     // ---- CollectionPage schema (architect P1: A3) ----------------------
     // For listing-style pages (genres / regions / stations) wrap the
     // existing ItemList inside a CollectionPage so Google understands
