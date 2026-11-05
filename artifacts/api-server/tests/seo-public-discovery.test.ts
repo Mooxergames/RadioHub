@@ -122,3 +122,28 @@ for (const kind of ['trending', 'recommendations'] as const) {
     assert.match(body(recovered), /public-radio/);
   });
 }
+
+for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+  for (const kind of ['trending', 'recommendations', 'favorites']) {
+    test(`${language}/${kind}: raw and percent-encoded bare aliases resolve before locale detection`, async () => {
+      const root = URL_TRANSLATIONS[language]?.[kind] || kind;
+      const expectedLanguage = root === kind ? 'en' : ACTIVE_SITEMAP_LANGUAGES.find(
+        locale => URL_TRANSLATIONS[locale]?.[kind] === root)!;
+      const canonical = origin + buildLocalizedUrl(`/${kind}`, expectedLanguage, undefined, new Map());
+      for (const bare of new Set([`/${root}`, `/${encodeURIComponent(root)}`])) {
+        for (const suffix of ['', '/']) {
+          const page = await renderer.renderStaticPage(bare + suffix, origin);
+          assert.equal(page.language, expectedLanguage);
+          assert.equal(page.cleanPath, `/${kind}`);
+          assert.equal(page.pageData.pageType, kind === 'favorites' ? 'utility' : kind);
+          assert.equal(page.seoTags.canonical, canonical);
+          assert.equal(page.seoTags.robots, kind === 'favorites' ? 'noindex, follow' : 'index, follow');
+          assert.doesNotMatch(page.seoTags.canonical, /%25/);
+          if (kind === 'favorites') assert.deepEqual(page.seoTags.hreflangs, []);
+          else assert.match(body(page), /public-radio/);
+        }
+      }
+      if (kind === 'favorites') assert.deepEqual(reads, []);
+    });
+  }
+}

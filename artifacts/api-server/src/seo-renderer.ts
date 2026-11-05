@@ -1,4 +1,4 @@
-import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, CODE_TO_COUNTRY, SEO_LANGUAGES, ACTIVE_SITEMAP_LANGUAGES, MAX_GENRE_DIRECTORY_PAGE, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
+import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, CODE_TO_COUNTRY, SEO_LANGUAGES, MAX_GENRE_DIRECTORY_PAGE, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { buildDirectoryIndexSeo } from '@workspace/seo-shared/directory-index-seo';
 import { isStationDirectoryPath, isStationDirectoryData, type StationDirectoryData } from '@workspace/seo-shared/station-directory';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
@@ -28,6 +28,7 @@ import { withPilotEditorial } from './seo/indexing-pilot';
 import { collectStationLinkTargets, resolveStationLinkLanguages, buildStationLinkUrl } from './seo/station-link-locale';
 import { readSeoStationLinkMetadata } from './data/postgres-seo-station-link-store';
 import { loadPublicDiscoveryStations, trendingPageSeo } from './seo/public-discovery';
+import { resolveBareDiscoveryPath } from './seo/public-route-matchers';
 
 // The renderer only needs this small subset of the normalized catalog shape.
 interface LeanStationCard {
@@ -69,7 +70,7 @@ const PRIVATE_PAGE_ROOTS = new Set([
 type LeanSeoMetadataDoc = Record<string, any>;
 import { performanceCache } from './performance-cache';
 import { logger } from './utils/logger';
-import { GLOBAL_REVERSE_URL_TRANSLATIONS, URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
+import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { renderLegalPageHtml } from '@workspace/seo-shared/legal-content-html';
 import { trackOperation } from './utils/operation-tracker';
 import { isJunkStation } from './seo/junk-station-rules';
@@ -371,16 +372,7 @@ export class SeoRenderer {
     const cleanUrl = url.split('?')[0].split('#')[0];
 
     // Get language from URL path, but prefer user's stored preference if available
-    let { language, cleanPath } = getLanguageFromPath(cleanUrl);
-    // Bare translated discovery roots use the same policy as their localized
-    // routes. Do not reinterpret station identities or arbitrary descendants.
-    const bareRoot = cleanPath.replace(/^\/|\/$/g, '');
-    const bareMapping = cleanPath === cleanUrl ? GLOBAL_REVERSE_URL_TRANSLATIONS.get(bareRoot) : undefined;
-    if (bareMapping && ['trending', 'recommendations', 'favorites'].includes(bareMapping.english)) {
-      if (bareMapping.english !== bareRoot) language = ACTIVE_SITEMAP_LANGUAGES.find(
-        locale => URL_TRANSLATIONS[locale]?.[bareMapping.english] === bareRoot) || bareMapping.sourceLanguage;
-      cleanPath = `/${bareMapping.english}`;
-    }
+    let { language, cleanPath } = resolveBareDiscoveryPath(cleanUrl) || getLanguageFromPath(cleanUrl);
     // Editorial URLs own their locale. A preference cookie must not substitute
     // another language at a crawlable, self-canonical article URL. No DB reads
     // are needed to render these versioned articles.

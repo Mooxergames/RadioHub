@@ -1,18 +1,35 @@
-import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
-import { COUNTRY_TO_LANGUAGE, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { GLOBAL_REVERSE_URL_TRANSLATIONS, URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
+import { ACTIVE_SITEMAP_LANGUAGES, COUNTRY_TO_LANGUAGE, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
 export const PUBLIC_SEO_LOCALE_CODES = new Set([
   ...SEO_LANGUAGES.filter(language => language.enabled).map(language => language.code),
   ...Object.keys(COUNTRY_TO_LANGUAGE),
 ].filter(code => /^[a-z]{2}$/.test(code)));
 
+export function resolveBareDiscoveryPath(url: string): { language: string; cleanPath: string } | undefined {
+  const match = /^\/([^/]+)\/?$/.exec(url.split('?')[0].split('#')[0]);
+  if (!match) return undefined;
+  try {
+    // Accept normal UTF-8 URL encoding, not encoded ASCII route boundaries or
+    // locale lookalikes. Decode once, before two-character locale detection.
+    if (/%[0-7][0-9a-f]/i.test(match[1])) return undefined;
+    const root = decodeURIComponent(match[1]);
+    const mapping = GLOBAL_REVERSE_URL_TRANSLATIONS.get(root);
+    if (!mapping || !['trending', 'recommendations', 'favorites'].includes(mapping.english)) return undefined;
+    const language = mapping.english === root ? 'en' : ACTIVE_SITEMAP_LANGUAGES.find(
+      locale => URL_TRANSLATIONS[locale]?.[mapping.english] === root) || mapping.sourceLanguage;
+    return { language, cleanPath: `/${mapping.english}` };
+  } catch { return undefined; }
+}
+
 export function decodePublicSeoPath(url: string): string | null {
   try {
     const rawSegments = url.split('?')[0].split('#')[0].split('/');
     const segments = rawSegments.map(segment => decodeURIComponent(segment));
     const root = rawSegments.findIndex(segment => segment !== '');
-    // The renderer interprets the locale/bare root literally, not percent-decoded.
-    if (root >= 0 && rawSegments[root] !== segments[root]) return null;
+    // Only exact known bare discovery roots have a single-decode renderer
+    // contract. Encoded locales and all other encoded bare roots stay rejected.
+    if (root >= 0 && rawSegments[root] !== segments[root] && !resolveBareDiscoveryPath(url)) return null;
     // Decoding must never create a new route boundary inside a path segment.
     if (segments.some(segment => /[/\\?#\u0000-\u001f\u007f]/u.test(segment))) return null;
     return segments.join('/');
