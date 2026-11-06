@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { beforeEach, mock, test } from 'node:test';
+import { after, before, beforeEach, mock, test } from 'node:test';
+import express from 'express';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { setDatabaseUrlTranslations, URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
@@ -53,7 +56,13 @@ mock.module('../src/seo/qualified-languages', { namedExports: {
     return qualifiedLanguages;
   },
 } });
+mock.module('../src/seo/slug-existence', { namedExports: {
+  getCanonicalStationSlug: () => null,
+  getRedirectableStationSlug: () => null,
+  isSlugExistenceReady: () => false,
+} });
 const { SeoRenderer } = await import('../src/seo-renderer');
+const { urlRedirectMiddleware } = await import('../src/url-redirect-middleware');
 const renderer = new SeoRenderer();
 const sourceUrl = '/en/station/duplicate-fm';
 
@@ -426,4 +435,155 @@ test('custom SEO noindex metadata cannot be bypassed by ID consolidation', async
   const result = await renderer.renderStaticPage(`/en/station/${stationId}`, 'https://themegaradio.com');
   assert.equal(result.seoTags.noIndex, true);
   assert.equal(result.pageData.redirectTo, undefined);
+});
+
+let server: Server;
+let httpBase: string;
+before(async () => {
+  const app = express();
+  app.use(urlRedirectMiddleware);
+  app.use(async (req, res) => {
+    const result = await renderer.renderStaticPage(req.originalUrl, 'https://themegaradio.com');
+    const data = result.pageData;
+    if (data?.redirectTo) return void res.redirect(301, data.redirectTo);
+    res.status(data?.notFound ? 404 : data?.stationIsJunk ? 410 : 200).json({
+      id: data?.station?._id, canonical: result.seoTags.canonical, noIndex: result.seoTags.noIndex,
+    });
+  });
+  server = await new Promise<Server>(resolve => {
+    const value = app.listen(0, '127.0.0.1', () => resolve(value));
+  });
+  httpBase = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+after(async () => {
+  server?.closeAllConnections();
+  if (server) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+});
+
+for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+  test(`${language}: HTTP legacy plural ID reaches the verified slug in one 301`, async () => {
+    setIdStation();
+    const expected = buildLocalizedUrl('/station/canonical-fm', language, undefined, routeTranslations);
+    const query = '?utm_source=a%26b&keep=%252F';
+    const response = await fetch(`${httpBase}/${language}/stations/${stationId}${query}`, { redirect: 'manual' });
+    assert.equal(response.status, 301);
+    assert.equal(response.headers.get('location'), expected + query);
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=300, must-revalidate');
+    const final = await fetch(httpBase + response.headers.get('location'), { redirect: 'manual' });
+    assert.equal(final.status, 200);
+    assert.equal(final.headers.get('location'), null);
+    const body = await final.json();
+    assert.equal(body.id, stationId);
+    assert.equal(body.canonical, `https://themegaradio.com${expected}`);
+    assert.notEqual(body.noIndex, true);
+  });
+}
+
+for (const path of [`/stations/${stationId}`, `/station/${stationId}`, `/en/radios/${stationId}`,
+  `/EN/STATIONS/${stationId.toUpperCase()}`, `/en//stations/${stationId}`]) {
+  test(`HTTP legacy ID ${path} preserves exact identity without an intermediate redirect`, async () => {
+    setIdStation();
+    const response = await fetch(httpBase + path, { redirect: 'manual' });
+    assert.equal(response.status, 301);
+    assert.equal(response.headers.get('location'), '/en/station/canonical-fm');
+  });
+}
+
+test('HTTP HEAD uses the same ID destination and query without a response body', async () => {
+  setIdStation();
+  const response = await fetch(`${httpBase}/en/stations/${stationId}?q=a%2Bb`, { method: 'HEAD', redirect: 'manual' });
+  assert.equal(response.status, 301);
+  assert.equal(response.headers.get('location'), '/en/station/canonical-fm?q=a%2Bb');
+  assert.equal(await response.text(), '');
+});
+
+test('HTTP ID route and language normalization are folded into the same final destination', async () => {
+  setIdStation({ descriptions: { en: destination.descriptions.en } });
+  qualifiedLanguages = ['en'];
+  const response = await fetch(`${httpBase}/ar/stations/${stationId}`, { redirect: 'manual' });
+  assert.equal(response.headers.get('location'), '/en/station/canonical-fm');
+});
+
+test('HTTP retained duplicate ID uses the existing verified final target rather than its retired slug', async () => {
+  idResult = { ...base, _id: stationId };
+  const response = await fetch(`${httpBase}/en/stations/${stationId}`, { redirect: 'manual' });
+  assert.equal(response.status, 301);
+  assert.equal(response.headers.get('location'), '/en/station/canonical-fm');
+  const final = await fetch(httpBase + response.headers.get('location'), { redirect: 'manual' });
+  assert.equal(final.status, 200);
+  assert.equal((await final.json()).id, destination._id);
+});
+
+test('HTTP repeated legacy ID requests reuse the existing SEO page cache', async () => {
+  setIdStation();
+  const first = await fetch(`${httpBase}/en/stations/${stationId}`, { redirect: 'manual' });
+  assert.equal(first.status, 301);
+  const readCount = reads.length;
+  const second = await fetch(`${httpBase}/en/stations/${stationId}`, { redirect: 'manual' });
+  assert.equal(second.headers.get('location'), '/en/station/canonical-fm');
+  assert.equal(reads.length, readCount);
+});
+
+test('HTTP ID consolidation respects a configured Unicode slug and custom translated route', async () => {
+  setIdStation({ slug: 'radyo-\u00e7a\u011fr\u0131' });
+  routeTranslations = new Map([['tr:station', 'radyo-kanali']]);
+  setDatabaseUrlTranslations(routeTranslations);
+  const response = await fetch(`${httpBase}/tr/stations/${stationId}`, { redirect: 'manual' });
+  assert.equal(response.headers.get('location'), '/tr/radyo-kanali/radyo-%C3%A7a%C4%9Fr%C4%B1');
+});
+
+test('HTTP ID shape does not override an existing exact slug belonging to a different station', async () => {
+  setIdStation();
+  fixtures.set(`slug:${stationId}`, { ...destination, _id: 'exact-slug-owner', slug: stationId });
+  const response = await fetch(`${httpBase}/en/stations/${stationId}`, { redirect: 'manual' });
+  assert.equal(response.headers.get('location'), `/en/station/${stationId}`);
+  assert.ok(!reads.includes(`id:${stationId}`));
+  const final = await fetch(httpBase + response.headers.get('location'), { redirect: 'manual' });
+  assert.equal((await final.json()).id, 'exact-slug-owner');
+});
+
+for (const reason of ['missing', 'manual noindex', 'custom noindex', 'wrong owner', 'unsafe slug']) {
+  test(`HTTP legacy ID does not bypass ${reason} validation`, async () => {
+    if (reason !== 'missing') setIdStation(reason === 'manual noindex' ? { noIndex: true, manualEditFields: { noIndex: true } }
+      : reason === 'unsafe slug' ? { slug: 'bad/fm' } : {});
+    if (reason === 'custom noindex') customMetadata = { noIndex: true };
+    if (reason === 'wrong owner') fixtures.set('slug:canonical-fm', { ...destination, _id: 'unrelated-station' });
+    const response = await fetch(`${httpBase}/en/stations/${stationId}`, { redirect: 'manual' });
+    assert.equal(response.headers.get('location'), `/en/station/${stationId}`, 'preserve the existing fallback, never invent a destination');
+  });
+}
+
+for (const reason of ['ID lookup', 'slug verification', 'qualification', 'timeout']) {
+  test(`HTTP ${reason} failure cannot cache a permanent ID redirect and recovers on retry`, async () => {
+    setIdStation();
+    const original = idResult;
+    if (reason === 'ID lookup') idResult = () => { throw new Error('temporary ID read outage'); };
+    if (reason === 'slug verification') fixtures.set('slug:canonical-fm', () => { throw new Error('temporary slug read outage'); });
+    if (reason === 'qualification') qualificationFails = true;
+    if (reason === 'timeout') idResult = () => { throw new DOMException('Cancelled', 'AbortError'); };
+    const failed = await fetch(`${httpBase}/en/stations/${stationId}`, { redirect: 'manual' });
+    assert.equal(failed.status, 503);
+    assert.equal(failed.headers.get('location'), null);
+    assert.equal(failed.headers.get('cache-control'), 'no-store');
+    assert.equal(failed.headers.get('retry-after'), '60');
+    assert.equal(failed.headers.get('x-robots-tag'), null);
+    assert.equal(pageCache.size, 0);
+    idResult = original; fixtures.set('slug:canonical-fm', original); qualificationFails = false;
+    const recovered = await fetch(`${httpBase}/en/stations/${stationId}`, { redirect: 'manual' });
+    assert.equal(recovered.status, 301);
+    assert.equal(recovered.headers.get('location'), '/en/station/canonical-fm');
+  });
+}
+
+test('ordinary slugs, normalized IDs, A-Z lists, API/private routes and mutations incur no extra lookup', async () => {
+  const paths = ['/en/station/canonical-fm', `/en/station/${stationId}`, '/en/stations/a',
+    `/api/stations/${stationId}`, `/en/profile/${stationId}`, `/en/login/${stationId}`];
+  for (const method of ['GET', 'POST', 'PUT']) {
+    for (const path of [...paths, ...(method === 'GET' ? [] : [`/en/stations/${stationId}`])]) {
+      const req = { method, path, originalUrl: path, query: {}, headers: {} };
+      const res = { setHeader() {}, redirect() {} };
+      await urlRedirectMiddleware(req as any, res as any, () => {});
+      assert.deepEqual(reads, [], `${method} ${path}`);
+    }
+  }
 });
