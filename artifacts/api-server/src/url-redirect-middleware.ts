@@ -6,6 +6,8 @@ import { logger } from './utils/logger';
 import { performanceCache } from './performance-cache';
 import { getCanonicalStationSlug, getRedirectableStationSlug, isSlugExistenceReady } from './seo/slug-existence';
 import { AZ_KEY_RE } from './seo/az-station-index';
+import { buildLocalizedUrl } from './seo/url-helpers';
+import { markSeoTemporarilyUnavailable } from './seo/temporary-unavailable';
 
 /**
  * 301 Redirect Middleware for Translated URL Patterns (single-hop edition)
@@ -534,6 +536,43 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
   // ---- Final: compare and emit ONE 301 if anything changed ----
   if (recoveredRouteEncoding) segments[1] = encodeURIComponent(segments[1]);
   const newPath = '/' + segments.join('/');
+
+  // Resolve legacy ID routes through the existing SSR identity/quality gates
+  // before publishing a route-only redirect. Ordinary slug URLs and already
+  // normalized ID URLs keep their existing path and incur no extra reads.
+  if ((req.method === 'GET' || req.method === 'HEAD') && newPath !== urlPath
+      && segments.length === 3 && /^[0-9a-f]{24}$/.test(segments[2])
+      && SEO_LANGUAGES.some(language => language.enabled && language.code === segments[0])) {
+    const language = segments[0];
+    const db = await getDbTranslations();
+    const detail = db.get(`${language}:station`) || URL_TRANSLATIONS[language]?.station || 'station';
+    const aliases = STATION_DETAIL_ALIASES.get(language);
+    let route: string | undefined;
+    try { route = decodeURIComponent(segments[1]); } catch { /* Leave malformed paths to the existing handler. */ }
+    if (route && (route === detail || route === aliases?.canonical || aliases?.aliases.has(route))) {
+      const normalizedIdPath = buildLocalizedUrl(`/station/${segments[2]}`, language, undefined, db);
+      try {
+        const { SeoRenderer } = await import('./seo-renderer');
+        const data = await new SeoRenderer().renderStaticPage(normalizedIdPath, 'https://themegaradio.com');
+        if (data.pageData?.stationDbError) throw new Error('station-identity-unavailable');
+        const destination = data.pageData?.redirectTo;
+        if (typeof destination === 'string' && destination.startsWith('/') && !destination.startsWith('//')
+            && !/[\\?#\r\n]/.test(destination) && destination !== normalizedIdPath
+            && !data.seoTags?.noIndex && !data.pageData?.notFound && !data.pageData?.stationIsJunk) {
+          res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+          res.redirect(301, destination + queryString);
+          return;
+        }
+      } catch (error) {
+        // A lookup/qualification failure must not become a cached permanent
+        // destination. The renderer already bounds concurrency and read time.
+        logger.warn('Legacy station ID redirect temporarily unavailable', error);
+        markSeoTemporarilyUnavailable(res);
+        res.type('text/plain').send('Temporarily unavailable. Please try again shortly.');
+        return;
+      }
+    }
+  }
   if (newPath === urlPath && queryString === originalQueryString) {
     return next();
   }
