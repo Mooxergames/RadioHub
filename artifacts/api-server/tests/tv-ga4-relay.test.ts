@@ -63,7 +63,8 @@ test("analytics metadata is accepted only after explicit usage consent and never
 });
 test("GA4 payload has usage only, denied ad consent and measured elapsed time exactly once", () => {
   const payload = tvGa4Payload(usage)!;
-  assert.equal(payload.client_id, usage.analytics.clientId);
+  assert.equal(payload.client_id, "12297829382473034411.12297829382473034411");
+  assert.equal(JSON.stringify(payload).includes(usage.analytics.clientId), false);
   assert.deepEqual(payload.consent, {
     ad_user_data: "DENIED",
     ad_personalization: "DENIED",
@@ -195,4 +196,19 @@ test("debug transport timeout rejects without production request or throwing int
     configured: true,
     payloadValidated: false,
   });
+});
+
+test("GA4 client mapping preserves 128 random bits with stable positive decimal boundaries", () => {
+  const mapped = (hex: string) => tvGa4Payload({ ...usage, analytics: { ...usage.analytics, clientId: `tv-${hex}` } })!.client_id;
+  assert.equal(mapped("0".repeat(32)), "1.1");
+  assert.equal(mapped("f".repeat(32)), "18446744073709551616.18446744073709551616");
+  assert.equal(mapped("00000000000000010000000000000000"), "2.1");
+  assert.equal(mapped("00000000000000000000000000000001"), "1.2");
+  for (const hex of ["0".repeat(32), "f".repeat(32), "0123456789abcdef0123456789abcdef"]) {
+    const value = mapped(hex);
+    assert.match(value, /^[1-9][0-9]*\.[1-9][0-9]*$/);
+    assert.equal(value, mapped(hex));
+    const recovered = value.split(".").map(part => (BigInt(part) - 1n).toString(16).padStart(16, "0")).join("");
+    assert.equal(recovered, hex);
+  }
 });
