@@ -108,7 +108,9 @@ function requestPinned(guard: SafeUrlResult, signal: AbortSignal, maxBytes: numb
     const transport = guard.url.protocol === 'https:' ? https : http;
     const request = transport.request(guard.url, {
       method: 'GET', agent: false, signal, family: guard.family, maxHeaderSize: 8192,
-      lookup: (_host, _options, callback) => callback(null, guard.pinnedIp, guard.family),
+      // Match asynchronous DNS timing so TLS/request error listeners exist
+      // before an immediate OS connection failure can destroy the socket.
+      lookup: (_host, _options, callback) => queueMicrotask(() => callback(null, guard.pinnedIp, guard.family)),
       headers: { 'User-Agent': 'MegaRadio-Availability-Probe/1.0',
         Accept: 'audio/*,application/ogg,application/vnd.apple.mpegurl,audio/x-scpls,*/*;q=0.1',
         'Accept-Encoding': 'identity', Range: `bytes=0-${maxBytes - 1}` },
