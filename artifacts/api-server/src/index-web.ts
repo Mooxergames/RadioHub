@@ -1,3 +1,4 @@
+import { installTvDiagnosticsBoundary } from './lib/tv-diagnostics-boundary';
 import { applyPublicStreamCors } from "./lib/public-stream-cors";
 if (!process.env.FONTCONFIG_FILE || process.env.FONTCONFIG_FILE === '/dev/null') {
   process.env.FONTCONFIG_FILE = process.cwd() + '/fontconfig.conf';
@@ -72,6 +73,7 @@ app.disable('x-powered-by');
 
 // Geo-block FIRST — drop TCP connection from blocked countries (no response)
 app.use(geoBlockMiddleware);
+installTvDiagnosticsBoundary(app);
 // Web serves SSR directly; qualified browser navigation is explicitly reported
 // by the client. Only sampled known automation is observed here, never /api.
 app.use(createVisitorActivityMiddleware(undefined, { botsOnly: true }));

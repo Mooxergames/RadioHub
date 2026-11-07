@@ -1,3 +1,4 @@
+import { installTvDiagnosticsBoundary } from './lib/tv-diagnostics-boundary';
 import { applyPublicCatalogCors } from "./lib/public-catalog-cors";
 if (!process.env.FONTCONFIG_FILE || process.env.FONTCONFIG_FILE === '/dev/null') {
   process.env.FONTCONFIG_FILE = process.cwd() + '/fontconfig.conf';
@@ -62,6 +63,7 @@ app.disable('x-powered-by');
 app.use(geoBlockMiddleware);
 app.use(['/api/admin', '/api/auth'], privateApiCachePolicy);
 app.use(databaseMaintenanceMiddleware);
+installTvDiagnosticsBoundary(app);
 app.use('/api/test', (_req, res, next) => {
   if (process.env.NODE_ENV === 'production') return void res.status(404).json({ error: 'Not found' });
   next();
