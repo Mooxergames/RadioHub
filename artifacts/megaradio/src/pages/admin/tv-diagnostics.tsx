@@ -18,10 +18,16 @@ type Row = {
 export default function TvDiagnostics() {
   const [platform, setPlatform] = useState(""),
     [days, setDays] = useState("7");
-  const reportingHost = new URL(
-    resolveApiUrl("/api/admin/tv-diagnostics"),
-    window.location.origin,
-  ).hostname;
+  let reportingHost = "this server";
+  try {
+    if (typeof window !== "undefined")
+      reportingHost = new URL(
+        resolveApiUrl("/api/admin/tv-diagnostics"),
+        window.location.origin,
+      ).hostname;
+  } catch {
+    // An invalid deployment URL must not crash the admin report.
+  }
   const query = useQuery<{
     rows: Row[];
     ga4: { configured: boolean; payloadValidated: boolean };
@@ -50,7 +56,11 @@ export default function TvDiagnostics() {
       </p>
       <p>
         GA4 status on {reportingHost}:{" "}
-        {query.data?.ga4?.configured
+        {query.isError
+          ? "Status unavailable; refresh to retry."
+          : !query.data
+            ? "Checking configuration…"
+            : query.data.ga4?.configured
           ? query.data.ga4.payloadValidated
             ? "configured; payload validated; delivery is not guaranteed"
             : "configured; payload validation pending"
