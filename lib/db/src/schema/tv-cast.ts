@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, bigserial, boolean, check, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, bigserial, boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, date as dateColumn, uniqueIndex } from 'drizzle-orm/pg-core';
 import { users } from './relational';
 
 const date = (name: string) => timestamp(name, { withTimezone: true });
@@ -72,3 +72,10 @@ export const castConnections = pgTable('cast_connections', {
   connectionId:text('connection_id').primaryKey(),nodeId:text('node_id').notNull(),sessionId:text('session_id').notNull(),userId:owner(),
   deviceId:text('device_id'),role:text('role').notNull(),expiresAt:date('expires_at').notNull(),
 }, t => [check('cast_connections_role_check', sql`${t.role} IN ('mobile','tv')`),index('cast_connections_presence').on(t.sessionId,t.role,t.expiresAt),index('cast_connections_node').on(t.nodeId)]);
+
+// Sanitized opt-in TV counters; raw payloads and identifiers are never stored.
+export const tvDiagnosticDaily = pgTable('tv_diagnostic_daily', {
+  day: dateColumn('day').notNull(), platform: text('platform').notNull(), appVersion: text('app_version').notNull(), bundleVersion: text('bundle_version').notNull(),
+  event: text('event').notNull(), code: text('code').notNull(), route: text('route').notNull(), module: text('module').notNull(),
+  line: integer('line_no').notNull().default(0), column: integer('column_no').notNull().default(0), count: integer('count').notNull().default(1),
+}, t => [primaryKey({columns:[t.day,t.platform,t.appVersion,t.bundleVersion,t.event,t.code,t.route,t.module,t.line,t.column]}),index('tv_diagnostic_daily_day').on(t.day.desc())]);

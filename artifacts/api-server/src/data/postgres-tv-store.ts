@@ -165,5 +165,6 @@ export async function cleanupTvState(): Promise<void> {
   await getPostgresPool().query(`DELETE FROM tv_device_codes WHERE expires_at<now()-interval '1 day';
     DELETE FROM cast_sessions WHERE expires_at<=now(); DELETE FROM cast_commands WHERE created_at<now()-interval '1 day';
     DELETE FROM cast_events WHERE created_at<now()-interval '1 day'; DELETE FROM cast_connections WHERE expires_at<=now();
-    DELETE FROM tv_telemetry WHERE ts<now()-interval '90 days'`);
+    DELETE FROM tv_telemetry WHERE ts<now()-interval '90 days';
+    DELETE FROM tv_diagnostic_daily WHERE day<current_date-29`);
 }

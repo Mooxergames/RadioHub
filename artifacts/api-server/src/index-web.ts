@@ -1,3 +1,4 @@
+import { installTvDiagnosticsBoundary } from './lib/tv-diagnostics-boundary';
 import { applyPublicStreamCors } from "./lib/public-stream-cors";
 if (!process.env.FONTCONFIG_FILE || process.env.FONTCONFIG_FILE === '/dev/null') {
   process.env.FONTCONFIG_FILE = process.cwd() + '/fontconfig.conf';
@@ -69,6 +70,7 @@ let startupReady = false;
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+installTvDiagnosticsBoundary(app);
 
 // Geo-block FIRST — drop TCP connection from blocked countries (no response)
 app.use(geoBlockMiddleware);

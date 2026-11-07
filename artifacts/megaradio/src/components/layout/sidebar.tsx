@@ -118,6 +118,7 @@ const navigation: NavigationItem[] = [
       { name: "Status Monitoring", href: "/admin/status-monitoring" },
       { name: "Error Logs", href: "/admin/error-logs" },
       { name: "iOS / CarPlay Logs", href: "/admin/app-logs" },
+      { name: "Samsung / LG TV diagnostics", href: "/admin/tv-diagnostics" },
       { name: "Feedback", href: "/admin/feedback" },
     ],
   },
