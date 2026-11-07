@@ -8,6 +8,19 @@ import {
 export function installTvDiagnosticsBoundary(app: Express) {
   app.use((req, res, next) => {
     if (req.path !== TV_DIAGNOSTICS_PATH) return next();
+    // Packaged TV engines can attach ambient host cookies even when XHR sets
+    // withCredentials=false. This collector never authenticates a caller:
+    // discard cookies before any downstream cookie/session middleware sees them.
+    // Keep explicit authorization/API-key rejection in the CORS/handler guard.
+    // Materialize Node's distinct-header cache before shortening rawHeaders:
+    // its lazy getter retains the original raw-header count.
+    const distinctHeaders = req.headersDistinct;
+    delete distinctHeaders.cookie;
+    delete req.headers.cookie;
+    for (let i = req.rawHeaders.length - 2; i >= 0; i -= 2) {
+      if (req.rawHeaders[i].toLowerCase() === "cookie")
+        req.rawHeaders.splice(i, 2);
+    }
     res.removeHeader("Access-Control-Allow-Credentials");
     if (!applyTvDiagnosticsCors(req, res))
       return void res
