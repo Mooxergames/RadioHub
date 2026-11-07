@@ -1,8 +1,8 @@
 import { getPostgresPool } from "../postgres-runtime";
-import type { TvDiagnosticBatch } from "../lib/tv-diagnostics-policy";
+import type { TvCounterBatch } from "../lib/tv-diagnostics-policy";
 let lastPruned = 0;
 export async function recordTvDiagnostics(
-  batch: TvDiagnosticBatch,
+  batch: TvCounterBatch,
 ): Promise<void> {
   const db = await getPostgresPool().connect();
   try {

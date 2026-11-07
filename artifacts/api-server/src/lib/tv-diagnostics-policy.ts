@@ -94,6 +94,7 @@ export type TvAnalyticsMetadata = {
   engagementTimeMsec: number;
 };
 export type TvDiagnosticBatch = {
+  batchId: string;
   platform: "tizen" | "webos";
   appVersion: string;
   bundleVersion: string;
@@ -107,6 +108,7 @@ export function validateTvDiagnosticBatch(
   if (
     !object(value) ||
     !keys(value, [
+      "batchId",
       "platform",
       "appVersion",
       "bundleVersion",
@@ -114,6 +116,8 @@ export function validateTvDiagnosticBatch(
       "events",
       "analytics",
     ]) ||
+    typeof value.batchId !== "string" ||
+    !/^b-[a-f0-9]{32}$/.test(value.batchId) ||
     !["tizen", "webos"].includes(value.platform) ||
     !validAppVersion(value.appVersion) ||
     !validBundleVersion(value.bundleVersion)
@@ -185,6 +189,7 @@ export function validateTvDiagnosticBatch(
     };
   }
   return {
+    batchId: value.batchId,
     platform: value.platform,
     appVersion: value.appVersion,
     bundleVersion: value.bundleVersion,
@@ -193,3 +198,5 @@ export function validateTvDiagnosticBatch(
     ...(analytics ? { analytics } : {}),
   };
 }
+
+export type TvCounterBatch = Omit<TvDiagnosticBatch, "analytics" | "batchId">;

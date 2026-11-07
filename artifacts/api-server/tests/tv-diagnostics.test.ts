@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { installTvDiagnosticsBoundary } from "../src/lib/tv-diagnostics-boundary";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -22,6 +23,7 @@ const event = {
   column: 4,
 };
 const batch = () => ({
+  batchId: "b-" + randomBytes(16).toString("hex"),
   platform: "webos",
   appVersion: "1.0.4",
   bundleVersion: "gha-42366516635-1-b74decb5a90e116fd5ae99f3c412152d454ca14d",
@@ -31,6 +33,14 @@ const batch = () => ({
 test("strict contract accepts actual deployed bundle and rejects sensitive fields and missing consent", () => {
   assert.ok(validBundleVersion(batch().bundleVersion));
   assert.ok(validateTvDiagnosticBatch(batch()));
+  assert.equal(
+    validateTvDiagnosticBatch({ ...batch(), batchId: undefined }),
+    null,
+  );
+  assert.equal(
+    validateTvDiagnosticBatch({ ...batch(), batchId: "private@example.com" }),
+    null,
+  );
   for (const secret of [
     "message",
     "stack",
@@ -178,15 +188,19 @@ test("HTTP boundary caps body, rejects cookies, dedupes and throttles; outage do
       (await send({ ...batch(), padding: "x".repeat(9000) })).status,
       413,
     );
-    assert.equal((await send(batch())).status, 204);
-    assert.equal((await send(batch())).status, 204);
+    const request = batch();
+    assert.equal((await send(request)).status, 204);
+    assert.equal((await send(request)).status, 204);
     assert.equal(saved.length, 1);
+    // Same NAT and event shape, distinct flush nonce: count both reports.
+    assert.equal((await send(batch())).status, 204);
+    assert.equal(saved.length, 2);
     failure = true;
     const changed = { ...batch(), events: [{ ...event, line: 999 }] };
     assert.equal((await send(changed)).status, 503);
     failure = false;
     assert.equal((await send(changed)).status, 204);
-    assert.equal(saved.length, 2);
+    assert.equal(saved.length, 3);
     const usage = {
       ...batch(),
       consent: { diagnostics: false, analytics: true },
@@ -199,7 +213,8 @@ test("HTTP boundary caps body, rejects cookies, dedupes and throttles; outage do
     };
     assert.equal((await send(usage)).status, 204);
     assert.equal("analytics" in saved.at(-1), false);
-    for (let i = 0; i < 15; i++) await send(batch());
+    assert.equal("batchId" in saved.at(-1), false);
+    for (let i = 0; i < 14; i++) await send(batch());
     assert.equal((await send(batch())).status, 429);
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
@@ -277,4 +292,53 @@ test("both real entrypoints install boundary before OPTIONS/body parsers; retent
     cleanup,
     /DELETE FROM tv_diagnostic_daily WHERE day<current_date-29/,
   );
+});
+
+test("concurrent retry is never acknowledged before commit; failed writes remain retryable", async () => {
+  let rejectFirst: (e: Error) => void = () => {};
+  let attempts = 0,
+    commits = 0;
+  const h = createTvDiagnosticHandlers({
+    record: async () => {
+      attempts++;
+      if (attempts === 1)
+        await new Promise<void>((_resolve, reject) => {
+          rejectFirst = reject;
+        });
+      commits++;
+    },
+    list: async () => [],
+  });
+  const response = () => ({
+    statusCode: 200,
+    status(n: number) {
+      this.statusCode = n;
+      return this;
+    },
+    json() {
+      return this;
+    },
+    sendStatus(n: number) {
+      this.statusCode = n;
+      return this;
+    },
+  });
+  const req: any = { headers: {}, ip: "192.0.2.10", body: batch() };
+  const first = response();
+  const pending = h.ingest(req, first as any, () => {});
+  const concurrent = response();
+  await h.ingest(req, concurrent as any, () => {});
+  assert.equal(concurrent.statusCode, 503);
+  assert.equal(commits, 0);
+  rejectFirst(new Error("database unavailable"));
+  await pending;
+  assert.equal(first.statusCode, 503);
+  const retry = response();
+  await h.ingest(req, retry as any, () => {});
+  assert.equal(retry.statusCode, 204);
+  assert.equal(commits, 1);
+  const completedRetry = response();
+  await h.ingest(req, completedRetry as any, () => {});
+  assert.equal(completedRetry.statusCode, 204);
+  assert.equal(commits, 1);
 });

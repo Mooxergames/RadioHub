@@ -6,7 +6,7 @@ import {
 } from "../lib/tv-diagnostics-cors";
 import {
   validateTvDiagnosticBatch,
-  type TvDiagnosticBatch,
+  type TvCounterBatch,
 } from "../lib/tv-diagnostics-policy";
 import {
   recordTvDiagnostics,
@@ -14,7 +14,7 @@ import {
 } from "../data/postgres-tv-diagnostics";
 
 type Store = {
-  record: (batch: TvDiagnosticBatch) => Promise<void>;
+  record: (batch: TvCounterBatch) => Promise<void>;
   list: (days: number, platform?: string) => Promise<any[]>;
 };
 export function createTvDiagnosticHandlers(
@@ -22,14 +22,15 @@ export function createTvDiagnosticHandlers(
   now = Date.now,
 ) {
   // Addresses exist only in a bounded short-lived memory throttle; never persist or log them.
-  const recent = new Map<
-    string,
-    { expires: number; count: number; seen: Set<string> }
-  >();
+  const recent = new Map<string, { expires: number; count: number }>();
+  const completed = new Map<string, number>();
+  const pendingIds = new Set<string>();
   const expiry = setInterval(() => {
     const time = now();
     for (const [key, value] of recent)
       if (value.expires <= time) recent.delete(key);
+    for (const [key, expires] of completed)
+      if (expires <= time) completed.delete(key);
   }, 60000);
   expiry.unref();
   let pending = 0;
@@ -50,43 +51,34 @@ export function createTvDiagnosticHandlers(
       if (recent.size >= 10000)
         for (const [k, v] of recent) if (v.expires <= time) recent.delete(k);
       if (recent.size >= 10000 && !bucket) return void res.sendStatus(429);
-      bucket = { expires: time + 60000, count: 0, seen: new Set() };
+      bucket = { expires: time + 60000, count: 0 };
       recent.set(address, bucket);
     }
     if (++bucket.count > 20 || pending >= 32) return void res.sendStatus(429);
-    const events = batch.events.filter((e) => {
-      const signature = JSON.stringify([
-        batch.platform,
-        batch.appVersion,
-        batch.bundleVersion,
-        e,
-      ]);
-      if (bucket!.seen.has(signature)) return false;
-      bucket!.seen.add(signature);
-      return true;
-    });
-    if (!events.length) return void res.sendStatus(204);
+    // A nonce identifies only this flushed request, never a TV or person.
+    const expires = completed.get(batch.batchId);
+    if (expires && expires > time) return void res.sendStatus(204);
+    if (expires) completed.delete(batch.batchId);
+    if (pendingIds.has(batch.batchId))
+      return void res.status(503).json({ error: "TV report still pending" });
+    if (completed.size + pendingIds.size >= 10000)
+      return void res.sendStatus(429);
+    const events = batch.events;
+    pendingIds.add(batch.batchId);
     pending++;
     try {
       // Keep pseudonymous GA4 metadata out of persistence, even the store boundary.
-      const { analytics, ...anonymous } = batch;
+      const { analytics, batchId, ...anonymous } = batch;
       await store.record({ ...anonymous, events });
+      completed.set(batchId, now() + 600000);
       if (analytics) relayTvUsage({ ...batch, events });
       res.sendStatus(204);
     } catch {
-      // A failed write is not a delivered report; allow the client's bounded retry.
-      for (const e of events)
-        bucket!.seen.delete(
-          JSON.stringify([
-            batch.platform,
-            batch.appVersion,
-            batch.bundleVersion,
-            e,
-          ]),
-        );
+      // Failed writes remain retryable; never acknowledge before persistence.
       res.status(503).json({ error: "TV diagnostics temporarily unavailable" });
     } finally {
       pending--;
+      pendingIds.delete(batch.batchId);
     }
   };
   const report: RequestHandler = async (req, res) => {

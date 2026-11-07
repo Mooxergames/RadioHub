@@ -7,6 +7,7 @@ import {
 } from "../src/services/tv-ga4-relay";
 import { validateTvDiagnosticBatch } from "../src/lib/tv-diagnostics-policy";
 const usage: any = {
+  batchId: "b-" + "b".repeat(32),
   platform: "tizen",
   appVersion: "2.2.9",
   bundleVersion: "local-abcdef1234567",
@@ -76,6 +77,7 @@ test("GA4 payload has usage only, denied ad consent and measured elapsed time ex
     "ip_override",
     "page_location",
     "firebase_app_id",
+    "batchId",
     "deviceId",
     "message",
     "stack",

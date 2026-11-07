@@ -132,8 +132,9 @@ export default function TvDiagnostics() {
             </tbody>
           </table>
           <p className="mt-3">
-            Up to 2,000 aggregate groups shown. Repeated identical reports are
-            coalesced per minute; abusive traffic is limited.
+            Up to 2,000 aggregate groups shown. Retries of the same request are
+            coalesced on each server instance; distinct reports are counted
+            separately. Abusive traffic is limited.
           </p>
         </div>
       )}
