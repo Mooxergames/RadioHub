@@ -58,12 +58,12 @@ let startupReady = false;
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
-installTvDiagnosticsBoundary(app);
 
 // Geo-block FIRST — drop TCP connection from blocked countries (no response)
 app.use(geoBlockMiddleware);
 app.use(['/api/admin', '/api/auth'], privateApiCachePolicy);
 app.use(databaseMaintenanceMiddleware);
+installTvDiagnosticsBoundary(app);
 app.use('/api/test', (_req, res, next) => {
   if (process.env.NODE_ENV === 'production') return void res.status(404).json({ error: 'Not found' });
   next();

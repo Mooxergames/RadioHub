@@ -268,6 +268,15 @@ test("both real entrypoints install boundary before OPTIONS/body parsers; retent
       "utf8",
     );
     assert.ok(
+      s.indexOf("app.use(geoBlockMiddleware)") <
+        s.indexOf("installTvDiagnosticsBoundary(app)"),
+    );
+    if (file === "index-api.ts")
+      assert.ok(
+        s.indexOf("app.use(databaseMaintenanceMiddleware)") <
+          s.indexOf("installTvDiagnosticsBoundary(app)"),
+      );
+    assert.ok(
       s.indexOf("installTvDiagnosticsBoundary(app)") <
         s.indexOf("req.method === 'OPTIONS'"),
     );

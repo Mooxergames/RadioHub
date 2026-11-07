@@ -70,10 +70,10 @@ let startupReady = false;
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
-installTvDiagnosticsBoundary(app);
 
 // Geo-block FIRST — drop TCP connection from blocked countries (no response)
 app.use(geoBlockMiddleware);
+installTvDiagnosticsBoundary(app);
 // Web serves SSR directly; qualified browser navigation is explicitly reported
 // by the client. Only sampled known automation is observed here, never /api.
 app.use(createVisitorActivityMiddleware(undefined, { botsOnly: true }));
