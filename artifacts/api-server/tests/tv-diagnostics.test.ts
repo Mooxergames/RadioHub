@@ -1,4 +1,5 @@
-import { randomBytes } from "node:crypto";
+import session from "express-session";
+import { createHmac, randomBytes } from "node:crypto";
 import { installTvDiagnosticsBoundary } from "../src/lib/tv-diagnostics-boundary";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -158,7 +159,7 @@ test("exact ingestion CORS exposes only anonymous POST; admin and auth stay priv
       );
   }
 });
-test("HTTP boundary caps body, rejects cookies, dedupes and throttles; outage does not claim success", async () => {
+test("HTTP boundary caps body, rejects explicit credentials, dedupes and throttles; outage does not claim success", async () => {
   const saved: any[] = [];
   let failure = false;
   const h = createTvDiagnosticHandlers({
@@ -182,7 +183,7 @@ test("HTTP boundary caps body, rejects cookies, dedupes and throttles; outage do
       body: JSON.stringify(body),
     });
   try {
-    assert.equal((await send(batch(), { cookie: "private" })).status, 403);
+    assert.equal((await send(batch(), { authorization: "Bearer test-only" })).status, 403);
     assert.equal(saved.length, 0);
     assert.equal(
       (await send({ ...batch(), padding: "x".repeat(9000) })).status,
@@ -284,6 +285,9 @@ test("both real entrypoints install boundary before OPTIONS/body parsers; retent
       s.indexOf("installTvDiagnosticsBoundary(app)") <
         s.indexOf("app.use(express.json"),
     );
+    const sessionIndex = s.indexOf("app.use(session(");
+    if (sessionIndex >= 0)
+      assert.ok(s.indexOf("installTvDiagnosticsBoundary(app)") < sessionIndex);
   }
   const sql = await readFile(
     new URL("../src/data/postgres-tv-diagnostics.ts", import.meta.url),
@@ -350,4 +354,60 @@ test("concurrent retry is never acknowledged before commit; failed writes remain
   await h.ingest(req, completedRetry as any, () => {});
   assert.equal(completedRetry.statusCode, 204);
   assert.equal(commits, 1);
+});
+
+test("native ambient cookies are discarded before session auth only on exact collector path", async () => {
+  const secret = "local-fixture-only-secret";
+  const sid = "local-fixture-session";
+  const signature = createHmac("sha256", secret).update(sid).digest("base64").replace(/=+$/, "");
+  const cookie = "connect.sid=" + encodeURIComponent("s:" + sid + "." + signature);
+  const store = new session.MemoryStore();
+  let gets = 0, sets = 0;
+  store.get = (_id, cb) => {
+    gets++;
+    cb(null, { cookie: { originalMaxAge: 60000, expires: new Date(Date.now() + 60000), httpOnly: true, path: "/" }, adminAuth: { role: "admin" } } as any);
+  };
+  store.set = (_id, _value, cb) => { sets++; cb?.(); };
+  const saved: any[] = [];
+  const h = createTvDiagnosticHandlers({ record: async b => { saved.push(b); }, list: async () => [] });
+  const app = express();
+  installTvDiagnosticsBoundary(app);
+  app.use((req, _res, next) => {
+    if (req.path === "/api/tv/telemetry/events") {
+      assert.equal(req.headers.cookie, undefined);
+      assert.equal(req.rawHeaders.some((value, index) => index % 2 === 0 && value.toLowerCase() === "cookie"), false);
+      assert.equal(req.headersDistinct.cookie, undefined);
+    }
+    next();
+  });
+  app.use(session({ secret, store, resave: false, saveUninitialized: false }));
+  app.post("/api/tv/telemetry/events", h.ingest);
+  app.get("/api/admin/tv-diagnostics", requireAdmin as any, (_req, res) => res.json({ protected: true }));
+  app.get("/api/tv/telemetry/events/private", (req, res) => res.json({ cookiePreserved: !!req.headers.cookie }));
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>(r => server.once("listening", r));
+  const url = "http://127.0.0.1:" + (server.address() as any).port;
+  const send = (body: any, headers: any = {}) => fetch(url + "/api/tv/telemetry/events", { method: "POST", headers: { "content-type": "application/json", cookie, ...headers }, body: JSON.stringify(body) });
+  try {
+    // No Origin header: actual privileged Tizen request shape.
+    const accepted = await send(batch());
+    assert.equal(accepted.status, 204);
+    assert.equal(accepted.headers.get("set-cookie"), null);
+    assert.equal(accepted.headers.get("access-control-allow-origin"), "*");
+    assert.equal(accepted.headers.get("access-control-allow-credentials"), null);
+    assert.equal(gets, 0); assert.equal(sets, 0);
+    assert.equal(saved.length, 1);
+    assert.equal(JSON.stringify(saved).includes(sid), false);
+    assert.equal((await send({ ...batch(), consent: { diagnostics: false, analytics: false } })).status, 400);
+    assert.equal((await send({ ...batch(), extra: "x".repeat(9000) })).status, 413);
+    for (const name of ["authorization", "proxy-authorization", "x-api-key", "x-api-user-token"])
+      assert.equal((await send(batch(), { [name]: "test-only" })).status, 403);
+    assert.equal(gets, 0); assert.equal(sets, 0); assert.equal(saved.length, 1);
+    assert.equal((await fetch(url + "/api/admin/tv-diagnostics")).status, 401);
+    // Adjacent paths retain their existing cookie/session behavior and admin auth.
+    assert.equal((await fetch(url + "/api/admin/tv-diagnostics", { headers: { cookie } })).status, 200);
+    assert.ok(gets > 0);
+    const adjacent = await fetch(url + "/api/tv/telemetry/events/private", { headers: { cookie } });
+    assert.equal((await adjacent.json()).cookiePreserved, true);
+  } finally { await new Promise<void>(r => server.close(() => r())); }
 });

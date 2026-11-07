@@ -3,7 +3,7 @@ export const TV_DIAGNOSTICS_PATH = "/api/tv/telemetry/events";
 export function credentiallessTvRequest(
   req: Pick<Request, "headers">,
 ): boolean {
-  return !["cookie", "authorization", "x-api-key", "x-api-user-token"].some(
+  return !["cookie", "authorization", "proxy-authorization", "x-api-key", "x-api-user-token"].some(
     (k) => req.headers[k] !== undefined,
   );
 }
