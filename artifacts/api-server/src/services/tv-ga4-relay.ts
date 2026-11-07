@@ -23,7 +23,11 @@ export function tvGa4Payload(batch: TvDiagnosticBatch) {
   )
     return null;
   return {
-    client_id: batch.analytics.clientId,
+    // Preserve all 128 random bits, without Number rounding or a new identity.
+    // GA4 Web documents two positive decimal components separated by a dot.
+    client_id: [batch.analytics.clientId.slice(3, 19), batch.analytics.clientId.slice(19)]
+      .map((half) => (BigInt(`0x${half}`) + 1n).toString(10))
+      .join("."),
     consent: { ad_user_data: "DENIED", ad_personalization: "DENIED" },
     events: batch.events.map((event, index) => ({
       name: `tv_${event.event}`,
