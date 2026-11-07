@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, resolveApiUrl } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 type Row = {
   day: string;
@@ -18,6 +18,10 @@ type Row = {
 export default function TvDiagnostics() {
   const [platform, setPlatform] = useState(""),
     [days, setDays] = useState("7");
+  const reportingHost = new URL(
+    resolveApiUrl("/api/admin/tv-diagnostics"),
+    window.location.origin,
+  ).hostname;
   const query = useQuery<{
     rows: Row[];
     ga4: { configured: boolean; payloadValidated: boolean };
@@ -45,12 +49,17 @@ export default function TvDiagnostics() {
         not measured.
       </p>
       <p>
-        Optional GA4 relay:{" "}
+        GA4 status on {reportingHost}:{" "}
         {query.data?.ga4?.configured
           ? query.data.ga4.payloadValidated
             ? "configured; payload validated; delivery is not guaranteed"
             : "configured; payload validation pending"
-          : "not configured; first-party reports remain available"}
+          : "No GA4 key on this server; TV reporting may be configured separately."}
+      </p>
+      <p>
+        This status describes the server supplying this panel. TV events are sent
+        to api.themegaradio.com; verify delivery in Google Analytics Realtime.
+        First-party event counts below are stored separately from GA4 status.
       </p>
       <div className="flex gap-4 items-center">
         <label>
