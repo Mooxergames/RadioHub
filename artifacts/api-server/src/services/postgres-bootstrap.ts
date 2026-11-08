@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { SEO_LANGUAGES, isActiveUiLanguage } from '@workspace/seo-shared/seo-config';
 import { getPostgresPool, getPostgresCoordinationPool } from '../postgres-runtime';
 import { pgCatalog } from '../data/postgres-catalog-store';
 import { logger } from '../utils/logger';
@@ -9,8 +10,7 @@ export async function seedPostgresDefaultLanguages(): Promise<void> {
     await client.query('BEGIN');
     await client.query("SELECT pg_advisory_xact_lock(hashtext('radiohub-language-seed'))");
     if (!(await client.query('SELECT 1 FROM translation_languages LIMIT 1')).rowCount) {
-      const languages = { en:'English',tr:'Turkish',es:'Spanish',fr:'French',de:'German',ar:'Arabic',it:'Italian',pt:'Portuguese',ru:'Russian',zh:'Chinese',ja:'Japanese',ko:'Korean' };
-      for (const [code,name] of Object.entries(languages)) {
+      for (const { code, name } of SEO_LANGUAGES.filter(language => isActiveUiLanguage(language.code))) {
         await client.query('INSERT INTO translation_languages(id,code,name,is_enabled,is_default) VALUES ($1,$2,$3,true,$4)',[randomBytes(12).toString('hex'),code,name,code==='en']);
       }
     }

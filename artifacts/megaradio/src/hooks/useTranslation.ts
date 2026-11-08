@@ -442,25 +442,6 @@ function useTranslationRuntime() {
       });
     }
     
-    // Prefetch common languages for future instant switches
-    const commonLanguages = ['en', 'de', 'es', 'fr', 'it', 'pt', 'tr'];
-    commonLanguages.forEach(lang => {
-      if (!queryClient.getQueryData(["/api/translations", lang])) {
-        setTimeout(() => {
-          queryClient.prefetchQuery({
-            queryKey: ["/api/translations", lang],
-            queryFn: async () => {
-              const response = await fetch(`/api/translations/${lang}`);
-              if (!response.ok) throw new Error('Failed to fetch translations');
-              return response.json();
-            },
-            staleTime: 30 * 60 * 1000,
-            gcTime: 60 * 60 * 1000,
-          });
-        }, 100); // Stagger prefetching
-      }
-    });
-    
     // Force immediate refetch if needed, but don't block UI
     setTimeout(() => {
       queryClient.fetchQuery({

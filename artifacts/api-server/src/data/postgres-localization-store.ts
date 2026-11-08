@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { isActiveUiLanguage } from '@workspace/seo-shared/seo-config';
 import type pg from 'pg';
 import { getPostgresPool } from '../postgres-runtime';
 
@@ -297,6 +298,7 @@ export class PostgresLocalizationStore {
       const ids = new Map(keys.rows.map((key) => [key.key, key.id]));
       let changed = 0;
       for (const [language, values] of Object.entries(translations).sort(([a], [b]) => a.localeCompare(b))) {
+        if (!isActiveUiLanguage(language)) continue;
         for (const definition of ordered) {
           const value = values[definition.key];
           if (typeof value !== 'string' || !value.trim()) continue;

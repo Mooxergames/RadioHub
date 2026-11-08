@@ -467,13 +467,11 @@ export class PerformanceCache {
   async warmupCaches(): Promise<void> {
     if (this.warmupPromise) return this.warmupPromise;
     this.warmupPromise = trackOperation('warmup-translations', async () => {
-      const priorityFirst = ['en', 'de', 'tr', 'fr', 'es', 'pt', 'it', 'nl', 'ru', 'ar'];
+      const priorityFirst = ['en', 'de', 'tr', 'fr', 'es', 'pt', 'it', 'ru', 'ar'];
       // Remaining languages after the priority set
-      const SEO_ALL = (await import('@workspace/seo-shared/seo-config'))
-        .SEO_LANGUAGES.filter((l: any) => l.enabled)
-        .map((l: any) => l.code as string);
+      const SEO_ALL = (await import('@workspace/seo-shared/seo-config')).ACTIVE_UI_LANGUAGES;
       const rest = SEO_ALL.filter((c: string) => !priorityFirst.includes(c));
-      const allLangs = [...priorityFirst, ...rest];
+      const allLangs = [...priorityFirst.filter(code => SEO_ALL.includes(code)), ...rest];
 
       logger.log(`🔥 CACHE: Starting batched translation warmup (${allLangs.length} languages, batch=5)...`);
 
