@@ -32,6 +32,17 @@ export async function registerTranslationKeyRoutes(app: Express, deps: any) {
     }
   });
 
+  app.patch('/api/admin/translation-keys/bulk-update', requireAdmin, async (req, res) => {
+    try {
+      const updated = await pgLocalization().bulkUpdateKeyDefaults(req.body?.updates);
+      if (updated) await CacheManager.clearByPattern('translations');
+      res.json({ success: true, updated });
+    } catch (error: any) {
+      res.status(error?.status === 400 || error?.status === 409 ? error.status : 500)
+        .json({ error: error?.status ? error.message : 'Failed to update translation source values' });
+    }
+  });
+
   // CREATE Translation Key - from admin form
   app.post("/api/admin/translation-keys", requireAdmin, async (req, res) => {
     try {

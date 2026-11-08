@@ -353,13 +353,16 @@ export default function AdminTranslations() {
     }
   });
 
-  // Translate ONLY missing keys for languages with completion < 100%
+  // The selected language limits the operation; existing values stay untouched.
   const handleTranslateMissingOnly = async () => {
     const incompleteLanguages = languages.filter(
-      lang => lang.isEnabled && lang.code !== 'en' && lang.completionPercentage < 100
+      lang => lang.isEnabled && lang.code !== 'en' && lang.completionPercentage < 100 &&
+        (selectedLanguage === 'all' || lang.code === selectedLanguage)
     );
     if (incompleteLanguages.length === 0) {
-      toast({ title: "All Complete", description: "All enabled languages are already at 100%" });
+      toast({ title: "No Missing Translations", description: selectedLanguage === 'all'
+        ? "All enabled target languages are complete."
+        : "The selected language has no missing automatic translations." });
       return;
     }
 
@@ -677,7 +680,9 @@ export default function AdminTranslations() {
             variant="outline"
             className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50"
             data-testid="button-translate-missing"
-            title="Only fills in completely missing translations. Existing translations are NOT modified."
+            title={selectedLanguage === 'all'
+              ? "Fill missing translations in all enabled target languages; preserve existing text."
+              : "Fill missing translations only in the selected language; preserve existing text."}
           >
             {isTranslatingMissing ? (
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -686,7 +691,7 @@ export default function AdminTranslations() {
             )}
             {isTranslatingMissing 
               ? `${translateMissingProgress.current}/${translateMissingProgress.total} ${translateMissingProgress.currentLang}...` 
-              : 'Translate Missing Only'}
+              : selectedLanguage === 'all' ? 'Translate Missing Only' : 'Translate Missing in Selected Language'}
           </Button>
           <Button 
             onClick={handleTranslateAllLanguages}

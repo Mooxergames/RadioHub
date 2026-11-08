@@ -162,6 +162,33 @@ describe('content administration regressions', () => {
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ description: 'Translated 0 keys, fixed 0, failed 2 across 2 languages' })));
   });
 
+  it('fills only the selected incomplete language and always preserves existing translations', async () => {
+    data['/api/admin/translation-languages'][0].completionPercentage = 50;
+    data['/api/admin/translation-languages/tr/translate'] = { stats: { translated: 1, failed: 0 } };
+    show(<AdminTranslations />);
+    await screen.findByText('hello_key');
+    fireEvent.change(selectWith('tr'), { target: { value: 'tr' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Translate Missing in Selected Language' }));
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      description: 'Added 1 new translations across 1 languages (0 failed). Existing translations were not modified.',
+    })));
+    const writes = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(writes).toHaveLength(1);
+    expect(writes[0][0]).toBe('/api/admin/translation-languages/tr/translate?missingOnly=true');
+  });
+
+  it('does not translate other languages when English or a complete language is selected', async () => {
+    data['/api/admin/translation-languages'].push({ _id: 'en', code: 'en', name: 'English', isEnabled: true, completionPercentage: 58 });
+    show(<AdminTranslations />);
+    await screen.findByText('hello_key');
+    for (const language of ['en', 'de']) {
+      fireEvent.change(selectWith(language), { target: { value: language } });
+      fireEvent.click(screen.getByRole('button', { name: 'Translate Missing in Selected Language' }));
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'No Missing Translations' }));
+    }
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+  });
+
   it('requires confirmation before deleting a language and its translations', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     show(<AdminTranslationLanguages />);
