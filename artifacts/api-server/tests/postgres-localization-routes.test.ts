@@ -125,6 +125,25 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     await store.deleteKey(emptyKey._id);
   });
 
+  it('saves source edits atomically, bumps metadata once and preserves translated values and key identity', async () => {
+    const key = await store.createKey({ key: 'bulk_default_contract', defaultValue: 'Old source' });
+    await store.upsertTranslation({ keyId: key._id, language: 'de', value: 'Existing translation', isCompleted: true });
+    const version = (await store.getMetadata()).languagesVersion;
+    const url = '/api/admin/translation-keys/bulk-update';
+    const body = { updates: [{ keyId: key._id, defaultValue: "New source with an apostrophe: don't" }] };
+    assert.equal((await fetch(baseUrl + url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).status, 401);
+    assert.equal((await request(url, 'PATCH', { updates: [{ keyId: key._id, defaultValue: 'No write' }, { keyId: 'missing-key', defaultValue: 'Missing' }] })).status, 409);
+    assert.equal((await store.findKey('bulk_default_contract')).defaultValue, 'Old source');
+    assert.deepEqual(await request(url, 'PATCH', body), { status: 200, body: { success: true, updated: 1 } });
+    assert.equal((await store.findKey('bulk_default_contract'))._id, key._id);
+    assert.equal((await store.findTranslation(key._id, 'de')).value, 'Existing translation');
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    assert.deepEqual(await request(url, 'PATCH', body), { status: 200, body: { success: true, updated: 0 } });
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    assert.equal((await request(url, 'PATCH', { updates: [{ keyId: key._id, defaultValue: '\n ' }] })).status, 400);
+    await store.deleteKey(key._id);
+  });
+
   it('records country mapping changes, paginates audits and exports the original deletion snapshot', async () => {
     const saved = await request('/api/admin/country-language-mappings', 'POST', { countryCode: 'de', countryName: 'Germany', languageCode: 'tr' });
     assert.equal(saved.status, 200);

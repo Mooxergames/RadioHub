@@ -49,6 +49,17 @@ beforeEach(() => {
 });
 
 describe('homepage-only branding', () => {
+  it.each(ACTIVE_SITEMAP_LANGUAGES)('%s uses a concise localized homepage title consistently across head tags', (language) => {
+    const expected = `${HOME_SEO_TEMPLATES[language].title} | Mega Radio`;
+    const tags = generateSeoTags('home', language, {}, '/', 'https://themegaradio.com');
+    expect([...expected].length).toBeLessThanOrEqual(55);
+    expect(expected).not.toMatch(/120|\.\.\.|…/);
+    expect(tags.title).toBe(expected);
+    expect(tags.ogTitle).toBe(expected);
+    expect(tags.twitterTitle).toBe(expected);
+    expect(expected.match(/Mega Radio/g)).toHaveLength(1);
+    if (language !== 'en') expect(HOME_SEO_TEMPLATES[language].title).not.toBe(HOME_SEO_TEMPLATES.en.title);
+  });
   it('uses the concise English homepage title in fallback and saved metadata', async () => {
     const expected = 'Free Live Radio Online | Mega Radio';
     expect(buildHomeSeo('en').title).toBe(expected);
