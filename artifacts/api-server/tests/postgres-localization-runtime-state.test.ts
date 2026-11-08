@@ -45,6 +45,7 @@ describe('PostgreSQL localization runtime state and settings', { skip: !process.
     } } });
     mock.module('@workspace/seo-shared/seo-config', { namedExports: {
       ACTIVE_SITEMAP_LANGUAGES: ['en', 'de', 'fr'],
+      isActiveUiLanguage: (code: string) => ['en', 'de', 'fr'].includes(code),
       SITEMAP_PRIORITY_LANGUAGES: { universal14: ['en'] },
       hasCompleteSeoTranslations: (map: Record<string, string>) => !!map.seo_title,
     } });
