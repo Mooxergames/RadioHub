@@ -962,7 +962,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
          entities at the same @id-less URL. -->
 
   </head>
-  <body>
+  <body class="google-anno-skip">
     <div id="root">
       <div id="ssr-content">
         ${seoRenderer.generateHtmlBody({

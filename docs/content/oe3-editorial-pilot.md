@@ -259,3 +259,21 @@ The follow-up's 212 focused footer, navigation, playback and account tests,
 frontend typecheck and frontend build passed. The first PR revision also passed
 the complete GitHub PostgreSQL, test, typecheck and production-image workflow;
 the final revision must pass again before merge.
+
+### Google ad-intent banner follow-up
+
+The owner identified `google-anno-sa-glow-inner-border`. The production browser
+confirmed its parent `google-anno-sa` showing a shopping anchor labelled
+"Muzik Dinle" on the Turkish login page. This is AdSense ad intents, not the
+consent dialog or a required site feature. Following Google's documented opt-out,
+both initial HTML shells now carry `google-anno-skip` on body, and the shared ad
+loader ensures the class exists before it can load the SDK. This opts out of
+ad-intent links, chips and anchors, including their potential revenue, without
+removing manual ad units, changing consent, or hiding injected ads with CSS.
+
+Source: https://support.google.com/adsense/answer/13844047?hl=en
+
+155 focused ad lifecycle, route restriction, consent and initial HTML tests passed,
+along with frontend types and web/API build checks. A fresh live-page visit is
+required after deployment; already-open documents may retain an old injected
+anchor until reload. No login form contents were read or submitted.
