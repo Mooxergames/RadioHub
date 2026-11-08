@@ -2,6 +2,8 @@ import source from './ui-completion-source.json';
 import values from './ui-completion-values.json';
 import hebrewExtra from './ui-completion-he-extra.json';
 import { pgLocalization } from '../data/postgres-localization-store';
+import { CacheManager } from '../cache';
+import { performanceCache } from '../performance-cache';
 import { logger } from '../utils/logger';
 
 export const UI_COMPLETION_KEYS = [...source.keys, ...source.hebrewExtra];
@@ -15,5 +17,9 @@ export async function seedUiCompletionTranslations(): Promise<void> {
   const changed = await pgLocalization().seedTranslationBundle(
     UI_COMPLETION_KEYS, UI_COMPLETION_TRANSLATIONS, 'ui-completion', { bumpVersion: true },
   );
-  if (changed) logger.log(`seedUiCompletionTranslations: filled ${changed} missing translations`);
+  if (changed) {
+    await CacheManager.clearByPattern('translations');
+    performanceCache.clearTranslations();
+    logger.log(`seedUiCompletionTranslations: filled ${changed} missing translations`);
+  }
 }
