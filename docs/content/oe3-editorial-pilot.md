@@ -234,3 +234,28 @@ Reference guidance:
 - https://developers.google.com/search/docs/specialty/international/localized-versions
 - https://schema.org/RadioBroadcastService
 - https://schema.org/RadioStation
+
+## Owner-approved release and footer follow-up (8 November 2026)
+
+The owner approved publishing the German pilot. Other 13 locale descriptions,
+canonical URLs and indexing directives remain unchanged; the expanded editorial
+has not been translated into those locales.
+
+The owner also reported blank scrolling after the footer. Two causes were
+reproduced and corrected:
+- A viewport-height body with horizontal overflow suppression created an inner
+  vertical scroll container. On the 807px preview, scrolling that container to
+  its footer still left 2,803px of outer-document scrolling. The body now grows
+  naturally (`height: auto; min-height: 100%`).
+- Footer padding reserved 144px for the mini-player even on station detail routes,
+  where GlobalPlayer deliberately hides it. The footer now follows the same
+  language-normalized route condition and retains clearance on catalog pages.
+
+Browser checks at 320px, 390px, 807px and 1440px reached the actual footer boundary
+with less than one pixel rounding difference and no additional blank document
+area. Muted real-stream playback remained active (`readyState: 4`); station-page
+footer padding was zero during playback. No production error report was sent.
+The follow-up's 212 focused footer, navigation, playback and account tests,
+frontend typecheck and frontend build passed. The first PR revision also passed
+the complete GitHub PostgreSQL, test, typecheck and production-image workflow;
+the final revision must pass again before merge.

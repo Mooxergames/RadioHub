@@ -5,7 +5,7 @@ import Footer from '../src/components/layout/footer';
 import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
 const state = vi.hoisted(() => ({
-  language: 'de', station: null as null | { id: string }, pageType: 'home', changeLanguage: vi.fn(),
+  language: 'de', station: null as null | { id: string }, pageType: 'home', englishPath: '/', changeLanguage: vi.fn(),
 }));
 vi.mock('../src/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => ({ currentStation: state.station }) }));
 vi.mock('../src/hooks/useTranslation', () => ({ useTranslation: () => ({
@@ -13,7 +13,7 @@ vi.mock('../src/hooks/useTranslation', () => ({ useTranslation: () => ({
   t: (key: string, fallback: string) => key === 'footer_terms' ? 'Allgemeine Geschäftsbedingungen' : fallback,
 }) }));
 vi.mock('../src/hooks/useSeoRouting', () => ({ useSeoRouting: () => ({
-  currentLanguage: state.language, changeLanguage: state.changeLanguage,
+  currentLanguage: state.language, changeLanguage: state.changeLanguage, englishPath: state.englishPath,
   getLocalizedUrl: (path: string) => `/${state.language}${path === '/' ? '' : path}`,
 }) }));
 vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [
@@ -29,7 +29,7 @@ vi.mock('../src/components/ads/PrivacySettingsButton', () => ({
 vi.mock('../src/components/modals/AddYourStationModal', () => ({ default: ({ onClose }: { onClose: () => void }) => <div role="dialog"><button onClick={onClose}>Close station modal</button></div> }));
 
 beforeEach(() => {
-  state.language = 'de'; state.station = null; state.pageType = 'home'; state.changeLanguage.mockClear();
+  state.language = 'de'; state.station = null; state.pageType = 'home'; state.englishPath = '/'; state.changeLanguage.mockClear();
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -122,6 +122,26 @@ describe('mobile footer', () => {
     expect(screen.getByRole('link', { name: 'youtube' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'facebook' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'MXRTOKEN' })).not.toBeInTheDocument();
+  });
+
+  it('does not reserve an empty player gap when no station is selected', () => {
+    render(<Footer />);
+    expect(screen.getByRole('contentinfo').getAttribute('style')).toContain('0px');
+    expect(screen.getByRole('contentinfo').getAttribute('style')).not.toContain('144px');
+  });
+
+  it.each(ACTIVE_SITEMAP_LANGUAGES)('removes the hidden mini-player gap on station pages in %s', language => {
+    state.language = language;
+    state.station = { id: 'station' };
+    state.englishPath = '/station/orf-hitradio-o3';
+    const view = render(<Footer />);
+    expect(screen.getByRole('contentinfo').getAttribute('style')).not.toContain('144px');
+    state.englishPath = '/stations/orf-hitradio-o3';
+    view.rerender(<Footer />);
+    expect(screen.getByRole('contentinfo').getAttribute('style')).not.toContain('144px');
+    state.englishPath = '/stations';
+    view.rerender(<Footer />);
+    expect(screen.getByRole('contentinfo').getAttribute('style')).toContain('144px');
   });
 
   it('disconnects the deferred background observer on unmount', () => {
