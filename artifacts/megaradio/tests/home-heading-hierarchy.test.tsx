@@ -131,8 +131,13 @@ it('renders one hero H1, H2 catalog sections and H3 genre, station and community
   expect(container.querySelector('h4, h5, h6')).toBeNull();
 
   const faq = screen.getByTestId('home-faq');
+  const guide = screen.getByTestId('home-station-guide');
   expect(within(faq).getByRole('heading', { level: 2 })).toHaveClass('section-header');
-  expect(faq.previousElementSibling).toHaveClass('container', 'pb-6');
+  expect(within(guide).getByRole('heading', { level: 2 })).toHaveClass('section-header');
+  expect(within(guide).getByRole('link', { name: 'ORF Hitradio Ö3 station guide (in German)' }))
+    .toHaveAttribute('href', '/de/sender/orf-hitradio-o3');
+  expect(guide.previousElementSibling).toHaveClass('container', 'pb-6');
+  expect(faq.previousElementSibling).toBe(guide);
   expect(faq).toBe(faq.parentElement?.lastElementChild);
 });
 

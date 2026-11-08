@@ -84,6 +84,7 @@ import { buildLegalSeo } from '@workspace/seo-shared/legal-seo-templates';
 import { buildStaticPageSeo } from '@workspace/seo-shared/static-page-seo-templates';
 import { renderStaticInformationBody } from './seo/static-information-body';
 import { renderHomeFaqBody } from './seo/home-faq-body';
+import { renderHomeStationGuideBody } from './seo/home-station-guide-body';
 import { buildHomeSeo } from '@workspace/seo-shared/home-seo-templates';
 import { getHomeHeroCopy } from '@workspace/seo-shared/home-hero-copy';
 import { buildCommunityPageSeo } from '@workspace/seo-shared/community-page-seo-templates';
@@ -2579,6 +2580,7 @@ export class SeoRenderer {
               })()}
             </section>
             
+            ${renderHomeStationGuideBody(language)}
             ${renderHomeFaqBody(language, translations, buildLocalizedUrl('/faq', language, undefined, urlTranslations))}
 
             <nav class="footer-links">
