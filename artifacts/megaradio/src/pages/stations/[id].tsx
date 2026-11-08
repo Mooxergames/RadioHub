@@ -22,6 +22,10 @@ import MusicServiceIcon from "@/components/ui/music-service-icon";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StationStreamAvailability } from '@/components/StationStreamAvailability';
 import { StationArticle } from '@/components/stations/station-article';
+import { StationEditorial } from '@/components/stations/station-editorial';
+import { StationPlaybackReportButton } from '@/components/stations/station-playback-report';
+import { RotateCcw, X } from 'lucide-react';
+import { getStationEditorial } from '@workspace/seo-shared/station-editorial';
 import shareIcon from "@assets/sharebutton.png";
 import bgGradient from "@assets/bg-gradient.lossless.png";
 import nosignalIcon from "@assets/nosignal.png";
@@ -229,6 +233,7 @@ export default function StationDetails() {
   const apiStatus = Number(error?.message.match(/^(\d{3}):/)?.[1]);
   const canUseBootstrap = !(apiStatus >= 400 && apiStatus < 500 && apiStatus !== 408 && apiStatus !== 429);
   const station = apiStation ?? (canUseBootstrap ? bootstrapStation : undefined);
+  const stationEditorial = getStationEditorial(station, language);
   const stationRatings = useStationRatings(station?._id, user?._id);
 
   // Task #371: publish the station name into the layout breadcrumb so the
@@ -335,7 +340,7 @@ export default function StationDetails() {
 
     try {
       // Always play the station - if it's the same station and playing, pause it, otherwise play it
-      if (currentStation?._id === station._id && isPlaying) {
+      if (currentStation?._id === station._id && isPlaying && !hasError) {
         pauseStation();
       } else {
         // This will automatically stop current station and play new one
@@ -468,49 +473,32 @@ export default function StationDetails() {
               fed in via useBreadcrumbLastItemName(station?.name) above. */}
 
           {/* Radio Playing Section - Mobile First Responsive */}
-          <div className="relative bg-[#101010] md:bg-[#1D1D1D] py-4 md:py-0 overflow-hidden">
+          <div className={`relative bg-[#101010] md:bg-[#1D1D1D] py-4 md:py-0 overflow-hidden ${hasError && currentStation?._id === station._id ? 'isolate min-h-[420px] md:min-h-[340px]' : ''}`}>
             {/* Connection Failed Overlay - Figma: 1512x308, #00000080, blur(13px) */}
             {hasError && currentStation?._id === station._id && (
               <div 
-                className="absolute inset-0 z-50 flex flex-col items-center justify-center"
+                className="absolute inset-0 z-50 flex flex-col items-center overflow-y-auto px-4 py-6"
+                data-testid="station-playback-error"
                 style={{
                   backgroundColor: 'rgba(0, 0, 0, 0.5)',
                   backdropFilter: 'blur(13px)',
                   WebkitBackdropFilter: 'blur(13px)'
                 }}
               >
-                {/* Close Button (X) - Figma: 24x24 white circle, positioned relative to icon */}
                 <button
+                  type="button"
                   onClick={() => stopStation()}
-                  className="absolute flex items-center justify-center hover:opacity-80 transition-opacity"
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    top: '46px',
-                    left: 'calc(50% + 120px)',
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '50%'
-                  }}
+                  className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center hover:opacity-80 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                   aria-label={controlLabels.close}
                 >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="#1D1D1D" 
-                    strokeWidth="2.5" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                    style={{ width: '14px', height: '14px' }}
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[#1D1D1D]">
+                    <X aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </span>
                 </button>
                 
                 {/* Error Icon - Figma: 82x82 circle with nosignal.png inside */}
                 <div 
-                  className="flex items-center justify-center mb-4"
+                  className="mt-auto flex shrink-0 items-center justify-center mb-4"
                   style={{
                     width: '82px',
                     height: '82px',
@@ -530,39 +518,28 @@ export default function StationDetails() {
                 
                 {/* Error Message */}
                 <h3 
-                  className="text-white text-xl md:text-2xl font-medium mb-1"
+                  className="text-center text-white text-xl md:text-2xl font-medium mb-1"
                   style={{ fontFamily: "'Ubuntu', system-ui, sans-serif" }}
                 >
-                  Opps!
+                  {t('error_playback_error', language === 'de' ? 'Wiedergabefehler' : 'Playback error')}
                 </h3>
                 <p 
                   className="text-white/80 text-sm md:text-base text-center px-4 mb-6"
                   style={{ fontFamily: "'Ubuntu', system-ui, sans-serif" }}
                 >
-                  Connection failed.<br />
-                  Please try again or play other radios below.
+                  {t('error_unable_to_stream', language === 'de'
+                    ? 'Die Verbindung zum Stream ist fehlgeschlagen. Versuche es erneut oder wähle einen anderen Sender.'
+                    : 'The stream connection failed. Try again or choose another station.')}
                 </p>
                 
-                {/* Report Button - Figma: 122x42, #FF4199, border-radius 3.55px */}
-                <button
-                  onClick={() => {
-                    // Report functionality - can be expanded
-                    toast({
-                      title: t('report_submitted', 'Report submitted'),
-                      description: t('report_thank_you', 'Thank you for reporting this issue.'),
-                    });
-                  }}
-                  className="text-white text-sm font-medium hover:opacity-90 transition-opacity"
-                  style={{
-                    width: '122px',
-                    height: '42px',
-                    backgroundColor: '#FF4199',
-                    borderRadius: '3.55px',
-                    fontFamily: "'Ubuntu', system-ui, sans-serif"
-                  }}
-                >
-                  Report this
-                </button>
+                <div className="mb-auto flex max-w-full shrink-0 flex-wrap items-start justify-center gap-3">
+                  <button type="button" onClick={handlePlay}
+                    className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded border border-white/40 px-4 py-2 text-sm text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                    <RotateCcw aria-hidden="true" className="h-4 w-4 shrink-0" />
+                    {t('general_try_again', language === 'de' ? 'Erneut versuchen' : 'Try again')}
+                  </button>
+                  <StationPlaybackReportButton stationId={station._id} stationName={station.name} />
+                </div>
               </div>
             )}
             
@@ -831,13 +808,11 @@ export default function StationDetails() {
             <div className="container m-auto">
               <div className="block items-center justify-between py-4 md:flex md:py-8">
                 <div>
-                  <div className="mb-2 text-base font-bold text-white">
-                    {t('station_about_station', 'About the station')}
-                  </div>
+                  <div className="mb-2 text-base font-bold text-white">{t('station_about_station', 'About the station')}</div>
                   <div className="mb-2 w-full text-white">
                     {/* Keep the complete article in the DOM; only its visual height is clamped. */}
                     <StationArticle
-                      text={selectStationVisibleDescription(station, language, getStationCountryName(station, 'en'))}
+                      text={stationEditorial?.summary ?? selectStationVisibleDescription(station, language, getStationCountryName(station, 'en'))}
                       expanded={isAboutExpanded}
                       onExpandedChange={setIsAboutExpanded}
                       moreLabel={t('general_more', 'more')}
@@ -1229,9 +1204,8 @@ export default function StationDetails() {
                 </div>
               </div>
             )}
-
-
           </div>
+          {stationEditorial && <StationEditorial content={stationEditorial} />}
         </>
       )}
       

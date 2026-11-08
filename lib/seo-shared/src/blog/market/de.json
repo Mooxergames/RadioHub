@@ -237,8 +237,8 @@
         "url": "https://help.asfinag.at/vignette-und-streckenmaut/vignette/?lng=de"
       },
       {
-        "name": "Ö3-Verkehrsservice: Hör- und Informationswege, Beitrag zum 22. Oktober 2026",
-        "url": "https://oe3.orf.at/stories/verkehrsprognose/"
+        "name": "Ö3-Verkehrsservice: aktuelle Verkehrskarte",
+        "url": "https://oe3.orf.at/verkehr/"
       }
     ],
     "relatedIds": [
@@ -596,7 +596,17 @@
     "sections": [
       {
         "heading": "Aus einer Erinnerung eine brauchbare Suche machen",
-        "paragraphs": ["Notiere zunächst, was du tatsächlich weißt: Radio Wien oder ein anderes ORF-Programm, ungefährer Tag, Tageszeit und ein markantes Thema. 'Das Interview über Pflanzen' ist weniger eindeutig als ein Thema zusammen mit Sender und Datum. Auch ein erinnerter Gast kann helfen. Eine vermutete Schreibweise des Namens sollte aber nicht zum einzigen Suchkriterium werden.", "Überlege außerdem, ob du den Beitrag im laufenden Radio oder als bereits ausgewählten Podcast gehört hast. Das verändert den Ausgangspunkt. Wer eine kurze Meldung nachhören möchte, braucht nicht unbedingt eine komplette mehrstündige Sendung. Wer dagegen die musikalische Gestaltung sucht, sollte sich nicht mit einem herausgelösten Gespräch zufriedengeben."]
+        "paragraphs": [
+          "Notiere zunächst, was du tatsächlich weißt: Radio Wien oder ein anderes ORF-Programm, ungefährer Tag, Tageszeit und ein markantes Thema. 'Das Interview über Pflanzen' ist weniger eindeutig als ein Thema zusammen mit Sender und Datum. Auch ein erinnerter Gast kann helfen. Eine vermutete Schreibweise des Namens sollte aber nicht zum einzigen Suchkriterium werden.",
+          "Überlege außerdem, ob du den Beitrag im laufenden Radio oder als bereits ausgewählten Podcast gehört hast. Das verändert den Ausgangspunkt. Wer eine kurze Meldung nachhören möchte, braucht nicht unbedingt eine komplette mehrstündige Sendung. Wer dagegen die musikalische Gestaltung sucht, sollte sich nicht mit einem herausgelösten Gespräch zufriedengeben.",
+          "Für den Vergleich kannst du die Radio-Wien-Senderseite öffnen und daneben die konkrete Ausgabe in ORF Sound suchen. Der laufende Stream ist kein Archivlink: Sendetitel, Datum und Dauer helfen beim Abgleichen. Prüfe die Verfügbarkeit der gewünschten Aufnahme direkt beim ORF, bevor du einen Wiedergabefehler vermutest."
+        ],
+        "links": [
+          {
+            "route": "station:orf-radio-wien",
+            "label": "Radio Wien: laufendes Programm vergleichen"
+          }
+        ]
       },
       {
         "heading": "Beitrag und ganze Sendung bewusst unterscheiden",
@@ -638,7 +648,17 @@
     "sections": [
       {
         "heading": "Vom Informationsbedarf statt vom ähnlich klingenden Namen ausgehen",
-        "paragraphs": ["Wenn du ein aktuelles Thema verstehen möchtest, formuliere zuerst deine Frage. Suchst du eine kurze Übersicht, ein längeres Gespräch oder eine Untersuchung einzelner Hintergründe? Die offizielle Beschreibung des Deutschlandfunks betont aktuelle Information und vertiefende Einordnung. Daraus folgt nicht, dass jede beliebige Minute dieselbe Art von Inhalt bietet. Ein laufendes Konzert ist kein Fehler im Stream.", "Notiere für eine Suche deshalb Thema und gewünschte Form. 'Interview zur Energiepolitik' führt zu einer anderen Auswahl als 'Nachrichten jetzt'. Ein Beitrag zum späteren Hören und das aktuelle Radioprogramm erfüllen unterschiedliche Aufgaben. Wer nur einen bestimmten Gesprächspartner hören möchte, sollte zuerst nach diesem Beitrag suchen und nicht auf eine Wiederholung im Livestream warten."]
+        "paragraphs": [
+          "Wenn du ein aktuelles Thema verstehen möchtest, formuliere zuerst deine Frage. Suchst du eine kurze Übersicht, ein längeres Gespräch oder eine Untersuchung einzelner Hintergründe? Die offizielle Beschreibung des Deutschlandfunks betont aktuelle Information und vertiefende Einordnung. Daraus folgt nicht, dass jede beliebige Minute dieselbe Art von Inhalt bietet. Ein laufendes Konzert ist kein Fehler im Stream.",
+          "Notiere für eine Suche deshalb Thema und gewünschte Form. 'Interview zur Energiepolitik' führt zu einer anderen Auswahl als 'Nachrichten jetzt'. Ein Beitrag zum späteren Hören und das aktuelle Radioprogramm erfüllen unterschiedliche Aufgaben. Wer nur einen bestimmten Gesprächspartner hören möchte, sollte zuerst nach diesem Beitrag suchen und nicht auf eine Wiederholung im Livestream warten.",
+          "Die verlinkte Deutschlandfunk-Seite gehört zum Hauptprogramm, nicht automatisch zu Deutschlandfunk Kultur oder Nova. Prüfe bei der Suche deshalb den vollständigen Kanalnamen und die Sendungsübersicht des Anbieters. Ein ähnlicher Markenname oder eine andere Streamqualität macht aus einem Eintrag keinen eigenständigen redaktionellen Kanal."
+        ],
+        "links": [
+          {
+            "route": "station:deutschlandfunk-dlf-mp3-128k",
+            "label": "Deutschlandfunk-Hauptprogramm im Verzeichnis"
+          }
+        ]
       },
       {
         "heading": "Kulturprogramm und Wissensbegleitung vergleichen",

@@ -3,7 +3,7 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import type pg from 'pg';
 import { createNativePostgresFixture, type NativePostgresFixture } from './helpers/native-postgres-fixture';
 import { PostgresCatalogStore, pgSyncBlacklist, pgBlacklistAdd, pgBlacklistFind } from '../src/data/postgres-catalog-store';
-import { DUPLICATE_MERGE_FAILURE_BACKOFF_MS, PostgresDuplicateJobsStore } from '../src/data/postgres-duplicate-jobs-store';
+import { DUPLICATE_AUTO_DISCOVERY_BACKOFF_MS, DUPLICATE_MERGE_FAILURE_BACKOFF_MS, PostgresDuplicateJobsStore } from '../src/data/postgres-duplicate-jobs-store';
 import { buildSyncBlacklist } from '../src/utils/sync-blacklist';
 
 const url = process.env.PG_TEST_DATABASE_URL;
@@ -65,6 +65,22 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
     assert.equal(await catalog.count(), 6);
     assert.ok(job.results.skippedReasons.some(item => item.reason.includes('city')));
     assert.equal((await fixture.pool.query('SELECT station_ids FROM station_duplicate_job_groups WHERE job_id=$1 AND status=$2', [id,'eligible'])).rows[0].station_ids.length, 2);
+  });
+
+  it('automatic stream prefilter retains Unicode/whitespace matches without accepting same-stream different identities', async () => {
+    await add('ＦＭ  Radio', { url: ' https://fixture.invalid/shared ' });
+    await add('fm Radio', { url: 'https://fixture.invalid/shared' });
+    const different = await add('Another station', { url: 'https://fixture.invalid/shared' });
+    const unique = await add('fm Radio', { url: 'https://fixture.invalid/unique' });
+    const emptyA = await add('Empty', { url: '' });
+    const emptyB = await add('Empty', { url: '  ' });
+    await fixture.pool.query('UPDATE station_duplicate_merge_control SET next_auto_at=$1', [now]);
+    await store.runCycle(advance());
+    const job = (await store.getStatus()).latestApply!;
+    const done = await finish(job.jobId);
+    assert.equal(done.results.totalGroups, 1);
+    assert.equal(done.results.totalStationsDeleted, 1);
+    for (const station of [different, unique, emptyA, emptyB]) assert.ok(await catalog.findById(station._id));
   });
 
   it('requires a completed preview, applies immutable IDs once, and preserves added stations', async () => {
@@ -182,10 +198,11 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
     assert.equal(complete.results.eligibleGroups, 21); assert.equal(complete.progress.groupsProcessed, 21);
   });
 
-  it('persists a bounded cooldown after an automatic seed timeout and honors it across replicas and restart', async () => {
+  it('persists separate automatic discovery and cycle cooldowns across replicas and restart', async () => {
     await add('Slow seed'); await add('Slow seed');
     await fixture.pool.query(`UPDATE station_duplicate_merge_control SET next_auto_at=$1,
-      next_cycle_at=$1::timestamptz-interval '1 millisecond'+interval '123 microseconds'`, [now]);
+      next_cycle_at=$1::timestamptz-interval '1 millisecond'+interval '123 microseconds',summary=$2::jsonb`,
+    [now, JSON.stringify({ automaticCursor: { name: 'a', country: 'a', stream: 'https://example.invalid/previous' }, retained: true })]);
     const before = await controlRow();
     await fixture.pool.query(`CREATE FUNCTION slow_duplicate_seed() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN PERFORM pg_sleep(1); RETURN NEW; END $$;
@@ -196,9 +213,14 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
       await fixture.pool.query('DROP TRIGGER slow_duplicate_seed ON station_duplicate_job_groups; DROP FUNCTION slow_duplicate_seed()');
     }
     const deferred = await controlRow(), retryAt = +new Date(deferred.next_cycle_at);
+    const autoRetryAt = +new Date(deferred.next_auto_at);
     assert.ok(retryAt >= +now + DUPLICATE_MERGE_FAILURE_BACKOFF_MS);
     assert.ok(retryAt <= +now + DUPLICATE_MERGE_FAILURE_BACKOFF_MS + 1_000);
-    assert.deepEqual({ ...deferred, next_cycle_at: before.next_cycle_at }, before);
+    assert.ok(autoRetryAt >= +now + DUPLICATE_AUTO_DISCOVERY_BACKOFF_MS);
+    assert.ok(autoRetryAt <= +now + DUPLICATE_AUTO_DISCOVERY_BACKOFF_MS + 1_000);
+    const { automaticDiscoveryRetryAt, ...summary } = deferred.summary;
+    assert.ok(Math.abs(+new Date(automaticDiscoveryRetryAt) - autoRetryAt) <= 1);
+    assert.deepEqual({ ...deferred, next_cycle_at: before.next_cycle_at, next_auto_at: before.next_auto_at, summary }, before);
     assert.equal((await fixture.pool.query('SELECT count(*)::int n FROM station_duplicate_jobs')).rows[0].n, 0);
     assert.equal((await fixture.pool.query('SELECT count(*)::int n FROM station_duplicate_job_groups')).rows[0].n, 0);
     assert.equal(await catalog.count(), 2);
@@ -207,15 +229,129 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
       assert.equal(result.deferred, true); assert.equal(result.deleted, 0);
     }
     assert.deepEqual(await controlRow(), deferred);
-    now = new Date(retryAt + 1);
+    for (const cycleAt of [retryAt + 1, autoRetryAt - 16_000]) {
+      const result = await new PostgresDuplicateJobsStore(fixture.pool).runCycle(new Date(cycleAt));
+      assert.equal(result.deleted, 0); assert.equal(result.completed, false);
+      assert.equal((await fixture.pool.query('SELECT count(*)::int n FROM station_duplicate_jobs')).rows[0].n, 0);
+      assert.equal(+new Date((await controlRow()).next_auto_at), autoRetryAt);
+    }
+    now = new Date(autoRetryAt + 1);
     const result = await new PostgresDuplicateJobsStore(fixture.pool).runCycle(now);
     assert.equal(result.deferred, false); assert.equal(result.deleted, 1); assert.equal(result.refreshCounts, true);
     assert.equal(await catalog.count(), 1);
+    assert.equal((await controlRow()).summary.automaticDiscoveryRetryAt, undefined);
+    assert.equal((await controlRow()).summary.retained, true);
+    assert.equal(+new Date((await controlRow()).next_auto_at), +now + 86_400_000);
   });
 
-  it('does not overwrite a concurrent replica that advances the cycle after rollback', async () => {
+  for (const existing of [false, true]) {
+    it(`runs queued manual work during discovery cooldown and retries a ${existing ? 'persisted' : 'new'} automatic scan`, async () => {
+      await add('Manual during cooldown'); await add('Manual during cooldown');
+      const preview = await store.createPreview(); await finish(preview);
+      const automaticId = 'a'.repeat(24);
+      if (existing) await fixture.pool.query("INSERT INTO station_duplicate_jobs(id,kind) VALUES($1,'automatic')", [automaticId]);
+      const scheduledAutoAt = new Date(+now + (existing ? 86_400_000 : 0));
+      await fixture.pool.query('UPDATE station_duplicate_merge_control SET next_auto_at=$1', [scheduledAutoAt]);
+      const before = await controlRow(), original = Object.assign(new Error('simulated discovery timeout'), { code: '57014' });
+      let apply = '', automaticScans = 0;
+      const failing = interceptCycle(async (client, sql, values) => {
+        if (sql.startsWith('WITH grouped AS') && sql.includes('AND bool_and')) {
+          automaticScans++;
+          if (automaticScans === 1) {
+            apply = await store.createApply(preview);
+            throw original;
+          }
+        }
+        return client.query(sql, values);
+      });
+      await assert.rejects(failing.runCycle(advance()), error => error === original);
+      const deferred = await controlRow(), discoveryRetryAt = +new Date(deferred.summary.automaticDiscoveryRetryAt);
+      assert.ok(discoveryRetryAt >= +now + DUPLICATE_AUTO_DISCOVERY_BACKOFF_MS);
+      assert.equal(deferred.last_run_at.getTime(), before.last_run_at.getTime());
+      assert.equal((await store.getJob(apply))?.progress.groupsProcessed, 0);
+      if (existing) {
+        assert.equal(+new Date(deferred.next_auto_at), +scheduledAutoAt);
+        const job = (await fixture.pool.query('SELECT * FROM station_duplicate_jobs WHERE id=$1', [automaticId])).rows[0];
+        assert.equal(job.phase, 'scan'); assert.equal(job.status, 'queued'); assert.equal(job.started_at, null);
+      }
+      now = new Date(+new Date(deferred.next_cycle_at) + 1);
+      assert.ok(+now < discoveryRetryAt);
+      const manualResult = await failing.runCycle(now);
+      assert.equal(manualResult.deleted, 1); assert.equal(manualResult.completed, true);
+      assert.equal((await store.getJob(apply))?.status, 'completed');
+      const nextPreview = await store.createPreview();
+      await failing.runCycle(advance());
+      assert.equal((await store.getJob(nextPreview))?.status, 'completed');
+      await failing.runCycle(new Date(discoveryRetryAt - 16_000));
+      assert.equal(automaticScans, 1);
+      assert.deepEqual((await controlRow()).next_auto_at, deferred.next_auto_at);
+      const result = await new PostgresDuplicateJobsStore(fixture.pool).runCycle(new Date(discoveryRetryAt + 1));
+      assert.equal(result.completed, true);
+      const automatic = (await fixture.pool.query("SELECT * FROM station_duplicate_jobs WHERE kind='automatic'")).rows;
+      assert.equal(automatic.length, 1); assert.equal(automatic[0].status, 'completed');
+      if (existing) assert.equal(automatic[0].id, automaticId);
+      assert.equal((await controlRow()).summary.automaticDiscoveryRetryAt, undefined);
+    });
+  }
+
+  it('does not delay an automatic job already evaluating frozen groups during discovery cooldown', async () => {
+    const id = 'b'.repeat(24), retryAt = new Date(+now + DUPLICATE_AUTO_DISCOVERY_BACKOFF_MS);
+    await fixture.pool.query("INSERT INTO station_duplicate_jobs(id,kind,phase) VALUES($1,'automatic','evaluate')", [id]);
+    await fixture.pool.query('UPDATE station_duplicate_merge_control SET summary=$1::jsonb',
+      [JSON.stringify({ automaticDiscoveryRetryAt: retryAt.toISOString() })]);
+    const before = await controlRow();
+    const result = await store.runCycle(now);
+    assert.equal(result.completed, true); assert.equal(result.deleted, 0);
+    assert.equal((await store.getJob(id))?.status, 'completed');
+    assert.deepEqual((await controlRow()).next_auto_at, before.next_auto_at);
+    assert.equal((await controlRow()).summary.automaticDiscoveryRetryAt, retryAt.toISOString());
+  });
+
+  it('renews only automatic discovery cooldown on repeated simulated timeouts without recording success', async () => {
+    await fixture.pool.query('UPDATE station_duplicate_merge_control SET next_auto_at=$1', [now]);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const original = Object.assign(new Error('simulated discovery timeout'), { code: '57014' });
+      const failing = interceptCycle(async (client, sql, values) => {
+        if (sql.startsWith('WITH grouped AS')) throw original;
+        return client.query(sql, values);
+      });
+      const before = await controlRow();
+      await assert.rejects(failing.runCycle(now), error => error === original);
+      const deferred = await controlRow();
+      assert.equal(deferred.last_run_at, before.last_run_at);
+      assert.equal(deferred.lease_owner, null);
+      assert.ok(+new Date(deferred.next_auto_at) >= +now + DUPLICATE_AUTO_DISCOVERY_BACKOFF_MS);
+      assert.equal((await fixture.pool.query('SELECT count(*)::int n FROM station_duplicate_jobs')).rows[0].n, 0);
+      now = new Date(+new Date(deferred.summary.automaticDiscoveryRetryAt) + 1);
+    }
+  });
+
+  for (const scenario of [
+    { kind: 'preview', phase: 'seed', code: '57014' },
+    { kind: 'automatic', phase: 'seed', code: '55P03' },
+    { kind: 'automatic', phase: 'checkpoint', code: '57014' },
+  ]) {
+    it(`keeps the normal cooldown for ${scenario.kind} ${scenario.phase} ${scenario.code}`, async () => {
+      if (scenario.kind === 'preview') await store.createPreview();
+      await fixture.pool.query('UPDATE station_duplicate_merge_control SET next_auto_at=$1', [now]);
+      const before = await controlRow(), original = Object.assign(new Error('simulated cycle failure'), { code: scenario.code });
+      const failing = interceptCycle(async (client, sql, values) => {
+        if (sql.startsWith(scenario.phase === 'seed' ? 'WITH grouped AS' : 'UPDATE station_duplicate_merge_control SET lease_owner=NULL')) throw original;
+        return client.query(sql, values);
+      });
+      await assert.rejects(failing.runCycle(now), error => error === original);
+      const deferred = await controlRow();
+      assert.deepEqual({ ...deferred, next_cycle_at: before.next_cycle_at }, before);
+      assert.ok(+new Date(deferred.next_cycle_at) >= +now + DUPLICATE_MERGE_FAILURE_BACKOFF_MS);
+      assert.ok(+new Date(deferred.next_cycle_at) <= +now + DUPLICATE_MERGE_FAILURE_BACKOFF_MS + 1_000);
+    });
+  }
+
+  for (const kind of ['preview', 'automatic']) it(`does not overwrite a replica advancing after ${kind} timeout rollback`, async () => {
     await add('Replica race'); await add('Replica race');
-    const preview = await store.createPreview(), original = new Error('fixture seed failure');
+    const preview = kind === 'preview' ? await store.createPreview() : undefined;
+    if (kind === 'automatic') await fixture.pool.query('UPDATE station_duplicate_merge_control SET next_auto_at=$1', [now]);
+    const original = Object.assign(new Error('fixture seed failure'), { code: '57014' });
     let advanced: Record<string, unknown> | undefined;
     const failing = interceptCycle(async (client, sql, values) => {
       if (sql.startsWith('WITH grouped AS')) throw original;
@@ -230,7 +366,7 @@ describe('durable duplicate preview/apply worker', { skip: !url }, () => {
     await assert.rejects(failing.runCycle(now), error => error === original);
     assert.ok(advanced);
     assert.deepEqual(await controlRow(), advanced);
-    assert.equal((await store.getJob(preview))?.status, 'completed');
+    if (preview) assert.equal((await store.getJob(preview))?.status, 'completed');
     assert.equal(+new Date((await controlRow()).next_cycle_at), +now + 15_000);
   });
 

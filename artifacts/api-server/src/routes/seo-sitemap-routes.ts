@@ -13,25 +13,7 @@ import { markSeoTemporarilyUnavailable } from '../seo/temporary-unavailable';
 import { manualSitemapRebuildTimeout } from '../middleware/manual-sitemap-rebuild-timeout';
 import { logger } from "../utils/logger";
 import { SeoRenderer, buildLocalizedUrl } from "../seo-renderer";
-import { SITEMAP_CONFIG, ACTIVE_SITEMAP_LANGUAGES, REQUIRED_STATION_SEO_KEYS, hasCompleteSeoTranslations, SEO_LANGUAGES, COUNTRY_TO_LANGUAGE, LOCALIZED_LOGO_WORD, LOCALIZED_RADIO_STATION_WORD, normalizeSeoTitleTags } from '@workspace/seo-shared/seo-config';
-import { PUBLIC_SEO_LOCALE_CODES } from '../seo/public-route-matchers';
-
-const PRIVATE_HTML_ROBOTS_ROOTS = [
-  'admin', 'settings', 'import-export', 'analytics', 'messages', 'profile', 'login', 'signup',
-  'premium', 'activate', 'reset-password', 'notifications', 'recommendations', 'trending', 'favorites',
-  'request-station', 'dashboard', 'feedback', 'station-requests', 'station-submissions',
-  'status-monitoring', 'sync', 'change-password', 'forgot-password', 'tv-login',
-] as const;
-
-// REP wildcards span slashes: /*/premium also blocks /en/station/premium.
-// Keep private roots at the routing locale depth, including country aliases.
-const localizedPrivateRobotsRules = [...PUBLIC_SEO_LOCALE_CODES].flatMap(prefix => {
-  const language = SEO_LANGUAGES.find(locale => locale.enabled && locale.code === prefix)?.code
-    || COUNTRY_TO_LANGUAGE[prefix] || 'en';
-  const profile = URL_TRANSLATIONS[language]?.profile;
-  const roots = new Set<string>([...PRIVATE_HTML_ROBOTS_ROOTS, ...(profile ? [profile] : [])]);
-  return [...roots].map(root => `Disallow: /${prefix}/${encodeURIComponent(root)}`);
-}).join('\n');
+import { SITEMAP_CONFIG, ACTIVE_SITEMAP_LANGUAGES, REQUIRED_STATION_SEO_KEYS, hasCompleteSeoTranslations, SEO_LANGUAGES, LOCALIZED_LOGO_WORD, LOCALIZED_RADIO_STATION_WORD, normalizeSeoTitleTags } from '@workspace/seo-shared/seo-config';
 
 // Map a SEO language code (e.g. "nb") to its BCP47/hreflang tag (e.g. "nb-NO")
 // so XML sitemap alternates match the HTML <link rel="alternate"> tags emitted
@@ -908,22 +890,14 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
 
   registerLlmsTxtRoutes(app, { homeDiscovery: !options?.apiOnly });
 
-  // Robots.txt generator
+  // One common policy for search, retrieval and training crawlers. HTML pages
+  // remain crawlable so their index/noindex directives can be read; API
+  // authentication, not robots.txt, protects personal data.
   app.get("/robots.txt", async (req, res) => {
     const baseUrl = getBaseUrl(req);
-    // robots.txt rule order (revised 2026-05-08):
-    // Strategy: open /api/ broadly so Google's WRS can fetch ANY SSR data
-    // endpoint (current OR future) without us having to maintain a whitelist.
-    // We only Disallow the few /api/ subtrees that are genuinely sensitive
-    // (admin, auth flows, user-scoped data, billing, audio stream proxy,
-    // test/sync helpers). Google's "longest match wins" rule means these
-    // narrower Disallows correctly override the broad Allow: /api/.
     const robots = `User-agent: *
-Allow: /api/
-Allow: /assets/*.js
-Allow: /assets/*.css
-Disallow: /api/admin/
-Disallow: /api/auth/
+Disallow: /api/admin
+Disallow: /api/auth
 Disallow: /api/user/
 Disallow: /api/users/
 Allow: /api/users/search$
@@ -941,222 +915,10 @@ Disallow: /api/analytics
 Disallow: /api/messages/
 Disallow: /api/cast/
 Disallow: /api/ml/
-Allow: /api/image/
-Allow: /api/og-image/
 Disallow: /api/internal/
 Disallow: /api/cache/
 Disallow: /api/logs/
-${localizedPrivateRobotsRules}
-# /search is intentionally NOT disallowed: the SSR layer emits
-# "noindex, follow" on search pages, and Google can only honor that directive
-# if it is allowed to crawl the URL. A robots Disallow would instead leave
-# search URLs "indexed, though blocked by robots.txt". See re-audit 2026-06-20 Item 5.
-Disallow: /login
-Disallow: /signup
-Disallow: /premium
-Disallow: /premium-success
-Disallow: /activate
-Disallow: /activate-success
-Disallow: /reset-password
-Disallow: /notifications
-Disallow: /recommendations
-Disallow: /trending
-Disallow: /favorites
-Disallow: /request-station
-Disallow: /dashboard
-Disallow: /feedback
-Disallow: /station-requests
-Disallow: /station-submissions
-Disallow: /status-monitoring
-Disallow: /sync
-Disallow: /change-password
-Disallow: /forgot-password
-Disallow: /tv-login
-Disallow: /settings
-Disallow: /messages
-Disallow: /analytics
-Disallow: /import-export
-# Narrowed from a blanket query-string block (which blocked ALL ?-URLs,
-# including the ?page=N pagination on the /stations catalog hub and listing
-# pages). Block only known tracking params so paginated/crawlable query URLs
-# stay reachable. See re-audit 2026-06-20 Item 5 + internal-linking Component (a).
-Disallow: /*?*utm_source=
-Disallow: /*?*utm_medium=
-Disallow: /*?*utm_campaign=
-Disallow: /*?*utm_term=
-Disallow: /*?*utm_content=
-Disallow: /*?*fbclid=
-Disallow: /*?*gclid=
-Disallow: /*?*ref=
-Allow: /
 
-User-agent: Baiduspider
-Allow: /api/
-Allow: /assets/*.js
-Allow: /assets/*.css
-Disallow: /api/admin/
-Disallow: /api/auth/
-Disallow: /api/user/
-Disallow: /api/users/
-Allow: /api/users/search$
-Allow: /api/users/search?page=1&limit=20&sortBy=recent_favorites$
-Disallow: /api/sync/
-Disallow: /api/test/
-Disallow: /api/payments/
-Disallow: /api/iap/
-Disallow: /api/push/
-Disallow: /api/stream/
-Disallow: /api/tv/
-Disallow: /api/analytics
-Disallow: /api/messages/
-Disallow: /api/cast/
-Disallow: /api/ml/
-Allow: /api/image/
-Allow: /api/og-image/
-Disallow: /api/internal/
-Disallow: /api/cache/
-Disallow: /api/logs/
-${localizedPrivateRobotsRules}
-Disallow: /login
-Disallow: /signup
-Disallow: /premium
-Disallow: /premium-success
-Disallow: /activate
-Disallow: /activate-success
-Disallow: /reset-password
-Disallow: /notifications
-Disallow: /recommendations
-Disallow: /trending
-Disallow: /favorites
-Disallow: /request-station
-Disallow: /dashboard
-Disallow: /feedback
-Disallow: /station-requests
-Disallow: /station-submissions
-Disallow: /status-monitoring
-Disallow: /sync
-Disallow: /change-password
-Disallow: /forgot-password
-Disallow: /tv-login
-Disallow: /settings
-Disallow: /messages
-Disallow: /analytics
-Disallow: /import-export
-Disallow: /*?
-Allow: /
-
-User-agent: Sogou
-Allow: /api/
-Allow: /assets/*.js
-Allow: /assets/*.css
-Disallow: /api/admin/
-Disallow: /api/auth/
-Disallow: /api/user/
-Disallow: /api/users/
-Allow: /api/users/search$
-Allow: /api/users/search?page=1&limit=20&sortBy=recent_favorites$
-Disallow: /api/sync/
-Disallow: /api/test/
-Disallow: /api/payments/
-Disallow: /api/iap/
-Disallow: /api/push/
-Disallow: /api/stream/
-Disallow: /api/tv/
-Disallow: /api/analytics
-Disallow: /api/messages/
-Disallow: /api/cast/
-Disallow: /api/ml/
-Allow: /api/image/
-Allow: /api/og-image/
-Disallow: /api/internal/
-Disallow: /api/cache/
-Disallow: /api/logs/
-${localizedPrivateRobotsRules}
-Disallow: /login
-Disallow: /signup
-Disallow: /premium
-Disallow: /premium-success
-Disallow: /activate
-Disallow: /activate-success
-Disallow: /reset-password
-Disallow: /notifications
-Disallow: /recommendations
-Disallow: /trending
-Disallow: /favorites
-Disallow: /request-station
-Disallow: /dashboard
-Disallow: /feedback
-Disallow: /station-requests
-Disallow: /station-submissions
-Disallow: /status-monitoring
-Disallow: /sync
-Disallow: /change-password
-Disallow: /forgot-password
-Disallow: /tv-login
-Disallow: /settings
-Disallow: /messages
-Disallow: /analytics
-Disallow: /import-export
-Disallow: /*?
-Allow: /
-
-# AI training crawlers — consume bandwidth with near-zero referral value; block
-User-agent: GPTBot
-Disallow: /
-
-User-agent: CCBot
-Disallow: /
-
-User-agent: Bytespider
-Disallow: /
-
-User-agent: cohere-ai
-Disallow: /
-
-User-agent: Meta-ExternalAgent
-Disallow: /
-
-User-agent: Diffbot
-Disallow: /
-
-# AI retrieval / search bots — surface content in AI answers and send traffic; allow
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Perplexity-User
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
-
-User-agent: Amazonbot
-Allow: /
-
-User-agent: DuckAssistBot
-Allow: /
-
-User-agent: YouBot
-Allow: /
-
-# Advertise ONLY the master sitemap index. It already references every
-# per-language child sitemap (main + genres + station chunks for all 14
-# universal langs — see the /sitemap-index.xml route). Listing the
-# per-language sitemap-{lang}.xml entries here as well made Google
-# re-discover them as separate submitted sitemaps, which surface as
-# confusing "0 discovered URLs" index rows in Search Console. One entry
-# point keeps the Sitemaps report clean. (2026-07-01)
 Sitemap: ${baseUrl}/sitemap-index.xml
 Sitemap: ${baseUrl}/sitemap-blog.xml`;
 

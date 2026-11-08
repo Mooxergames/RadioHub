@@ -6,9 +6,12 @@ import { getQueryFn } from '../src/lib/queryClient';
 import { ServerSeoHeadContext } from '../src/utils/ssr-seo-head';
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { renderStationBootstrap } from '../../api-server/src/seo/station-bootstrap';
+import { getStationEditorial } from '@workspace/seo-shared/station-editorial';
 
 const state = vi.hoisted(() => ({
   language: 'en', slug: 'fixture-radio', playStation: vi.fn(),
+  hasError: false, isPlaying: false, currentStation: null as Record<string, unknown> | null,
+  pauseStation: vi.fn(), stopStation: vi.fn(),
   similar: [] as Record<string, unknown>[], country: [] as Record<string, unknown>[],
 }));
 vi.mock('@/hooks/useSeoRouting', () => ({ useSeoRouting: () => ({
@@ -24,8 +27,8 @@ vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ isPremiu
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => ({
-  currentStation: null, isPlaying: false, stationMeta: null, hasError: false,
-  playStation: state.playStation, pauseStation: vi.fn(), stopStation: vi.fn(),
+  currentStation: state.currentStation, isPlaying: state.isPlaying, stationMeta: null, hasError: state.hasError,
+  playStation: state.playStation, pauseStation: state.pauseStation, stopStation: state.stopStation,
 }) }));
 vi.mock('@/hooks/useStationRatings', () => ({ useStationRatings: () => ({ statsStatus: 'ready' }) }));
 vi.mock('@/hooks/useStationRelatedStations', async importOriginal => ({
@@ -50,6 +53,8 @@ let fail: (error: Error) => void;
 beforeEach(() => {
   state.language = 'en'; state.slug = seed.slug;
   state.similar = []; state.country = []; state.playStation.mockReset();
+  state.hasError = false; state.isPlaying = false; state.currentStation = null;
+  state.pauseStation.mockReset(); state.stopStation.mockReset();
   window.history.replaceState({}, '', '/en/station/fixture-radio');
   document.head.innerHTML = `<title>Fixture Radio live</title>
     <link rel="canonical" data-managed="seo-head" href="https://themegaradio.com/en/station/fixture-radio">
@@ -89,6 +94,29 @@ function mountRelated(language = 'en') {
   bootstrap({ ...seed, country: 'Austria' }, language);
   mount();
 }
+
+it('retries a failed current station without pausing it and reports only on a deliberate click', async () => {
+  state.language = 'de'; state.hasError = true; state.isPlaying = true; state.currentStation = seed;
+  bootstrap(seed, 'de'); mount();
+  expect(screen.getByRole('heading', { name: 'Wiedergabefehler' })).toBeInTheDocument();
+  expect(screen.getByTestId('station-playback-error').parentElement).toHaveClass('isolate', 'min-h-[420px]', 'md:min-h-[340px]');
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/report-error'))).toBe(false);
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Erneut versuchen' })); });
+  expect(state.playStation).toHaveBeenCalledWith(expect.objectContaining({ _id: seed._id }));
+  expect(state.pauseStation).not.toHaveBeenCalled();
+  vi.mocked(fetch).mockResolvedValueOnce(Response.json({ success: true, errorId: 'fixture-report' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Problem melden' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Meldung gespeichert' })).toBeDisabled());
+  const requests = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/report-error'));
+  expect(requests).toHaveLength(1);
+  expect(JSON.parse(requests[0][1]!.body as string).stationId).toBe(seed._id);
+});
+
+it('does not show a report action for another station or a healthy player', () => {
+  state.hasError = true; state.currentStation = { ...seed, _id: 'another-station' };
+  bootstrap(); mount();
+  expect(screen.queryByRole('button', { name: 'Report problem' })).not.toBeInTheDocument();
+});
 
 it('uses the existing related lists without fetching a redundant linked list or claiming media ownership', async () => {
   mountRelated();
@@ -169,6 +197,41 @@ it('keeps the matching SSR article and head while the complete API request is sl
   expectArticle();
   expect(document.head.innerHTML).toBe(head);
   expect(client.getQueryData(['/api/station/fixture-radio'])).toBeUndefined();
+});
+
+it('keeps the Ö3 summary above recommendations and all detailed editorial below both station lists', async () => {
+  state.language = 'de'; state.slug = 'orf-hitradio-o3';
+  state.similar = [{ _id: 'related-id', slug: 'related-jazz', name: 'Related Jazz', country: 'Austria' }];
+  state.country = [{ _id: 'country-id', name: 'Country News', country: 'Austria' }];
+  const oe3 = { ...seed, _id: '68a8c483bd66579311ab2ffa', slug: state.slug, name: 'ORF Hitradio Ö3', country: 'Austria', countryCode: 'AT' };
+  const content = getStationEditorial(oe3, 'de')!;
+  bootstrap(oe3, 'de'); mount();
+  const editorial = screen.getByTestId('station-editorial');
+  expect(editorial).toContainElement(screen.getByTestId('station-editorial-intro'));
+  for (const paragraph of content.paragraphs) expect(screen.getByText(paragraph)).toBeInTheDocument();
+  const summary = screen.getByText(content.summary);
+  expect(screen.queryByText(article)).not.toBeInTheDocument();
+  for (const name of [/Related Jazz/, /Country News/]) {
+    const link = screen.getByRole('link', { name });
+    expect(summary.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(link.compareDocumentPosition(editorial) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  }
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  await act(async () => { finish(Response.json({ ...oe3, descriptions: { de: 'Stored station description.' } })); });
+  expect(screen.getAllByText(content.summary)).toHaveLength(1);
+  expect(screen.queryByText('Stored station description.')).not.toBeInTheDocument();
+  expect(state.playStation).not.toHaveBeenCalled();
+});
+
+it.each([
+  { language: 'en', id: '68a8c483bd66579311ab2ffa', slug: 'orf-hitradio-o3' },
+  { language: 'de', id: 'another-station', slug: 'fm4-orf' },
+])('does not replace stored copy outside the German Ö3 pilot: $language $slug', ({ language, id, slug }) => {
+  state.language = language; state.slug = slug;
+  bootstrap({ ...seed, _id: id, slug }, language); mount();
+  expect(screen.getAllByText(article)).toHaveLength(1);
+  expect(screen.queryByTestId('station-editorial')).not.toBeInTheDocument();
+  expect(state.playStation).not.toHaveBeenCalled();
 });
 
 it.each([408, 429, 500, 502, 503, 'network'] as const)('retains valid SSR content after a %s enrichment failure', async kind => {

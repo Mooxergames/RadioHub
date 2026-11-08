@@ -47,3 +47,5 @@ export const PaddlePlans = lazy(() => import("@/pages/admin/paddle-plans"));
 export const SalesAnalytics = lazy(() => import("@/pages/admin/sales-analytics"));
 export const AdminAppLogs = lazy(() => import("@/pages/admin/app-logs"));
 export const AdminApiKeys = lazy(() => import("@/pages/admin/api-keys"));
+
+export const TvDiagnostics = lazy(() => import("@/pages/admin/tv-diagnostics"));

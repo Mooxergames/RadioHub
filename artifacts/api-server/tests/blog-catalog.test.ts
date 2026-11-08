@@ -7,6 +7,8 @@ import {
   BLOG_ARTICLE_IDS,
   MARKET_BLOG_MANIFEST,
   BLOG_SITEMAP_UPDATED,
+  BLOG_REVIEWED,
+  BLOG_REVISED_CORE_IDS,
   blogAlternates,
   blogAvailable,
   blogIdsForLocale,
@@ -51,7 +53,9 @@ test("catalog retains the original 140 editions and adds exactly 48 sparse marke
     for (const id of BLOG_IDS) {
       assert.deepEqual(parseBlogPath(`/${locale}/blog/${id}`), { locale, id });
       assert.equal(blogMetadata(id).publishedAt, "2026-09-25T00:00:00+02:00");
-      assert.equal(blogMetadata(id).updatedAt, "2026-09-25T00:00:00+02:00");
+      assert.equal(blogMetadata(id, locale).updatedAt,
+        ["en", "de", "tr"].includes(locale) && BLOG_REVISED_CORE_IDS.includes(id)
+          ? BLOG_REVIEWED : "2026-09-25T00:00:00+02:00");
       assert.equal(blogImage(id), `/images/blog/${id}-1200.webp`);
       assert.equal(blogImage(id, 640), `/images/blog/${id}-640.webp`);
     }
@@ -86,10 +90,10 @@ test("202 sitemap URLs have only real reciprocal alternates and stable per-editi
     entries.map((entry: any) => [entry.loc, entry]),
   );
   assert.equal(byUrl.size, 202);
-  assert.equal(BLOG_SITEMAP_UPDATED, "2026-10-27T07:46:55+01:00");
+  assert.equal(BLOG_SITEMAP_UPDATED, BLOG_REVIEWED);
   for (const entry of entries) {
     const route = parseBlogPath(new URL(entry.loc).pathname)!;
-    if (route.id) assert.equal(entry.lastmod, blogMetadata(route.id).updatedAt);
+    if (route.id) assert.equal(entry.lastmod, blogMetadata(route.id, route.locale).updatedAt);
     for (const alternate of [entry["xhtml:link"]].flat()) {
       const target = byUrl.get(alternate["@_href"]);
       assert.ok(target, alternate["@_href"]);

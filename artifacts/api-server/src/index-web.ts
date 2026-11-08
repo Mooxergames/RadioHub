@@ -1,3 +1,5 @@
+import { installTvDiagnosticsBoundary } from './lib/tv-diagnostics-boundary';
+import { applyPublicStreamCors } from "./lib/public-stream-cors";
 if (!process.env.FONTCONFIG_FILE || process.env.FONTCONFIG_FILE === '/dev/null') {
   process.env.FONTCONFIG_FILE = process.cwd() + '/fontconfig.conf';
 }
@@ -10,6 +12,7 @@ import { createServer } from "http";
 import { createServer as createHttpsServer } from "https";
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { forwardApiRequest } from './middleware/forward-api-request';
+import { webRequestTimeout, WEB_API_PROXY_TIMEOUTS, sendWebApiProxyError } from './middleware/web-request-timeout';
 import { publicImageProxyHeaders } from './middleware/public-image-headers';
 import { createStationLogoDelivery } from './middleware/station-logo-delivery';
 import { seedPostgresDefaultLanguages } from "./services/postgres-bootstrap";
@@ -34,6 +37,8 @@ import { renderTranslationBootstrap } from './seo/translation-bootstrap';
 import { registerSeoSitemapRoutes } from './routes/seo-sitemap-routes';
 import { registerLlmsTxtRoutes } from './seo/llms-txt-routes';
 import { startOperation, endOperation, getActiveOperations, getGcStats } from './utils/operation-tracker';
+import { requestGracefulRestart, requestedShutdownExitCode } from './utils/graceful-restart';
+import { createWebShutdown, WEB_SHUTDOWN_TIMEOUT_MS } from './utils/web-shutdown';
 import { COUNTRY_TO_LANGUAGE, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
 
 import { geoBlockMiddleware } from './middleware/geo-block';
@@ -68,6 +73,7 @@ app.disable('x-powered-by');
 
 // Geo-block FIRST — drop TCP connection from blocked countries (no response)
 app.use(geoBlockMiddleware);
+installTvDiagnosticsBoundary(app);
 // Web serves SSR directly; qualified browser navigation is explicitly reported
 // by the client. Only sampled known automation is observed here, never /api.
 app.use(createVisitorActivityMiddleware(undefined, { botsOnly: true }));
@@ -79,8 +85,8 @@ function scheduleFatalExit(label: string) {
   uncaughtExitScheduled = true;
   console.error(`🚨 ${label} — scheduling fail-fast exit in 1s for clean restart`);
   setTimeout(() => {
-    try { process.kill(process.pid, 'SIGTERM'); } catch { process.exit(1); }
-    setTimeout(() => process.exit(1), 10_000).unref();
+    requestGracefulRestart();
+    setTimeout(() => process.exit(1), WEB_SHUTDOWN_TIMEOUT_MS).unref();
   }, 1000).unref();
 }
 
@@ -276,6 +282,9 @@ app.use((req, res, next) => {
   // pure noise.
 
   if (req.method === 'OPTIONS') {
+    // This middleware terminates preflights before /api/stream forwarding.
+    // Reuse the exact anonymous-media policy; private paths remain unchanged.
+    applyPublicStreamCors(req, res);
     res.sendStatus(200);
     return;
   }
@@ -364,21 +373,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((req, res, next) => {
-  if (/\.(js|css|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|map|json)$/i.test(req.path)) return next();
-  const requestStartedAt = Date.now();
-  req.setTimeout(30000, () => {
-    if (!res.headersSent) {
-      console.error(`⏰ Request timeout after ${Date.now() - requestStartedAt}ms (socket limit ${req.socket.timeout}ms): ${req.method} ${req.path}`);
-      // 503 + Retry-After: tells Googlebot to back off and retry rather than
-      // logging a 504 in GSC's "Server error (5xx)" bucket.
-      res.setHeader('Retry-After', '120');
-      res.setHeader('Cache-Control', 'no-store');
-      res.status(503).send('Service temporarily unavailable — retry shortly');
-    }
-  });
-  next();
-});
+app.use(webRequestTimeout);
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/ws') || req.path.startsWith('/healthz') || req.path.startsWith('/health') || /\.(js|css|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|map|json)$/i.test(req.path)) {
@@ -504,18 +499,14 @@ const apiProxy = createProxyMiddleware({
   target: BACKEND_API_URL,
   changeOrigin: true,
   ws: false,
-  timeout: 60000,
-  proxyTimeout: 60000,
+  ...WEB_API_PROXY_TIMEOUTS,
   cookieDomainRewrite: {
     '*': ''
   },
   on: {
     error: (err, req, res) => {
       console.error(`❌ Proxy error for ${(req as any).url}:`, err.message);
-      if (res && 'writeHead' in res && !(res as any).headersSent) {
-        (res as any).writeHead(502, { 'Content-Type': 'application/json' });
-        (res as any).end(JSON.stringify({ error: 'Backend API unavailable' }));
-      }
+      sendWebApiProxyError(res);
     },
     proxyReq: (proxyReq, req) => {
       proxyReq.setHeader('X-Forwarded-For', (req as any).ip || (req as any).connection?.remoteAddress || '');
@@ -743,8 +734,9 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
     const isApplicationsPage = SEO_PRECOMPILED_REGEX.applicationsPage.test(cleanUrlForMatching);
     const isUsersPage = SEO_PRECOMPILED_REGEX.usersPage.test(cleanUrlForMatching);
     const isBlogPage = SEO_PRECOMPILED_REGEX.blogPage.test(cleanUrlForMatching);
+    const isDiscoveryPage = SEO_PRECOMPILED_REGEX.discoveryPage.test(cleanUrlForMatching);
 
-    const isSeoEligiblePage = isBlogPage || isStationPage || isHomepage || isRegionsPage || isGenresPage || isAboutPage || isContactPage || isPrivacyPage || isCountryPage || isStationsPage || isSearchPage || isFaqPage || isTermsPage || isApplicationsPage || isUsersPage;
+    const isSeoEligiblePage = isBlogPage || isStationPage || isHomepage || isRegionsPage || isGenresPage || isAboutPage || isContactPage || isPrivacyPage || isCountryPage || isStationsPage || isSearchPage || isFaqPage || isTermsPage || isApplicationsPage || isUsersPage || isDiscoveryPage;
     const isBot = SEO_PRECOMPILED_REGEX.botDetect.test(userAgent);
 
     // CLOAKING FIX (2026-05-12): SSR is now served to ALL visitors on SEO
@@ -1145,6 +1137,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
 
   serveStatic(app);
 
+  const webServers: Parameters<typeof createWebShutdown>[0]['servers'] = [server];
+
   // Optional HTTPS server for Cloudflare Origin SSL ("Full (strict)" mode).
   // Set SSL_CERT and SSL_KEY environment variables (raw PEM content) to enable.
   // The certificate must be a Cloudflare Origin Certificate for *.themegaradio.com.
@@ -1167,12 +1161,14 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       httpsServer.listen({ port: sslPort, host: '0.0.0.0' }, () => {
         logger.log(`🔒 FRONTEND-WEB: HTTPS listening on port ${sslPort} (Cloudflare Origin SSL)`);
       });
+      webServers.push(httpsServer);
     } catch (err: any) {
       logger.warn(`⚠️ HTTPS server failed to start (bad cert/key?): ${err?.message}`);
     }
   }
 
   let isShuttingDown = false;
+  let watchdogTimerRef: ReturnType<typeof setInterval> | undefined;
 
   const port = parseInt(process.env.PORT || '3000', 10);
   server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' && process.platform !== 'darwin' }, () => {
@@ -1207,7 +1203,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
           console.error(`🐕 Watchdog: self-ping failed (${watchdogFailures}/${WATCHDOG_MAX_FAILURES})`);
           if (watchdogFailures >= WATCHDOG_MAX_FAILURES) {
             console.error(`🐕 Watchdog: forcing restart`);
-            process.kill(process.pid, 'SIGTERM');
+            requestGracefulRestart();
           }
         }
 
@@ -1217,7 +1213,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
           if (postgresDownSince === null) postgresDownSince = Date.now();
           if (Date.now()-postgresDownSince >= POSTGRES_DOWN_RESTART_MS) {
             console.error('PostgreSQL unavailable beyond watchdog deadline; restarting');
-            process.kill(process.pid,'SIGTERM');
+            requestGracefulRestart();
           }
         }
       } catch (err: any) {
@@ -1225,10 +1221,11 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         console.error(`🐕 Watchdog error: ${err.message} (${watchdogFailures}/${WATCHDOG_MAX_FAILURES})`);
         if (watchdogFailures >= WATCHDOG_MAX_FAILURES) {
           console.error(`🐕 Watchdog: forcing restart after error`);
-          process.kill(process.pid, 'SIGTERM');
+          requestGracefulRestart();
         }
       }
     }, WATCHDOG_INTERVAL);
+    watchdogTimerRef = watchdogTimer;
 
     logger.log(`🐕 Watchdog: enabled (interval=${WATCHDOG_INTERVAL/1000}s, maxFailures=${WATCHDOG_MAX_FAILURES})`);
   });
@@ -1236,22 +1233,17 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   server.timeout = 120000;
   server.keepAliveTimeout = 65000;
   server.headersTimeout = 70000;
-  const gracefulShutdown = async (signal: string) => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-    console.log(`\n🛑 ${signal} received — starting graceful shutdown...`);
-    const shutdownTimeout = setTimeout(() => { process.exit(1); }, 15000);
-    try {
-      await new Promise<void>((resolve) => { server.close(() => resolve()); setTimeout(resolve, 10000); });
+  const gracefulShutdown = createWebShutdown({
+    servers: webServers,
+    onStart: signal => {
+      isShuttingDown = true;
       startupReady = false;
-      await closePostgres();
-      clearTimeout(shutdownTimeout);
-      process.exit(0);
-    } catch (err: any) {
-      clearTimeout(shutdownTimeout);
-      process.exit(1);
-    }
-  };
+      clearInterval(watchdogTimerRef);
+      console.log(`\n🛑 ${signal} received — starting graceful shutdown...`);
+    },
+    closeResources: closePostgres,
+    exitCode: requestedShutdownExitCode,
+  });
 
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
@@ -1269,7 +1261,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
 
     if (rssMB > RSS_RESTART_MB) {
       logger.log(`🚨 MEMORY CRITICAL: RSS=${rssMB}MB > ${RSS_RESTART_MB}MB — triggering graceful restart`);
-      gracefulShutdown('MEMORY_LIMIT');
+      requestGracefulRestart();
       return;
     }
 

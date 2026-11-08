@@ -1,3 +1,5 @@
+import { installTvDiagnosticsBoundary } from './lib/tv-diagnostics-boundary';
+import { applyPublicCatalogCors } from "./lib/public-catalog-cors";
 if (!process.env.FONTCONFIG_FILE || process.env.FONTCONFIG_FILE === '/dev/null') {
   process.env.FONTCONFIG_FILE = process.cwd() + '/fontconfig.conf';
 }
@@ -61,6 +63,7 @@ app.disable('x-powered-by');
 app.use(geoBlockMiddleware);
 app.use(['/api/admin', '/api/auth'], privateApiCachePolicy);
 app.use(databaseMaintenanceMiddleware);
+installTvDiagnosticsBoundary(app);
 app.use('/api/test', (_req, res, next) => {
   if (process.env.NODE_ENV === 'production') return void res.status(404).json({ error: 'Not found' });
   next();
@@ -119,6 +122,9 @@ function getHstsHeader(): string {
   return hstsConfigs[hstsPhase] || hstsConfigs.confident;
 }
 
+const API_DRAIN_TIMEOUT_MS = 125_000;
+const API_SHUTDOWN_TIMEOUT_MS = 130_000;
+
 let uncaughtExitScheduled = false;
 function scheduleFatalExit(label: string) {
   if (uncaughtExitScheduled) return;
@@ -126,7 +132,7 @@ function scheduleFatalExit(label: string) {
   console.error(`🚨 ${label} — scheduling fail-fast exit in 1s for clean restart`);
   setTimeout(() => {
     requestGracefulRestart();
-    setTimeout(() => process.exit(1), 10_000).unref();
+    setTimeout(() => process.exit(1), API_SHUTDOWN_TIMEOUT_MS).unref();
   }, 1000).unref();
 }
 
@@ -280,13 +286,11 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', origin!);
     res.header('Access-Control-Allow-Credentials', 'true');
   }
-  // Note: do NOT emit '*' for unknown origins when credentials are in play —
-  // browsers reject 'ACAO: *' on credentialed requests anyway, and emitting
-  // it just hides real misconfigurations.
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range, X-API-Key, X-API-User-Token, X-MegaRadio-Platform');
   res.header('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
   res.header('Access-Control-Max-Age', '86400');
+  if (!isAllowed) applyPublicCatalogCors(req, res);
 
   res.header('X-Content-Type-Options', 'nosniff');
   // SEO: API responses are JSON and must NEVER be indexed even if a stray
@@ -554,15 +558,17 @@ app.use(session(sessionConfig));
   const gracefulShutdown = async (signal: string) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
+    startupReady = false;
     // External deployment signals remain successful; internal recovery must
     // exit nonzero so Railway ON_FAILURE does not leave the API stopped.
     const shutdownExitCode = requestedShutdownExitCode();
     if (watchdogTimerRef) { try { clearInterval(watchdogTimerRef); } catch {} watchdogTimerRef = null; }
     console.log(`\n🛑 ${signal} received — starting graceful shutdown...`);
     const shutdownTimeout = setTimeout(() => {
-      console.error('🚨 Graceful shutdown timed out (15s) — forcing exit');
+      console.error('🚨 Graceful shutdown timed out (130s) — forcing exit');
       process.exit(1);
-    }, 15000);
+    }, API_SHUTDOWN_TIMEOUT_MS);
+    let drainTimeout: ReturnType<typeof setTimeout> | undefined;
 
     try {
       // Close all WebSocket clients first so server.close() can resolve promptly.
@@ -579,12 +585,19 @@ app.use(session(sessionConfig));
         console.warn('⚠️ Error closing WS servers:', wsErr?.message || wsErr);
       }
 
-      await new Promise<void>((resolve) => {
-        server.close(() => { console.log('✅ HTTP server closed'); resolve(); });
-        setTimeout(resolve, 10000);
+      await new Promise<void>((resolve, reject) => {
+        drainTimeout = setTimeout(() => {
+          server.closeAllConnections();
+          reject(new Error('HTTP request drain timed out (125s)'));
+        }, API_DRAIN_TIMEOUT_MS);
+        server.close(error => {
+          clearTimeout(drainTimeout);
+          if (error) return reject(error);
+          console.log('✅ HTTP server closed');
+          resolve();
+        });
       });
 
-      startupReady = false;
       await closePostgres();
 
       clearTimeout(shutdownTimeout);
@@ -594,6 +607,8 @@ app.use(session(sessionConfig));
       console.error('❌ Error during shutdown:', err.message);
       clearTimeout(shutdownTimeout);
       process.exit(1);
+    } finally {
+      clearTimeout(drainTimeout);
     }
   };
 

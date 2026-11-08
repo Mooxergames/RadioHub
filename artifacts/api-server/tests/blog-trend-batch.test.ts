@@ -5,7 +5,8 @@ import { readFile } from "node:fs/promises";
 import { loadBlogContent } from "@workspace/seo-shared/blog";
 import { blogExplorePath } from "@workspace/seo-shared/blog-html";
 import {
-  BLOG_LOCALES, MARKET_BLOG_MANIFEST, blogMetadata, blogIndexUpdated, blogAvailable,
+  BLOG_LOCALES, MARKET_BLOG_MANIFEST, BLOG_REVISED_MARKET_IDS, BLOG_REVIEWED,
+  isCoreBlogId, blogMetadata, blogIndexUpdated, blogAvailable,
   type BlogLocale, type BlogId,
 } from "@workspace/seo-shared/blog-manifest";
 
@@ -26,7 +27,7 @@ const topics = [
   ["en", "US", "world-series-2026-radio-audio"],
 ] as const;
 
-test("all 180 previously published bodies, metadata and relative order stay unchanged", async () => {
+test("unrevised editions retain their historical bodies, metadata and relative order", async () => {
   const baseline = JSON.parse(await readFile(new URL("./fixtures/blog-editions-before-trends.json", import.meta.url), "utf8")) as {
     editions: Array<[BlogLocale, BlogId, string]>;
     metadata: Array<[BlogId, string]>;
@@ -41,10 +42,13 @@ test("all 180 previously published bodies, metadata and relative order stay unch
     for (const [, id, expected] of before) {
       const article = content.articles.find(article => article.id === id);
       assert.ok(article, `${locale}/${id} removed`);
-      assert.equal(hash(article), expected, `${locale}/${id} changed`);
+      const reviewed = (isCoreBlogId(id) && ["en", "de", "tr"].includes(locale))
+        || BLOG_REVISED_MARKET_IDS.includes(id) || id === "late-night-radio-dates";
+      if (!reviewed) assert.equal(hash(article), expected, `${locale}/${id} changed`);
     }
   }
-  for (const [id, expected] of baseline.metadata) assert.equal(hash(blogMetadata(id)), expected, `${id} metadata changed`);
+  for (const [id, expected] of baseline.metadata)
+    if (!BLOG_REVISED_MARKET_IDS.includes(id)) assert.equal(hash(blogMetadata(id)), expected, `${id} metadata changed`);
 });
 
 test("eight new native trend articles have fixed dates, substantive text and three visible FAQs", async () => {
@@ -64,7 +68,8 @@ test("eight new native trend articles have fixed dates, substantive text and thr
     assert.ok(article.links.some(link => link.route.startsWith("station:")), id);
     for (const language of BLOG_LOCALES) assert.equal(blogAvailable(id, language), language === locale);
   }
-  for (const locale of BLOG_LOCALES) assert.equal(blogIndexUpdated(locale), ["de", "fr", "en"].includes(locale) ? published : "2026-10-27T00:00:00+01:00");
+  for (const locale of BLOG_LOCALES) assert.equal(blogIndexUpdated(locale),
+    ["de", "en", "tr"].includes(locale) ? BLOG_REVIEWED : locale === "fr" ? published : "2026-10-27T00:00:00+01:00");
 });
 
 test("editorial station routes accept only exact verified identities", () => {

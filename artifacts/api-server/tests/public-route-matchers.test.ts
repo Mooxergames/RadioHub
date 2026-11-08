@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import express from 'express';
 import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { ACTIVE_SITEMAP_LANGUAGES, COUNTRY_TO_LANGUAGE, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
-import { buildPublicSeoRouteMatchers, decodePublicSeoPath } from '../src/seo/public-route-matchers';
+import { buildPublicSeoRouteMatchers, decodePublicSeoPath, resolveBareDiscoveryPath } from '../src/seo/public-route-matchers';
 import { sendSeoNotFound } from '../src/seo/send-seo-not-found';
 import { isKnownSpaShellRoute } from '../src/seo/spa-shell-route';
 import { serveStatic } from '../src/serve-static';
@@ -45,7 +45,26 @@ test('community SSR covers exact roots in all14 languages, never private descend
     assert.equal(matchers.usersPage.test(`/${language}/${root}`), true, language);
     assert.equal(eligible(`/${language}/${root}/someone`), false, language);
     assert.equal(eligible(`/${language}/profile/settings`), false, language);
-    assert.equal(eligible(`/${language}/recommendations`), false, language);
+    assert.equal(eligible(`/${language}/favorites`), false, language);
+  }
+});
+
+test('public discovery is eligible only at exact localized roots, never personal or arbitrary descendants', () => {
+  for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+    for (const key of ['trending', 'recommendations']) {
+      for (const root of new Set([key, URL_TRANSLATIONS[language]?.[key] || key])) {
+        for (const prefix of ['', `/${language}`]) {
+          const path = `${prefix}/${root}`;
+          assert.equal(matchers.discoveryPage.test(path), true, path);
+          assert.equal(matchers.discoveryPage.test(`${path}/`), true, path);
+          assert.equal(matchers.discoveryPage.test(`${path}/someone`), false, path);
+          assert.equal(matchers.discoveryPage.test(`${path}-unknown`), false, path);
+        }
+      }
+    }
+    for (const root of ['favorites', URL_TRANSLATIONS[language]?.favorites || 'favorites', 'profile', 'login']) {
+      assert.equal(matchers.discoveryPage.test(`/${language}/${root}`), false);
+    }
   }
 });
 
@@ -62,6 +81,25 @@ test('SSR decoding preserves segment boundaries and ignores query payloads', () 
   assert.equal(decodePublicSeoPath('/en/login?token=a%2Fb%23c&return=%2Fen'), '/en/login');
   assert.equal(decodePublicSeoPath('/en/station%252Freal-fm'), '/en/station%2Freal-fm');
   assert.equal(eligible(decodePublicSeoPath('/en/station%252Freal-fm')!), false);
+});
+
+test('bare Unicode discovery roots share a single-decode contract with SSR without accepting encoded route boundaries', () => {
+  for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+    for (const key of ['trending', 'recommendations', 'favorites']) {
+      const root = URL_TRANSLATIONS[language]?.[key] || key;
+      for (const path of [`/${root}`, `/${encodeURIComponent(root)}`]) {
+        assert.equal(decodePublicSeoPath(path), `/${root}`, path);
+        assert.equal(resolveBareDiscoveryPath(path)?.cleanPath, `/${key}`, path);
+        assert.equal(matchers.discoveryPage.test(decodePublicSeoPath(path)!), key !== 'favorites', path);
+      }
+    }
+  }
+  for (const path of ['/%65n', '/%61bout', '/%74rending', '/%2Frecommendations',
+    '/recommendations%2F', '/%2558', '/%25E6%258E%25A8%25E8%258D%2590',
+    '/en/station/public-radio', '/en/station/%E6%8E%A8%E8%8D%90', '/recommendations/unknown']) {
+    assert.equal(resolveBareDiscoveryPath(path), undefined, path);
+  }
+  assert.equal(decodePublicSeoPath('/en/station/%E6%8E%A8%E8%8D%90'), '/en/station/推荐');
 });
 
 test('unprefixed translated SPA roots are recognized without another decoding pass', () => {
@@ -82,6 +120,8 @@ test('web SSR uses the tested matchers and unknown SSO probes reach a real404', 
   assert.match(source, /\.\.\.buildPublicSeoRouteMatchers\(\)/);
   assert.match(source, /const cleanUrlForMatching = decodePublicSeoPath\(url\)/);
   assert.match(source, /isApplicationsPage \|\| isUsersPage/);
+  assert.match(source, /const isDiscoveryPage = SEO_PRECOMPILED_REGEX\.discoveryPage\.test\(cleanUrlForMatching\)/);
+  assert.match(source, /const isSeoEligiblePage = [^;]*\bisDiscoveryPage\b/);
   assert.match(source, /req.method !== 'GET' && req.method !== 'HEAD'/);
   const app = express();
   app.use((req, res, next) => {

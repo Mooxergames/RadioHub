@@ -1,8 +1,10 @@
+import { applyPublicStreamCors } from "./lib/public-stream-cors";
 import express from "express";
 import compression from "compression";
 import { registerStreamProxyRoutes } from "./routes/stream-proxy-routes";
 import { logger } from "./utils/logger";
 import { geoBlockMiddleware } from "./middleware/geo-block";
+import { requestGracefulRestart, requestedShutdownExitCode } from './utils/graceful-restart';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '4000', 10);
@@ -38,6 +40,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Accept, User-Agent');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges, Content-Type');
   res.setHeader('Vary', 'Origin');
+  applyPublicStreamCors(req, res);
 
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Max-Age', '86400');
@@ -117,7 +120,7 @@ function startMemoryMonitor() {
       const { forceCloseAllStreams } = await import('./routes/stream-proxy-routes');
       forceCloseAllStreams(`PROXY RSS_RESTART rss=${rssMB}MB`);
       console.error(`🔄 PROXY RESTART: rss=${rssMB}MB — force closing all streams and restarting`);
-      process.kill(process.pid, 'SIGTERM');
+      requestGracefulRestart();
       return;
     }
 
@@ -167,7 +170,7 @@ async function gracefulShutdown(signal: string) {
 
   server.close(() => {
     console.log('✅ PROXY: HTTP server closed');
-    process.exit(0);
+    process.exit(requestedShutdownExitCode());
   });
 
   setTimeout(() => {
@@ -181,9 +184,10 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('uncaughtException', (err) => {
   console.error('💥 PROXY Uncaught Exception:', err.message);
-  gracefulShutdown('uncaughtException');
+  requestGracefulRestart();
 });
 
 process.on('unhandledRejection', (reason) => {
   console.error('💥 PROXY Unhandled Rejection:', reason);
+  requestGracefulRestart();
 });

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, bigserial, boolean, check, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, bigserial, boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, date as dateColumn, uniqueIndex } from 'drizzle-orm/pg-core';
 import { users } from './relational';
 
 const date = (name: string) => timestamp(name, { withTimezone: true });
@@ -72,3 +72,21 @@ export const castConnections = pgTable('cast_connections', {
   connectionId:text('connection_id').primaryKey(),nodeId:text('node_id').notNull(),sessionId:text('session_id').notNull(),userId:owner(),
   deviceId:text('device_id'),role:text('role').notNull(),expiresAt:date('expires_at').notNull(),
 }, t => [check('cast_connections_role_check', sql`${t.role} IN ('mobile','tv')`),index('cast_connections_presence').on(t.sessionId,t.role,t.expiresAt),index('cast_connections_node').on(t.nodeId)]);
+
+// Sanitized opt-in TV counters; raw payloads and identifiers are never stored.
+export const tvDiagnosticDaily = pgTable('tv_diagnostic_daily', {
+  day: dateColumn('day').notNull().default(sql`current_date`), platform: text('platform').notNull(), appVersion: text('app_version').notNull(), bundleVersion: text('bundle_version').notNull(),
+  event: text('event').notNull(), code: text('code').notNull(), route: text('route').notNull(), module: text('module').notNull(),
+  line: integer('line_no').notNull().default(0), column: integer('column_no').notNull().default(0), count: integer('count').notNull().default(1),
+}, t => [primaryKey({columns:[t.day,t.platform,t.appVersion,t.bundleVersion,t.event,t.code,t.route,t.module,t.line,t.column]}),index('tv_diagnostic_daily_day').on(t.day.desc()),
+  check('tv_diagnostic_daily_platform_check',sql`${t.platform} IN ('tizen','webos')`),
+  check('tv_diagnostic_daily_app_version_check',sql`length(${t.appVersion})<=20`),
+  check('tv_diagnostic_daily_bundle_version_check',sql`length(${t.bundleVersion})<=64`),
+  check('tv_diagnostic_daily_event_check',sql`${t.event} IN ('startup_ready','startup_error','js_error','promise_error','react_error','catalog_error','playback_error','app_open','screen_view','playback_start','playback_pause')`),
+  check('tv_diagnostic_daily_code_check',sql`${t.code} IN ('startup_timeout','asset_load','syntax_error','type_error','reference_error','range_error','security_error','unknown_error','promise_rejected','render_error','http_error','network_error','request_timeout','media_aborted','media_network','media_decode','media_unsupported','playback_failed','none')`),
+  check('tv_diagnostic_daily_route_check',sql`${t.route} IN ('discover','search','radio-playing','settings','favorites','login','premium-upgrade','countries','genres','other')`),
+  check('tv_diagnostic_daily_module_check',sql`${t.module} IN ('main','audio','startup','vendor','api','unknown')`),
+  check('tv_diagnostic_daily_line_no_check',sql`${t.line} BETWEEN 0 AND 10000000`),
+  check('tv_diagnostic_daily_column_no_check',sql`${t.column} BETWEEN 0 AND 10000000`),
+  check('tv_diagnostic_daily_count_check',sql`${t.count}>0`),
+]);

@@ -41,6 +41,26 @@ export const BLOG_STATION_SLUGS = [
   "france-inter",
   "bbc-radio-4",
   "espn-radio",
+  "trt-fm",
+  "power-fm-turkiye",
+  "radyo-45lik-yeni",
+  "ntv-radyo",
+  "orf-radio-wien",
+  "o1-orf",
+  "fm4-orf",
+  "radio-bob-4",
+  "rock-antenne",
+  "bayern-1-oberbayern",
+  "deutschlandfunk-dlf-mp3-128k",
+  "bbc-radio-2-128k",
+  "bbc-radio-4-128k",
+  "bbc-radio-5-live-128k",
+  "bbc-world-service",
+  "radio-x-london",
+  "absolute-radio",
+  "greatest-hits-radio",
+  "npr-24-hour-program-stream",
+  "wbur-90-9-fm-boston-mp3",
 ] as const;
 export interface BlogArticle {
   id: BlogId;
@@ -55,7 +75,12 @@ export interface BlogArticle {
   relatedIds?: BlogId[];
   market?: string;
   intro: string;
-  sections: Array<{ heading: string; paragraphs: string[]; items?: string[] }>;
+  sections: Array<{
+    heading: string;
+    paragraphs: string[];
+    items?: string[];
+    links?: BlogArticle["links"];
+  }>;
   faq: Array<{ question: string; answer: string }>;
   links: Array<{
     route:

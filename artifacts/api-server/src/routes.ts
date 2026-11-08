@@ -1,3 +1,4 @@
+import { registerTvDiagnosticRoutes } from './routes/tv-diagnostics-routes';
 import { registerListeningRoutes } from './routes/listening-routes';
 import type { Express } from "express";
 import { createServer, type Server } from "http";
@@ -756,6 +757,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   registerMobileTvRoutes(app, deps);
   registerTvVersionRoutes(app, deps);
   registerTvTelemetryRoutes(app, deps);
+  registerTvDiagnosticRoutes(app, requireAdmin);
   await registerTranslationKeyRoutes(app, deps);
   await registerSeoSitemapRoutes(app, deps, { apiOnly: isApiOnly });
   if (process.env.ENABLE_EMBEDDED_PROXY === 'true' || process.env.NODE_ENV !== 'production') {

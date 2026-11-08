@@ -17,7 +17,7 @@ export function buildBlogSitemap(): string {
         ({ hreflang, url }) =>
           `<xhtml:link rel="alternate" hreflang="${hreflang}" href="${url}"/>`,
       ).join("");
-      const updatedAt = id ? blogMetadata(id).updatedAt : blogIndexUpdated(locale);
+      const updatedAt = id ? blogMetadata(id, locale).updatedAt : blogIndexUpdated(locale);
       return `<url><loc>${origin}${blogPath(locale, id)}</loc><lastmod>${updatedAt}</lastmod>${alternates}${id ? `<image:image><image:loc>${origin}${blogImage(id)}</image:loc></image:image>` : ""}</url>`;
     }),
   );
