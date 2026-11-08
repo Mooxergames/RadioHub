@@ -1,0 +1,631 @@
+{
+  "keys": [
+    {
+      "key": "premium_stat_languages",
+      "defaultValue": "Languages",
+      "category": "general"
+    },
+    {
+      "key": "premium_bottom_title",
+      "defaultValue": "Ready to go ad-free?",
+      "category": "general"
+    },
+    {
+      "key": "nav_profile_menu",
+      "defaultValue": "Profile menu",
+      "category": "navigation"
+    },
+    {
+      "key": "premium_hero_zero_ads",
+      "defaultValue": "No website ads.",
+      "category": "general"
+    },
+    {
+      "key": "premium_legal_processor",
+      "defaultValue": "Payments are processed by Paddle.com as Merchant of Record — your card details never reach our servers.",
+      "category": "general"
+    },
+    {
+      "key": "premium_features_title",
+      "defaultValue": "Everything in",
+      "category": "general"
+    },
+    {
+      "key": "search_kbd_esc",
+      "defaultValue": "Esc",
+      "category": "general"
+    },
+    {
+      "key": "premium_trust_paddle",
+      "defaultValue": "Secured by Paddle",
+      "category": "general"
+    },
+    {
+      "key": "premium_trust_ssl",
+      "defaultValue": "SSL encrypted",
+      "category": "general"
+    },
+    {
+      "key": "premium_hero_stations",
+      "defaultValue": "60,000+ stations.",
+      "category": "general"
+    },
+    {
+      "key": "search_kbd_enter_hint",
+      "defaultValue": "to select",
+      "category": "general"
+    },
+    {
+      "key": "premium_hero_sub",
+      "defaultValue": "Choose a plan to listen without MegaRadio website ads.",
+      "category": "general"
+    },
+    {
+      "key": "premium_trust_cancel",
+      "defaultValue": "Cancel anytime",
+      "category": "general"
+    },
+    {
+      "key": "home",
+      "defaultValue": "Home",
+      "category": "general"
+    },
+    {
+      "key": "premium_have_account",
+      "defaultValue": "Already have an account?",
+      "category": "general"
+    },
+    {
+      "key": "faq_more_help_text",
+      "defaultValue": "Reach out to our team or explore more of Mega Radio.",
+      "category": "faq"
+    },
+    {
+      "key": "popular_stations_title",
+      "defaultValue": "Popular radio stations",
+      "category": "general"
+    },
+    {
+      "key": "premium_stat_countries",
+      "defaultValue": "Countries",
+      "category": "general"
+    },
+    {
+      "key": "premium_bottom_sub",
+      "defaultValue": "Listen to radio from around the world without MegaRadio website ads.",
+      "category": "general"
+    },
+    {
+      "key": "premium_faq_title",
+      "defaultValue": "Common questions",
+      "category": "general"
+    },
+    {
+      "key": "premium_stat_stations",
+      "defaultValue": "Stations",
+      "category": "general"
+    },
+    {
+      "key": "seo_listen_to_station",
+      "defaultValue": "Listen to {name}",
+      "category": "seo"
+    },
+    {
+      "key": "search_kbd_esc_hint",
+      "defaultValue": "to close",
+      "category": "general"
+    },
+    {
+      "key": "premium_signin",
+      "defaultValue": "Sign in",
+      "category": "general"
+    },
+    {
+      "key": "general_search_title",
+      "defaultValue": "Search",
+      "category": "general"
+    },
+    {
+      "key": "user_menu_label",
+      "defaultValue": "User menu",
+      "category": "general"
+    },
+    {
+      "key": "search_kbd_enter",
+      "defaultValue": "Enter",
+      "category": "general"
+    },
+    {
+      "key": "premium_cta_signin",
+      "defaultValue": "Sign In to Subscribe",
+      "category": "general"
+    },
+    {
+      "key": "btn_stop",
+      "defaultValue": "Stop Radio",
+      "category": "general"
+    },
+    {
+      "key": "btn_play",
+      "defaultValue": "Play Radio",
+      "category": "general"
+    },
+    {
+      "key": "application_download_on",
+      "defaultValue": "Download on the",
+      "category": "general"
+    },
+    {
+      "key": "application_download_unavailable",
+      "defaultValue": "Download currently unavailable",
+      "category": "general"
+    },
+    {
+      "key": "application_get_it_on",
+      "defaultValue": "Get it on",
+      "category": "general"
+    },
+    {
+      "key": "premium_verified_adfree",
+      "defaultValue": "MegaRadio website ads removed",
+      "category": "general"
+    },
+    {
+      "key": "profile_updated_successfully",
+      "defaultValue": "Profile updated successfully",
+      "category": "general"
+    },
+    {
+      "key": "not_available",
+      "defaultValue": "—",
+      "category": "general"
+    },
+    {
+      "key": "messages_load_older",
+      "defaultValue": "Load earlier messages",
+      "category": "general"
+    },
+    {
+      "key": "general_save_changes",
+      "defaultValue": "Save Changes",
+      "category": "general"
+    },
+    {
+      "key": "messages_send",
+      "defaultValue": "Send message",
+      "category": "general"
+    },
+    {
+      "key": "notifications_system",
+      "defaultValue": "System",
+      "category": "general"
+    },
+    {
+      "key": "close",
+      "defaultValue": "Close",
+      "category": "general"
+    },
+    {
+      "key": "auth_github_unavailable",
+      "defaultValue": "GitHub sign-in is not available",
+      "category": "general"
+    },
+    {
+      "key": "notifications_social",
+      "defaultValue": "Social",
+      "category": "general"
+    },
+    {
+      "key": "general_saving",
+      "defaultValue": "Saving...",
+      "category": "general"
+    },
+    {
+      "key": "messages_title",
+      "defaultValue": "Messages",
+      "category": "general"
+    },
+    {
+      "key": "messages_upload_failed",
+      "defaultValue": "Image upload failed",
+      "category": "general"
+    },
+    {
+      "key": "profile_change_avatar",
+      "defaultValue": "Change profile picture",
+      "category": "general"
+    },
+    {
+      "key": "premium_secure_checkout",
+      "defaultValue": "Secure checkout. Review the final price and billing terms before paying.",
+      "category": "general"
+    },
+    {
+      "key": "profile_copy_failed",
+      "defaultValue": "Could not copy the profile link.",
+      "category": "general"
+    },
+    {
+      "key": "avatar_invalid_file",
+      "defaultValue": "Choose a JPEG, PNG or WebP image up to 5 MB.",
+      "category": "general"
+    },
+    {
+      "key": "auth_logout_failed",
+      "defaultValue": "Logout failed. Please try again.",
+      "category": "general"
+    },
+    {
+      "key": "messages_send_failed",
+      "defaultValue": "Message could not be confirmed. Check the conversation before trying again.",
+      "category": "general"
+    },
+    {
+      "key": "messages_load_failed",
+      "defaultValue": "Messages could not be loaded. Please try again.",
+      "category": "general"
+    },
+    {
+      "key": "premium_plan_annual",
+      "defaultValue": "Annual",
+      "category": "general"
+    },
+    {
+      "key": "notifications_load_failed",
+      "defaultValue": "Notifications could not be loaded.",
+      "category": "general"
+    },
+    {
+      "key": "auth_required_description",
+      "defaultValue": "Please log in to access this page.",
+      "category": "general"
+    },
+    {
+      "key": "auth_required",
+      "defaultValue": "Authentication Required",
+      "category": "general"
+    },
+    {
+      "key": "auth_temporarily_unavailable",
+      "defaultValue": "Your account could not be checked. Please try again.",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_health_working",
+      "defaultValue": "Recent positive check",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_broadcast_health",
+      "defaultValue": "Broadcast health",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_search_label",
+      "defaultValue": "Search stations",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_suggestions_failed",
+      "defaultValue": "Filter suggestions could not load. You can still type a value.",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_tags_cooldown",
+      "defaultValue": "Empty · cooldown",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_health_all",
+      "defaultValue": "All health statuses",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_tags_all",
+      "defaultValue": "All tag statuses",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_tags_unchecked",
+      "defaultValue": "Empty · never checked",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_active",
+      "defaultValue": "active",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_logo_label",
+      "defaultValue": "Logo",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_tags_label",
+      "defaultValue": "Tag checks",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_health_source_offline",
+      "defaultValue": "Source reports offline",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_logo_no",
+      "defaultValue": "Missing logo",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_descriptions_all",
+      "defaultValue": "All descriptions",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_advanced",
+      "defaultValue": "Advanced filters",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_deleted_search_help",
+      "defaultValue": "Search deleted stations by name or URL.",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_descriptions_label",
+      "defaultValue": "Descriptions",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_codecs_label",
+      "defaultValue": "Codecs",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_countries_label",
+      "defaultValue": "Countries",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_descriptions_no",
+      "defaultValue": "No descriptions",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_station_filters",
+      "defaultValue": "Station filters",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_retry_suggestions",
+      "defaultValue": "Retry suggestions",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_health_unverified",
+      "defaultValue": "Needs verification",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_languages_label",
+      "defaultValue": "Languages",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_descriptions_partial",
+      "defaultValue": "Missing languages",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_all_codecs",
+      "defaultValue": "All codecs",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_descriptions_yes",
+      "defaultValue": "Has descriptions",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_clear",
+      "defaultValue": "Clear filters",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_logo_yes",
+      "defaultValue": "Has logo",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_genres_label",
+      "defaultValue": "Genres",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_health_help",
+      "defaultValue": "A source warning is not proof that a radio is offline. Only repeated local failures can hide it from lists; its public page is retained.",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_health_confirmed_offline",
+      "defaultValue": "Confirmed offline · hidden",
+      "category": "general"
+    },
+    {
+      "key": "admin_filter_logo_all",
+      "defaultValue": "All logo statuses",
+      "category": "general"
+    },
+    {
+      "key": "feedback",
+      "defaultValue": "Feedback",
+      "category": "general"
+    },
+    {
+      "key": "messages",
+      "defaultValue": "Messages",
+      "category": "general"
+    },
+    {
+      "key": "nav_menu",
+      "defaultValue": "Menu",
+      "category": "navigation"
+    },
+    {
+      "key": "no_results",
+      "defaultValue": "No results",
+      "category": "general"
+    },
+    {
+      "key": "nav_logout",
+      "defaultValue": "Logout",
+      "category": "navigation"
+    },
+    {
+      "key": "nav_close",
+      "defaultValue": "Close",
+      "category": "navigation"
+    },
+    {
+      "key": "error_loading_stations",
+      "defaultValue": "Unable to load stations. Please try again.",
+      "category": "errors"
+    },
+    {
+      "key": "general_error_loading",
+      "defaultValue": "Could not load results. Please try again.",
+      "category": "general"
+    },
+    {
+      "key": "player_expand",
+      "defaultValue": "Expand player",
+      "category": "general"
+    },
+    {
+      "key": "player_volume",
+      "defaultValue": "Volume",
+      "category": "general"
+    },
+    {
+      "key": "player_collapse",
+      "defaultValue": "Collapse player",
+      "category": "general"
+    },
+    {
+      "key": "general_try_again",
+      "defaultValue": "Try again",
+      "category": "general"
+    }
+  ],
+  "hebrewExtra": [
+    {
+      "key": "faq_section_title",
+      "defaultValue": "Frequently Asked Questions",
+      "category": "seo"
+    },
+    {
+      "key": "faq_free_explanation",
+      "defaultValue": "All radio stations on Mega Radio are completely free to listen to with no registration required. Simply open the app or website, choose a station, and start listening instantly on any device including desktop, mobile, smart TV, and tablet.",
+      "category": "seo"
+    },
+    {
+      "key": "faq_q_what_is",
+      "defaultValue": "What is Mega Radio?",
+      "category": "seo"
+    },
+    {
+      "key": "faq_a_what_is",
+      "defaultValue": "Mega Radio is a free online radio platform that lets you stream live radio stations from around the world. You can listen to music, news, sports, talk shows, and more in dozens of languages — no subscription or account required.",
+      "category": "seo"
+    },
+    {
+      "key": "faq_q_how_many",
+      "defaultValue": "How many radio stations are available?",
+      "category": "seo"
+    },
+    {
+      "key": "faq_a_how_many",
+      "defaultValue": "Mega Radio provides access to over 60,000 live radio stations from more than 120 countries. Stations are continuously updated so you always have access to the latest broadcasts.",
+      "category": "seo"
+    },
+    {
+      "key": "faq_q_devices",
+      "defaultValue": "What devices can I use to listen?",
+      "category": "seo"
+    },
+    {
+      "key": "faq_a_devices",
+      "defaultValue": "You can listen on any web browser, as well as through dedicated apps for Android, iOS, Windows, and Smart TV platforms including Samsung and LG. All your favourite stations sync across devices automatically.",
+      "category": "seo"
+    },
+    {
+      "key": "faq_q_genre_listen",
+      "defaultValue": "How do I listen to {GENRE} radio stations?",
+      "category": "seo"
+    },
+    {
+      "key": "faq_a_genre_listen",
+      "defaultValue": "Select any {GENRE} station from the list above to start streaming instantly. No download or account required — just click and listen for free on any device.",
+      "category": "seo"
+    },
+    {
+      "key": "faq_q_genre_free",
+      "defaultValue": "Are {GENRE} radio stations free?",
+      "category": "seo"
+    },
+    {
+      "key": "faq_a_genre_free",
+      "defaultValue": "Yes. All radio stations on Mega Radio, including {GENRE} stations, are completely free to listen to with no subscription or registration required.",
+      "category": "seo"
+    },
+    {
+      "key": "users_page_intro",
+      "defaultValue": "Join the Mega Radio community. Discover what other listeners are tuning in to, share your favourite radio stations, and explore personalised recommendations from 60,000+ live stations worldwide.",
+      "category": "seo"
+    },
+    {
+      "key": "users_page_features",
+      "defaultValue": "Create a free account to save your favourite stations, follow other listeners, and get personalised radio suggestions based on your listening history. All community features are available at no cost.",
+      "category": "seo"
+    },
+    {
+      "key": "search_how_to",
+      "defaultValue": "Type a station name, genre, city, or country into the search box to find matching radio stations from our library of 60,000+ stations worldwide. Results update instantly as you type.",
+      "category": "seo"
+    },
+    {
+      "key": "search_tips_title",
+      "defaultValue": "Search Tips",
+      "category": "seo"
+    },
+    {
+      "key": "search_tip_name",
+      "defaultValue": "Search by station name — for example \"BBC Radio 1\" or \"RFI\".",
+      "category": "seo"
+    },
+    {
+      "key": "search_tip_genre",
+      "defaultValue": "Search by genre — for example \"jazz\", \"classical\", or \"hip-hop\".",
+      "category": "seo"
+    },
+    {
+      "key": "search_tip_country",
+      "defaultValue": "Search by country or city — for example \"Germany\" or \"Istanbul\".",
+      "category": "seo"
+    },
+    {
+      "key": "search_tip_language",
+      "defaultValue": "Search in your own language — station names and genres are available in dozens of languages.",
+      "category": "seo"
+    },
+    {
+      "key": "search_browse_title",
+      "defaultValue": "Browse Without Searching",
+      "category": "seo"
+    },
+    {
+      "key": "search_browse_intro",
+      "defaultValue": "Not sure what to search for? Browse our curated categories to discover great radio stations.",
+      "category": "seo"
+    }
+  ]
+}

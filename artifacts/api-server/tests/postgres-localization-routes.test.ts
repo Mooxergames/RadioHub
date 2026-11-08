@@ -19,6 +19,8 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
   let server: Server;
   let baseUrl: string;
   let schemaCreated = false;
+  let clearedTranslationCaches = 0;
+  let clearedPerformanceTranslations = 0;
 
   before(async () => {
     assert.match(schema, /^localization_http_\d+_[a-f0-9]{12}$/);
@@ -29,9 +31,12 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
       await pool.query(await readFile(path.join(migrations, file), 'utf8'));
     }
     mock.module('../src/data/postgres-localization-store', { namedExports: { localizationStore: 'postgres', pgLocalization: () => store } });
-    const cache = { clearByPattern: async () => 0, del: async () => {} };
+    const cache = { clearByPattern: async (pattern: string) => {
+      if (pattern === 'translations') clearedTranslationCaches++;
+      return 0;
+    }, del: async () => {} };
     mock.module('../src/cache', { defaultExport: cache, namedExports: { CacheManager: cache } });
-    mock.module('../src/performance-cache', { namedExports: { performanceCache: { clearCountryLanguageMappings: () => {}, getCountryLanguageMappings: async () => new Map((await store.getCountryLanguageMappings()).map((row) => [row.countryCode, row.languageCode])) } } });
+    mock.module('../src/performance-cache', { namedExports: { performanceCache: { clearTranslations: () => { clearedPerformanceTranslations++; }, clearCountryLanguageMappings: () => {}, getCountryLanguageMappings: async () => new Map((await store.getCountryLanguageMappings()).map((row) => [row.countryCode, row.languageCode])) } } });
     const { registerTranslationKeyRoutes } = await import('../src/routes/translation-keys-routes');
     const { registerCountryLanguageMappingRoutes } = await import('../src/routes/country-language-mappings');
     const app = express();
@@ -142,6 +147,31 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     assert.equal((await store.getMetadata()).languagesVersion, version + 1);
     assert.equal((await request(url, 'PATCH', { updates: [{ keyId: key._id, defaultValue: '\n ' }] })).status, 400);
     await store.deleteKey(key._id);
+  });
+
+  it('fills the published-language UI gaps once and preserves existing translations, IDs and unrelated locales', async () => {
+    const { seedUiCompletionTranslations, UI_COMPLETION_KEYS } = await import('../src/seo/ui-completion-translations-seed');
+    const key = await store.createKey({ key: 'premium_stat_languages', defaultValue: 'Custom source' });
+    await store.upsertTranslation({ keyId: key._id, language: 'de', value: 'Custom German text', isCompleted: true });
+    await store.upsertTranslation({ keyId: key._id, language: 'nl', value: 'Existing Dutch', isCompleted: true });
+    const version = (await store.getMetadata()).languagesVersion;
+    const invalidations = [clearedTranslationCaches, clearedPerformanceTranslations];
+    await seedUiCompletionTranslations();
+    assert.deepEqual([clearedTranslationCaches, clearedPerformanceTranslations], invalidations.map(count => count + 1));
+    assert.equal((await store.findKey(key.key))._id, key._id);
+    assert.equal((await store.findKey(key.key)).defaultValue, 'Custom source');
+    assert.equal((await store.findTranslation(key._id, 'de')).value, 'Custom German text');
+    assert.equal((await store.findTranslation(key._id, 'tr')).value, 'Diller');
+    assert.equal((await store.findTranslation(key._id, 'nl')).value, 'Existing Dutch');
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    const logo = await store.findKey('admin_filter_logo_no');
+    assert.equal(await store.findTranslation(logo._id, 'nl'), null);
+    const faq = await store.findKey('faq_q_genre_listen');
+    assert.ok((await store.findTranslation(faq._id, 'he')).value.includes('{GENRE}'));
+    await seedUiCompletionTranslations();
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    assert.deepEqual([clearedTranslationCaches, clearedPerformanceTranslations], invalidations.map(count => count + 1));
+    for (const definition of UI_COMPLETION_KEYS) await store.deleteKey((await store.findKey(definition.key))._id);
   });
 
   it('records country mapping changes, paginates audits and exports the original deletion snapshot', async () => {
