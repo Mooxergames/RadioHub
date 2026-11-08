@@ -46,7 +46,7 @@ for (const [filename, width, height, format] of expectedImages) {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), `image/${format}`);
     assert.equal(response.headers.get('x-robots-tag'), null);
-    assert.equal(response.headers.get('cache-control'), filename === 'favicon.png'
+    assert.equal(response.headers.get('cache-control'), ['favicon.png', 'apple-touch-icon.png'].includes(filename)
       ? 'public, max-age=86400, must-revalidate' : 'public, max-age=31536000, immutable');
     const bytes = Buffer.from(await response.arrayBuffer());
     assert.deepEqual(bytes, await readFile(path.join(publicDirectory, filename)), 'never rewrites brand pixels');
@@ -78,6 +78,30 @@ test('conventional favicon is a real ICO with unchanged PNG pixels, including HE
       assert.equal(offset + length, ico.length);
       assert.deepEqual(ico.subarray(offset), await readFile(path.join(publicDirectory, 'favicon.png')));
     }
+  }
+});
+
+test('search and touch icons use the brand tile without the oversized glow margin', async () => {
+  for (const filename of ['favicon.png', 'apple-touch-icon.png']) {
+    const { data, info } = await sharp(path.join(publicDirectory, filename))
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const alpha = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
+    const middle = Math.floor(info.width / 2);
+    assert.ok(alpha(middle, 1) > 240, `${filename}: no top padding`);
+    assert.ok(alpha(middle, info.height - 2) > 240, `${filename}: no bottom padding`);
+    assert.ok(alpha(1, middle) > 240, `${filename}: no left padding`);
+    assert.ok(alpha(info.width - 2, middle) > 240, `${filename}: no right padding`);
+    assert.equal(alpha(0, 0), 0, 'preserve transparent rounded corners');
+    const note: number[][] = [];
+    for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
+      const i = (y * info.width + x) * 4;
+      if (data[i] > 215 && data[i + 1] > 180 && data[i + 2] > 170 && data[i + 3] > 240) note.push([x, y]);
+    }
+    assert.ok(note.length > 0, 'the light musical note must remain visible');
+    const width = Math.max(...note.map(([x]) => x)) - Math.min(...note.map(([x]) => x));
+    const height = Math.max(...note.map(([, y]) => y)) - Math.min(...note.map(([, y]) => y));
+    assert.ok(width / info.width > 0.45, `${filename}: note uses enough of the icon width`);
+    assert.ok(height / info.height > 0.55, `${filename}: note uses enough of the icon height`);
   }
 });
 

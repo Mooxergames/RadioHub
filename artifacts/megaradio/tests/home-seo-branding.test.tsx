@@ -49,6 +49,14 @@ beforeEach(() => {
 });
 
 describe('homepage-only branding', () => {
+  it('uses the concise English homepage title in fallback and saved metadata', async () => {
+    const expected = 'Free Live Radio Online | Mega Radio';
+    expect(buildHomeSeo('en').title).toBe(expected);
+    state.translations = { hero_worlds_best_radio: 'Free Live Radio Online' };
+    expect(buildHomeSeo('en', state.translations).title).toBe(expected);
+    render(<SeoHead pageType="home" />);
+    await waitFor(() => expectHead(expected));
+  });
   it.each([
     ['zh', 'Mega Radio：来自 120 个国家的免费直播电台', '来自 120 个国家的免费直播电台 | Mega Radio'],
     ['ja', 'Mega Radio：120カ国からの無料ライブラジオ', '120カ国からの無料ライブラジオ | Mega Radio'],

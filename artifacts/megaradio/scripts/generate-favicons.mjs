@@ -1,6 +1,22 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+
+const require = createRequire(new URL('../../api-server/package.json', import.meta.url));
+const sharp = require('sharp');
 
 const publicDirectory = new URL('../public/', import.meta.url);
+const source = await readFile(new URL('logo-icon.webp', publicDirectory));
+const metadata = await sharp(source).metadata();
+if (metadata.width !== 322 || metadata.height !== 299) throw new Error('Brand source changed; review the favicon crop');
+
+// Keep the existing pink tile and note; omit the large decorative glow used in the header.
+const tile = await sharp(source)
+  .extract({ left: 75, top: 66, width: 150, height: 150 })
+  .composite([{ input: Buffer.from('<svg width="150" height="150"><rect width="150" height="150" rx="24" fill="white"/></svg>'), blend: 'dest-in' }])
+  .png().toBuffer();
+for (const [filename, size] of [['favicon.png', 64], ['apple-touch-icon.png', 180]]) {
+  await sharp(tile).resize(size, size).png().toFile(new URL(filename, publicDirectory).pathname);
+}
 const png = await readFile(new URL('favicon.png', publicDirectory));
 if (png.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw new Error('Expected a PNG favicon');
 const width = png.readUInt32BE(16);

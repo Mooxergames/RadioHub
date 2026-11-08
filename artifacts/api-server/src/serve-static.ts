@@ -49,7 +49,7 @@ export function serveStatic(app: Express, distPath = path.resolve(import.meta.di
         || /^(?:images\/|uploads\/genres\/).+\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(relative)) {
         res.removeHeader('X-Robots-Tag');
       }
-      if (['favicon.ico', 'favicon.png', 'favicon.svg'].includes(relative)) {
+      if (['favicon.ico', 'favicon.png', 'favicon.svg', 'apple-touch-icon.png'].includes(relative)) {
         res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
         res.removeHeader('Expires');
         res.setHeader('X-Content-Type-Options', 'nosniff');
