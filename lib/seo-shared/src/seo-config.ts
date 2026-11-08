@@ -219,6 +219,11 @@ export const SITEMAP_PRIORITY_LANGUAGES = {
 // Active sitemap language cohort (change this to roll out more languages)
 export const ACTIVE_SITEMAP_LANGUAGES = SITEMAP_PRIORITY_LANGUAGES.universal14;
 
+// UI publication follows the current 14-language cohort. Keep SEO_LANGUAGES
+// intact for historical URL recognition and station broadcast metadata.
+export const ACTIVE_UI_LANGUAGES: readonly string[] = ACTIVE_SITEMAP_LANGUAGES;
+export const isActiveUiLanguage = (code: string): boolean => ACTIVE_UI_LANGUAGES.includes(code);
+
 export const GENRE_STATIONS_PAGE_SIZE = 15;
 export const MAX_GENRE_DIRECTORY_PAGE = 1_000_000;
 

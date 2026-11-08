@@ -11,6 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch, apiRequest } from "@/lib/queryClient";
 import { Plus, Edit, Trash2, Globe, Star, Languages } from "lucide-react";
+import { UiLanguageArchive } from '@/components/admin/ui-language-archive';
+import { SEO_LANGUAGES, isActiveUiLanguage } from '@workspace/seo-shared/seo-config';
 
 interface TranslationLanguage {
   _id: string;
@@ -22,21 +24,7 @@ interface TranslationLanguage {
   createdAt: string;
 }
 
-const predefinedLanguages = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'ar', name: 'Arabic' },
-  { code: 'tr', name: 'Turkish' },
-  { code: 'he', name: 'Hebrew' }
-];
+const predefinedLanguages = SEO_LANGUAGES.filter(language => isActiveUiLanguage(language.code));
 
 export default function AdminTranslationLanguages() {
   const { toast } = useToast();
@@ -151,7 +139,7 @@ export default function AdminTranslationLanguages() {
     }
   });
 
-  // Seed all 55 translation languages mutation
+  // Seed the published UI language cohort.
   const seedLanguagesMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("POST", "/api/admin/seed-translation-languages").then(response => response.json());
@@ -215,29 +203,6 @@ export default function AdminTranslationLanguages() {
     setIsEditDialogOpen(true);
   };
 
-  const predefinedLanguages = [
-    { code: 'en', name: 'English' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'it', name: 'Italian' },
-    { code: 'pt', name: 'Portuguese' },
-    { code: 'ru', name: 'Russian' },
-    { code: 'tr', name: 'Turkish' },
-    { code: 'ar', name: 'Arabic' },
-    { code: 'zh', name: 'Chinese' },
-    { code: 'ja', name: 'Japanese' },
-    { code: 'ko', name: 'Korean' },
-    { code: 'hi', name: 'Hindi' },
-    { code: 'th', name: 'Thai' },
-    { code: 'vi', name: 'Vietnamese' },
-    { code: 'pl', name: 'Polish' },
-    { code: 'nl', name: 'Dutch' },
-    { code: 'sv', name: 'Swedish' },
-    { code: 'da', name: 'Danish' },
-    { code: 'no', name: 'Norwegian' }
-  ];
-
   const addPredefinedLanguage = (lang: { code: string, name: string }) => {
     setNewLanguage({
       code: lang.code,
@@ -267,7 +232,7 @@ export default function AdminTranslationLanguages() {
             data-testid="button-sync-languages"
           >
             <Globe className="w-4 h-4 mr-2" />
-            {seedLanguagesMutation.isPending ? 'Syncing...' : 'Sync All 55 Languages'}
+            {seedLanguagesMutation.isPending ? 'Syncing...' : 'Sync 14 Languages'}
           </Button>
           <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-language">
             <Plus className="w-4 h-4 mr-2" />
@@ -276,6 +241,7 @@ export default function AdminTranslationLanguages() {
         </div>
       </div>
 
+      <UiLanguageArchive />
       {/* Language Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>

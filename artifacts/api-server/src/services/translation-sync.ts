@@ -1,3 +1,4 @@
+import { isActiveUiLanguage } from '@workspace/seo-shared/seo-config';
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
@@ -330,7 +331,7 @@ export class TranslationSyncService {
   }> {
     const languages = (
       await pgLocalization().getTranslationLanguages(true)
-    ).filter((language) => language.code !== "en");
+    ).filter((language) => language.code !== "en" && isActiveUiLanguage(language.code));
     let totalTranslated = 0;
     let totalFailed = 0;
     for (const language of languages) {

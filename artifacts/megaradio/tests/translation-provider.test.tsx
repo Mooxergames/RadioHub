@@ -85,7 +85,7 @@ describe('single translation query owner', () => {
   it('explicit language selection keeps instant cached text, persisted choice and the existing refresh API', async () => {
     vi.useFakeTimers();
     try {
-      for (const locale of ['es', 'fr', 'it', 'pt']) client.setQueryData(['/api/translations', locale], { hello: locale });
+      const fetch = vi.spyOn(globalThis, 'fetch');
       const view = render(wrap());
       const callback = latest.setLanguage;
       await act(async () => {
@@ -101,6 +101,8 @@ describe('single translation query owner', () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(101); });
       expect(observers()).toBe(5);
       expect(requests).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+      for (const locale of ['es', 'fr', 'it', 'pt']) expect(client.getQueryData(['/api/translations', locale])).toBeUndefined();
     } finally { vi.useRealTimers(); }
   });
 

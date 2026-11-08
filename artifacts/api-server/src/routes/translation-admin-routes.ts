@@ -1,5 +1,6 @@
 import type { Express } from "express";
-import { CODE_TO_COUNTRY } from "@workspace/seo-shared/seo-config";
+import { CODE_TO_COUNTRY, SEO_LANGUAGES, isActiveUiLanguage } from "@workspace/seo-shared/seo-config";
+import { registerAdminLanguageArchiveRoutes } from './admin-language-archive-routes';
 import { SAFE_GENRE_SLUG_RE, normalizeGenreSlug } from '../seo/genre-slug';
 import { findActiveAuthToken } from '../data/auth-token-store';
 import { pgLocalization } from '../data/postgres-localization-store';
@@ -94,6 +95,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
     app.use(['/api/filters','/api/recently-played','/api/community-favorites','/api/radio-browser','/api/user/favorites','/api/users'], publicStationResponseCache);
     const { requireAuth, requireAdmin } = deps;
     registerAdminStationSyncPolicyRoutes(app, requireAdmin);
+    registerAdminLanguageArchiveRoutes(app, requireAdmin);
     const userEngagementService = new UserEngagementService();
     async function authenticatedUserId(req: any): Promise<string | undefined> {
         const sessionUserId = req.session?.userId || req.session?.user?.userId;
@@ -134,6 +136,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
             if (typeof code !== 'string' || !code.trim() || typeof name !== 'string' || !name.trim()) {
                 return void res.status(400).json({ error: 'Language code and name are required' });
             }
+            if (!isActiveUiLanguage(code)) return void res.status(400).json({ error: 'Only the 14 published UI languages can be added' });
             {
                 const language = await pgLocalization().saveTranslationLanguage({ code, name, isEnabled, isDefault });
                 return void res.status(201).json(language);
@@ -152,6 +155,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
         try {
             const { id } = req.params;
             const { code, name, isEnabled, isDefault } = req.body;
+            if (code !== undefined && !isActiveUiLanguage(code)) return void res.status(400).json({ error: 'Only the 14 published UI languages can be added' });
             {
                 const language = await pgLocalization().saveTranslationLanguage({ code, name, isEnabled, isDefault }, String(id));
                 return void (language ? res.json(language) : res.status(404).json({ error: 'Translation language not found' }));
@@ -216,25 +220,10 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
             res.status(500).json({ error: 'Failed to bump translation version' });
         }
     });
-    // SEED Translation Languages - Sync all 55 URL translation languages to database
+    // Seed only the published UI cohort, not the historical URL-language catalog.
     app.post("/api/admin/seed-translation-languages", requireAdmin, async (req, res) => {
         try {
-            const languageMapping = {
-                "af": "Afrikaans", "am": "Amharic", "ar": "Arabic", "az": "Azerbaijani",
-                "bg": "Bulgarian", "bn": "Bengali", "cs": "Czech", "da": "Danish",
-                "de": "German", "el": "Greek", "es": "Spanish", "et": "Estonian",
-                "fa": "Persian", "fi": "Finnish", "fr": "French", "gu": "Gujarati",
-                "he": "Hebrew", "hi": "Hindi", "hr": "Croatian", "hu": "Hungarian",
-                "hy": "Armenian", "id": "Indonesian", "it": "Italian", "ja": "Japanese",
-                "kn": "Kannada", "ko": "Korean", "lt": "Lithuanian", "lv": "Latvian",
-                "ml": "Malayalam", "mr": "Marathi", "ms": "Malay", "nl": "Dutch",
-                "no": "Norwegian", "pa": "Punjabi", "pl": "Polish", "pt": "Portuguese",
-                "ro": "Romanian", "ru": "Russian", "sk": "Slovak", "sl": "Slovenian",
-                "so": "Somali", "sq": "Albanian", "sr": "Serbian", "sv": "Swedish",
-                "sw": "Swahili", "ta": "Tamil", "te": "Telugu", "th": "Thai",
-                "tl": "Tagalog", "tr": "Turkish", "uk": "Ukrainian", "ur": "Urdu",
-                "vi": "Vietnamese", "zh": "Chinese", "zu": "Zulu"
-            };
+            const languageMapping = Object.fromEntries(SEO_LANGUAGES.filter(l => isActiveUiLanguage(l.code)).map(l => [l.code, l.name]));
             let created = 0;
             let updated = 0;
             let skipped = 0;
@@ -266,6 +255,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
     app.post("/api/admin/translation-languages/:code/translate", requireAdmin, async (req, res) => {
         const { code } = req.params;
         const lockKey = (code || '').toLowerCase();
+        if (!isActiveUiLanguage(lockKey)) return void res.status(400).json({ error: 'Language is not in the published UI cohort' });
         // Server-side lock: reject if a job for this language is already running.
         // Without this, double-clicks on "Auto-translate" or two admins clicking
         // simultaneously kick off two pipelines that both insert/update the same
@@ -2738,7 +2728,7 @@ ${keysText}`;
             const keyIdByName: Record<string, any> = {};
             (keyDocs as any[]).forEach((k) => { keyIdByName[k.key] = k._id; });
             const presentKeyIds = Object.values(keyIdByName);
-            const allLangCodes = (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled).map((l: any) => l.code as string);
+            const allLangCodes = (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && isActiveUiLanguage(l.code)).map((l: any) => l.code as string);
             // One aggregation — fetch all translations for the 15 SEO keys across all languages.
             const translationRows: {
                 language: string;
@@ -2753,7 +2743,7 @@ ${keysText}`;
             const qualifiedSet = new Set(qualifiedState.languages);
             const allKeys = Array.from(SEO_KEYS_ALL);
             const languages = (SEO_LANGUAGES as any[])
-                .filter((l: any) => l.enabled)
+                .filter((l: any) => l.enabled && isActiveUiLanguage(l.code))
                 .map((l: any) => {
                 const completedKeys = allKeys.filter((k) => byLang[l.code]?.has(k));
                 const missingKeys = allKeys.filter((k) => !byLang[l.code]?.has(k));
@@ -2788,7 +2778,7 @@ ${keysText}`;
         try {
             const TRANSLATIONS: Record<string, Record<string, string>> = getPhaseCTranslations();
             const ALL_KEYS = Object.keys(TRANSLATIONS.en ?? {});
-            const LANG_CODES = Object.keys(TRANSLATIONS);
+            const LANG_CODES = Object.keys(TRANSLATIONS).filter(isActiveUiLanguage);
             const EN = TRANSLATIONS.en ?? {};
             // Upsert TranslationKey documents for each key.
             const keyIdMap: Record<string, any> = {};
@@ -2856,8 +2846,8 @@ ${keysText}`;
         const force: boolean = req.body?.force === true;
         const requestedLangs: string[] | undefined = Array.isArray(req.body?.languages) ? req.body.languages : undefined;
         const targetLangs = requestedLangs
-            ? (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && requestedLangs.includes(l.code)).map((l: any) => l.code as string)
-            : (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled).map((l: any) => l.code as string);
+            ? (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && isActiveUiLanguage(l.code) && requestedLangs.includes(l.code)).map((l: any) => l.code as string)
+            : (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && isActiveUiLanguage(l.code)).map((l: any) => l.code as string);
         const startMs = Date.now();
         let resolve!: () => void;
         inFlightRegenerateJob = new Promise<void>((r) => { resolve = r; });
@@ -2968,14 +2958,14 @@ ${keysText}`;
         }
     });
     // POST /api/admin/seo-translations/warm-all
-    // Triggers the batched 57-language translation warmup in the background.
+    // Warm only published UI languages.
     app.post('/api/admin/seo-translations/warm-all', deps.requireAdmin, async (_req: any, res: any) => {
         try {
             const { performanceCache: pc } = await import('../performance-cache');
             // Reset the memoized warmup promise so it runs again even if already completed.
             (pc as any).warmupPromise = null;
             const { SEO_LANGUAGES } = await import('@workspace/seo-shared/seo-config');
-            const total = (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled).length;
+            const total = (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && isActiveUiLanguage(l.code)).length;
             // Fire-and-forget — client gets immediate response.
             void pc.warmupCaches().catch((e: any) => logger.warn('warm-all failed:', e?.message));
             res.json({ message: `Warming ${total} languages in background (batches of 5, 500ms between batches)`, totalLanguages: total });

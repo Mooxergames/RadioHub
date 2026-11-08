@@ -51,6 +51,7 @@ beforeEach(() => {
   data = {
     '/api/admin/auth/me': { authenticated: true, user: { _id: 'test-admin' } },
     '/api/admin/translation-metadata': { languagesVersion: 0 },
+    '/api/admin/ui-language-archives': { checksum: 'a'.repeat(64), languages: [], translations: 0, archives: [] },
     '/api/admin/translation-keys': [{ _id: 'key-a', key: 'hello_key', defaultValue: 'Hello', category: 'general' }],
     '/api/admin/translation-languages': [{ _id: 'de', code: 'de', name: 'German', isEnabled: true, completionPercentage: 100 }, { _id: 'tr', code: 'tr', name: 'Turkish', isEnabled: true, completionPercentage: 0 }],
     '/api/admin/all-translations': [{ _id: 'translation-a', keyId: 'key-a', language: 'de', value: 'Hallo', isCompleted: true }],
@@ -222,7 +223,7 @@ describe('content administration regressions', () => {
   it('parses language sync response statistics instead of treating Response as data', async () => {
     mocks.apiRequest.mockResolvedValue(json({ stats: { created: 3, skipped: 11 } }));
     show(<AdminTranslationLanguages />);
-    fireEvent.click(screen.getByRole('button', { name: /Sync All 55 Languages/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Sync 14 Languages/i }));
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Success', description: 'Synced 3 new languages (11 already existed)' })));
   });
 

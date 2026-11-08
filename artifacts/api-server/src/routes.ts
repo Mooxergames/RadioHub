@@ -1,3 +1,4 @@
+import { ACTIVE_UI_LANGUAGES, isActiveUiLanguage } from '@workspace/seo-shared/seo-config';
 import { registerTvDiagnosticRoutes } from './routes/tv-diagnostics-routes';
 import { registerListeningRoutes } from './routes/listening-routes';
 import type { Express } from "express";
@@ -250,7 +251,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
     try {
       logger.log('🔥 Starting cache warmup - ALL translations FIRST for fast page load...');
       const enabledLanguages = (await pgLocalization().getTranslationLanguages(true));
-      const languageCodes = enabledLanguages.map((l: any) => l.code);
+      const languageCodes = enabledLanguages.map((l: any) => l.code).filter(isActiveUiLanguage);
       const criticalOrder = ['en', 'de', 'es', 'fr', 'it', 'tr', 'pt', 'nl', 'ru', 'pl'];
       const orderedLanguages = [
         ...criticalOrder.filter(code => languageCodes.includes(code)),
@@ -314,7 +315,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
       const tvGenres = await pgDiscoverableGenres(undefined,13);
       await CacheManager.set('tv:genres:discoverable:slim', tvGenres.map(tvSlimGenre), { ttl: 86400 });
 
-      const tvLangs = ['en', 'tr', 'de', 'es', 'fr', 'it', 'pt', 'nl', 'ru', 'ar', 'ja', 'ko', 'zh'];
+      const tvLangs = ACTIVE_UI_LANGUAGES;
       for (const lang of tvLangs) {
         try {
           const translations = await fetchTranslationsForLanguage(lang);
@@ -646,8 +647,9 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   });
 
   app.get("/api/translations/:lang/critical", async (req, res) => {
-    const lang = req.params.lang;
-    if (!lang || lang.length > 10) {
+    const requested = req.params.lang;
+    const lang = isActiveUiLanguage(requested) ? requested : 'en';
+    if (!requested || requested.length > 10) {
       return void res.status(400).json({ error: 'Invalid language code' });
     }
 
@@ -689,8 +691,9 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   });
 
   app.get("/api/translations/:lang", async (req, res) => {
-    const lang = req.params.lang;
-    if (!lang || lang.length > 10) {
+    const requested = req.params.lang;
+    const lang = isActiveUiLanguage(requested) ? requested : 'en';
+    if (!requested || requested.length > 10) {
       return void res.status(400).json({ error: 'Invalid language code' });
     }
 
