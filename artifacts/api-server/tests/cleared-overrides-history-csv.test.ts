@@ -81,6 +81,7 @@ mock.module(new URL("../src/performance-cache.ts", import.meta.url).href, {
 mock.module("@workspace/seo-shared/seo-config", {
   namedExports: {
     COUNTRY_TO_CODE: { "United States": "US", France: "FR", Germany: "DE" },
+    isActiveUiLanguage: (code: string) => ['en', 'fr', 'de', 'es'].includes(code),
     COUNTRY_TO_LANGUAGE: { US: "en", FR: "fr", DE: "de" },
     SEO_LANGUAGES: [
       { code: "en", name: "English" },

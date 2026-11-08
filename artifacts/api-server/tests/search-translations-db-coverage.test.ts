@@ -20,7 +20,8 @@ import {
 import { pgLocalization } from "../src/data/postgres-localization-store";
 import { seedSearchPageTranslations } from "../src/seo/search-page-translations-seed";
 
-import { SEO_LANGUAGES } from "@workspace/seo-shared/seo-config";
+import { ACTIVE_UI_LANGUAGES } from "@workspace/seo-shared/seo-config";
+const UI_LANGUAGES = ACTIVE_UI_LANGUAGES.map(code => ({ code }));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -75,7 +76,7 @@ describe("Per-language search-page DB translation coverage", () => {
     translationsByLanguage.clear();
     const keyDocs = await pgLocalization().getKeys(searchKeys);
     for (const doc of keyDocs) knownKeys.add(doc.key);
-    for (const { code } of SEO_LANGUAGES)
+    for (const { code } of UI_LANGUAGES)
       translationsByLanguage.set(code, new Map());
     const rows = await pgLocalization().listTranslations(
       undefined,
@@ -112,7 +113,7 @@ describe("Per-language search-page DB translation coverage", () => {
     const missing: Array<{ language: string; key: string; reason: string }> =
       [];
 
-    for (const { code } of SEO_LANGUAGES) {
+    for (const { code } of UI_LANGUAGES) {
       const langMap = translationsByLanguage.get(code);
       if (!langMap) {
         // Defensive: should never happen because before() seeds an empty
@@ -183,7 +184,7 @@ describe("Per-language search-page DB translation coverage", () => {
   it("reports missing keys, missing translations and whitespace values from PostgreSQL", async () => {
     const [deletedKey, missingTranslationKey, blankTranslationKey] = searchKeys;
     assert.ok(deletedKey && missingTranslationKey && blankTranslationKey);
-    const language = SEO_LANGUAGES[0].code;
+    const language = UI_LANGUAGES[0].code;
     await fixture.pool.query("DELETE FROM translation_keys WHERE key=$1", [
       deletedKey,
     ]);
