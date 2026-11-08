@@ -576,7 +576,9 @@ img[loading="lazy"] {
   body {
     @apply font-sans antialiased bg-background text-foreground;
     font-family: 'Ubuntu', sans-serif;
-    height: 100%;
+    /* Grow with the page so overflow-x cannot create a second vertical scroller. */
+    height: auto;
+    min-height: 100%;
     scrollbar-width: none; /* Hide scrollbar - Firefox */
     -ms-overflow-style: none; /* Hide scrollbar - IE/Edge */
   }

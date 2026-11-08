@@ -77,9 +77,11 @@ export default function Footer() {
   const adPageType = getAdSensePageType(window.location.pathname + window.location.search);
   const showCatalogAdvertisement = adPageType === 'home' || adPageType === 'catalog';
   const { currentStation } = useGlobalPlayer();
-  const isPlayerEnabled = currentStation !== null;
   const { t, isLoading: translationsLoading, localeTranslations = {} } = useTranslation();
-  const { getLocalizedUrl, currentLanguage, changeLanguage } = useSeoRouting();
+  const { getLocalizedUrl, currentLanguage, changeLanguage, englishPath } = useSeoRouting();
+  // GlobalPlayer hides its mini-player on detail pages, which have their own controls.
+  const isStationDetailPage = englishPath?.startsWith('/station/') || englishPath?.startsWith('/stations/');
+  const isPlayerEnabled = currentStation !== null && !isStationDetailPage;
   
   // Language selector state
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);

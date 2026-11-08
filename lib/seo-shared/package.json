@@ -16,6 +16,8 @@
     "./structured-data": "./src/structured-data.ts",
     "./og-image-metadata": "./src/og-image-metadata.ts",
     "./station-page-copy": "./src/station-page-copy.ts",
+    "./station-editorial": "./src/station-editorial.ts",
+    "./station-editorial-html": "./src/station-editorial-html.ts",
     "./station-description-template": "./src/station-description-template.ts",
     "./station-image-alt": "./src/station-image-alt.ts",
     "./station-logo-url": "./src/station-logo-url.ts",

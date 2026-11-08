@@ -9,6 +9,8 @@ import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-log
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
 import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
 import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
+import { getStationEditorial } from '@workspace/seo-shared/station-editorial';
+import { renderStationEditorialHtml } from '@workspace/seo-shared/station-editorial-html';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
 import { withSeoReadDeadline } from './utils/seo-read-deadline';
 import { resolveToDbName } from './utils/normalize-country';
@@ -2623,6 +2625,7 @@ export class SeoRenderer {
                 <h2>${this.escapeHtml(getStationPageCopy(language, translations).about)}</h2>
                 <!-- DALGA 4: H1-keyword echo intro (single sentence, station-specific interpolation: name + country) -->
                 ${(() => {
+                  if (getStationEditorial(stationData, language)) return '';
                   const introTemplate = getStationPageCopy(language, translations).intro;
                   const stationName = stationData.name || 'Radio Station';
                   const country = getStationCountryName(stationData, language);
@@ -2632,7 +2635,8 @@ export class SeoRenderer {
                   return `<p class="station-intro">${this.escapeHtml(introText)}</p>`;
                 })()}
                 ${(() => {
-                  const fullText = selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
+                  const fullText = getStationEditorial(stationData, language)?.summary
+                    ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
                   if (fullText && fullText.length > 300) {
                     // Preserve leading punctuation and a final fragment without
                     // ASCII sentence punctuation (including mixed CJK text).
@@ -2657,6 +2661,7 @@ export class SeoRenderer {
                 })()}
                 <!-- DALGA 4: Station-specific outro (25-35 words, interpolation: name + country + tags — NOT scaled boilerplate) -->
                 ${(() => {
+                  if (getStationEditorial(stationData, language)) return '';
                   const outroTemplate = getStationPageCopy(language, translations).outro;
                   const stationName = stationData.name || 'Radio Station';
                   const country = getStationCountryName(stationData, language);
@@ -2786,6 +2791,7 @@ export class SeoRenderer {
                   return sections.join('\n');
                 })()}
 
+                ${renderStationEditorialHtml(stationData, language)}
                 <!-- Navigation -->
                 <nav class="explore-nav">
                   <ul>
@@ -3606,7 +3612,8 @@ export class SeoRenderer {
       // and trigger Google's "deceptive markup" warning. `aiDescription` is
       // intentionally NOT used here because the visible body never renders
       // it — see generateHtmlBody case 'station' (~line 1461).
-      const schemaDescriptionSource = selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
+      const schemaDescriptionSource = getStationEditorial(stationData, language)?.summary
+        ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
 
       // 2026-05-12 SEO audit (138 invalid items): switched primary type
       // from RadioStation → RadioBroadcastService. RadioStation extends
