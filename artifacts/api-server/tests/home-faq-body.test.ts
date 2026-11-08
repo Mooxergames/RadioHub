@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { before, mock, test } from 'node:test';
 import { HOME_FAQ_ITEM_IDS, resolveHomeFaqContent } from '@workspace/seo-shared/faq-schema';
 import { renderHomeFaqBody } from '../src/seo/home-faq-body';
+import { renderHomeStationGuideBody } from '../src/seo/home-station-guide-body';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
 
 mock.module(new URL('../src/performance-cache.ts', import.meta.url).href, {
@@ -28,6 +29,15 @@ for (const language of ['en', 'de', 'tr', 'es', 'fr', 'pt', 'it', 'ru', 'ar', 'z
       cleanPath: '/', popularStations: [], genres: [], countries: [], urlTranslations: new Map(),
     });
     assert.ok(body.includes(fragment));
+    const guide = renderHomeStationGuideBody(language);
+    if (language === 'en') {
+      assert.ok(body.includes(guide));
+      assert.equal((body.match(/href="\/de\/sender\/orf-hitradio-o3"/g) || []).length, 1);
+      assert.ok(body.indexOf(guide) < body.indexOf(fragment));
+    } else {
+      assert.equal(guide, '');
+      assert.ok(!body.includes('data-testid="home-station-guide"'));
+    }
     assert.equal((body.match(/data-testid="home-faq"/g) || []).length, 1);
     assert.equal((fragment.match(/<details /g) || []).length, 8);
     assert.ok(fragment.includes(`lang="${language}" dir="${copy.direction}"`));

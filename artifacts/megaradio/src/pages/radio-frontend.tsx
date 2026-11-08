@@ -13,6 +13,7 @@ import HomeHeroPicture from '@/components/HomeHeroPicture';
 import HomeSignupBanner from '@/components/HomeSignupBanner';
 import HomeHeroCopy from '@/components/HomeHeroCopy';
 import HomeFaq from '@/components/HomeFaq';
+import HomeStationGuide from '@/components/HomeStationGuide';
 import StationCardSkeleton from "@/components/ui/station-card-skeleton";
 import GenreCardSkeleton from "@/components/ui/genre-card-skeleton";
 import VirtualizedStationList from "@/components/ui/virtualized-station-list";
@@ -1468,6 +1469,7 @@ export default function RadioFrontend({
             <div className="container pb-6">
               <HomeSignupBanner />
             </div>
+            <HomeStationGuide />
             <HomeFaq />
 
           </div>
