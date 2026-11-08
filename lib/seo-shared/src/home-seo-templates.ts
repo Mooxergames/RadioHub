@@ -27,7 +27,7 @@ export interface HomeSeoEntry {
 
 export const HOME_SEO_TEMPLATES: Record<string, HomeSeoEntry> = {
   en: {
-    title: 'Free Live Radio from 120+ Countries',
+    title: 'Free Live Radio Online',
     description:
       'Listen to 60,000+ free live radio stations from 120+ countries on Mega Radio. Stream music, news, sports and talk radio online from any device, anywhere.',
     hero: 'Free Live Radio from Around the World',

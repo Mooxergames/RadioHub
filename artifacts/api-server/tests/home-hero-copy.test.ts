@@ -24,6 +24,17 @@ before(async () => {
 });
 after(() => mock.restoreAll());
 
+test('concise English homepage title agrees across server, client and social metadata', async () => {
+  for (const translations of [{}, { hero_worlds_best_radio: 'Free Live Radio Online' }]) {
+    const tags = await renderer.generateEnhancedSeoTags('home', 'en', translations, '/', 'https://themegaradio.com');
+    assert.equal(tags.title, 'Free Live Radio Online | Mega Radio');
+    assert.equal(tags.title, generateSeoTags('home', 'en', translations, '/', 'https://themegaradio.com').title);
+    assert.equal(tags.ogTitle, tags.title);
+    assert.equal(tags.twitterTitle, tags.title);
+    assert.equal((tags.title.match(/Mega Radio/g) || []).length, 1);
+  }
+});
+
 for (const [language, raw, expected] of [
   ['zh', 'Mega Radio：来自 120 个国家的免费直播电台', '来自 120 个国家的免费直播电台 | Mega Radio'],
   ['ja', 'Mega Radio：120カ国からの無料ライブラジオ', '120カ国からの無料ライブラジオ | Mega Radio'],
