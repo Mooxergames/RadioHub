@@ -144,6 +144,28 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     await store.deleteKey(key._id);
   });
 
+  it('fills the published-language UI gaps once and preserves existing translations, IDs and unrelated locales', async () => {
+    const { seedUiCompletionTranslations, UI_COMPLETION_KEYS } = await import('../src/seo/ui-completion-translations-seed');
+    const key = await store.createKey({ key: 'premium_stat_languages', defaultValue: 'Custom source' });
+    await store.upsertTranslation({ keyId: key._id, language: 'de', value: 'Custom German text', isCompleted: true });
+    await store.upsertTranslation({ keyId: key._id, language: 'nl', value: 'Existing Dutch', isCompleted: true });
+    const version = (await store.getMetadata()).languagesVersion;
+    await seedUiCompletionTranslations();
+    assert.equal((await store.findKey(key.key))._id, key._id);
+    assert.equal((await store.findKey(key.key)).defaultValue, 'Custom source');
+    assert.equal((await store.findTranslation(key._id, 'de')).value, 'Custom German text');
+    assert.equal((await store.findTranslation(key._id, 'tr')).value, 'Diller');
+    assert.equal((await store.findTranslation(key._id, 'nl')).value, 'Existing Dutch');
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    const logo = await store.findKey('admin_filter_logo_no');
+    assert.equal(await store.findTranslation(logo._id, 'nl'), null);
+    const faq = await store.findKey('faq_q_genre_listen');
+    assert.ok((await store.findTranslation(faq._id, 'he')).value.includes('{GENRE}'));
+    await seedUiCompletionTranslations();
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    for (const definition of UI_COMPLETION_KEYS) await store.deleteKey((await store.findKey(definition.key))._id);
+  });
+
   it('records country mapping changes, paginates audits and exports the original deletion snapshot', async () => {
     const saved = await request('/api/admin/country-language-mappings', 'POST', { countryCode: 'de', countryName: 'Germany', languageCode: 'tr' });
     assert.equal(saved.status, 200);

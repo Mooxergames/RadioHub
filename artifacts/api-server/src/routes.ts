@@ -64,6 +64,7 @@ import { registerTranslationKeyRoutes, seedSeoTranslationKeys, seedTurkishUiTran
 import { seedSearchPageTranslations } from './seo/search-page-translations-seed';
 import { seedPremiumTranslations } from './seo/premium-translations-seed';
 import { seedSubscriptionUiTranslations } from './seo/subscription-ui-translations-seed';
+import { seedUiCompletionTranslations } from './seo/ui-completion-translations-seed';
 import { seedAllLanguagesSeoTranslations } from './seo/all-languages-seo-seed';
 import { seedHomepageFaqTranslations } from './seo/homepage-faq-translations-seed';
 import { registerSeoSitemapRoutes } from './routes/seo-sitemap-routes';
@@ -728,6 +729,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
     // advertises readiness; rejected database writes fail startup visibly.
     await seedCoreTranslations();
     await Promise.all([seedSearchPageTranslations(), seedPremiumTranslations(), seedSubscriptionUiTranslations()]);
+    await seedUiCompletionTranslations();
   }
   app.use('/api', apiKeyMiddleware);
   app.use('/api/admin/url-translations', urlTranslationsRouter);
