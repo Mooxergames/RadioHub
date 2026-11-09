@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { getStreamProxyUrl, resolveStreamUrl } from '@/lib/utils';
 import { addRecentlyPlayed } from '@/utils/recently-played';
 import { adjacentAvailableStation, availableStations, isExplicitlyFailedStation } from '@/utils/station-availability';
+import { isStationInformationPage } from '@workspace/seo-shared/station-page-copy';
 import { usePlaybackSpaceShortcut } from './usePlaybackSpaceShortcut';
 import { useLoginPlayback } from './useLoginPlayback';
 import { useListeningHistory } from './useListeningHistory';
@@ -732,6 +733,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
 
   // VLC-LIKE APPROACH: Resolve playlists and try candidates until one works
   const playStation = async (station: Station, pageStations?: Station[]) => {
+    if (isStationInformationPage(station)) return;
     // Health controls discovery lists, not explicit playback attempts. A user
     // opening a detail URL (or an admin reviewing it) can always try the stream.
     try {

@@ -2,11 +2,12 @@
 // all fourteen articles. The normal station API remains authoritative.
 const publicFields = ['_id','stationuuid','name','slug','url','urlResolved','homepage','favicon','localImagePath',
   'country','countryCode','state','language','tags','codec','bitrate','votes','clickCount','clickTrend',
-  'sslError','lastCheckOk','lastCheckTime','lastCheckOkTime','lastLocalCheckTime','clickTimestamp','isListVisible','availabilityStatus',
+  'sslError','lastCheckOk','lastCheckTime','lastCheckOkTime','lastLocalCheckTime','clickTimestamp','isListVisible','availabilityStatus','stationPageMode',
   'geoLat','geoLong','averageRating','totalRatings','hasExtendedInfo','iso31662'] as const;
 
 export function renderStationBootstrap(station: any, language: string): string {
-  if (!station?._id || !station.name || !station.slug || !station.url) return '';
+  if (!station?._id || !station.name || !station.slug
+    || (!station.url && station.stationPageMode !== 'information')) return '';
   const data: Record<string, unknown> = {};
   for (const key of publicFields) {
     const value = station[key];

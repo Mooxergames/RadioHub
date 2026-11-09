@@ -25,6 +25,7 @@ interface SeoHeadProps {
     tags?: string;
     bitrate?: number;
     votes?: number;
+    stationPageMode?: string;
   } | null;
   pageType?: 'home' | 'station' | 'genres' | 'stations' | 'users' | 'about' | 'contact' | 'applications' | 'search' | 'faq' | 'terms' | 'privacy';
   /**

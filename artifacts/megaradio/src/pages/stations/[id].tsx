@@ -35,7 +35,7 @@ import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
 import { getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
-import { getStationRelatedHeading } from '@workspace/seo-shared/station-page-copy';
+import { getStationRelatedHeading, getStationInformationCopy, isStationInformationPage } from '@workspace/seo-shared/station-page-copy';
 import AnimatedEqualizer from "@/components/ui/animated-equalizer";
 import { StarRating } from "@/components/star-rating";
 import { ListeningTimer } from "@/components/ui/listening-timer";
@@ -87,6 +87,7 @@ const formatVoteCount = (count: number): string => {
 };
 
 interface Station {
+  stationPageMode?: string;
   _id: string;
   name: string;
   url: string;
@@ -344,6 +345,7 @@ export default function StationDetails() {
         pauseStation();
       } else {
         // This will automatically stop current station and play new one
+        if (isStationInformationPage(station)) return;
         await playStation(station);
       }
     } catch (error) {
@@ -452,6 +454,7 @@ export default function StationDetails() {
       <SeoHead 
         stationData={station ? {
           name: station.name,
+          stationPageMode: station.stationPageMode,
           slug: station.slug || station._id,
           favicon: station.favicon,
           descriptions: station.descriptions,
@@ -534,6 +537,7 @@ export default function StationDetails() {
                 
                 <div className="mb-auto flex max-w-full shrink-0 flex-wrap items-start justify-center gap-3">
                   <button type="button" onClick={handlePlay}
+                    disabled={isStationInformationPage(station)}
                     className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded border border-white/40 px-4 py-2 text-sm text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                     <RotateCcw aria-hidden="true" className="h-4 w-4 shrink-0" />
                     {t('general_try_again', language === 'de' ? 'Erneut versuchen' : 'Try again')}
@@ -810,6 +814,9 @@ export default function StationDetails() {
                 <div>
                   <div className="mb-2 text-base font-bold text-white">{t('station_about_station', 'About the station')}</div>
                   <div className="mb-2 w-full text-white">
+                    {isStationInformationPage(station) && (
+                      <p className="station-intro mb-3">{getStationInformationCopy(language, station.name).intro}</p>
+                    )}
                     {/* Keep the complete article in the DOM; only its visual height is clamped. */}
                     <StationArticle
                       text={stationEditorial?.summary ?? selectStationVisibleDescription(station, language, getStationCountryName(station, 'en'))}

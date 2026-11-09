@@ -138,6 +138,7 @@ export async function loadSlugExistence(): Promise<void> {
     const nextRepairTargets = new Map<string, AliasInfo>();
     let junkAliasCount = 0;
     type StationLite = {
+      stationPageMode?: string;
       _id?: unknown;
       redirectToSlug?: string;
       slug?: string;

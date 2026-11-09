@@ -115,6 +115,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
         // Re-evaluate actual test-feed rules against the persisted slug.
         const update: { slug: string; noIndex?: true } = { slug: newSlug };
         const verdict = evaluateJunkStation({
+          stationPageMode: station.stationPageMode,
           name: station.name,
           slug: newSlug,
           url: station.url,

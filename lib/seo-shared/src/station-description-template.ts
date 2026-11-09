@@ -48,6 +48,7 @@ export function buildTemplateDescription(station: TemplateStationInfo): { full: 
 }
 
 export interface VisibleDescriptionStationInfo extends TemplateStationInfo {
+  stationPageMode?: string;
   description?: unknown;
   descriptions?: unknown;
 }
@@ -79,6 +80,8 @@ export function selectStationVisibleDescription(
     const candidate = article(entry);
     if (candidate) return candidate;
   }
+  // Information pages require reviewed prose, never invented listening copy.
+  if (station.stationPageMode === 'information') return '';
   return buildTemplateDescription({ ...station, country: templateCountry }).full;
 }
 
