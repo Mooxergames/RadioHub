@@ -222,8 +222,24 @@ describe('server-backed station directory with real QueryClient and Wouter', () 
     visit('/de/radios'); await screen.findByText('Generic radios: Türkiye');
     const app = readFileSync(path.resolve('src/App.tsx'), 'utf8');
     const wrapper = readFileSync(path.resolve('src/components/SeoPageWrapper.tsx'), 'utf8');
-    expect(app).toContain('isStationDirectoryPath(pathToUse)');
-    expect(wrapper).toContain('isStationDirectoryPath(routePath)');
+    expect(app).toContain('isStationDirectoryPath(pathToUse, !getRetiredLocaleFromPath(location))');
+    expect(wrapper).toContain('isStationDirectoryPath(routePath, !getRetiredLocaleFromPath(location))');
+  });
+
+  it('retired singular one-character navigation uses station metadata, not the directory DTO contract', async () => {
+    const id = '68a8c482bd66579311ab2f5b';
+    const canonical = `https://themegaradio.com/en/station/${id}`;
+    respond = () => Response.json({ stationIdentity: id,
+      seoTags: { title: 'Single-letter Station A', canonical, robots: 'index, follow' },
+      structuredData: { global: [], page: [] },
+    });
+    visit('/nl/station/a');
+    showPage();
+    await screen.findByText('Station detail');
+    await waitFor(() => expect(document.title).toBe('Single-letter Station A'));
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', canonical);
+    expect(requests.map(request => request.url)).toEqual(['/nl/station/a']);
+    expect(window.location.pathname).toBe('/nl/station/a');
   });
 
   it('still skips the duplicate initial SEO query on a non-directory SSR page', async () => {

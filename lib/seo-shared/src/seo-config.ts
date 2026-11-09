@@ -1,7 +1,7 @@
 // SEO Configuration for multilingual support
 import { buildTemplateDescription } from './station-description-template';
 import { getStationInformationCopy, isStationInformationPage } from './station-page-copy';
-import { reverseTranslateUrl, URL_TRANSLATIONS } from './url-translations';
+import { reverseTranslateUrl, resolveRetiredLocalePath, URL_TRANSLATIONS } from './url-translations';
 import { buildDirectoryIndexSeo } from './directory-index-seo';
 import { normalizePublicStationLogoUrl } from './station-logo-url';
 import { resolveFaqPageText } from './faq-schema';
@@ -224,6 +224,24 @@ export const ACTIVE_SITEMAP_LANGUAGES = SITEMAP_PRIORITY_LANGUAGES.universal14;
 // intact for historical URL recognition and station broadcast metadata.
 export const ACTIVE_UI_LANGUAGES: readonly string[] = ACTIVE_SITEMAP_LANGUAGES;
 export const isActiveUiLanguage = (code: string): boolean => ACTIVE_UI_LANGUAGES.includes(code);
+
+/** Historical locale addresses remain readable, but are not new UI editions. */
+export function getRetiredLocaleFromPath(pathname: string): string | undefined {
+  const code = /^\/([a-z]{2})(?:\/|[?#]|$)/i.exec(pathname)?.[1].toLowerCase();
+  if (!code) return undefined;
+  // Historical country aliases are bounded by the existing explicit map,
+  // never inferred from an arbitrary two-letter prefix (e.g. rs -> sr).
+  const locale = SEO_LANGUAGES.some(lang => lang.enabled && lang.code === code) ? code : COUNTRY_TO_LANGUAGE[code];
+  return locale && !isActiveUiLanguage(locale) && URL_TRANSLATIONS[locale]
+    && SEO_LANGUAGES.some(lang => lang.enabled && lang.code === locale) ? locale : undefined;
+}
+
+/** English detail destinations must not become A-Z directories or new paths. */
+export function isSafeStationDetailSlug(slug: unknown): slug is string {
+  return typeof slug === 'string' && slug.length > 0 && slug === slug.trim()
+    && !/[\\/?#%\s\u0000-\u001f\u007f-\u009f]/u.test(slug)
+    && slug !== '.' && slug !== '..' && !/^(?:[a-z]|0-9)$/.test(slug);
+}
 
 export const GENRE_STATIONS_PAGE_SIZE = 15;
 export const MAX_GENRE_DIRECTORY_PAGE = 1_000_000;
@@ -1040,6 +1058,10 @@ export function getLanguageFromPath(pathname: string): { language: string; clean
   
   // CRITICAL: Normalize to lowercase for consistent lookup
   const normalizedFirstSegment = firstSegment?.toLowerCase();
+  const retiredLocale = getRetiredLocaleFromPath(pathname);
+  if (retiredLocale) {
+    return { language: 'en', cleanPath: resolveRetiredLocalePath('/' + pathSegments.slice(1).join('/'), retiredLocale) };
+  }
   
   // CRITICAL FIX: Check LANGUAGE codes FIRST (priority over country codes)
   // This ensures /ar → Arabic, /de → German, /tr → Turkish work correctly
@@ -1051,7 +1073,7 @@ export function getLanguageFromPath(pathname: string): { language: string; clean
     if (isValidLanguage) {
       // It's a language code! Handle it as language, not country
       const pathWithoutLang = '/' + pathSegments.slice(1).join('/');
-      const englishPath = normalizedFirstSegment !== 'en' 
+      const englishPath = normalizedFirstSegment !== 'en'
         ? reverseTranslateUrl(pathWithoutLang, normalizedFirstSegment)
         : decodeEnglishPath(pathWithoutLang);
       
@@ -2319,6 +2341,12 @@ export function generateSeoTags(
   //   - https://themegaradio.com/ 302-redirects back to /en (circular)
   // Fix: prefix-all strategy is enforced — /en is self-canonical.
   let canonicalPath = translatedPath || originalPath || `/${language}${cleanPath}`;
+  if (originalPath && getRetiredLocaleFromPath(originalPath)) {
+    const idPath = /^\/stations?\/[0-9a-f]{24}$/i.test(cleanPath);
+    const path = page === 'station' && isSafeStationDetailSlug(stationData?.slug) && !idPath
+      ? `/station/${encodeURIComponent(stationData.slug)}` : cleanPath;
+    canonicalPath = translatedPath || `/en${path === '/' ? '' : path}`;
+  }
 
   // Defensive: if canonicalPath ended up as bare "/" (e.g. caller passed cleanPath="/"
   // and translatedPath/originalPath were empty), force the language prefix.

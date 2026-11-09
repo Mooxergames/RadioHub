@@ -39,24 +39,13 @@ import { registerLlmsTxtRoutes } from './seo/llms-txt-routes';
 import { startOperation, endOperation, getActiveOperations, getGcStats } from './utils/operation-tracker';
 import { requestGracefulRestart, requestedShutdownExitCode } from './utils/graceful-restart';
 import { createWebShutdown, WEB_SHUTDOWN_TIMEOUT_MS } from './utils/web-shutdown';
-import { COUNTRY_TO_LANGUAGE, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { getLanguageFromPath, getRetiredLocaleFromPath } from '@workspace/seo-shared/seo-config';
 
 import { geoBlockMiddleware } from './middleware/geo-block';
+import { canonicalUrlMiddleware } from './middleware/canonical-url';
+import { countryPrefixRedirectMiddleware } from './middleware/country-prefix-redirect';
 import { createVisitorActivityMiddleware } from './middleware/visitor-activity';
 import { privateApiCachePolicy, setHealthCacheHeaders } from './middleware/cache-policy';
-
-// Country-prefix duplicate canonical fix (Bing DALGA A)
-// SEO_LANGUAGES'da OLMAYAN ama COUNTRY_TO_LANGUAGE'da bulunan 2-harf prefix'leri
-// (ör. /ph, /us, /au, /ca, /gb, /nz) /<mapped-lang> hedefine 301 redirect.
-// Aksi halde /ph içinde /en içeriği render olup self-canonical /ph kalıyor → Google
-// "Duplicate without user-selected canonical" cezası.
-const _seoLangCodes = new Set(SEO_LANGUAGES.filter(l => l.enabled).map(l => l.code));
-const COUNTRY_PREFIX_REDIRECTS = new Map<string, string>();
-for (const [country, lang] of Object.entries(COUNTRY_TO_LANGUAGE)) {
-  if (!_seoLangCodes.has(country) && _seoLangCodes.has(lang)) {
-    COUNTRY_PREFIX_REDIRECTS.set(country, lang);
-  }
-}
 
 // Auth path noindex regex (Bing DALGA B1)
 // Mevcut robots.txt Disallow varken Google "indexed though blocked" raporlayabiliyor.
@@ -211,20 +200,7 @@ app.get('/*path', (req, res, next) => {
 });
 
 // Country-prefix 301 redirect (Bing DALGA A) - run BEFORE everything else
-app.use((req, res, next) => {
-  const m = req.path.match(/^\/([a-z]{2})(\/.*)?$/i);
-  if (m) {
-    const prefix = m[1].toLowerCase();
-    const target = COUNTRY_PREFIX_REDIRECTS.get(prefix);
-    if (target) {
-      const rest = m[2] || '';
-      const qIdx = req.originalUrl.indexOf('?');
-      const queryString = qIdx >= 0 ? req.originalUrl.substring(qIdx) : '';
-      return void res.redirect(301, `/${target}${rest}${queryString}`);
-    }
-  }
-  next();
-});
+app.use(countryPrefixRedirectMiddleware);
 
 app.use((req, res, next) => {
   res.removeHeader('X-Robots-Tag');
@@ -305,73 +281,7 @@ app.use((req, res, next) => {
 // is built once and compared to the original; if anything changed we
 // emit a single 301.
 // =================================================================
-app.use((req, res, next) => {
-  // Skip in dev/preview and on health endpoints
-  if (process.env.NODE_ENV === 'development' || req.hostname === 'localhost' || req.hostname === '127.0.0.1') {
-    return next();
-  }
-  if (req.path === '/health' || req.path === '/healthz') return next();
-
-  const originalProtocol = req.secure || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-  const originalHost = (req.get('host') || req.hostname).toLowerCase();
-  const originalPath = req.path;
-
-  let targetProtocol = originalProtocol;
-  let targetHost = originalHost;
-  let targetPath = originalPath;
-
-  // 1. Enforce HTTPS after the development/localhost bypass above.
-  if (originalProtocol === 'http') {
-    targetProtocol = 'https';
-  }
-
-  // 2. www → non-www
-  if (targetHost === 'www.themegaradio.com') {
-    targetHost = 'themegaradio.com';
-  }
-
-  // 3. Strip trailing slash (except root, except files)
-  if (targetPath.length > 1 && targetPath.endsWith('/')) {
-    const segs = targetPath.split('/');
-    const lastSeg = segs[segs.length - 2];
-    if (!lastSeg || !lastSeg.includes('.')) {
-      targetPath = targetPath.slice(0, -1);
-    }
-  }
-
-  // 4. Consolidate the legacy /pages/{privacy-policy,terms-and-conditions}
-  //    duplicates onto the canonical clean URL. Both path shapes render the
-  //    SAME component and each self-canonicals, so Google saw a duplicate-
-  //    content pair with split link equity. Redirect the /pages/ form → the
-  //    clean form (the one the sitemap advertises) so there is exactly one
-  //    indexable legal URL. Preserves an optional /{lang} prefix.
-  targetPath = targetPath.replace(
-    /^(\/[a-z]{2})?\/pages\/(privacy-policy|terms-and-conditions)$/,
-    (_m, lang, slug) => `${lang || ''}/${slug}`,
-  );
-
-  const protocolChanged = targetProtocol !== originalProtocol;
-  const hostChanged = targetHost !== originalHost;
-  const pathChanged = targetPath !== originalPath;
-
-  if (protocolChanged || hostChanged || pathChanged) {
-    // Extract raw query from originalUrl. CRITICAL: do NOT compute it as
-    // `req.url.slice(req.path.length)` — req.path is URL-decoded while
-    // req.url is raw, so their lengths diverge for any path containing
-    // percent-encoded characters. Using indexOf('?') on the raw originalUrl
-    // is encoding-safe and preserves the query verbatim.
-    const qIdx = req.originalUrl.indexOf('?');
-    const query = qIdx >= 0 ? req.originalUrl.substring(qIdx) : '';
-    // For protocol/host changes we must build absolute URL; otherwise
-    // a relative path keeps the redirect cheap.
-    const target = (protocolChanged || hostChanged)
-      ? `${targetProtocol}://${targetHost}${targetPath}${query}`
-      : `${targetPath}${query}`;
-    return void res.redirect(301, target);
-  }
-
-  next();
-});
+app.use(canonicalUrlMiddleware);
 
 app.use(webRequestTimeout);
 
@@ -703,21 +613,18 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
     }
   }, 60_000);
 
-  // Pre-SSR language-ineligibility redirect: for non-universal language station
-  // URLs, do a single lean DB lookup to check eligibility and 301 to /en before
-  // the full SSR render runs. Saves 100–300ms per ineligible URL hit.
-  const { langIneligibilityRedirectMiddleware } = await import('./middleware/lang-ineligibility-redirect');
-  app.use(langIneligibilityRedirectMiddleware);
-
   app.use(async (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     const url = req.originalUrl;
     const userAgent = req.get('user-agent') || '';
 
-    const cleanUrlForMatching = decodePublicSeoPath(url);
-    if (cleanUrlForMatching === null) {
+    const decodedPath = decodePublicSeoPath(url);
+    if (decodedPath === null) {
       return sendSeoNotFound(res, '<!doctype html><title>Not found</title><h1>Not found</h1>');
     }
+    // Match the English route without rewriting the request/cache identity.
+    const cleanUrlForMatching = getRetiredLocaleFromPath(req.path)
+      ? `/en${getLanguageFromPath(req.path).cleanPath.replace(/^\/$/, '')}` : decodedPath;
 
     const isStationPage = SEO_PRECOMPILED_REGEX.stationPage.test(cleanUrlForMatching);
     const isHomepage = SEO_PRECOMPILED_REGEX.homepage.test(cleanUrlForMatching);
@@ -978,7 +885,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       </div>
     </div>
     ${renderTranslationBootstrap(seoData.language, seoData.translations, pageType)}
-    ${pageType === 'station' && !seoData.pageData?.notFound && !seoData.pageData?.stationIsJunk ? renderStationBootstrap(seoData.pageData?.station, seoData.language) : ''}
+    ${pageType === 'station' && !seoData.pageData?.notFound && !seoData.pageData?.stationIsJunk ? renderStationBootstrap(seoData.pageData?.station, seoData.language, getRetiredLocaleFromPath(cleanUrl) ? getLanguageFromPath(cleanUrl).cleanPath.split('/')[2] : undefined) : ''}
     ${prodTags.scripts || '<script type="module" src="/src/main.tsx"></script>'}
     ${(() => {
       const topGenres = seoData.pageData?.additionalData?.topGenres;

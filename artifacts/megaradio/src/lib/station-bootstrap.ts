@@ -9,7 +9,7 @@ export function readStationBootstrap(identifier: string | undefined, language: s
     const station = payload?.station;
     if (payload.language !== language || !station?._id || !station.name
       || (!station.url && station.stationPageMode !== 'information')
-      || ![String(station._id), station.slug].includes(identifier)) return undefined;
+      || ![String(station._id), station.slug, payload.requestedIdentifier].includes(identifier)) return undefined;
     return station;
   } catch { return undefined; }
 }

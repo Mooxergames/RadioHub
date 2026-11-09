@@ -89,6 +89,81 @@ function expectArticle() {
   expect(screen.queryByText('Station not found.')).not.toBeInTheDocument();
 }
 
+it.each(['old-fixture-radio', '68a8c482bd66579311ab2f5b'])(
+  'retired locale keeps the historical %s address and real English article during enrichment', async identifier => {
+    state.slug = identifier;
+    const pathname = `/sv/station/${identifier}`;
+    window.history.replaceState({}, '', pathname);
+    const pending = new Promise<Response>(resolve => { finish = resolve; });
+    vi.mocked(fetch).mockImplementation((url: any) => url === `/api/station/${seed._id}`
+      ? pending : Promise.resolve(Response.json([])));
+    document.body.insertAdjacentHTML('beforeend', renderStationBootstrap(seed, 'en', identifier));
+    mount();
+    expectArticle();
+    expect(window.location.pathname).toBe(pathname);
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).startsWith('/api/station/'))).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledWith(`/api/station/${seed._id}`, expect.anything());
+    await act(async () => finish(Response.json({ ...seed, homepage: 'https://radio.invalid' })));
+    await waitFor(expectArticle);
+    expect(window.location.pathname).toBe(pathname);
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', 'https://themegaradio.com/en/station/fixture-radio');
+  },
+);
+
+it.each(['initial-shell', 'spa-navigation'])(
+  'R6-03: %s resolves an old record through SSR identity before enrichment without bootstrap', async entry => {
+    const old = { ...seed, _id: 'old-record-id', slug: 'old-record', name: 'Wrong retained duplicate', redirectToSlug: seed.slug };
+    vi.mocked(fetch).mockImplementation(async (url: any) => {
+      if (String(url).startsWith('/api/seo/page-data?')) return Response.json({ stationIdentity: seed._id });
+      if (url === `/api/station/${seed._id}` || url === `/api/station/${seed.slug}`) return Response.json(seed);
+      if (url === '/api/station/old-record') return Response.json(old);
+      return Response.json([]);
+    });
+    let view: ReturnType<typeof mount> | undefined;
+    if (entry === 'spa-navigation') { view = mount(); await screen.findByRole('heading', { name: seed.name, level: 1 }); }
+    state.slug = 'old-record';
+    window.history.replaceState({}, '', '/sv/station/old-record');
+    if (view) view.rerender(<QueryClientProvider client={client}><ServerSeoHeadContext.Provider value={true}>
+      <StationDetails />
+    </ServerSeoHeadContext.Provider></QueryClientProvider>);
+    else mount();
+    await waitFor(() => expect(client.getQueryData(['/api/station', 'retired', '/sv/station/old-record'])).toEqual(seed));
+    expectArticle();
+    expect(fetch).toHaveBeenCalledWith('/api/seo/page-data?url=%2Fsv%2Fstation%2Fold-record&slim=1', expect.anything());
+    expect(fetch).toHaveBeenCalledWith(`/api/station/${seed._id}`, expect.anything());
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => url === '/api/station/old-record')).toBe(false);
+    expect(screen.queryByText(old.name)).not.toBeInTheDocument();
+    expect(state.playStation).not.toHaveBeenCalled();
+    expect(state.stopStation).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/sv/station/old-record');
+  },
+);
+
+it.each([410, 503])('R6-03: failed identity resolution (%s) cannot fetch or render a retained duplicate', async status => {
+  state.slug = 'old-record';
+  window.history.replaceState({}, '', '/sv/station/old-record');
+  vi.mocked(fetch).mockImplementation(async (url: any) => String(url).startsWith('/api/seo/page-data?')
+    ? new Response('Unavailable', { status }) : Response.json([]));
+  mount();
+  await waitFor(() => expect(client.getQueryState(['/api/station', 'retired', '/sv/station/old-record'])?.status).toBe('error'));
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).startsWith('/api/station/'))).toBe(false);
+  expect(screen.queryByText(article)).not.toBeInTheDocument();
+});
+
+it.each(['a', 'bad/fm', 'slug-owned-by-another-record'])('R6-04: a retired ID bootstrap enriches by verified ID, never stored slug %s', async slug => {
+  const id = '68a8c482bd66579311ab2f5b';
+  state.slug = id;
+  window.history.replaceState({}, '', `/nl/station/${id}`);
+  const station = { ...seed, _id: id, slug };
+  document.body.insertAdjacentHTML('beforeend', renderStationBootstrap(station, 'en', id));
+  vi.mocked(fetch).mockImplementation(async (url: any) => Response.json(url === `/api/station/${id}` ? station : []));
+  mount();
+  await waitFor(() => expect(client.getQueryData(['/api/station', 'retired', `/nl/station/${id}`])).toEqual(station));
+  expectArticle();
+  expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).startsWith('/api/station/')).map(([url]) => url)).toEqual([`/api/station/${id}`]);
+  expect(window.location.pathname).toBe(`/nl/station/${id}`);
+});
+
 it.each(INFORMATION_LANGUAGES)('%s: information page retains the real article with a neutral intro', language => {
   state.language = language;
   bootstrap({ ...seed, url: '', stationPageMode: 'information', isListVisible: false }, language);

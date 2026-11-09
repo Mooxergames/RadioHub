@@ -2180,6 +2180,31 @@ export function reverseTranslateUrl(urlPath: string, sourceLanguage: string): st
   return result;
 }
 
+/** Resolve retired public addresses internally; never translate catalog identities. */
+export function resolveRetiredLocalePath(urlPath: string, sourceLanguage: string): string {
+  const [pathname, suffix] = splitUrlSuffix(urlPath);
+  const segments = pathname.split('/').filter(Boolean).map(segment => segment.replace(
+    /%[0-9a-fA-F]{2}|[A-Z]/g, token => token.length === 1 ? token.toLowerCase() : token.toUpperCase(),
+  ));
+  if (!segments.length) return '/' + suffix;
+  const root = decodeStationSegment(segments[0]);
+  const route = ['station', 'stations', 'radios', 'genre', 'genres'].includes(root) ? root
+    : databaseReverseTranslationsCache?.get(`${sourceLanguage}:${root}`)
+    || REVERSE_URL_TRANSLATIONS[sourceLanguage]?.[root]
+    || GLOBAL_REVERSE_URL_TRANSLATIONS.get(root)?.english || root;
+  if (['station', 'stations', 'radios'].includes(route)) {
+    if (segments.length === 1) return '/stations' + suffix;
+    const identifiers = segments.slice(1).map(decodeStationSegment);
+    const directory = route !== 'station' && identifiers.length === 1 && /^(?:[a-z]|0-9)$/.test(identifiers[0]);
+    return `/${directory ? 'stations' : 'station'}/${identifiers.join('/')}${suffix}`;
+  }
+  if (route === 'genre' || route === 'genres') {
+    return `/genres${segments.length > 1 ? '/' + segments.slice(1).map(decodeStationSegment).join('/') : ''}${suffix}`;
+  }
+  const internal = reverseTranslateUrl('/' + [route, ...segments.slice(1)].join('/'), sourceLanguage);
+  return internal.replace(/^\/pages\/(privacy-policy|terms-and-conditions)$/, '/$1') + suffix;
+}
+
 // === DATABASE URL TRANSLATIONS LOADER ===
 
 /**

@@ -63,7 +63,8 @@ function useTranslationRuntime() {
   useEffect(() => {
     const nextLanguage = getBrowserLanguage();
     if (nextLanguage !== language) setLanguageState(nextLanguage);
-    if (getExplicitLanguageFromPath(window.location.pathname)) syncBrowserLanguageFromUrl(nextLanguage);
+    const explicitLanguage = getExplicitLanguageFromPath(window.location.pathname);
+    if (explicitLanguage) syncBrowserLanguageFromUrl(explicitLanguage);
   }, [language, pathname]);
 
   const hasPreloadedTranslations = typeof window !== 'undefined' && 
@@ -455,7 +456,8 @@ function useTranslationRuntime() {
     const handlePopstate = () => {
       const nextLanguage = getBrowserLanguage();
       setLanguageState(nextLanguage);
-      if (getExplicitLanguageFromPath(window.location.pathname)) syncBrowserLanguageFromUrl(nextLanguage);
+      const explicitLanguage = getExplicitLanguageFromPath(window.location.pathname);
+      if (explicitLanguage) syncBrowserLanguageFromUrl(explicitLanguage);
     };
 
     // Listen for URL changes (back/forward buttons)
