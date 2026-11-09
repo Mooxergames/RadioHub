@@ -2646,9 +2646,9 @@ export class SeoRenderer {
                   const fullText = getStationEditorial(stationData, language)?.summary
                     ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
                   if (fullText && fullText.length > 300) {
-                    // Preserve leading punctuation and a final fragment without
-                    // ASCII sentence punctuation (including mixed CJK text).
-                    const sentences = fullText.match(/[^.!?]*[.!?]+|[^.!?]+$/g) || [fullText];
+                    // Require whitespace after sentence punctuation so URL tokens
+                    // stay intact; preserve punctuation and any final fragment.
+                    const sentences = fullText.split(/(?<=[.!?])(?=\s)/);
                     const paragraphs = [];
                     let currentParagraph = '';
                     for (const sentence of sentences) {
