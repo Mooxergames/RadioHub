@@ -835,9 +835,64 @@ async function blacklistInTransaction(client: pg.PoolClient, doc: CatalogDocumen
 function blacklistShape(row: CatalogDocument): CatalogDocument {
   return { ...row.source,_id: row.id,stationUuid: row.station_uuid,url: row.url,name: row.name,reason: row.reason,deletedBy: row.deleted_by,deletedAt: row.deleted_at,createdAt: row.created_at };
 }
-export async function pgBlacklistAdd(doc: CatalogDocument): Promise<CatalogDocument> {
+export async function pgBlacklistAdd(doc: CatalogDocument, options: { adminReban?: boolean } = {}): Promise<CatalogDocument> {
   const client = await getPostgresPool().connect();
-  try { await client.query('BEGIN'); const row = await blacklistInTransaction(client,doc); await client.query('COMMIT'); return row; }
+  try {
+    await client.query('BEGIN');
+    if (options.adminReban) {
+      // Match and lock the current identity before blacklist locks, as removal
+      // does. A historical shared URL alone must not revoke another station.
+      const current = await client.query(`SELECT id FROM stations
+        WHERE ($2::text IS NOT NULL AND station_uuid=$2) OR ($2::text IS NULL AND url=$1)
+        ORDER BY id FOR SHARE`, [doc.url, doc.stationUuid || null]);
+      for (const key of [`blacklist:url:${doc.url}`, ...(doc.stationUuid ? [`blacklist:uuid:${doc.stationUuid}`] : [])].sort()) {
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [key]);
+      }
+      const existing = await client.query(`SELECT b.* FROM station_blacklist b
+        WHERE (b.url=$1 OR ($2::text IS NOT NULL AND b.station_uuid=$2))
+          AND NULLIF(b.source#>>'{mergeAudit,survivorId}','') IS NULL
+        ORDER BY b.id FOR UPDATE`, [doc.url, doc.stationUuid || null]);
+      if (existing.rows.length) {
+        const eligible = await client.query(`SELECT b.id FROM station_blacklist b JOIN stations restored
+          ON restored.id=b.source#>>'{verifiedRestoration,stationId}' AND restored.station_uuid=b.station_uuid
+          WHERE b.id=ANY($1::text[]) AND restored.id=$2
+            AND b.reason='User explicitly approved deletion of unresolved 1832 cohort on 2026-10-23'
+            AND b.source#>>'{verifiedRestoration,kind}'='verified-cohort-recovery-20261109'
+            AND b.source#>>'{verifiedRestoration,stationId}'=b.source->>'_id'
+            AND b.source#>>'{verifiedRestoration,stationUuid}'=b.station_uuid
+            AND NULLIF(b.source#>>'{verifiedRestoration,verifiedAt}','') IS NOT NULL
+            AND restored.no_index=false AND restored.redirect_to_slug IS NULL AND restored.is_list_visible=true
+            AND (NOT b.source ? 'verifiedRestorationRevocations'
+              OR jsonb_typeof(b.source->'verifiedRestorationRevocations')='array')`,
+        [existing.rows.map(row => row.id), current.rows.length === 1 ? current.rows[0].id : null]);
+        if (eligible.rows.length !== existing.rows.length) {
+          throw Object.assign(new Error('Station is already blacklisted'), {
+            code: 'STATION_ALREADY_BLACKLISTED', blacklistedStation: blacklistShape(existing.rows[0]),
+          });
+        }
+        // Keep the original deletion audit and the complete verification marker;
+        // only its active exemption is removed, with an append-only revocation.
+        await client.query(`UPDATE station_blacklist SET source=(source-'verifiedRestoration') ||
+          jsonb_build_object('verifiedRestorationRevocations',
+            COALESCE(source->'verifiedRestorationRevocations','[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+              'marker',source->'verifiedRestoration','revokedAt',clock_timestamp(),
+              'revokedBy',$2::text,'reason',$3::text)))
+          WHERE id=ANY($1::text[])`,
+        [eligible.rows.map(row => row.id), doc.deletedBy || 'admin', doc.reason || 'Manual blacklist']);
+        // A repaired stream can differ from the historical URL. Record the new
+        // explicit ban too, so both its current URL and UUID remain blocked.
+        const snapshot = { ...doc };
+        delete snapshot.mergeAudit;
+        delete snapshot.verifiedRestoration;
+        const row = await blacklistInTransaction(client, snapshot, true);
+        await client.query('COMMIT');
+        return row;
+      }
+    }
+    const row = await blacklistInTransaction(client,doc);
+    await client.query('COMMIT');
+    return row;
+  }
   catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
 }
 export async function pgBlacklistGet(id: string): Promise<CatalogDocument | null> {

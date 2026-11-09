@@ -2,7 +2,7 @@ import { pgCoverage } from '../data/postgres-coverage-store';
 import { getAdminSetting } from '../data/postgres-admin-settings-store';
 import crypto from 'node:crypto';
 import { pgAdminAux } from '../data/postgres-admin-auxiliary-store';
-import { pgCatalog, pgBlacklistAdd, pgBlacklistGet, pgBlacklistFind, pgBlacklistPage } from '../data/postgres-catalog-store';
+import { pgCatalog, pgBlacklistAdd, pgBlacklistGet, pgBlacklistPage } from '../data/postgres-catalog-store';
 import { pgAdminCatalogPage, pgAdminStationFilterOptions, pgDuplicateCityGroups, pgDuplicateStationGroups, pgDatabaseSizeReport, pgPurgeOperationalData } from '../data/postgres-admin-catalog-store';
 import type { Express } from "express";
 import express from "express";
@@ -1515,25 +1515,14 @@ export function registerAdminStationRoutes(app: Express, deps: RouteDeps) {
       if (!url) return void res.status(400).json({ error: 'url is required' });
       if (!name) return void res.status(400).json({ error: 'name is required' });
 
-      const dupFilter: any = stationUuid
-        ? { $or: [{ url }, { stationUuid }] }
-        : { url };
-      const existing = await pgBlacklistFind(url,stationUuid);
-      if (existing) {
-        return void res.status(409).json({
-          error: 'Station is already blacklisted',
-          blacklistedStation: existing,
-        });
-      }
-
       const actorEmail = (req.user as { email?: string } | undefined)?.email ?? undefined;
       const created = await pgBlacklistAdd({
         stationUuid: stationUuid || undefined,
         url,
         name,
         reason: reason || 'Manual blacklist',
-        deletedBy: actorEmail || 'admin',
-      });
+        deletedBy: actorEmail || (req.session as any)?.adminAuth?.username || 'admin',
+      }, { adminReban: true });
 
       void import('../services/admin-audit-email')
         .then(({ emailBlacklistChangesCsv }) =>
@@ -1557,6 +1546,12 @@ export function registerAdminStationRoutes(app: Express, deps: RouteDeps) {
 
       res.status(201).json({ success: true, blacklistedStation: created });
     } catch (error: any) {
+      if (error?.code === 'STATION_ALREADY_BLACKLISTED') {
+        return void res.status(409).json({
+          error: 'Station is already blacklisted',
+          blacklistedStation: error.blacklistedStation,
+        });
+      }
       logger.error(`Error in POST /api/admin/blacklisted-stations: ${error?.message || error}`);
       res.status(500).json({ error: 'Failed to add station to blacklist' });
     }
