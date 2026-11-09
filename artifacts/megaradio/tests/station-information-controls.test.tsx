@@ -1,0 +1,34 @@
+import React from 'react';
+import { afterEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
+import { StationStreamAvailability } from '../src/components/StationStreamAvailability';
+import { renderStationBootstrap } from '../../api-server/src/seo/station-bootstrap';
+import { readStationBootstrap } from '../src/lib/station-bootstrap';
+const state = vi.hoisted(() => ({ isPlaying: false, currentStation: null as any, playStation: vi.fn(), pauseStation: vi.fn() }));
+vi.mock('@/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => state }));
+vi.mock('@/components/ui/favorite-button', () => ({ default: () => null }));
+vi.mock('@/components/ui/vote-button', () => ({ default: () => null }));
+import StationControlButtonGroup from '../src/components/ui/station-control-button-group';
+afterEach(() => { cleanup(); document.getElementById('station-bootstrap')?.remove(); vi.clearAllMocks(); state.isPlaying = false; state.currentStation = null; });
+const station = { _id: 'verified', slug: 'verified', name: 'Verified Radio', stationPageMode: 'information', isListVisible: false, url: '' };
+it.each(ACTIVE_SITEMAP_LANGUAGES)('%s: information bootstrap needs no fake audio and disables playback with neutral status', language => {
+  document.body.insertAdjacentHTML('beforeend', renderStationBootstrap(station, language));
+  const hydrated = readStationBootstrap('verified', language);
+  expect(hydrated.stationPageMode).toBe('information');
+  render(<><StationControlButtonGroup currentPageStation={hydrated} /><StationStreamAvailability station={hydrated} language={language} /></>);
+  expect(screen.getByRole('status')).toHaveTextContent(getStationStreamUnavailableNotice(language, station));
+  const play = screen.getByTestId('button-play-stop');
+  expect(play).toBeDisabled();
+  expect(play).toHaveAttribute('aria-describedby', 'station-stream-unavailable');
+  fireEvent.click(play);
+  expect(state.playStation).not.toHaveBeenCalled();
+});
+it('an already playing information station can still be stopped', () => {
+  state.isPlaying = true; state.currentStation = station;
+  render(<StationControlButtonGroup currentPageStation={station} />);
+  const stop = screen.getByTestId('button-play-stop');
+  expect(stop).toBeEnabled(); fireEvent.click(stop);
+  expect(state.pauseStation).toHaveBeenCalledOnce();
+});

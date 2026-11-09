@@ -1,6 +1,7 @@
 import { SEO_LANGUAGES, ACTIVE_SITEMAP_LANGUAGES, getStationCountryIdentity } from './seo-config';
 import { getBrandSchemaCopy } from './brand-schema-copy';
 import { getLocalizedCountryName } from './country-name-translations';
+import { getStationInformationCopy, isStationInformationPage } from './station-page-copy';
 
 const regionNames = new Map<string, Intl.DisplayNames>();
 export function getSchemaCountry(station: {country?: unknown; countryCode?: unknown}, language: string): {name: string; code?: string} | undefined {
@@ -112,7 +113,9 @@ export function generateRadioStationSchema(
   // Priority 4: Fallback to generic template description
   let stationDescription: string;
   
-  if (metaDescription) {
+  if (isStationInformationPage(station)) {
+    stationDescription = getStationInformationCopy(language, station.name).description;
+  } else if (metaDescription) {
     // Use the SEO meta description (already localized and optimized)
     stationDescription = metaDescription;
   } else if (station.descriptions && typeof station.descriptions === 'object' && station.descriptions[language]) {
@@ -190,6 +193,8 @@ export function generateRadioStationSchema(
       }
     }
   };
+
+  if (isStationInformationPage(station)) delete schema.potentialAction;
 
   // Service-level area served (Place) when we know the country
   const schemaCountry = getSchemaCountry(station, language);

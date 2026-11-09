@@ -24,6 +24,36 @@ const LISTENER_RATING: Record<string, string> = {
   ja: 'リスナー評価', ko: '청취자 평점', hi: 'श्रोताओं की रेटिंग', he: 'דירוג המאזינים',
 };
 
+const INFORMATION_INTRO: Record<string, string> = {
+  en: 'Information about {station_name}. Online playback is unavailable on this page.',
+  es: 'Información sobre {station_name}. La reproducción en línea no está disponible en esta página.',
+  fr: 'Informations sur {station_name}. La lecture en ligne est indisponible sur cette page.',
+  de: 'Informationen zu {station_name}. Die Online-Wiedergabe ist auf dieser Seite nicht verfügbar.',
+  pt: 'Informações sobre {station_name}. A reprodução online não está disponível nesta página.',
+  it: 'Informazioni su {station_name}. La riproduzione online non è disponibile su questa pagina.',
+  ru: 'Информация о {station_name}. Онлайн-воспроизведение на этой странице недоступно.',
+  ar: 'معلومات عن {station_name}. التشغيل عبر الإنترنت غير متاح في هذه الصفحة.',
+  zh: '关于 {station_name} 的信息。此页面不提供在线播放。',
+  tr: '{station_name} hakkında bilgiler. Bu sayfada çevrimiçi oynatma kullanılamıyor.',
+  ja: '{station_name} の情報。このページではオンライン再生を利用できません。',
+  ko: '{station_name} 정보. 이 페이지에서는 온라인 재생을 이용할 수 없습니다.',
+  hi: '{station_name} के बारे में जानकारी। इस पृष्ठ पर ऑनलाइन प्लेबैक उपलब्ध नहीं है।',
+  he: 'מידע על {station_name}. הפעלה מקוונת אינה זמינה בדף זה.',
+};
+
+export function isStationInformationPage(station: unknown): boolean {
+  return !!station && typeof station === 'object'
+    && (station as { stationPageMode?: unknown }).stationPageMode === 'information';
+}
+
+/** Explicit editorial mode, never inferred from a failed stream check. */
+export function getStationInformationCopy(language: string, name: string) {
+  const locale = language.trim().toLowerCase().split(/[-_]/)[0];
+  const label = (COPY[locale] || COPY.en)[1];
+  const intro = (INFORMATION_INTRO[locale] || INFORMATION_INTRO.en).replace('{station_name}', () => name);
+  return { title: `${name} | ${label}`, intro, description: intro };
+}
+
 const STREAM_UNAVAILABLE: Record<string, string> = {
   en: 'This station’s stream is temporarily unavailable. Please try again later.',
   es: 'La transmisión de esta emisora no está disponible temporalmente. Inténtalo de nuevo más tarde.',
@@ -39,6 +69,23 @@ const STREAM_UNAVAILABLE: Record<string, string> = {
   ko: '이 방송국의 스트리밍을 일시적으로 이용할 수 없습니다. 나중에 다시 시도해 주세요.',
   hi: 'इस स्टेशन का प्रसारण अस्थायी रूप से उपलब्ध नहीं है। कृपया बाद में फिर से प्रयास करें।',
   he: 'השידור של תחנה זו אינו זמין זמנית. יש לנסות שוב מאוחר יותר.',
+};
+
+const INFORMATION_UNAVAILABLE: Record<string, string> = {
+  en: 'Online playback is unavailable on this page.',
+  es: 'La reproducción en línea no está disponible en esta página.',
+  fr: 'La lecture en ligne est indisponible sur cette page.',
+  de: 'Die Online-Wiedergabe ist auf dieser Seite nicht verfügbar.',
+  pt: 'A reprodução online não está disponível nesta página.',
+  it: 'La riproduzione online non è disponibile su questa pagina.',
+  ru: 'Онлайн-воспроизведение на этой странице недоступно.',
+  ar: 'التشغيل عبر الإنترنت غير متاح في هذه الصفحة.',
+  zh: '此页面不提供在线播放。',
+  tr: 'Bu sayfada çevrimiçi oynatma kullanılamıyor.',
+  ja: 'このページではオンライン再生を利用できません。',
+  ko: '이 페이지에서는 온라인 재생을 이용할 수 없습니다.',
+  hi: 'इस पृष्ठ पर ऑनलाइन प्लेबैक उपलब्ध नहीं है।',
+  he: 'הפעלה מקוונת אינה זמינה בדף זה.',
 };
 
 // Country/city headings need templates, not English prefixes: several locales
@@ -87,11 +134,12 @@ export function getStationRelatedHeading(
 }
 
 /** Identical public copy for server-rendered pages and the interactive player. */
-export function getStationStreamUnavailableNotice(language: string): string {
-  return STREAM_UNAVAILABLE[language.trim().toLowerCase().split(/[-_]/)[0]] || STREAM_UNAVAILABLE.en;
+export function getStationStreamUnavailableNotice(language: string, station?: unknown): string {
+  const copy = isStationInformationPage(station) ? INFORMATION_UNAVAILABLE : STREAM_UNAVAILABLE;
+  return copy[language.trim().toLowerCase().split(/[-_]/)[0]] || copy.en;
 }
 
-export function getStationPageCopy(language: string, translations: Record<string, string> = {}) {
+export function getStationPageCopy(language: string, translations: Record<string, string> = {}, station?: unknown) {
   const [about, information, website, intro] = COPY[language] || COPY.en;
   const locale = language.toLowerCase().split(/[-_]/)[0];
   const ratingOverride = translations.listener_rating?.trim();
@@ -102,8 +150,10 @@ export function getStationPageCopy(language: string, translations: Record<string
     about: translations.station_about_station || translations.about_station || about,
     information: translations.station_information || information,
     website: translations.website || website,
-    intro: translations.seo_station_intro_sentence || translations.default_station_about || intro,
-    outro: translations.seo_station_outro_sentence || translations.station_additional_info || getHomeSeoTemplate(language).description,
+    intro: isStationInformationPage(station) ? (INFORMATION_INTRO[locale] || INFORMATION_INTRO.en)
+      : translations.seo_station_intro_sentence || translations.default_station_about || intro,
+    outro: isStationInformationPage(station) ? ''
+      : translations.seo_station_outro_sentence || translations.station_additional_info || getHomeSeoTemplate(language).description,
     listenerRating: localizedRatingOverride ? ratingOverride : LISTENER_RATING[locale] || LISTENER_RATING.en,
   };
 }

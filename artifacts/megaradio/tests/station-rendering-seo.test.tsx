@@ -1,4 +1,6 @@
 import React from 'react';
+import { ACTIVE_SITEMAP_LANGUAGES as INFORMATION_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { getStationInformationCopy, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -86,6 +88,29 @@ function expectArticle() {
   expect(screen.getAllByText(article)).toHaveLength(1);
   expect(screen.queryByText('Station not found.')).not.toBeInTheDocument();
 }
+
+it.each(INFORMATION_LANGUAGES)('%s: information page retains the real article with a neutral intro', language => {
+  state.language = language;
+  bootstrap({ ...seed, url: '', stationPageMode: 'information', isListVisible: false }, language);
+  const view = mount();
+  expectArticle();
+  expect(view.container.querySelector('.station-intro')).toHaveTextContent(getStationInformationCopy(language, seed.name).intro);
+  expect(view.container.querySelector('#station-stream-unavailable')).toHaveTextContent(getStationStreamUnavailableNotice(language, { stationPageMode: 'information' }));
+  expect(state.playStation).not.toHaveBeenCalled();
+});
+
+it.each(INFORMATION_LANGUAGES)('%s: client navigation emits neutral information metadata', async language => {
+  state.language = language;
+  window.history.replaceState({}, '', `/${language}/station/${seed.slug}`);
+  bootstrap({ ...seed, stationPageMode: 'information', isListVisible: false }, language);
+  render(<QueryClientProvider client={client}><ServerSeoHeadContext.Provider value={false}>
+    <StationDetails />
+  </ServerSeoHeadContext.Provider></QueryClientProvider>);
+  const copy = getStationInformationCopy(language, seed.name);
+  await waitFor(() => expect(document.title).toContain(copy.title));
+  expect(document.querySelector('meta[property="og:description"]')).toHaveAttribute('content', copy.description);
+  expect(document.querySelector('meta[name="twitter:description"]')).toHaveAttribute('content', copy.description);
+});
 
 function mountRelated(language = 'en') {
   state.language = language;

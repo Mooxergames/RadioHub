@@ -13,6 +13,7 @@ export async function readSeoStationLinkMetadata(ids: readonly string[]): Promis
   // The native trigger maintains these masks in the description transaction.
   // Missing summaries stay unknown, rather than inventing an empty language set.
   return withSeoReadDeadline({ expiresAt, signal: context?.signal }, async () => (await boundedSeoReadQuery(`SELECT s.id AS _id,s.slug,s.name,s.url,s.homepage,s.tags_raw AS tags,s.bitrate,
+    CASE WHEN s.is_list_visible=false THEN s.source->>'stationPageMode' ELSE NULL END AS "stationPageMode",
     s.country,s.country_code AS "countryCode",s.language_codes AS "languageCodes",
     s.no_index AS "noIndex",s.redirect_to_slug AS "redirectToSlug",
     ARRAY(SELECT locale.language FROM unnest($2::text[]) WITH ORDINALITY locale(language,position)

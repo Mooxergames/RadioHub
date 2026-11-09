@@ -93,6 +93,7 @@ export async function pgRetireManifests(languages:string[]):Promise<number>{
 export async function pgSeoGenres(ids?:readonly unknown[]):Promise<any[]>{return(await getPostgresPool().query("SELECT id AS _id,slug,station_count AS \"stationCount\",updated_at AS \"updatedAt\" FROM genres WHERE slug IS NOT NULL AND slug<>'' AND ($1::text[] IS NULL OR id=ANY($1)) ORDER BY station_count DESC,id",[ids?ids.map(String):null])).rows;}
 export async function pgStationSlugRows():Promise<any[]> {
   return (await getPostgresPool().query(`SELECT id AS _id,slug,slug_aliases AS "slugAliases",redirect_to_slug AS "redirectToSlug",no_index AS "noIndex",name,url,
+    source->>'stationPageMode' AS "stationPageMode",
     last_check_ok AS "lastCheckOk",last_check_time AS "lastCheckTime",source->>'lastCheckOkTime' AS "lastCheckOkTime"
     FROM stations WHERE slug IS NOT NULL ORDER BY id`)).rows;
 }
@@ -104,6 +105,7 @@ export async function pgSitemapStationBatch(ids: readonly string[]): Promise<any
   if (ids.length > SITEMAP_STATION_READ_BATCH_SIZE) throw new Error('Sitemap station read batch exceeds 500 IDs');
   if (ids.length === 0) return [];
   return (await getPostgresPool().query(`SELECT id AS _id,slug,name,url,homepage,tags_raw AS tags,bitrate,
+    source->>'stationPageMode' AS "stationPageMode",
     country,country_code AS "countryCode",language,language_codes AS "languageCodes",
     ${completeDescriptionLanguagesSql('descriptions')} AS "completeDescriptionLanguages",votes,
     no_index AS "noIndex",is_list_visible AS "isListVisible",redirect_to_slug AS "redirectToSlug",last_check_ok AS "lastCheckOk",last_check_time AS "lastCheckTime",

@@ -30,6 +30,7 @@ const STALE_BUILDING_RECLAIM_MS = 30 * 60 * 1000;           // reclaim stuck bui
 let buildLock = false;
 
 interface StationLite {
+  stationPageMode?: string;
   _id: string;
   slug?: string;
   name?: string;

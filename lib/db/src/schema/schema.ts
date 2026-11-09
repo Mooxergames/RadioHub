@@ -48,6 +48,7 @@ export interface StationWithCountry {
   lastCheckOk?: boolean;
   /** Independent list policy; a provider failure alone is not an outage. */
   isListVisible?: boolean;
+  stationPageMode?: 'information';
   availabilityStatus?: 'working' | 'unavailable' | 'unverified';
   lastCheckTime?: string;
   // Multi-language descriptions field - matches original repository pattern

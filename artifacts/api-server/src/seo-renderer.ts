@@ -7,7 +7,7 @@ import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { getKnownOgImageDimensions } from '@workspace/seo-shared/og-image-metadata';
 import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
-import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
+import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice, isStationInformationPage, getStationInformationCopy } from '@workspace/seo-shared/station-page-copy';
 import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
 import { getStationEditorial } from '@workspace/seo-shared/station-editorial';
 import { renderStationEditorialHtml } from '@workspace/seo-shared/station-editorial-html';
@@ -1676,6 +1676,12 @@ export class SeoRenderer {
       logger.log(`🎯 Using custom SEO metadata for ${dbPageType}/${routeKey}/${language}`);
       seoTags = this.applyCustomSeoMetadata(seoTags, customMetadata);
     }
+    // Legacy admin titles must not promise playback on explicit information pages.
+    if (pageType === 'station' && isStationInformationPage(stationData)) {
+      const { title, description } = getStationInformationCopy(language, stationData.name);
+      seoTags = { ...seoTags, title, description, ogTitle: title, ogDescription: description,
+        twitterTitle: title, twitterDescription: description };
+    }
     if (additionalData.httpNotFound) {
       stationNotFound = true;
       seoTags = { ...seoTags, noIndex: true, robots: 'noindex, follow', hreflangs: [] };
@@ -2603,7 +2609,7 @@ export class SeoRenderer {
         content = `
           <main>
             <h1>${this.escapeHtml(h1Text)}</h1>
-            ${stationData?.isListVisible === false ? `<p id="station-stream-unavailable" role="status">${this.escapeHtml(getStationStreamUnavailableNotice(language))}</p>` : ''}
+            ${stationData?.isListVisible === false || isStationInformationPage(stationData) ? `<p id="station-stream-unavailable" role="status">${this.escapeHtml(getStationStreamUnavailableNotice(language, stationData))}</p>` : ''}
             ${stationData ? `
               <div class="station-info">
                 ${(() => {
@@ -2627,8 +2633,8 @@ export class SeoRenderer {
                 <h2>${this.escapeHtml(getStationPageCopy(language, translations).about)}</h2>
                 <!-- DALGA 4: H1-keyword echo intro (single sentence, station-specific interpolation: name + country) -->
                 ${(() => {
-                  if (getStationEditorial(stationData, language)) return '';
-                  const introTemplate = getStationPageCopy(language, translations).intro;
+                  if (getStationEditorial(stationData, language) && !isStationInformationPage(stationData)) return '';
+                  const introTemplate = getStationPageCopy(language, translations, stationData).intro;
                   const stationName = stationData.name || 'Radio Station';
                   const country = getStationCountryName(stationData, language);
                   const introText = introTemplate
@@ -2663,7 +2669,7 @@ export class SeoRenderer {
                 })()}
                 <!-- DALGA 4: Station-specific outro (25-35 words, interpolation: name + country + tags — NOT scaled boilerplate) -->
                 ${(() => {
-                  if (getStationEditorial(stationData, language)) return '';
+                  if (getStationEditorial(stationData, language) || isStationInformationPage(stationData)) return '';
                   const outroTemplate = getStationPageCopy(language, translations).outro;
                   const stationName = stationData.name || 'Radio Station';
                   const country = getStationCountryName(stationData, language);
@@ -3614,8 +3620,10 @@ export class SeoRenderer {
       // and trigger Google's "deceptive markup" warning. `aiDescription` is
       // intentionally NOT used here because the visible body never renders
       // it — see generateHtmlBody case 'station' (~line 1461).
-      const schemaDescriptionSource = getStationEditorial(stationData, language)?.summary
-        ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
+      const schemaDescriptionSource = isStationInformationPage(stationData)
+        ? getStationInformationCopy(language, stationData.name).description
+        : getStationEditorial(stationData, language)?.summary
+          ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
 
       // 2026-05-12 SEO audit (138 invalid items): switched primary type
       // from RadioStation → RadioBroadcastService. RadioStation extends
@@ -3702,6 +3710,8 @@ export class SeoRenderer {
         // Preserve genuine ratings without asserting rich-result eligibility.
         ...(aggregateRatingSchema && { "aggregateRating": aggregateRatingSchema }),
       };
+
+      if (isStationInformationPage(stationData)) delete radioStationSchema.potentialAction;
 
       // Speakable WebPage (voice assistants / AI answers — radio.at parity).
       // cssSelector targets exist in the SSR body: the <h1> and the

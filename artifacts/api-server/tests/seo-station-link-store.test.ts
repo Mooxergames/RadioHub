@@ -28,7 +28,9 @@ test('one parameterized ID batch uses transactional presence masks without readi
   assert.ok(sql.includes('unnest($2::text[]) WITH ORDINALITY'));
   assert.ok(sql.includes('country_code AS "countryCode"') && sql.includes('language_codes AS "languageCodes"'));
   assert.ok(sql.includes('no_index AS "noIndex"') && sql.includes('redirect_to_slug AS "redirectToSlug"'));
-  assert.ok(!sql.includes('SELECT *') && !sql.includes('source') && !sql.includes('descriptions') && !sql.includes('jsonb_each'));
+  const modeProjection = `CASE WHEN s.is_list_visible=false THEN s.source->>'stationPageMode' ELSE NULL END AS "stationPageMode"`;
+  assert.ok(sql.includes(modeProjection));
+  assert.ok(!sql.includes('SELECT *') && !sql.replace(modeProjection, '').includes('source') && !sql.includes('descriptions') && !sql.includes('jsonb_each'));
 });
 
 test('empty/oversized batches never issue SQL, and bounded read errors remain unknown to the caller', async () => {

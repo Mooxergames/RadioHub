@@ -444,7 +444,7 @@ export class PostgresCatalogStore {
         const freshProviderSuccess = (options.respectManualFields || options.syncRunId) && !preserveHealth && patch.lastCheckOk === true;
         const manuallyHidden = (current.manualEditFields?.isListVisible && current.isListVisible === false) ||
           (current.manualEditFields?.lastCheckOk && current.lastCheckOk === false);
-        if ((urlsChanged || freshProviderSuccess) && !manuallyHidden) {
+        if ((urlsChanged || freshProviderSuccess) && !manuallyHidden && next.stationPageMode !== 'information') {
           next.isListVisible = true; next.visibilityExpiresAt = null;
           if (urlsChanged) { next.availabilityOutcome = 'inconclusive'; next.availabilityCheckedAt = null; }
         }
@@ -785,7 +785,8 @@ export class PostgresCatalogStore {
     const doc: CatalogDocument = { slugAliases: [],hls: false,votes: 0,clickCount: 0,clickTrend: 0,averageRating: 0,totalRatings: 0,
       lastCheckOk: true,isListVisible: true,hasLogo: false,descriptions: {},manualEditFields: {},isFeatured: false,
       showInGlobalPopular: false,noIndex: false,createdAt: now,...input,updatedAt: now };
-    if (!doc.stationuuid || !doc.name || !doc.url) throw new Error("Station UUID, name and URL are required");
+    const informationWithoutStream = doc.stationPageMode === 'information' && doc.url === '';
+    if (!doc.stationuuid || !doc.name || (!doc.url && !informationWithoutStream)) throw new Error("Station UUID, name and URL are required");
     if (Array.isArray(doc.tags)) doc.tags = doc.tags.join(",");
     const entries = Object.entries(fields);
     const values = entries.map(([field,[,type]]) => type === "jsonb" ? (doc[field] == null ? null : JSON.stringify(doc[field])) : doc[field] ?? null);

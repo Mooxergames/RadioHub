@@ -127,6 +127,7 @@ export function automaticNoIndexExpectedFilter(station: any): Record<string, any
  * Returns the matched reason for audit/logging.
  */
 export function evaluateJunkStation(station: {
+  stationPageMode?: string;
   name?: string;
   slug?: string;
   url?: string;
@@ -142,7 +143,7 @@ export function evaluateJunkStation(station: {
   const lowerName = name.toLowerCase();
 
   if (!name) return { isJunk: true, reason: 'empty-name' };
-  if (!station.url) return { isJunk: true, reason: 'empty-stream-url' };
+  if (!station.url && station.stationPageMode !== 'information') return { isJunk: true, reason: 'empty-stream-url' };
 
   // These exact names identify color-bar test signals. Do not treat Chinese
   // names or the generic word 测试 (test) as evidence of a junk station.
@@ -424,6 +425,7 @@ export function isLanguageEligibleForStation(
  */
 export function getIndexableLanguagesForStation(
   station: {
+    stationPageMode?: string;
     name?: string;
     slug?: string;
     url?: string;

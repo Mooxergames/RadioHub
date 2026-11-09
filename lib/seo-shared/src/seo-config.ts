@@ -1,5 +1,6 @@
 // SEO Configuration for multilingual support
 import { buildTemplateDescription } from './station-description-template';
+import { getStationInformationCopy, isStationInformationPage } from './station-page-copy';
 import { reverseTranslateUrl, URL_TRANSLATIONS } from './url-translations';
 import { buildDirectoryIndexSeo } from './directory-index-seo';
 import { normalizePublicStationLogoUrl } from './station-logo-url';
@@ -1583,6 +1584,7 @@ export interface SeoMetaTags {
 
 // Helper function to generate localized station title with unique formatting per language
 export function generateLocalizedStationTitle(station: any, language: string, translations: Record<string, string>): string {
+  if (isStationInformationPage(station)) return getStationInformationCopy(language, station.name).title;
   const stationName = station.name;
   
   // Use native country name based on language
@@ -1646,6 +1648,7 @@ export function getLocalizedStationDescription(station: any, language: string, t
     }
   }
   
+  if (isStationInformationPage(station)) return getStationInformationCopy(language, station.name).description;
   if (language === 'en') return buildTemplateDescription({ ...station, country: getStationCountryName(station, language) }).full;
 
   // FALLBACK: Generate template-based description
@@ -1728,6 +1731,7 @@ function isStationIdentityOnly(value: string, stationName: unknown): boolean {
 // Returns 155-160 character meta description from AI-generated content
 // PRIORITY: AI description > database translation (trending_no_stations_message) > generic fallback
 export function getStationMetaDescription(station: any, language: string, translations: Record<string, string>): string {
+  if (isStationInformationPage(station)) return getStationInformationCopy(language, station.name).description;
   // PRIORITY 1: Use AI-generated meta description if available
   if (station.descriptions && station.descriptions[language]) {
     const desc = station.descriptions[language];
@@ -2281,7 +2285,7 @@ export function generateSeoTags(
       ogTitle: stationData ? 
         generateLocalizedStationTitle(stationData, language, translations) :
         'Listen Live Radio Station - Mega Radio',
-      ogDescription: stationData ? 
+      ogDescription: isStationInformationPage(stationData) ? getStationInformationCopy(language, stationData.name).description : stationData ?
         getLocalizedStationDescription(stationData, language, translations) :
         'Listen to live radio stations online with Mega Radio.',
       ogImage: stationData?.logoAssets?.webp512 || stationData?.logoAssets?.webp256 || stationData?.favicon || undefined,
