@@ -13,7 +13,7 @@ import { markSeoTemporarilyUnavailable } from '../seo/temporary-unavailable';
 import { manualSitemapRebuildTimeout } from '../middleware/manual-sitemap-rebuild-timeout';
 import { logger } from "../utils/logger";
 import { SeoRenderer, buildLocalizedUrl } from "../seo-renderer";
-import { SITEMAP_CONFIG, ACTIVE_SITEMAP_LANGUAGES, REQUIRED_STATION_SEO_KEYS, hasCompleteSeoTranslations, SEO_LANGUAGES, LOCALIZED_LOGO_WORD, LOCALIZED_RADIO_STATION_WORD, normalizeSeoTitleTags } from '@workspace/seo-shared/seo-config';
+import { SITEMAP_CONFIG, ACTIVE_SITEMAP_LANGUAGES, REQUIRED_STATION_SEO_KEYS, hasCompleteSeoTranslations, SEO_LANGUAGES, LOCALIZED_LOGO_WORD, LOCALIZED_RADIO_STATION_WORD, normalizeSeoTitleTags, getRetiredLocaleFromPath } from '@workspace/seo-shared/seo-config';
 
 // Map a SEO language code (e.g. "nb") to its BCP47/hreflang tag (e.g. "nb-NO")
 // so XML sitemap alternates match the HTML <link rel="alternate"> tags emitted
@@ -487,12 +487,18 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
         return;
       }
       if (seoData.pageData?.httpNotFound) res.status(404).set('Cache-Control', 'no-store');
+      const retiredStation = getRetiredLocaleFromPath(url) && seoData.pageData?.pageType === 'station';
+      if (retiredStation && (seoData.pageData?.notFound || seoData.pageData?.stationIsJunk)) {
+        res.status(410).set('Cache-Control', 'no-store').json({ error: 'Station unavailable' });
+        return;
+      }
       // The SPA needs page metadata and the same structured-data objects as
       // SSR, not duplicate translation dictionaries or full station records.
       // The admin SEO preview retains the full response without slim=1.
       if (String(req.query.slim || '') === '1') {
         const stationDirectory = seoRenderer.buildStationDirectoryData(seoData);
-        if (isStationDirectoryPath(seoData.cleanPath) && !seoData.pageData?.httpNotFound && !stationDirectory) {
+        if (seoData.pageData?.pageType === 'stations' && isStationDirectoryPath(seoData.cleanPath)
+            && !seoData.pageData.httpNotFound && !stationDirectory) {
           markSeoTemporarilyUnavailable(res);
           res.json({ error: 'Station directory temporarily unavailable' });
           return;
@@ -500,6 +506,10 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
         res.json({
           language: (seoData as any).language,
           cleanPath: (seoData as any).cleanPath,
+          // SPA entry without SSR bootstrap must resolve the same verified
+          // station before enrichment; do not expose the archived/source row.
+          ...(retiredStation && seoData.pageData?.station?._id
+            ? { stationIdentity: String(seoData.pageData.station._id) } : {}),
           ...(stationDirectory ? { stationDirectory } : {}),
           seoTags: normalizeSeoTitleTags(seoData.seoTags),
           structuredData: seoRenderer.generateStructuredData(

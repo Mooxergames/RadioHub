@@ -12,6 +12,13 @@ it('uses only the matching station and language; ignores corrupt payloads',()=>{
  expect(readStationBootstrap('other','tr')).toBeUndefined();expect(readStationBootstrap('kral-fm','de')).toBeUndefined();
  script.textContent='{bad';expect(readStationBootstrap('kral-fm','tr')).toBeUndefined();
 });
+it('accepts only the exact SSR-resolved historical identifier, not arbitrary aliases',()=>{
+ const script=insert({...seed,language:'en'});
+ script.textContent=JSON.stringify({...seed,language:'en',requestedIdentifier:'old-kral-fm'});
+ expect(readStationBootstrap('old-kral-fm','en')).toEqual(seed.station);
+ expect(readStationBootstrap('other-kral-fm','en')).toBeUndefined();
+ expect(readStationBootstrap('old-kral-fm','nl')).toBeUndefined();
+});
 it('shows the description immediately without polluting the complete API cache; full response still loads',async()=>{
  insert(); const client=new QueryClient({defaultOptions:{queries:{retry:false}}});
  let resolve!: (data:any)=>void;const queryFn=vi.fn(()=>new Promise<any>(r=>{resolve=r;}));

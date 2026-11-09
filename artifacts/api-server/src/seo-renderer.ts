@@ -1,4 +1,4 @@
-import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, CODE_TO_COUNTRY, SEO_LANGUAGES, MAX_GENRE_DIRECTORY_PAGE, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
+import { generateSeoTags, getLanguageFromPath, getRetiredLocaleFromPath, isSafeStationDetailSlug, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, CODE_TO_COUNTRY, SEO_LANGUAGES, MAX_GENRE_DIRECTORY_PAGE, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { buildDirectoryIndexSeo } from '@workspace/seo-shared/directory-index-seo';
 import { isStationDirectoryPath, isStationDirectoryData, type StationDirectoryData } from '@workspace/seo-shared/station-directory';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
@@ -374,6 +374,7 @@ export class SeoRenderer {
     return trackOperation('seo-render', async () => {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const cleanUrl = url.split('?')[0].split('#')[0];
+    const retiredLocale = getRetiredLocaleFromPath(cleanUrl);
 
     // Get language from URL path, but prefer user's stored preference if available
     let { language, cleanPath } = resolveBareDiscoveryPath(cleanUrl) || getLanguageFromPath(cleanUrl);
@@ -381,7 +382,7 @@ export class SeoRenderer {
     // another language at a crawlable, self-canonical article URL. No DB reads
     // are needed to render these versioned articles.
     if (isBlogPath(cleanPath)) {
-      const route = parseBlogPath(cleanUrl);
+      const route = parseBlogPath(retiredLocale ? `/en${cleanPath}` : cleanUrl);
       const missingBlog = (): StaticPageData => ({ language, cleanPath, translations: {}, urlTranslations: new Map(),
         seoTags: { title: '404 | MegaRadio', robots: 'noindex, follow', noIndex: true, hreflangs: [] },
         pageData: { pageType: 'blog', httpNotFound: true, notFound: true } });
@@ -406,7 +407,7 @@ export class SeoRenderer {
     // CRITICAL: Language/Country separation
     // If user has a stored language preference (from cookie), use that instead of country-derived language
     // This ensures a Turkish user viewing /de/ sees Turkish UI, not German
-    if (preferredLanguage && preferredLanguage.toLowerCase() !== language.toLowerCase()) {
+    if (!retiredLocale && preferredLanguage && preferredLanguage.toLowerCase() !== language.toLowerCase()) {
       // Validate the preferred language is enabled (case-insensitive comparison for hyphenated codes like pt-BR)
       const normalizedPref = preferredLanguage.toLowerCase();
       const matchedLang = SEO_LANGUAGES.find(l => l.code.toLowerCase() === normalizedPref && l.enabled);
@@ -461,7 +462,7 @@ export class SeoRenderer {
     if (urlParts.length > 0) {
       const firstSegment = urlParts[0].toLowerCase();
       // Check if first segment is a country code
-      if (COUNTRY_TO_LANGUAGE[firstSegment]) {
+      if (!retiredLocale && COUNTRY_TO_LANGUAGE[firstSegment]) {
         countryCode = firstSegment;
         // DO NOT override actualLanguage here - language was already determined above
         // (either from path translation or preferredLanguage cookie)
@@ -473,12 +474,12 @@ export class SeoRenderer {
     // Detect BEFORE localizedPath so canonical/hreflang derive from the
     // normalized plural form even when the reverse translation produced the
     // singular (/station/a) — both middleware and sitemap emit the plural.
-    const azLetter = matchAzIndexPath(cleanPath);
+    const azLetter = retiredLocale && cleanPath.startsWith('/station/') ? null : matchAzIndexPath(cleanPath);
     if (azLetter) cleanPath = `/stations/${azLetter}`;
 
     // Build localized URL path for canonical URL
     // This translates English paths like /genres to language-specific paths like /zhanret (Albanian)
-    const localizedPath = buildLocalizedUrl(cleanPath, actualLanguage, countryCode, urlTranslations);
+    let localizedPath = buildLocalizedUrl(cleanPath, actualLanguage, countryCode, urlTranslations);
     
     // Determine page type from path and extract relevant data
     let pageType = 'home';
@@ -616,14 +617,16 @@ export class SeoRenderer {
                 aliasRedirectLanguage === actualLanguage ? countryCode : undefined,
                 urlTranslations,
               );
-              logger.log(`🔀 SEO ALIAS 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${aliasMatch.slug})`);
-              return {
-                language,
-                cleanPath,
-                seoTags: {},
-                translations: {},
-                pageData: { redirectTo: canonicalPath },
-              };
+              if (!retiredLocale) {
+                logger.log(`🔀 SEO ALIAS 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${aliasMatch.slug})`);
+                return {
+                  language,
+                  cleanPath,
+                  seoTags: {},
+                  translations: {},
+                  pageData: { redirectTo: canonicalPath },
+                };
+              }
             }
             stationData = aliasMatch;
           }
@@ -664,14 +667,19 @@ export class SeoRenderer {
               redirectLanguage === actualLanguage ? countryCode : undefined,
               urlTranslations,
             );
-            logger.log(`🔀 SEO FREQ-DUP 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${canonicalSlug})`);
-            return {
-              language,
-              cleanPath,
-              seoTags: {},
-              translations: {},
-              pageData: { redirectTo: canonicalPath },
-            };
+            if (retiredLocale) {
+              stationData = target;
+              if (stationIdFallback) stationIdFallback = String(target._id);
+            } else {
+              logger.log(`🔀 SEO FREQ-DUP 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${canonicalSlug})`);
+              return {
+                language,
+                cleanPath,
+                seoTags: {},
+                translations: {},
+                pageData: { redirectTo: canonicalPath },
+              };
+            }
           }
 
           if (stationData) stationData = withPilotEditorial(stationData);
@@ -1322,6 +1330,13 @@ export class SeoRenderer {
     }
     
     // Generate enhanced SEO tags with additional context
+    if (retiredLocale && stationData?._id && !stationNotFound) {
+      // ID routes keep their valid English ID counterpart until the existing
+      // shape, eligibility and exact-owner checks below verify a slug target.
+      if (!isSafeStationDetailSlug(stationData.slug)) stationIdFallback = String(stationData._id);
+      cleanPath = `/station/${stationIdFallback || stationData.slug}`;
+      localizedPath = buildLocalizedUrl(cleanPath, 'en', undefined, urlTranslations);
+    }
     // Pass localized path to use translated paths in canonical URL
     // Also pass urlTranslations map for hreflang tags with translated paths
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -1459,9 +1474,7 @@ export class SeoRenderer {
           langRedirectUrl = null;
           const slug = stationData.slug;
           const redirectLanguage = indexable.includes(actualLanguage) ? actualLanguage : 'en';
-          const safeSlug = typeof slug === 'string' && slug.length > 0 && slug === slug.trim()
-            && !/[\\/?#%\s\u0000-\u001f\u007f-\u009f]/u.test(slug)
-            && slug !== '.' && slug !== '..' && !matchAzIndexPath(`/station/${slug}`);
+          const safeSlug = isSafeStationDetailSlug(slug);
           if (!legacyInformation && !isJunk && !numericOnlySlug && !negativeNumericSlug
               && safeSlug && slug !== stationIdFallback
               && String(stationData._id).toLowerCase() === stationIdFallback.toLowerCase()
@@ -1470,8 +1483,15 @@ export class SeoRenderer {
             if (target?.slug === slug && String(target._id) === String(stationData._id)
                 && !target.redirectToSlug
                 && getIndexableLanguagesForStation(target, qualifiedLangs).includes(redirectLanguage)) {
-              langRedirectUrl = buildLocalizedUrl(`/station/${slug}`, redirectLanguage,
+              const verifiedPath = buildLocalizedUrl(`/station/${slug}`, redirectLanguage,
                 redirectLanguage === actualLanguage ? countryCode : undefined, urlTranslations);
+              if (retiredLocale) {
+                cleanPath = `/station/${slug}`;
+                seoTags.canonical = new URL(verifiedPath, domain).href;
+                seoTags.hreflangs = generateLanguageUrls(cleanPath, domain, language, urlTranslations, seoTags.canonical, indexable);
+              } else {
+                langRedirectUrl = verifiedPath;
+              }
             }
           }
         }
@@ -3593,7 +3613,9 @@ export class SeoRenderer {
     let stationWebPageSchema: any = null;
     if (stationData) {
       const stationSegmentForRadioJsonLd = urlTranslations?.get(`${language}:station`) || 'station';
-      const stationUrl = `${baseDomain}/${language}/${stationSegmentForRadioJsonLd}/${stationData.slug || stationData._id}`;
+      const stationUrl = cleanPath === `/station/${stationData._id}` && seoTags.canonical
+        ? seoTags.canonical
+        : `${baseDomain}/${language}/${stationSegmentForRadioJsonLd}/${stationData.slug || stationData._id}`;
       // SEO audit 2026-06, Finding C1: only treat an absolute (http) asset as a
       // real station image. Previously this fell back to a shared
       // `default-station.png` placeholder for the ~53.5% of stations with no

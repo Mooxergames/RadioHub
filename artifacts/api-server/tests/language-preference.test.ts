@@ -18,7 +18,7 @@ for (const { code } of SEO_LANGUAGES.filter(language => language.enabled
     assert.equal(getSupportedLanguage(`${code}-ZA`), undefined);
     assert.equal(getPreferredLanguageCookie(`preferredLanguage=${code}`), undefined);
     assert.equal(getExplicitLanguageFromPath(`/${code.toUpperCase()}/station/example`), code);
-    assert.equal(getLanguageFromPath(`/${code}/station/example`).language, code);
+    assert.equal(getLanguageFromPath(`/${code}/station/example`).language, 'en');
   });
 }
 

@@ -118,7 +118,9 @@ test('unprefixed translated SPA roots are recognized without another decoding pa
 test('web SSR uses the tested matchers and unknown SSO probes reach a real404', async () => {
   const source = readFileSync(new URL('../src/index-web.ts', import.meta.url), 'utf8');
   assert.match(source, /\.\.\.buildPublicSeoRouteMatchers\(\)/);
-  assert.match(source, /const cleanUrlForMatching = decodePublicSeoPath\(url\)/);
+  assert.match(source, /const decodedPath = decodePublicSeoPath\(url\)/);
+  assert.match(source, /if \(decodedPath === null\)/);
+  assert.match(source, /const cleanUrlForMatching = getRetiredLocaleFromPath\(req.path\)/);
   assert.match(source, /isApplicationsPage \|\| isUsersPage/);
   assert.match(source, /const isDiscoveryPage = SEO_PRECOMPILED_REGEX\.discoveryPage\.test\(cleanUrlForMatching\)/);
   assert.match(source, /const isSeoEligiblePage = [^;]*\bisDiscoveryPage\b/);

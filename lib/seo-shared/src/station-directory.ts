@@ -11,8 +11,8 @@ export interface StationDirectoryData {
 }
 
 /** Call after locale segments have been reverse-translated. */
-export function isStationDirectoryPath(path: string): boolean {
-  return path === '/stations' || /^\/stations?\/(?:0-9|[a-z])$/.test(path);
+export function isStationDirectoryPath(path: string, allowSingular = true): boolean {
+  return path === '/stations' || (allowSingular ? /^\/stations?\/(?:0-9|[a-z])$/ : /^\/stations\/(?:0-9|[a-z])$/).test(path);
 }
 
 const record = (value: unknown): value is Record<string, unknown> =>

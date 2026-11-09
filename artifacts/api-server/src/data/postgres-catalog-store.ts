@@ -875,6 +875,20 @@ export async function pgSyncLogs(limit = 10): Promise<CatalogDocument[]> {
   return result.rows.map((row) => ({ ...row.counters,_id: row.id,syncType: row.sync_type,status: row.status,error: row.error,errorMessage: row.error,startedAt: row.started_at,completedAt: row.completed_at }));
 }
 export async function pgSyncBlacklist(): Promise<CatalogDocument[]> {
-  return (await getPostgresPool().query(`SELECT station_uuid AS "stationUuid",url,
-    NULLIF(source#>>'{mergeAudit,survivorId}','') IS NULL AS "blocksUrl" FROM station_blacklist`)).rows;
+  // A verified restoration may resume maintenance without erasing its deletion
+  // audit. Independent bans and the catalog's new-import guard still apply.
+  return (await getPostgresPool().query(`SELECT b.station_uuid AS "stationUuid",b.url,
+    NULLIF(b.source#>>'{mergeAudit,survivorId}','') IS NULL AS "blocksUrl"
+    FROM station_blacklist b WHERE NOT EXISTS (
+      SELECT 1 FROM stations restored
+      WHERE b.reason='User explicitly approved deletion of unresolved 1832 cohort on 2026-10-23'
+        AND b.source#>>'{verifiedRestoration,kind}'='verified-cohort-recovery-20261109'
+        AND b.source#>>'{verifiedRestoration,stationId}'=b.source->>'_id'
+        AND b.source#>>'{verifiedRestoration,stationUuid}'=b.station_uuid
+        AND NULLIF(b.source#>>'{verifiedRestoration,verifiedAt}','') IS NOT NULL
+        AND restored.id=b.source#>>'{verifiedRestoration,stationId}'
+        AND restored.station_uuid=b.station_uuid
+        AND restored.no_index=false AND restored.redirect_to_slug IS NULL
+        AND restored.is_list_visible=true
+    )`)).rows;
 }

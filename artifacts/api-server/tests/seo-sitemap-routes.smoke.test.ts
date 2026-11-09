@@ -519,6 +519,60 @@ test('slim SEO page-data forwards the exact localized renderer context and prese
   } finally { render.mock.restore(); generate.mock.restore(); }
 });
 
+test('retired station navigation exposes only the verified identity and preserves terminal resolution errors', async () => {
+  const { SeoRenderer } = await import('../src/seo-renderer');
+  let pageData: any = { pageType: 'station', station: { ...FAKE_STATION_DOCS[0], _id: 'resolved-target-id', source: { private: true } } };
+  const render = mock.method(SeoRenderer.prototype, 'renderStaticPage', async () => ({
+    language: 'en', cleanPath: '/station/station-one', translations: {}, urlTranslations: new Map(),
+    seoTags: { title: 'Verified target', canonical: 'https://themegaradio.com/en/station/station-one' }, pageData,
+  }));
+  try {
+    const response = await fetch(`${baseUrl}/api/seo/page-data?url=/sv/station/old-record&slim=1`);
+    assert.equal(response.status, 200);
+    const payload = await response.json() as any;
+    assert.equal(payload.stationIdentity, 'resolved-target-id');
+    assert.equal(payload.station, undefined);
+    assert.equal(payload.source, undefined);
+    assert.equal(payload.pageData, undefined);
+    for (const [flag, status] of [['notFound', 410], ['stationIsJunk', 410], ['stationDbError', 503]] as const) {
+      pageData = { pageType: 'station', [flag]: true };
+      const failed = await fetch(`${baseUrl}/api/seo/page-data?url=/sv/station/old-record&slim=1`);
+      assert.equal(failed.status, status, flag);
+      assert.equal(failed.headers.get('cache-control'), 'no-store');
+      assert.equal((await failed.json() as any).stationIdentity, undefined);
+    }
+  } finally { render.mock.restore(); }
+});
+
+test('slim retired single-letter station pages do not require a directory DTO', async () => {
+  const { SeoRenderer } = await import('../src/seo-renderer');
+  const id = '68a8c482bd66579311ab2f5b';
+  const canonical = `https://themegaradio.com/en/station/${id}`;
+  let cleanPath = '/station/x';
+  let pageType = 'station';
+  const render = mock.method(SeoRenderer.prototype, 'renderStaticPage', async () => ({
+    language: 'en', cleanPath, translations: {}, urlTranslations: new Map(),
+    seoTags: { title: 'Single-letter station', canonical },
+    pageData: { pageType, station: { ...FAKE_STATION_DOCS[0], _id: id, slug: cleanPath.split('/')[2] } },
+  }));
+  try {
+    for (const slug of ['x', 'a']) {
+      cleanPath = `/station/${slug}`;
+      const response = await fetch(`${baseUrl}/api/seo/page-data?url=/nl/station/${slug}&slim=1`);
+      assert.equal(response.status, 200, cleanPath);
+      const payload = await response.json() as any;
+      assert.equal(payload.stationIdentity, id);
+      assert.equal(payload.seoTags.canonical, canonical);
+      assert.equal(payload.stationDirectory, undefined);
+    }
+    // A genuine directory still fails closed when its required DTO is absent.
+    cleanPath = '/stations/x'; pageType = 'stations';
+    const directory = await fetch(`${baseUrl}/api/seo/page-data?url=/nl/stations/x&slim=1`);
+    assert.equal(directory.status, 503);
+    assert.equal(directory.headers.get('cache-control'), 'no-store');
+  } finally { render.mock.restore(); }
+});
+
 test('absent catalogue slices expose404 and noindex in both slim navigation and full previews', async () => {
   const { SeoRenderer } = await import('../src/seo-renderer');
   const fixture = { language: 'de', cleanPath: '/stations', translations: {},

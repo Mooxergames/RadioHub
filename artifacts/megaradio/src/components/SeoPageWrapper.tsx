@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { useSeoRouting } from "@/hooks/useSeoRouting";
 import { SeoHead } from "@/components/seo/SeoHead";
-import { getLanguageFromPath } from "@workspace/seo-shared/seo-config";
+import { getLanguageFromPath, getRetiredLocaleFromPath } from "@workspace/seo-shared/seo-config";
 import { isStationDirectoryData, isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 import { StationDirectoryContext, type SeoPagePayload } from '@/hooks/useStationDirectory';
 import { useLocation, useSearch } from "wouter";
@@ -23,7 +23,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   
   const routePath = (englishPath || '').split(/[?#]/)[0];
   const isGenrePage = /^\/genres(?:\/|$)/.test(routePath);
-  const isDirectory = isStationDirectoryPath(routePath);
+  const isDirectory = isStationDirectoryPath(routePath, !getRetiredLocaleFromPath(location));
   const isBlog = /^\/[a-z]{2}\/blog(?:\/|$)/.test(location);
   // Wouter decodes paths/search. Catalog validation and cache identity must
   // retain their original encoding, parameter order and duplicate parameters.

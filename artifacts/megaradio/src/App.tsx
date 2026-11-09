@@ -42,7 +42,7 @@ import { RecommendationsPrefetcher } from "@/components/recommendations/Recommen
 import { PushNotificationBridge } from "@/components/PushNotificationBridge";
 import { useState, useEffect, useDeferredValue } from "react";
 import { useLocation } from "wouter";
-import { getLanguageFromPath } from "@workspace/seo-shared/seo-config";
+import { getLanguageFromPath, getRetiredLocaleFromPath } from "@workspace/seo-shared/seo-config";
 import { syncDocumentLocale } from '@/lib/document-locale';
 import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useAnalytics } from "./hooks/use-analytics";
@@ -360,7 +360,7 @@ export function PublicRouter({ selectedCountry, onCountryChange }: { selectedCou
     if (pathToUse === '/radios/austria') return <LazyRoutes.AustriaRadiosPage />;
 
     // Match the wrapper's server-backed catalog before station detail routes.
-    if (isStationDirectoryPath(pathToUse)) return <LazyRoutes.StationDirectory />;
+    if (isStationDirectoryPath(pathToUse, !getRetiredLocaleFromPath(location))) return <LazyRoutes.StationDirectory />;
 
     // CRITICAL FIX: Station routing - handle BOTH English and translated paths
     // Support both /station/ and /stations/ formats without redirect (avoids losing country code)

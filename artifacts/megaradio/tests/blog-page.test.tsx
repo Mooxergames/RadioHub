@@ -111,9 +111,28 @@ it("modified clicks and table-of-contents anchors are not hijacked", async () =>
   expect(observedDefaults).toEqual([false, false]);
 });
 it("unknown guide and unavailable locale show a real not-found view, not duplicate index content", async () => {
-  const view = mount("/nl/blog");
+  const view = mount("/zz/blog");
   expect(view.getByText("Missing editorial page")).toBeVisible();
   expect(view.container.querySelector(".radio-journal-card")).toBeNull();
+});
+
+it.each(['/nl/blog/radio-data-usage', '/sv/blog/radio-data-usage'])(
+  'retired %s keeps its address while rendering the complete English edition', async path => {
+    const content = await loadBlogContent('en');
+    const article = content.articles.find(item => item.id === 'radio-data-usage')!;
+    const view = mount(path);
+    await view.findByRole('heading', { level: 1, name: article.title });
+    expect(view.getByText(article.sections[0].paragraphs[0])).toBeVisible();
+    expect(window.location.pathname).toBe(path);
+    expect(view.container.querySelector('main')).toHaveAttribute('lang', 'en');
+    expect(client.getQueryData(['editorial-blog', 'nl'])).toBeUndefined();
+  },
+);
+
+it('retired locales do not manufacture an English edition for a market-only article', () => {
+  const view = mount('/nl/blog/kral-fm-canli-dinle-sorunlari');
+  expect(view.getByText('Missing editorial page')).toBeVisible();
+  expect(window.location.pathname).toBe('/nl/blog/kral-fm-canli-dinle-sorunlari');
 });
 
 it("missing content is rejected independently of a valid catalog route; navigation back preserves the player", async () => {

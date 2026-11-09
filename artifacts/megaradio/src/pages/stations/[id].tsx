@@ -31,10 +31,11 @@ import bgGradient from "@assets/bg-gradient.lossless.png";
 import nosignalIcon from "@assets/nosignal.png";
 import StationLogo from "@/components/ui/station-logo";
 import { readStationBootstrap } from '@/lib/station-bootstrap';
+import { apiRequest } from '@/lib/queryClient';
 import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
 import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
-import { getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
+import { getStationCountryName, getStationCountryQuery, getRetiredLocaleFromPath } from '@workspace/seo-shared/seo-config';
 import { getStationRelatedHeading, getStationInformationCopy, isStationInformationPage } from '@workspace/seo-shared/station-page-copy';
 import AnimatedEqualizer from "@/components/ui/animated-equalizer";
 import { StarRating } from "@/components/star-rating";
@@ -198,6 +199,7 @@ export default function StationDetails() {
   // Immediate redirect for ObjectId URLs - don't wait for station data
   useEffect(() => {
     const currentIdentifier = stationSlug || stationId;
+    if (getRetiredLocaleFromPath(window.location.pathname)) return;
     
     // Check if the current identifier is an ObjectId (24 hex characters)
     if (currentIdentifier && currentIdentifier.match(/^[0-9a-fA-F]{24}$/)) {
@@ -222,8 +224,23 @@ export default function StationDetails() {
   }, [stationSlug, stationId, setLocation]);
 
   const bootstrapStation = useMemo(() => readStationBootstrap(identifier, language), [identifier, language]);
+  const retiredPath = getRetiredLocaleFromPath(window.location.pathname) ? window.location.pathname : undefined;
   const { data: apiStation, isLoading: stationLoading, error, refetch: refetchStation } = useQuery<any>({
-    queryKey: [`/api/station/${identifier}`],
+    queryKey: retiredPath ? ['/api/station', 'retired', retiredPath] : [`/api/station/${identifier}`],
+    ...(retiredPath ? { queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      // Initial HTML and SPA navigation use the same server-verified identity.
+      // Always enrich by ID: a stored slug may be unsafe or owned by another row.
+      let resolvedId = bootstrapStation?._id;
+      if (!resolvedId) {
+        const response = await apiRequest('GET', `/api/seo/page-data?url=${encodeURIComponent(retiredPath)}&slim=1`, { signal });
+        resolvedId = (await response.json()).stationIdentity;
+      }
+      if (typeof resolvedId !== 'string' || !resolvedId) throw new Error('503: Station identity unavailable');
+      const response = await apiRequest('GET', `/api/station/${encodeURIComponent(resolvedId)}`, { signal });
+      const station = await response.json();
+      if (String(station?._id) !== resolvedId) throw new Error('503: Station identity mismatch');
+      return station;
+    } } : {}),
     ...stationQueryFreshness,
     placeholderData: bootstrapStation,
     enabled: !!identifier,
