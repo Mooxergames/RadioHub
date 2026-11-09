@@ -16,6 +16,7 @@ const expectedImages = [
   ['header-logo-80w.webp', 80, 74, 'webp'],
   ['logo-icon.webp', 322, 299, 'webp'],
   ['images/logo-icon.webp', 194, 180, 'webp'],
+  ['images/footer-bg.webp', 673, 275, 'webp'],
 ] as const;
 let server: Server;
 let baseUrl: string;
@@ -55,6 +56,26 @@ for (const [filename, width, height, format] of expectedImages) {
     assert.equal(metadata.height, height);
   });
 }
+
+test('the deferred footer background is a decodable public asset with identical browser and crawler responses', async () => {
+  const footer = await readFile(path.resolve(import.meta.dirname, '../../megaradio/src/components/layout/footer.tsx'), 'utf8');
+  const pathname = '/images/footer-bg.webp';
+  assert.ok(footer.includes(`url(${pathname})`));
+  const bytes = await readFile(path.join(publicDirectory, pathname));
+  const { info } = await sharp(bytes).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(info.width, 673);
+  assert.equal(info.height, 275);
+  const policies: unknown[] = [];
+  for (const userAgent of ['Mozilla/5.0', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)']) {
+    const response = await fetch(baseUrl + pathname, { headers: { 'User-Agent': userAgent } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/webp');
+    assert.equal(response.headers.get('x-robots-tag'), null);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+    policies.push(['cache-control', 'etag', 'last-modified', 'content-length'].map(name => response.headers.get(name)));
+  }
+  assert.deepEqual(policies[0], policies[1]);
+});
 
 test('conventional favicon is a real ICO with unchanged PNG pixels, including HEAD and old query strings', async () => {
   for (const method of ['GET', 'HEAD']) {
@@ -128,6 +149,7 @@ test('manifest and unrelated/missing static assets keep their existing robots po
 
 for (const pathname of [
   '/images/hero-bg-430w.webp', '/images/about-frame.png',
+  '/images/footer-bg.webp',
   '/uploads/genres/discoverable/genre-dfd155a5-8ea0-47f6-8c09-d3ba856c4853.png',
 ]) {
   test(`public static image is indexable without changing pixels, validators or errors: ${pathname}`, async () => {

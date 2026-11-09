@@ -959,6 +959,50 @@ test('home page must NOT emit BreadcrumbList JSON-LD', () => {
 
 // Paragraph formatting must never discard a station's final sentence or
 // punctuation. Compare every escaped non-whitespace character, not a prefix.
+function renderDescriptionParagraphs(full: string): string[] {
+  const station = { _id: 'url-body-fixture', name: 'Test Radio', slug: 'test-radio',
+    country: 'Germany', descriptions: { en: { full, meta: 'Test station metadata' } } };
+  const body = new SeoRenderer().generateHtmlBody({ pageType: 'station', language: 'en',
+    translations: {}, stationData: station, additionalData: { pageType: 'station' },
+    urlTranslations: new Map<string, string>(), cleanPath: '/station/test-radio',
+    seoTags: { title: station.name, description: 'Test station metadata', domain: DOMAIN,
+      canonical: `${DOMAIN}/en/station/test-radio` } });
+  const section = body.match(/<p class="station-intro">[\s\S]*?<\/p>([\s\S]*?)<!-- DALGA 4: Station-specific outro/);
+  assert.ok(section, 'station description section must be present');
+  return [...section[1].matchAll(/<p>([\s\S]*?)<\/p>/g)].map(match => match[1]);
+}
+
+for (const url of [
+  'https://pbs.gov.ph/wp-content/uploads/2018/02/2016-Officials-Directory.pdf',
+  'http://example.invalid/archive.v2/programme.pdf?title=radio.fm&next=yes!#part.one',
+  'www.example.invalid/archive.v2/programme.pdf?title=radio.fm&next=yes!#part.one',
+  '//example.invalid/archive.v2/programme.pdf?title=radio.fm&next=yes!#part.one',
+  `https://example.invalid/${'long-path/'.repeat(45)}programme.pdf?title=radio.fm#part.one`,
+]) {
+  test(`station SSR never inserts paragraph boundaries inside URLs: ${url.slice(0, 75)}`, () => {
+    // Move each URL punctuation mark across the paragraph threshold.
+    const offsets = [...url.matchAll(/[.!?]/g)].map(match => match.index).filter(index => index < 399);
+    for (const offset of offsets) {
+      const sentence = `${'A'.repeat(399 - offset)} ${url}.`;
+      const tail = 'Following sentence without trailing punctuation';
+      assert.deepEqual(renderDescriptionParagraphs(`${sentence} ${tail}`), [escapeHtml(sentence), tail],
+        `URL punctuation at offset ${offset} must remain within one paragraph`);
+    }
+  });
+}
+
+for (const punctuation of ['.', '!', '?', '...!?']) {
+  for (const length of [399, 400, 401]) {
+    test(`station SSR keeps sentence paragraph splitting at ${length} characters ending in ${punctuation}`, () => {
+      const first = 'A'.repeat(length - punctuation.length) + punctuation;
+      const second = 'Second sentence!';
+      const tail = 'Final fragment without punctuation';
+      assert.deepEqual(renderDescriptionParagraphs(`${first}\n${second} ${tail}`),
+        length > 400 ? [first, `${second} ${tail}`] : [`${first}\n${second}`, tail]);
+    });
+  }
+}
+
 for (const fixture of [
   { language: 'tr', full: 'İlk cümle. ' + 'Özgün Türkçe radyo açıklaması ve yayın bilgileri '.repeat(9) + 'son cümle noktasız' },
   { language: 'de', full: 'Der erste Satz. ' + 'Informationen zum Programm und zur Musik '.repeat(10) + 'das vollständige Ende bleibt erhalten' },
