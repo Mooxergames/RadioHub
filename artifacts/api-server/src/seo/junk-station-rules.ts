@@ -118,7 +118,7 @@ export function automaticNoIndexPatch(station: any, verdict: JunkDecision, now =
 export function automaticNoIndexExpectedFilter(station: any): Record<string, any> {
   return Object.fromEntries([
     'noIndex', 'automaticNoIndex', 'manualEditFields', 'redirectToSlug',
-    'name', 'slug', 'url', 'lastCheckOk', 'lastCheckTime', 'lastCheckOkTime',
+    'name', 'slug', 'url', 'stationPageMode', 'lastCheckOk', 'lastCheckTime', 'lastCheckOkTime',
   ].map(key => [key, station[key] === undefined ? { $exists: false } : { $eq: station[key] }]));
 }
 

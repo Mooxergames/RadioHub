@@ -137,17 +137,8 @@ export async function runJunkCleanup(
     }
 
     // ---- 2) Junk evaluation -----------------------------------------------
-    const verdict = evaluateJunkStation({
-      name: station.name,
-      slug: ops.slug ?? currentSlug,
-      url: station.url,
-      homepage: station.homepage,
-      tags: station.tags,
-      bitrate: station.bitrate,
-      lastCheckOk: station.lastCheckOk,
-      lastCheckOkTime: station.lastCheckOkTime,
-      lastCheckTime: station.lastCheckTime,
-    });
+    const policyStation = { ...station, slug: ops.slug ?? currentSlug };
+    const verdict = evaluateJunkStation(policyStation);
 
     // Sibling-aware duplicate detection: only mark `slug-N` records as junk
     // when the sibling also has the same broadcaster identity and an actual
@@ -187,7 +178,7 @@ export async function runJunkCleanup(
     // Duplicates must never acquire health-only provenance that a later
     // successful stream check could reverse. Preserve manual/unknown flags.
     const policyVerdict = dupeOfBase ? { isJunk: true, reason: `duplicate-of:${dupeOfBase}` } : verdict;
-    const policyPatch = automaticNoIndexPatch({ ...station, slug: ops.slug ?? currentSlug }, policyVerdict);
+    const policyPatch = automaticNoIndexPatch(policyStation, policyVerdict);
     Object.assign(ops, policyPatch);
     if (policyPatch.noIndex === true) {
       junkMarked++;
