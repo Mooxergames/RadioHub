@@ -13,6 +13,7 @@ import { allocateUniqueCatalogSlug } from './postgres-slug-store';
 import { automaticNoIndexPatch, evaluateJunkStation } from '../seo/junk-station-rules';
 import { STATION_SYNC_POLICY_KEY, stationIntakeEnabled } from '../utils/station-sync-policy';
 import { descriptionTextSql } from './station-description-sql';
+import { descriptionLocaleProtected } from '../services/description-manual-policy';
 
 export type CatalogDocument = Record<string, any>;
 export type CatalogFilter = Record<string, any>;
@@ -423,6 +424,28 @@ export class PostgresCatalogStore {
           const parts = pathParts(field);
           if (["_id","createdAt"].includes(parts[0])) throw new Error(`Immutable catalog field: ${field}`);
           if (options.respectManualFields && current.manualEditFields?.[parts[0]]) return;
+          if (options.respectManualFields && parts[0] === 'descriptions') {
+            const flags = current.manualEditFields;
+            if (!flags || typeof flags !== 'object' || Array.isArray(flags) ||
+              (Object.hasOwn(flags, 'descriptions') && flags.descriptions !== false)) return;
+            if (parts.length > 1) {
+              if (descriptionLocaleProtected(flags, parts[1])) return;
+            } else {
+              // Root replacement may omit a locked locale or introduce one whose absence was locked.
+              const locked = new Set(Object.keys(flags).filter(key => key.startsWith('descriptions.'))
+                .map(key => key.split('.')[1]).filter(locale => descriptionLocaleProtected(flags, locale)));
+              if (locked.size) {
+                if (!remove && (!value || typeof value !== 'object' || Array.isArray(value))) return;
+                const previous = current.descriptions;
+                if (!previous || typeof previous !== 'object' || Array.isArray(previous)) return;
+                next.descriptions = Object.fromEntries([
+                  ...Object.entries(remove ? {} : value).filter(([locale]) => !locked.has(locale)),
+                  ...Object.entries(previous).filter(([locale]) => locked.has(locale)),
+                ]);
+                return;
+              }
+            }
+          }
           if (options.respectManualFields && parts[0] === 'urlResolved' && current.manualEditFields?.url) return;
           if (preserveHealth && PROVIDER_HEALTH_FIELDS.has(parts[0])) return;
           if (options.fillMissingFaviconOnly && parts[0] === 'favicon' && (

@@ -1,3 +1,6 @@
+import { descriptionLocaleProtected } from './description-manual-policy';
+export { descriptionLocaleProtected };
+
 export function descriptionRepairIdentity(station: Record<string, any>) {
   return {
     id: station.id ?? station._id, name: station.name ?? null, slug: station.slug ?? null,
@@ -9,12 +12,6 @@ export function descriptionRepairIdentity(station: Record<string, any>) {
   };
 }
 
-export function descriptionLocaleProtected(manual: unknown, language: string): boolean {
-  if (!manual || typeof manual !== 'object' || Array.isArray(manual)) return true;
-  const flags = manual as Record<string, unknown>;
-  return ['descriptions', `descriptions.${language}`, `descriptions.${language}.full`, `descriptions.${language}.meta`]
-    .some(key => Object.hasOwn(flags, key) && flags[key] !== false);
-}
 import { SITEMAP_PRIORITY_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { hasDescriptionText } from './station-description-content';
 import { findDescriptionLanguageIssues } from './station-description-validation';
