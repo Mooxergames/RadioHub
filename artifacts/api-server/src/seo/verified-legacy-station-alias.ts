@@ -23,6 +23,14 @@ const VERIFIED_LEGACY_ALIASES: Readonly<Record<string, string>> = Object.freeze(
   'radio-russia': 'radio-rossii',
   '1fm-movie-soundtrack': 'movie-soundtracks-hits-radio-1-fm',
   '1fm-movie-soundtrack-hits': 'movie-soundtracks-hits-radio-1-fm',
+  // Exact XHCGJ-FM / 107.1 / Ciudad Guzman spelling variant and iHeart's
+  // continuing Las Vegas channel 1337. Evidence: 2026-11-10-gsc-six-urls.md.
+  'jalisco-radio-fm-ciudad-guzmn-1071-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzmn-jc-1':
+    'jalisco-radio-fm-ciudad-guzman-107-1-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzman-jc',
+  '931-the-mountain-2': '93-1-the-mountain',
+  // Publisher archive identifies the current channel and its working stream.
+  // The unsafe former homepage is removed separately before deployment.
+  'paganradioorg-1': 'paganradio-org',
 });
 
 // Pin recovered identities so a later slug reassignment cannot redirect
@@ -35,6 +43,10 @@ const EXPECTED_STATION_IDS: Readonly<Record<string, string>> = Object.freeze({
   'radio-russia': '68a8c4a8bd66579311ab8be1',
   '1fm-movie-soundtrack': '68a8c47fbd66579311ab27d0',
   '1fm-movie-soundtrack-hits': '68a8c47fbd66579311ab27d0',
+  'jalisco-radio-fm-ciudad-guzmn-1071-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzmn-jc-1':
+    '6a07917abef34beb9148c3cf',
+  '931-the-mountain-2': '68a8c45cbd66579311aad14c',
+  'paganradioorg-1': '6a0791a3bef34beb9148ca80',
 });
 
 export const verifiedLegacyStationAliases: ReadonlyArray<readonly [string, string]> =

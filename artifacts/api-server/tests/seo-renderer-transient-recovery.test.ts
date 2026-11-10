@@ -288,6 +288,9 @@ for (const [legacy, canonical, id] of [
   ['radio-russia', 'radio-rossii', '68a8c4a8bd66579311ab8be1'],
   ['1fm-movie-soundtrack', 'movie-soundtracks-hits-radio-1-fm', '68a8c47fbd66579311ab27d0'],
   ['1fm-movie-soundtrack-hits', 'movie-soundtracks-hits-radio-1-fm', '68a8c47fbd66579311ab27d0'],
+  ['jalisco-radio-fm-ciudad-guzmn-1071-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzmn-jc-1', 'jalisco-radio-fm-ciudad-guzman-107-1-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzman-jc', '6a07917abef34beb9148c3cf'],
+  ['931-the-mountain-2', '93-1-the-mountain', '68a8c45cbd66579311aad14c'],
+  ['paganradioorg-1', 'paganradio-org', '6a0791a3bef34beb9148ca80'],
 ]) {
   const target = { ...station, _id: id, slug: canonical, noIndex: false,
     descriptions: Object.fromEntries(ACTIVE_SITEMAP_LANGUAGES.map(lang => [lang, { full: `Full ${lang}`, meta: `Meta ${lang}` }])) };
