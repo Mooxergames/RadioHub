@@ -110,6 +110,33 @@ test('nightly cleanup never clears unknown/manual/redirect/non-health flags', as
   }
 });
 
+test('nightly cleanup preserves empty-stream information pages and never reopens an existing empty-stream exclusion', async () => {
+  const information = row({ stationPageMode: 'information', url: '', urlResolved: '', isListVisible: false,
+    manualEditFields: { stationPageMode: true, url: true, urlResolved: true, isListVisible: true } });
+  const exclusion = { owner: 'radiohub-junk-policy', version: 1, active: true, reason: 'empty-stream-url' };
+  for (const existing of [information, { ...information, noIndex: true, automaticNoIndex: exclusion }]) {
+    reset([existing]);
+    await runJunkCleanup({ log() {} });
+    assert.deepEqual(updates, []);
+  }
+});
+
+test('nightly cleanup still marks genuine junk and fences the observed page mode', async () => {
+  for (const [station, modeFilter, reason] of [
+    [row({ url: '' }), { $exists: false }, 'empty-stream-url'],
+    [row({ stationPageMode: 'information', url: '', slug: 'radio-test-stream' }), { $eq: 'information' }, 'test-feed:test-stream'],
+  ] as const) {
+    reset([station]);
+    await runJunkCleanup({ log() {} });
+    assert.equal(updates.length, 1);
+    const { filter, update } = updates[0];
+    assert.deepEqual(filter.stationPageMode, modeFilter);
+    assert.deepEqual(Object.keys(update.$set).sort(), ['automaticNoIndex', 'noIndex']);
+    assert.equal(update.$set.noIndex, true);
+    assert.equal(update.$set.automaticNoIndex.reason, reason);
+  }
+});
+
 test('nightly cleanup owned-health retirement is guarded and audited while offline; dry-run never writes', async () => {
   const existing = recovered({ lastCheckOk: false }); reset([existing]);
   await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
