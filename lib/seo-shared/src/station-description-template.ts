@@ -16,6 +16,7 @@ export interface TemplateStationInfo {
 }
 
 const text = (value: unknown): string => typeof value === 'string' ? value.trim().replace(/\s+/gu, ' ') : '';
+const leadingImportMarker = /^\s*\[\s*(?:(?:TRANSLATED\s+)?(?:FULL\s+DESCRIPTION|META(?:\s+DESCRIPTION)?|SEO\s+META)|REVIEWED\s+DESCRIPTION|IMPORT\s+NOTE|VOLLE\s+BESCHREIBUNG|DESCRIPTION\s+COMPL[ÈE]TE|DESCRIPCI[ÓO]N\s+COMPLETA|DESCRIZIONE\s+COMPLETA|DESCRI[ÇC][ÃA]O\s+COMPLETA|ПОЛНОЕ\s+ОПИСАНИЕ|الوصف\s+الكامل)(?:\s*[-:(][^\]]{0,160})?\s*\]\s*/iu;
 
 export function buildTemplateDescription(station: TemplateStationInfo): { full: string; meta: string } {
   const name = text(station.name);
@@ -70,10 +71,11 @@ export function selectStationVisibleDescription(
   const article = (entry: unknown): string => {
     const value = typeof entry === 'string' ? entry
       : entry && typeof entry === 'object' && !Array.isArray(entry) ? (entry as { full?: unknown }).full : undefined;
-    // Match SSR's leading marker safeguards; brackets inside prose stay intact.
-    return typeof value === 'string'
-      ? value.replace(/^(?:\s*\[[^\]]*\]\s*)+/u, '')
-        .replace(/\{STATION_NAME\}/g, () => typeof station.name === 'string' ? station.name : '').trim() : '';
+    if (typeof value !== 'string') return '';
+    // A bracketed article or station name is content, not an import marker.
+    let cleaned = value;
+    while (leadingImportMarker.test(cleaned)) cleaned = cleaned.replace(leadingImportMarker, '');
+    return cleaned.replace(/\{STATION_NAME\}/g, () => typeof station.name === 'string' ? station.name : '').trim();
   };
   const legacy = typeof station.description === 'string' ? station.description : undefined;
   for (const entry of [descriptions?.[language], legacy, descriptions?.en]) {

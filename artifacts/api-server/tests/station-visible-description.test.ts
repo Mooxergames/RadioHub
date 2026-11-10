@@ -104,3 +104,39 @@ test('station placeholders use literal callback replacement, including dollar to
   }
   assert.equal(selectStationVisibleDescription({ name: '', description: '{STATION_NAME}' }, 'de', ''), '');
 });
+
+test('whole bracketed prose, broadcaster names and unknown prefixes are never discarded as markers', () => {
+  for (const prose of [
+    '[A station-specific first paragraph.\n\nThe second paragraph contains reception details.]',
+    '[BBC Radio] A broadcaster name is part of this sentence.',
+    '[A complete article mentioning [a programme] inside its prose.]',
+    '[Unrecognized note] This source must not silently lose its first part.',
+  ]) {
+    for (const fields of [
+      { descriptions: { en: { full: prose } } },
+      { descriptions: { de: prose, en: english } },
+      { description: prose, descriptions: { en: english } },
+    ]) assert.equal(selectStationVisibleDescription({ ...station, ...fields }, 'de', 'Germany'), prose);
+  }
+});
+
+test('recognized localized import labels are removed without removing a following bracketed article', () => {
+  const prose = '[Actual station information stays complete.]';
+  for (const marker of ['[Volle Beschreibung]', '[DESCRIPTION COMPLÈTE]', '[DESCRIPCIÓN COMPLETA]',
+    '[DESCRIZIONE COMPLETA]', '[DESCRIÇÃO COMPLETA]', '[ПОЛНОЕ ОПИСАНИЕ]', '[الوصف الكامل]']) {
+    assert.equal(selectStationVisibleDescription({ ...station, descriptions: { en: marker + prose } }, 'en', 'Germany'), prose);
+  }
+});
+
+test('whitespace-padded import labels alone fall through to the next valid description', () => {
+  for (const marker of ['[ Import note ]', '[FULL DESCRIPTION ]', '[ FULL DESCRIPTION ]']) {
+    assert.equal(selectStationVisibleDescription({ ...station, descriptions: { de: marker, en: english } }, 'de', 'Germany'), english);
+  }
+});
+
+test('whitespace-padded import labels preserve a following genuine bracketed paragraph', () => {
+  const prose = '[Actual station information stays complete.]';
+  for (const marker of ['[ Import note ]', '[FULL DESCRIPTION ]', '[ FULL DESCRIPTION ]']) {
+    assert.equal(selectStationVisibleDescription({ ...station, descriptions: { en: marker + prose } }, 'en', 'Germany'), prose);
+  }
+});

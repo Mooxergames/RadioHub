@@ -70,6 +70,20 @@ the cache and writer release after these gates. Data commit remains conditional
 on the deployed writer and the exact reviewed SQL hash
 `19c38792d1fdbba88c58596f3198367a4afff03eaa9999869d73da42f168b219`.
 
+PR #186 passed both CI jobs and merged as `fe3e6d35f`; the API deployment
+`938f70ca-2a00-4207-9b84-fe4ac212fff5` became active with a successful health
+check before the approved data operation. That exact SQL committed four rows.
+A separate read-only connection and full-row comparison confirmed all four
+approved postimages, unchanged identities/streams and native/source parity.
+The commit receipt SHA-256 is
+`04f624a71a660418aa3f97bef2e5e51ff03e4a78928e91741fee52cdf293498e`;
+the independent read receipt is
+`9ee94813fdb3b7449398ad394fad29950063913295171ecf6de02df1080e8a6e`.
+
+The subsequent selector patch strips only recognized import labels, including
+their padded whitespace; genuine bracketed station prose and names survive.
+Its selector, retired-locale and SSR-card regression suites passed 139/139.
+
 ## Eleven Remaining Gone URLs
 
 All eleven historical 404-sample URLs still returned 410 in the fresh check.
