@@ -223,6 +223,50 @@ test('historical exact/alias/Unicode identities render identically with cold or 
   }
 });
 
+test('historical jp Jalisco route reaches the Japanese XHCGJ station without a loop', async () => {
+  const id = '6a07917abef34beb9148c3cf';
+  const slug = 'jalisco-radio-fm-ciudad-guzman-107-1-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzman-jc';
+  const old = 'jalisco-radio-fm-ciudad-guzmn-1071-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzmn-jc-1';
+  stationRows = [fixture({ _id: id, slug, slugAliases: [slug + '-1'], name: 'Jalisco Radio XHCGJ-FM',
+    country: 'Mexico', url: 'https://sp2.servidorrprivado.com/8136/ciudadguzman', lastCheckOk: false })];
+  const detail = URL_TRANSLATIONS.ja.station;
+  for (const warm of [false, true]) {
+    slugCacheReady = warm;
+    let path = '/jp/station/' + old;
+    const seen = new Set<string>();
+    let response = await request(path);
+    while (response.status === 301) {
+      assert.ok(!seen.has(path) && seen.size < 3, path);
+      seen.add(path);
+      const next = new URL(response.headers.get('location')!, 'https://themegaradio.com');
+      assert.equal(next.origin, 'https://themegaradio.com');
+      path = next.pathname;
+      response = await request(path);
+    }
+    assert.equal(decodeURI(path), `/ja/${detail}/${slug}`);
+    assert.equal(response.status, 200);
+    const html = decodeURI(await response.text());
+    assert.ok(html.includes(`rel="canonical" href="https://themegaradio.com/ja/${detail}/${slug}"`));
+    assert.ok(html.includes(`"_id":"${id}"`));
+  }
+});
+
+test('retired bn historical Mountain URL renders the pinned English station, not a generic 200', async () => {
+  const id = '68a8c45cbd66579311aad14c';
+  stationRows = [fixture({ _id: id, slug: '93-1-the-mountain', slugAliases: ['931-the-mountain-3'],
+    country: 'The United States Of America', name: '93.1 The Mountain', url: 'https://stream.revma.ihrhls.com/zc1337' })];
+  for (const warm of [false, true]) {
+    slugCacheReady = warm;
+    const response = await request('/bn/station/931-the-mountain-2');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('location'), null);
+    const html = await response.text();
+    assert.ok(html.includes('rel="canonical" href="https://themegaradio.com/en/station/93-1-the-mountain"'));
+    assert.ok(html.includes(`"_id":"${id}"`));
+    assert.ok(html.includes('https://stream.revma.ihrhls.com/zc1337'));
+  }
+});
+
 test('historical fm-100 alias keeps every existing eligibility policy with cold and warm caches', async () => {
   for (const [patch, expected] of [
     [{ noIndex: true, lastCheckOk: false }, 200],
