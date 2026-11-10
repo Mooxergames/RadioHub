@@ -50,6 +50,7 @@ function buildHreflangLinks(code: string, href: string): string {
 import { performanceCache } from "../performance-cache";
 import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import CacheManager, { CacheKeys } from "../cache";
+import { readCachedStationSitemapXml, storeStationSitemapXml } from '../seo/station-sitemap-cache';
 import { getBaseUrl } from "./shared-utils";
 import { loadSitemapTranslations } from "../utils/sitemap-translations";
 import { sendSitemapGone } from "../seo/send-sitemap-gone";
@@ -1168,7 +1169,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       // directory identity exclusions and owned image URLs remain unchanged.
       const cacheKey = `sitemap:stations:xml-v6-css-az-safe-owned-images:${lang}:${chunk}:${state.hash}:${chunkInfo.version}:${chunkInfo.maxUpdatedAt instanceof Date ? chunkInfo.maxUpdatedAt.getTime() : 0}`;
       if (await sendCachedSitemap304(req, res, cacheKey, childCacheControl)) return;
-      const cached = await CacheManager.get<CachedSitemapXml>(cacheKey);
+      const cached = await readCachedStationSitemapXml(cacheKey);
       if (cached) {
         return sendSitemapXml(req, res, cached, childCacheControl);
       }
@@ -1246,7 +1247,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
       const xml = parts.join('');
 
       const sitemap = cacheSitemapXml(xml);
-      await storeSitemapXml(cacheKey, sitemap);
+      await storeStationSitemapXml(cacheKey, sitemap, SITEMAP_CONFIG.childCacheTtlSeconds);
       sendSitemapXml(req, res, sitemap, childCacheControl);
 
       logger.log(`✅ sitemap-stations-${lang}-${chunk}.xml (${stationCount}/${chunkInfo.stationIds.length}) ${Date.now() - startTime}ms`);

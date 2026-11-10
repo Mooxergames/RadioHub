@@ -304,12 +304,21 @@ mock.module(new URL('../src/performance-cache.ts', import.meta.url).href, {
 
 const fakeCacheStore = new Map<string, unknown>();
 const fakeCacheReads: string[] = [];
+const fixtureRedisUrl = process.env.REDIS_URL;
+delete process.env.REDIS_URL;
+const realCacheManager = (await import('../src/cache')).default;
+if (fixtureRedisUrl !== undefined) process.env.REDIS_URL = fixtureRedisUrl;
+let useRealBoundedCache = false;
 const FAKE_CACHE_MANAGER = {
-  get: async (k: string) => { fakeCacheReads.push(k); return fakeCacheStore.get(k) ?? null; },
-  set: async (k: string, v: unknown) => {
+  get: async (k: string) => {
+    fakeCacheReads.push(k);
+    return useRealBoundedCache ? realCacheManager.get(k) : fakeCacheStore.get(k) ?? null;
+  },
+  set: async (k: string, v: unknown, options: { ttl?: number } = {}) => {
+    if (useRealBoundedCache) return realCacheManager.set(k, v, options);
     fakeCacheStore.set(k, v);
   },
-  del: async () => {},
+  del: async (k: string) => { if (useRealBoundedCache) await realCacheManager.del(k); else fakeCacheStore.delete(k); },
   delPattern: async () => {},
 };
 
@@ -1053,6 +1062,59 @@ test('conditional leaf cache hits use small validators without rereading station
     assert.equal(unconditional.headers.get('etag'), etag);
     assert.ok(sitemapReadBatches.length > reads, 'a caller without the representation receives regenerated XML');
   } finally { fakeCacheStore.clear(); }
+});
+
+test('large station XML survives the real Redis-free memory cap without changing responses or rereading rows', async () => {
+  fakeCacheStore.clear();
+  await realCacheManager.clearByPattern('sitemap:');
+  useRealBoundedCache = true;
+  sitemapReadRows = [{ ...FAKE_STATION_DOCS[0], name: 'Large fixture Å '.repeat(220_000) }];
+  sitemapReadBatches.length = 0;
+  const cacheKey = `sitemap:stations:xml-v6-css-az-safe-owned-images:en:1:${TEST_HASH}:v1-test:${NOW.getTime()}`;
+  try {
+    const first = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`);
+    assert.equal(first.status, 200);
+    const body = await first.text();
+    const headers = ['etag', 'content-length', 'cache-control', 'content-type', 'content-encoding'] as const;
+    const reads = sitemapReadBatches.length;
+    assert.ok(JSON.stringify({ xml: body }).length * 2 > 8 * 1024 * 1024);
+    assert.equal(await realCacheManager.get(cacheKey), null, 'older readers must never receive a packed record');
+    const packed = await realCacheManager.get<any>(cacheKey + ':gzip-v1');
+    assert.equal(packed?.encoding, 'gzip-base64-v1');
+    assert.ok(JSON.stringify(packed).length * 2 < 8 * 1024 * 1024);
+    const second = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`);
+    assert.equal(second.status, 200);
+    assert.equal(await second.text(), body);
+    for (const header of headers) assert.equal(second.headers.get(header), first.headers.get(header), header);
+    assert.equal(sitemapReadBatches.length, reads, 'unconditional hot GET cannot regenerate XML from PostgreSQL');
+    for (const validator of [first.headers.get('etag')!, `W/${first.headers.get('etag')!}`]) {
+      fakeCacheReads.length = 0;
+      const conditional = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': validator } });
+      assert.equal(conditional.status, 304);
+      assert.equal(await conditional.text(), '');
+      assert.deepEqual(fakeCacheReads, [cacheKey + ':validator']);
+    }
+    const mismatch = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`, { headers: { 'If-None-Match': '"different"' } });
+    assert.equal(mismatch.status, 200);
+    assert.equal(await mismatch.text(), body);
+    assert.equal(sitemapReadBatches.length, reads);
+    await realCacheManager.set(cacheKey + ':gzip-v1', { ...packed, data: 'AAAA' });
+    const repaired = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`);
+    assert.equal(repaired.status, 200);
+    assert.equal(await repaired.text(), body);
+    assert.ok(sitemapReadBatches.length > reads, 'corrupt cache is a miss, not a broken or 503 response');
+    const readsAfterRepair = sitemapReadBatches.length;
+    await realCacheManager.clearByPattern('sitemap:');
+    const afterClear = await fetch(`${baseUrl}/sitemap-stations-en-1.xml`);
+    assert.equal(afterClear.status, 200);
+    assert.equal(await afterClear.text(), body);
+    assert.ok(sitemapReadBatches.length > readsAfterRepair);
+  } finally {
+    useRealBoundedCache = false;
+    sitemapReadRows = FAKE_STATION_DOCS;
+    fakeCacheStore.clear();
+    await realCacheManager.clearByPattern('sitemap:');
+  }
 });
 
 test('advertised leaves with no surviving rows return uncached 503 and recover on the next read', async () => {
