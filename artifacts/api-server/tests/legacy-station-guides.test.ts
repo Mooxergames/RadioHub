@@ -10,7 +10,8 @@ import { countryPrefixRedirectMiddleware } from '../src/middleware/country-prefi
 import { buildPublicSeoRouteMatchers, decodePublicSeoPath } from '../src/seo/public-route-matchers';
 import { sendJunkGone } from '../src/seo/send-junk-gone';
 import { markSeoTemporarilyUnavailable } from '../src/seo/temporary-unavailable';
-import { LEGACY_STATION_GUIDES } from '@workspace/seo-shared/legacy-station-guides';
+import { LEGACY_STATION_GUIDES, isLegacyStationArticle } from '@workspace/seo-shared/legacy-station-guides';
+import { LEGACY_COMBINED_GENRE_SLUG } from '@workspace/seo-shared/legacy-station-guide-routes';
 
 const origin = 'https://themegaradio.com';
 const radar = '/af/station/radar-4', rock = '/ar/mahta/rock-fm-23', oldRock = '/ar/station/rock-fm-23';
@@ -22,6 +23,7 @@ const owner = (slug: string, patch: Record<string, unknown> = {}) => ({
 });
 type Row = ReturnType<typeof owner>;
 let rows: Row[], mergeOwners: Map<string, Row>, failAt: string | undefined;
+let genreAlias: string | undefined;
 const lookups: string[] = [], pageCache = new Map<string, any>();
 let renderer: InstanceType<typeof import('../src/seo-renderer').SeoRenderer>;
 let server: Server;
@@ -30,6 +32,14 @@ const read = (kind: string, key: string) => {
   if (kind === failAt) throw new Error('fixture: ' + kind + ' unavailable');
 };
 before(async () => {
+  const genreStore = await import('../src/seo/genre-whitelist-store');
+  mock.module('../src/seo/genre-whitelist-store', { namedExports: { ...genreStore,
+    ensureGenreWhitelistFresh: async () => { read('genre', 'overrides'); },
+  } });
+  const genreWhitelist = await import('../src/seo/genre-whitelist');
+  mock.module('../src/seo/genre-whitelist', { namedExports: { ...genreWhitelist,
+    getCanonicalGenreSlug: (slug: string) => slug === LEGACY_COMBINED_GENRE_SLUG && genreAlias ? genreAlias : genreWhitelist.getCanonicalGenreSlug(slug),
+  } });
   mock.method(performanceCache, 'getUrlTranslations', async () => new Map());
   mock.method(performanceCache, 'getTranslations', () => ({ nav_home: 'Home' }));
   mock.method(performanceCache, 'getPageData', (k: string) => pageCache.get(k));
@@ -76,7 +86,7 @@ before(async () => {
   });
   await new Promise<void>((resolve, reject) => { server = app.listen(0, '127.0.0.1', resolve); server.once('error', reject); });
 });
-beforeEach(() => { rows = []; mergeOwners = new Map(); failAt = undefined; pageCache.clear(); lookups.length = 0; });
+beforeEach(() => { rows = []; mergeOwners = new Map(); failAt = undefined; genreAlias = undefined; pageCache.clear(); lookups.length = 0; });
 after(async () => { try {
   if (server?.listening) await new Promise<void>(resolve => server.close(() => resolve()));
 } finally { mock.restoreAll(); } });
@@ -106,7 +116,9 @@ for (const { path, language } of LEGACY_STATION_GUIDES) {
     assert.equal(page.pageData?.additionalData?.legacyGuide?.id, expected.id);
     assert.ok(!page.pageData?.station && !page.pageData?.notFound && !page.pageData?.stationIsJunk);
     const slug = path.split('/').at(-1)!;
-    for (const kind of ['slug', 'merge', 'alias']) assert.ok(lookups.includes(kind + ':' + slug), kind + ' owner not checked');
+    if (!getLanguageFromPath(path).cleanPath.startsWith('/genres/')) {
+      for (const kind of ['slug', 'merge', 'alias']) assert.ok(lookups.includes(kind + ':' + slug), kind + ' owner not checked');
+    } else assert.ok(lookups.includes('genre:overrides'), 'genre ownership snapshot was not checked');
     assert.equal(page.language, language);
     const response = await get(path);
     assert.equal(response.status, 200); assert.equal(response.location, undefined);
@@ -115,7 +127,7 @@ for (const { path, language } of LEGACY_STATION_GUIDES) {
     assert.equal(canon.length, 1); assert.ok(canon[0].includes('href="' + origin + path + '"'));
     assert.equal((body.match(/<h1\b/g) || []).length, 1);
     assert.ok(body.includes(expected.title));
-    if (expected.kind === 'history') {
+    if (isLegacyStationArticle(expected)) {
       assert.ok(expected.sections.length >= 2);
       for (const section of expected.sections) for (const paragraph of section.paragraphs) assert.ok(body.includes(paragraph));
       for (const source of expected.sources) assert.ok(body.includes(source.url.replaceAll('&', '&amp;')));
@@ -134,8 +146,8 @@ for (const { path, language } of LEGACY_STATION_GUIDES) {
     const allTypes = jsonld.flatMap(types);
     assert.ok(allTypes.some(s => ['CollectionPage', 'Article'].includes(s)), JSON.stringify(allTypes));
     assert.ok(!allTypes.some(s => ['RadioStation', 'RadioBroadcastService', 'ListenAction', 'AudioObject'].includes(s)));
-    assert.ok(allTypes.includes(expected.kind === 'history' ? 'Article' : 'CollectionPage'));
-    if (expected.kind === 'history') assert.ok(!allTypes.includes('ItemList'));
+    assert.ok(allTypes.includes(isLegacyStationArticle(expected) ? 'Article' : 'CollectionPage'));
+    if (isLegacyStationArticle(expected)) assert.ok(!allTypes.includes('ItemList'));
     const h = await get(path, 'HEAD'); assert.equal(h.status, 200); assert.equal(h.body, '');
     const dto = await slim(path); assert.equal(dto.status, 200);
     const payload = JSON.parse(dto.body); assert.equal(payload.legacyGuideId, expected.id);
@@ -155,7 +167,7 @@ test('unapproved locales, lookalike slugs and broken paths do not serve either g
   for (const p of ['/en/station/radar-4', '/de/sender/rock-fm-23', '/af/station/pre-radar-4',
     '/ar/mahta/rock-fm-23-extra', '/af/station/radar-4%2Fjunk', '/ar/mahta/%E0%A4%A',
     '/en/station/quran-radio-3', '/ar/mahta/quran-radio-30', '/en/station/channel-v-international',
-    '/am/station/channel-v-international-2', '/hu/radio/1-21', '/am/station/disco-2']) {
+    '/am/station/channel-v-international-2', '/hu/radio/1-210', '/am/station/disco-20']) {
     let response = await get(p);
     if (p === '/ar/mahta/%E0%A4%A' && response.status === 301) {
       assert.equal(response.location, '/ar/mahta/%E0%A4%a');
@@ -183,6 +195,57 @@ for (const [reason, patch] of [
     }
   });
 }
+
+test('plural test path consolidates only after every ownership check misses', async () => {
+  const response = await get('/hu/radios/1-21');
+  assert.equal(response.status, 301); assert.equal(response.location, '/hu/radio/1-21');
+  assert.equal((await get(response.location!)).status, 200);
+  for (const kind of ['slug', 'merge', 'alias']) assert.ok(lookups.includes(kind + ':1-21'));
+  for (const kind of ['slug', 'merge', 'alias']) {
+    rows = []; mergeOwners.clear();
+    const existing = owner(kind === 'slug' ? '1-21' : 'old-test', { name: '彩条测试1', noIndex: true,
+      ...(kind === 'alias' ? { slugAliases: ['1-21'] } : {}),
+    });
+    rows.push(existing); if (kind === 'merge') mergeOwners.set('1-21', existing);
+    for (const path of ['/hu/radio/1-21', '/hu/radios/1-21']) {
+      const page = await render(path); assert.notEqual(page.pageData?.pageType, 'legacy-guide');
+      assert.equal((await get(path)).status, 410);
+    }
+  }
+  rows = []; mergeOwners.clear();
+  for (const kind of ['slug', 'merge', 'alias']) {
+    failAt = kind;
+    for (const path of ['/hu/radio/1-21', '/hu/radios/1-21']) {
+      assert.equal((await get(path)).status, 503);
+      assert.equal((await slim(path)).status, 503);
+    }
+  }
+});
+
+test('only the reviewed genre bundle renders its article, never adjacent or paginated paths', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'radio-labels')!;
+  const old = await get(guide.sourcePaths[0]);
+  assert.equal(old.status, 301); assert.equal(old.location, guide.path);
+  for (const path of [guide.path + '-extra', guide.path + '/extra', guide.path + '?page=2',
+    guide.path.replace('-00s', '%2D00s'), guide.path.replace('/ar/', '/en/')]) {
+    const page = await render(path);
+    assert.notEqual(page.pageData?.pageType, 'legacy-guide', path);
+  }
+  await render(guide.path);
+  genreAlias = 'pop';
+  const current = await render(guide.path);
+  assert.notEqual(current.pageData?.pageType, 'legacy-guide');
+  assert.equal(current.pageData?.redirectTo, '/ar/anwaa/pop');
+  const dto = await slim(guide.path); assert.equal(dto.status, 200);
+  assert.equal(JSON.parse(dto.body).redirectTo, '/ar/anwaa/pop');
+  assert.equal(JSON.parse(dto.body).legacyGuideId, null);
+  const invalid = guide.path + '?page=2&page=3';
+  assert.equal((await get(invalid)).status, 404);
+  assert.equal((await slim(invalid)).status, 404);
+  genreAlias = undefined; failAt = 'genre';
+  assert.equal((await get(guide.path)).status, 503);
+  assert.equal((await slim(guide.path)).status, 503);
+});
 
 for (const kind of ['merge', 'alias']) {
   test(kind + ' owner resolves through the normal station flow, never the guide', async () => {
@@ -231,7 +294,7 @@ test('a previously resolved cached guide cannot mask a new owner or a subsequent
   assert.equal((await slim(radar)).status, 503);
 });
 
-for (const guide of LEGACY_STATION_GUIDES.filter(guide => ['quran-radio-3', 'channel-v-international'].includes(guide.id))) {
+for (const guide of LEGACY_STATION_GUIDES.filter(guide => !['radar-4', 'rock-fm-23', 'radio-labels', 'color-bars-test'].includes(guide.id))) {
   test('new editorial route preserves every owner and exclusion gate: ' + guide.id, async () => {
     const slug = guide.path.split('/').at(-1)!;
     for (const kind of ['slug', 'merge', 'alias']) {

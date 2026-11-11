@@ -1,6 +1,7 @@
 import type { SeoMetaTags } from './seo-config';
 import { translateUrl } from './url-translations';
 import { getLegacyStationGuideRoute } from './legacy-station-guide-routes';
+import { LEGACY_LISTENING_GUIDES } from './legacy-listening-guides';
 
 interface LegacyStationGuideBase {
   id: string;
@@ -12,6 +13,7 @@ interface LegacyStationGuideBase {
   description: string;
   intro: string;
   scopeNote: string;
+  relatedLinks?: readonly { label: string; path: string }[];
   faq: readonly { question: string; answer: string }[];
 }
 
@@ -25,13 +27,17 @@ export type LegacyStationGuide = LegacyStationGuideBase & ({
     sources: readonly { label: string; url: string }[];
   }[];
 } | {
-  kind: 'history';
+  kind: 'history' | 'article' | 'audio-test';
   publishedAt: string;
   sections: readonly { heading: string; paragraphs: readonly string[] }[];
   sources: readonly { label: string; url: string }[];
 });
 
 export const LEGACY_GUIDE_REVIEWED_AT = '2026-11-11';
+
+export function isLegacyStationArticle(guide: LegacyStationGuide): guide is Extract<LegacyStationGuide, { kind: 'history' | 'article' | 'audio-test' }> {
+  return guide.kind !== undefined && guide.kind !== 'disambiguation';
+}
 
 // These documents do not identify a successor for an unbound station record.
 // The server may publish them only after every real station ownership lookup misses.
@@ -181,6 +187,7 @@ export const LEGACY_STATION_GUIDES: readonly LegacyStationGuide[] = [
       answer: 'في الموقع الروماني اختر «Ascultă Rock FM» لا «Rock Românesc». وفي الموقع الروسي اختر ROCK FM نفسها، لا إحدى قنوات 70s أو 80s. الخيار الأول في كل مثال هو مدخل المحطة الرئيسية، أما القنوات الأخرى فخيارات موسيقية مميزة بالاسم.',
     }],
   },
+  ...LEGACY_LISTENING_GUIDES,
 ];
 
 export function getLegacyStationGuide(path: string): LegacyStationGuide | null {
@@ -206,7 +213,7 @@ export function buildLegacyStationGuideSeo(guide: LegacyStationGuide): SeoMetaTa
     title: guide.seoTitle, description: guide.description, canonical,
     robots: 'index, follow, max-image-preview:large', noIndex: false,
     hreflangs: [], ogLocaleAlternates: [],
-    ogTitle: guide.seoTitle, ogDescription: guide.description, ogType: guide.kind === 'history' ? 'article' : 'website', ogUrl: canonical,
+    ogTitle: guide.seoTitle, ogDescription: guide.description, ogType: isLegacyStationArticle(guide) ? 'article' : 'website', ogUrl: canonical,
     ogLocale: guide.language === 'ar' ? 'ar_AR' : 'en_US',
     twitterTitle: guide.seoTitle, twitterDescription: guide.description,
     language: guide.language,
@@ -222,7 +229,7 @@ export function buildLegacyStationGuideSchema(guide: LegacyStationGuide): unknow
       { '@type': 'ListItem', position: 1, name: home, item: `https://themegaradio.com/${guide.language}` },
       { '@type': 'ListItem', position: 2, name: guide.title, item: url },
     ],
-  }, guide.kind === 'history' ? {
+  }, isLegacyStationArticle(guide) ? {
     '@context': 'https://schema.org', '@type': 'Article', '@id': `${url}#article`,
     mainEntityOfPage: url, headline: guide.title, description: guide.description,
     inLanguage: guide.language, datePublished: guide.publishedAt, dateModified: LEGACY_GUIDE_REVIEWED_AT,
@@ -246,15 +253,17 @@ export function renderLegacyStationGuideHtml(guide: LegacyStationGuide): string 
   const ar = guide.language === 'ar';
   const sourceLink = (source: { label: string; url: string }) => safeSource(source.url)
     ? `<a href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.label)}</a>` : esc(source.label);
-  const content = guide.kind === 'history'
+  const isArticle = isLegacyStationArticle(guide);
+  const content = isLegacyStationArticle(guide)
     ? guide.sections.map(section => `<section><h2>${esc(section.heading)}</h2>${section.paragraphs.map(paragraph => `<p>${esc(paragraph)}</p>`).join('')}</section>`).join('')
-      + `<section><h2>Official documents</h2><ul>${guide.sources.map(source => `<li>${sourceLink(source)}</li>`).join('')}</ul></section>`
+      + `<section><h2>${ar ? 'المصادر والمراجع' : 'Sources and references'}</h2><ul>${guide.sources.map(source => `<li>${sourceLink(source)}</li>`).join('')}</ul></section>`
     : guide.choices.map(choice => `<section><h2>${esc(choice.name)}</h2><p><strong>${esc(choice.place)}</strong></p><p>${esc(choice.copy)}</p><p>${sourceLink(choice.officialListen)}</p><ul>${choice.sources.map(source => `<li>${sourceLink(source)}</li>`).join('')}</ul></section>`).join('');
   return `<main class="radio-journal radio-legacy-guide" lang="${guide.language}" dir="${ar ? 'rtl' : 'ltr'}" data-legacy-guide-id="${esc(guide.id)}">
     <nav aria-label="breadcrumb"><ol class="radio-journal-crumbs"><li><a href="/${guide.language}">${ar ? 'الرئيسية' : 'Home'}</a></li><li><span aria-current="page">${esc(guide.title)}</span></li></ol></nav>
-    <article><header class="radio-journal-heading"><span class="radio-journal-eyebrow">${ar ? 'دليل المحطات' : guide.kind === 'history' ? 'Broadcast history' : 'Station guide'}</span><h1>${esc(guide.title)}</h1><p class="radio-journal-intro">${esc(guide.intro)}</p><div class="radio-journal-byline"><span>MegaRadio</span><span>${ar ? 'آخر مراجعة للمصادر' : 'Sources reviewed'} <time datetime="${LEGACY_GUIDE_REVIEWED_AT}">${LEGACY_GUIDE_REVIEWED_AT}</time></span></div></header>
-    <div class="radio-journal-prose"><p>${esc(guide.scopeNote)}</p>${content}
-    <section><h2>${ar ? 'أسئلة شائعة' : guide.kind === 'history' ? 'Questions about Channel V' : 'Questions about these stations'}</h2>${guide.faq.map(item => `<h3>${esc(item.question)}</h3><p>${esc(item.answer)}</p>`).join('')}</section>
+    <article><header class="radio-journal-heading"><span class="radio-journal-eyebrow">${ar ? isArticle ? 'دليل الاستماع' : 'دليل المحطات' : guide.kind === 'history' ? 'Broadcast history' : isArticle ? 'Listening guide' : 'Station guide'}</span><h1>${esc(guide.title)}</h1><p class="radio-journal-intro">${esc(guide.intro)}</p><div class="radio-journal-byline"><span>MegaRadio</span><span>${ar ? 'آخر مراجعة للمصادر' : 'Sources reviewed'} <time datetime="${LEGACY_GUIDE_REVIEWED_AT}">${LEGACY_GUIDE_REVIEWED_AT}</time></span></div></header>
+    <div class="radio-journal-prose"><p>${esc(guide.scopeNote)}</p>${guide.kind === 'audio-test' ? '<figure><img src="/images/radio-test-color-bars.png" width="1200" height="320" alt="Locally generated illustrative RGB color bars, not a recording of the former test feed" style="width:100%;height:auto"><figcaption>Local illustration, not the former broadcast or a calibrated video test pattern.</figcaption></figure><div data-audio-test-root style="min-height:180px"><noscript>The colour-bar example and the listening checks below are available without JavaScript. Browser-generated test tones require JavaScript.</noscript></div>' : ''}${content}
+    <section><h2>${ar ? 'أسئلة شائعة' : isArticle ? 'Questions and answers' : 'Questions about these stations'}</h2>${guide.faq.map(item => `<h3>${esc(item.question)}</h3><p>${esc(item.answer)}</p>`).join('')}</section>
+    ${guide.relatedLinks?.length ? `<section><h2>${ar ? 'أدلة وصفحات ذات صلة' : 'Related listening pages'}</h2><ul>${guide.relatedLinks.filter(link => /^\/(?:en|ar)\/(?:genres|anwaa|stations|station|mahta|regions|manatiq|blog)(?:\/[a-z0-9-]+)*$/.test(link.path)).map(link => `<li><a href="${esc(link.path)}">${esc(link.label)}</a></li>`).join('')}</ul></section>` : ''}
     <section class="radio-journal-explore"><h2>${ar ? 'اكتشف محطات أخرى' : 'Explore more stations'}</h2><a href="/${guide.language}">${ar ? 'دليل MegaRadio' : 'MegaRadio directory'}</a><a href="/${guide.language}${translateUrl('/search', guide.language)}">${ar ? 'ابحث عن محطة بالاسم' : 'Search for a station by name'}</a></section></div></article>
   </main>`;
 }

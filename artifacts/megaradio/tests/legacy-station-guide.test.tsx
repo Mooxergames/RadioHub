@@ -2,12 +2,14 @@ import React from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { LEGACY_STATION_GUIDES, buildLegacyStationGuideSeo, buildLegacyStationGuideSchema, renderLegacyStationGuideHtml } from '@workspace/seo-shared/legacy-station-guides';
+import { LEGACY_STATION_GUIDES, buildLegacyStationGuideSeo, buildLegacyStationGuideSchema, renderLegacyStationGuideHtml, isLegacyStationArticle } from '@workspace/seo-shared/legacy-station-guides';
 import { LEGACY_STATION_GUIDE_ROUTES, getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 const headGuard = vi.hoisted(() => ({ initial: true }));
 
 vi.mock('@/lib/initial-home-components', () => ({ InitialStation: () => <h1>Real catalogue station</h1> }));
 vi.mock('@/pages/not-found', () => ({ default: () => <h1>Not found</h1> }));
+vi.mock('@/pages/genres/genre-landing', () => ({ default: () => <h1>Real genre catalogue</h1> }));
+vi.mock('@/components/audio-channel-test', () => ({ default: () => <button type="button">Play test</button> }));
 vi.mock('@/utils/ssr-seo-head', async importOriginal => ({
   ...await importOriginal<typeof import('../src/utils/ssr-seo-head')>(),
   preserveInitialSsrHead: () => headGuard.initial,
@@ -15,6 +17,7 @@ vi.mock('@/utils/ssr-seo-head', async importOriginal => ({
 vi.mock('@/lib/translation-navigation-prefetch', () => ({ prefetchNavigationTranslations: vi.fn() }));
 import LegacyStationGuidePage from '../src/pages/legacy-station-guide';
 import { SeoPageWrapper } from '../src/components/SeoPageWrapper';
+import { syncDocumentLocale } from '../src/lib/document-locale';
 
 let client: QueryClient;
 beforeEach(() => {
@@ -41,11 +44,12 @@ it.each(LEGACY_STATION_GUIDES)('verifies ownership despite an existing SSR head 
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(String(fetcher.mock.calls[0][0])).toContain('/api/seo/page-data?url=');
   expect(view.container.querySelector('main')).toHaveAttribute('lang', guide.language);
+  expect(document.documentElement.lang).toBe(guide.language);
   expect(view.container.querySelector('main')).toHaveAttribute('dir', guide.language === 'ar' ? 'rtl' : 'ltr');
   expect(view.container.querySelectorAll('audio')).toHaveLength(1);
   expect(view.container.querySelector('button[aria-label*="Play"]')).toBeNull();
-  expect(view.container.querySelectorAll('a[target="_blank"]')).toHaveLength(guide.kind === 'history' ? guide.sources.length : guide.choices.reduce((n, c) => n + 1 + c.sources.length, 0));
-  if (guide.kind === 'history') {
+  expect(view.container.querySelectorAll('a[target="_blank"]')).toHaveLength(isLegacyStationArticle(guide) ? guide.sources.length : guide.choices.reduce((n, c) => n + 1 + c.sources.length, 0));
+  if (isLegacyStationArticle(guide)) {
     for (const section of guide.sections) for (const paragraph of section.paragraphs) expect(view.getByText(paragraph)).toBeVisible();
   } else {
     for (const choice of guide.choices) expect(view.getByText(choice.copy)).toBeVisible();
@@ -100,12 +104,12 @@ it.each(['https://outside.invalid/station/fm', '//outside.invalid/station/fm', '
   expect(window.location.pathname).toBe(guide.path);
 });
 
-it('a definite410 invalidates even verified initial SSR content, canonical and page entities', async () => {
+it.each([404, 410])('a definite%s invalidates even verified initial SSR content, canonical and page entities', async status => {
   const guide = LEGACY_STATION_GUIDES[0];
   const marker = document.createElement('meta'); marker.name = 'megaradio-legacy-guide'; marker.content = guide.id; document.head.appendChild(marker);
   const canonical = document.createElement('link'); canonical.rel = 'canonical'; canonical.href = buildLegacyStationGuideSeo(guide).canonical!; document.head.appendChild(canonical);
   const schema = document.createElement('script'); schema.type = 'application/ld+json'; schema.dataset.managed = 'seo-structured-data'; schema.dataset.schemaScope = 'page'; schema.textContent = JSON.stringify(buildLegacyStationGuideSchema(guide)[1]); document.head.appendChild(schema);
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'Page unavailable', noIndex: true } }), { status: 410 })));
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'Page unavailable', noIndex: true } }), { status })));
   const view = mount(guide.path);
   await view.findByRole('heading', { name: 'Not found' });
   expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
@@ -169,8 +173,8 @@ it('route-only manifest cannot drift from reviewed content and never matches nei
     .toEqual(LEGACY_STATION_GUIDES.map(({ id, path, sourcePaths, language }) => ({ id, path, sourcePaths, language })));
   for (const path of ['/en/station/radar-4', '/af/station/radar-40', '/af/station/radar-4/extra', '//example.org/af/station/radar-4', '/af/station/%72adar-4',
     '/en/station/channel-v-international', '/am/station/channel-v-international-2', '/ar/mahta/quran-radio-30',
-    '/en/station/quran-radio-3', '/hu/radio/1-21', '/hu/radios/1-21', '/am/station/disco-2',
-    '/am/station/radio-dil-se-dil-tak', '/no/station/dfm-radio-rwanda', '/it/station/wxb-loud-1023-fm-pampanga']) {
+    '/en/station/quran-radio-3', '/hu/radio/1-210', '/am/station/disco-20',
+    '/am/station/radio-dil-se-dil-tak-extra', '/en/station/dfm-radio-rwanda', '/it/stazione/wxb-loud-1023-fm-pampanga-extra']) {
     expect(getLegacyStationGuideRoute(path)).toBeNull();
   }
 });
@@ -208,4 +212,50 @@ it('history pages use Article metadata and escaped sources, never a listening co
   expect(html).not.toContain('<script>');
   expect(html).not.toContain('href="javascript:');
   expect(JSON.stringify(buildLegacyStationGuideSchema(guide))).not.toContain('javascript:');
+});
+
+it('renders the audio tool only for the verified test article, not a new catalogue owner', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'color-bars-test')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(payload(guide.id)))));
+  const view = mount(guide.path);
+  await view.findByRole('button', { name: 'Play test' });
+  expect(view.getByAltText(/Locally generated illustrative RGB/)).toHaveAttribute('src', '/images/radio-test-color-bars.png');
+});
+
+it('the exact genre article yields to a real genre rather than a station', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'radio-labels')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'Category' } }))));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Real genre catalogue' });
+  expect(view.queryByRole('heading', { name: 'Real catalogue station' })).toBeNull();
+});
+
+it('genre ownership redirects accept a genre target, not an unrelated internal route', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'radio-labels')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo: '/ar/anwaa/pop', seoTags: {} }))));
+  const view = mount(guide.path);
+  await waitFor(() => expect(window.location.pathname).toBe('/ar/anwaa/pop'));
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it.each(['/admin', '//outside.invalid/genre', '/en/station/a-radio'])('genre ownership rejects unsafe or wrong-type redirect %s', async redirectTo => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'radio-labels')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo, seoTags: {} }))));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Not found' });
+  expect(window.location.pathname).toBe(guide.path);
+});
+
+it('WXB keeps an English document after the shell runs, then restores Italian for a newly verified real owner', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'wxb-loud-1023-fm-pampanga')!;
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(payload(guide.id))))
+    .mockImplementation(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'Actual station', language: 'it' } })));
+  vi.stubGlobal('fetch', fetcher);
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: guide.title });
+  syncDocumentLocale('it', guide.path);
+  expect(document.documentElement.lang).toBe('en');
+  await client.invalidateQueries({ queryKey: ['/api/seo/page-data'] });
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(document.documentElement.lang).toBe('it');
 });

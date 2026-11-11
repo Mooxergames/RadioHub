@@ -33,7 +33,10 @@ const pool = { query: async (sql: string, values?: unknown[]) => {
   throw new Error(`Unexpected DB query: ${sql}`);
 } };
 mock.module('../src/postgres-runtime', { namedExports: { getPostgresPool: () => pool, getPostgresCoordinationPool: () => pool } });
-mock.module('../src/seo/genre-whitelist-store', { namedExports: { getMergedWhitelist: () => allowed, getMergedAliases: () => new Map() } });
+mock.module('../src/seo/genre-whitelist-store', { namedExports: {
+  getMergedWhitelist: () => allowed, getMergedAliases: () => new Map(),
+  ensureGenreWhitelistFresh: async () => { throw new Error('Directory hubs must not refresh editorial ownership'); },
+} });
 mock.module('../src/performance-cache', { namedExports: { performanceCache: {
   getPageData: (key: string) => pageCache.get(key), setPageData: (key: string, value: any) => pageCache.set(key, value),
   getTranslations: () => ({}), getUrlTranslations: async () => new Map(),
