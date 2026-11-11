@@ -25,6 +25,7 @@ import { urlRedirectMiddleware } from './url-redirect-middleware';
 import { stationCountryValidator } from './station-country-validator';
 import { serveStatic, log, HTML_CACHE_CONTROL } from "./serve-static";
 import { createAdminSpaHandler } from './admin-spa';
+import { createPaymentLinkShellHandler, paymentLinkPrivacy } from './payment-link-shell';
 import { SeoRenderer, getSeoRenderStats } from './seo-renderer';
 import { markSeoTemporarilyUnavailable } from './seo/temporary-unavailable';
 import { capturePublicStationDeadline } from './utils/public-station-deadline';
@@ -220,7 +221,7 @@ app.use((req, res, next) => {
   const frameOptions = getFrameOptionsHeader();
   if (frameOptions) res.header('X-Frame-Options', frameOptions);
   res.header('X-XSS-Protection', '1; mode=block');
-  res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.header('Referrer-Policy', /^\/pay\/?$/.test(req.path) ? 'no-referrer' : 'strict-origin-when-cross-origin');
   res.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
 
   if (process.env.NODE_ENV === 'production' || req.secure || req.get('x-forwarded-proto') === 'https') {
@@ -282,7 +283,7 @@ app.use((req, res, next) => {
 // is built once and compared to the original; if anything changed we
 // emit a single 301.
 // =================================================================
-app.use(canonicalUrlMiddleware);
+app.use(paymentLinkPrivacy, canonicalUrlMiddleware);
 
 app.use(webRequestTimeout);
 
@@ -576,6 +577,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   }
   // Warm the cache at startup so the first SSR request doesn't pay the IO.
   getProdAssetTags();
+  app.get(['/pay', '/pay/'], createPaymentLinkShellHandler(getProdAssetTags));
 
   const seoRegionAlts = collectSeoTranslations('regions');
   const seoGenreAlts = collectSeoTranslations('genres');

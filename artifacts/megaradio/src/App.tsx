@@ -42,6 +42,8 @@ import { RecommendationsPrefetcher } from "@/components/recommendations/Recommen
 import { PushNotificationBridge } from "@/components/PushNotificationBridge";
 import { useState, useEffect, useDeferredValue } from "react";
 import { useLocation } from "wouter";
+import { usePaymentSafeLocation } from '@/lib/payment-link-navigation';
+import { PaymentLinkDocument } from '@/components/PaymentLinkDocument';
 import { getLanguageFromPath, getRetiredLocaleFromPath } from "@workspace/seo-shared/seo-config";
 import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 import { syncDocumentLocale } from '@/lib/document-locale';
@@ -649,6 +651,7 @@ export const SeoMainRouter = React.memo(() => {
   
   return (
     <Switch>
+      <Route path="/pay" component={PaymentLinkDocument} />
       {/* API Documentation - standalone page without header/footer */}
       <Route path="/api-docs/:category?">
         <Suspense fallback={<div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0a0a14", color: "#fff" }}>Loading API Docs...</div>}>
@@ -1297,7 +1300,7 @@ function App() {
   
   return (
     <QueryClientProvider client={queryClient}>
-      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <WouterRouter hook={usePaymentSafeLocation} base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
         <TranslationProvider>
         <FavoriteStateProvider>
         <TranslationPreloader />

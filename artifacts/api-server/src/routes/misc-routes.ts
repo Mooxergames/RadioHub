@@ -759,8 +759,7 @@ export function registerMiscRoutes(
   // here would silently downgrade entitlements while the store keeps charging.
   // For those platforms we return 409 with an actionRequired hint so the
   // mobile client can deep-link into the store's manage-subscription screen.
-  // Lifetime, admin-granted, and web-billed plans (none of which exist yet
-  // but are reserved) can still be cancelled locally.
+  // A local write cannot stop web billing or refund a one-time purchase.
   app.post("/api/user/subscription/cancel", requireAuth, async (req, res) => {
     try {
       const userId = req.session?.user?.userId || (req.session as any)?.userId;
@@ -771,6 +770,17 @@ export function registerMiscRoutes(
         return void res.status(404).json({ error: "User not found" });
       const sub: any = await pgGetSubscription(userId);
       const platform = sub?.platform;
+      if (platform === "paddle" || platform === "stripe") {
+        const provider = platform === "paddle" ? "Paddle" : "Stripe";
+        return void res.status(409).json({
+          error: `Manage this purchase in the ${provider} customer portal. No changes were made.`,
+          code: "manage_in_portal",
+          actionRequired: "open_billing_portal",
+          platform,
+          portalEndpoint: "/api/subscription/portal",
+          portalMethod: "POST",
+        });
+      }
       const isStoreBilled =
         platform === "ios" ||
         platform === "macos" ||

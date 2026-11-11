@@ -1,3 +1,5 @@
+import { isIsolatedPaymentDocument } from './payment-link-navigation';
+
 export type PaddleEvent = { name: string; data?: unknown };
 export type PaddleOptions = {
   items?: Array<{ priceId: string; quantity: number }>;
@@ -23,6 +25,7 @@ export function loadPaddle(): Promise<PaddleSdk> {
     const script = document.createElement('script');
     script.src = 'https://cdn.paddle.com/paddle/v2/paddle.js';
     script.async = true;
+    script.referrerPolicy = 'no-referrer';
     const timeout = window.setTimeout(() => fail(), 20_000);
     function fail() {
       window.clearTimeout(timeout);
@@ -53,9 +56,11 @@ export function releaseCheckout(owner: symbol, close = false): void {
   if (close) window.Paddle?.Checkout.close?.();
 }
 
-export async function openPaddleCheckout(owner: symbol, token: string, environment: 'sandbox' | 'production', options: PaddleOptions): Promise<void> {
+async function initializePaddle(owner: symbol, token: string, environment: 'sandbox' | 'production', beforeInitialize?: () => boolean) {
   const sdk = await loadPaddle();
-  if (active?.owner !== owner) return;
+  if (active?.owner !== owner) return null;
+  if (beforeInitialize && !beforeInitialize()) throw new Error('Please reopen this payment page.');
+  const reused = initialized?.sdk === sdk;
   if (initialized?.sdk === sdk) {
     if (initialized.token !== token || initialized.environment !== environment) {
       throw new Error('Payment configuration changed. Please reload this page.');
@@ -65,5 +70,22 @@ export async function openPaddleCheckout(owner: symbol, token: string, environme
     sdk.Initialize({ token, eventCallback: event => active?.onEvent(event) });
     initialized = { sdk, token, environment };
   }
-  sdk.Checkout.open(options);
+  return { sdk, reused };
+}
+
+export async function openPaddleCheckout(owner: symbol, token: string, environment: 'sandbox' | 'production', options: PaddleOptions): Promise<void> {
+  const result = await initializePaddle(owner, token, environment);
+  if (result && active?.owner === owner) result.sdk.Checkout.open(options);
+}
+
+let handledPaymentVisit: { key: symbol; sdk: PaddleSdk } | undefined;
+
+export async function openPaddlePaymentLink(owner: symbol, token: string, environment: 'sandbox' | 'production', visit: symbol): Promise<void> {
+  if (initialized && handledPaymentVisit?.key !== visit) throw new Error('Please reload this payment page.');
+  const result = await initializePaddle(owner, token, environment, isIsolatedPaymentDocument);
+  if (!result || handledPaymentVisit?.key === visit && handledPaymentVisit.sdk === result.sdk) return;
+  if (active?.owner !== owner) return;
+  // This isolated document owns one transaction. Initialize consumes _ptxn;
+  // retries/new transactions require a new document, never a second open.
+  handledPaymentVisit = { key: visit, sdk: result.sdk };
 }

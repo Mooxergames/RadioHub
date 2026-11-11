@@ -223,6 +223,7 @@ function detectLanguageFromRequest(req: Request): string {
 
 export async function urlRedirectMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   const urlPath = req.path;
+  if (/^\/pay\/?$/.test(urlPath)) return next();
 
   // Skip static assets, API routes, and special paths
   if (
