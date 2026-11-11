@@ -24,7 +24,9 @@ export function logoVariantCandidate(station: LogoVariantStation, config: { buck
     !/^[a-z0-9_-]{1,200}$/.test(assets.folder) || typeof assets.webp256 !== 'string') return null;
   // Exact comparison rejects credentials, redirects, query strings, ports,
   // encoded paths, lookalike buckets and all old third-party favicon URLs.
-  const key = `station-logos/${assets.folder}/logo-256.webp`;
+  const filename = assets.webp256.split('/').at(-1)!;
+  if (!/^(?:[a-z0-9-]{1,100}-)?logo-256\.webp$/.test(filename)) return null;
+  const key = `station-logos/${assets.folder}/${filename}`;
   if (assets.webp256 !== `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`) return null;
   const sizes = ([48, 96] as const).filter(size => [undefined, null, ''].includes(assets[`webp${size}`] as any));
   return sizes.length ? { key, folder: assets.folder, sizes } : null;

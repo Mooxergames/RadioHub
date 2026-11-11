@@ -46,7 +46,7 @@ export function publicMeasurementReferrer(raw: string, origin: string): string |
 
 const GOOGLE_EVENTS = new Set([
   'station_play', 'genre_play', 'country_play', 'station_favorite_add',
-  'station_favorite_remove', 'listening_time', 'search',
+  'station_favorite_remove', 'listening_time', 'search', 'playback_error', 'station_state_change', 'activity_heartbeat', 'app_foreground', 'app_background',
 ]);
 
 export function createGoogleTagManager(options: {
@@ -181,6 +181,17 @@ export function createGoogleTagManager(options: {
     isLocked: () => locked,
     dispose: () => { unsubscribe?.(); unsubscribe = undefined; },
     pageView: () => { initialize(); start(); pageView(); },
+    structuredEvent: (name:string,params:Record<string,string|number>={})=>{
+      if(!started||!GOOGLE_EVENTS.has(name)||!allowed())return;
+      const safe:Record<string,string|number>={};
+      for(const key of ['screen_name','playback_state','station_id','station_name','station_country','station_genre','duration_seconds','results_count']){
+        const value=params[key];if(typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=1e9)safe[key]=value;
+        else if(typeof value==='string')safe[key]=value.slice(0,100);
+      }
+      push({event:'megaradio_event',event_name:name,...safe});
+    },
+    user:(id:string|null)=>{if(started&&allowed()&&(id===null||/^[a-f0-9]{24}$/i.test(id)))host.gtag?.('config',options.measurementId,{user_id:id,send_page_view:false});},
+    property:(name:string,value:string)=>{if(started&&allowed()&&['current_screen','current_station','playback_state'].includes(name))host.gtag?.('set','user_properties',{[name]:value.slice(0,36)});},
     event: (name: string, value?: number) => {
       // Drop pre-consent events; never queue callbacks with historical payloads.
       if (!started || !GOOGLE_EVENTS.has(name) || !allowed()) return;
@@ -204,3 +215,7 @@ export const isGoogleMeasurementConfigured = (): boolean => runtime?.isConfigure
 export const isGoogleMeasurementLocked = (): boolean => runtime?.isLocked() ?? false;
 export const googlePageView = () => runtime?.pageView();
 export const googleEvent = (name: string, value?: number) => runtime?.event(name, value);
+
+export const googleStructuredEvent=(name:string,params:Record<string,string|number>={})=>runtime?.structuredEvent(name,params);
+export const googleUser=(id:string|null)=>runtime?.user(id);
+export const googleProperty=(name:string,value:string)=>runtime?.property(name,value);

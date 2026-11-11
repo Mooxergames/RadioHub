@@ -281,7 +281,7 @@ router.post('/follow/:userId', async (req, res) => {
             await pgCreateNotification({ id: notificationId, ...notification });
         }
         // Send push notification (web + mobile, non-blocking)
-        PushNotificationService.sendFollowNotification(targetUserId, followerName, followerSlug).catch(() => { });
+        PushNotificationService.sendFollowNotification(targetUserId, followerName, followerSlug, currentUserId).catch(() => { });
         res.json(result);
     }
     catch (error) {

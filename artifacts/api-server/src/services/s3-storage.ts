@@ -101,7 +101,7 @@ export function logoVariantStorageConfig(): { bucket: string; region: string } |
 
 /** Read only an already-published 256px object from our own configured bucket. */
 export async function readLogoVariantSource(key: string, signal: AbortSignal): Promise<Buffer> {
-  if (!logoVariantStorageConfig() || !/^station-logos\/[a-z0-9_-]{1,200}\/logo-256\.webp$/.test(key)) {
+  if (!logoVariantStorageConfig() || !/^station-logos\/[a-z0-9_-]{1,200}\/(?:[a-z0-9-]{1,100}-)?logo-256\.webp$/.test(key)) {
     throw new Error('Unsupported logo variant source key');
   }
   const controller = new AbortController();

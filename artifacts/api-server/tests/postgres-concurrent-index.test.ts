@@ -18,6 +18,16 @@ function fixture(existing: any = null, created: any = definition, failure = fals
     return { rows: [] };
   } } };
 }
+test('reviewed station name fold index is accepted and definition-checked',async()=>{
+ const sql=readFileSync(new URL('../../../lib/db/migrations/0052_station_search_key_index.sql',import.meta.url),'utf8');
+ const nameSpec=parseConcurrentIndexMigration(sql)!;
+ assert.equal(nameSpec.name,'stations_name_fold_trgm_idx');
+ const def={...definition,expression:'station_search_key(name)'};
+ const f=fixture(null,def);await applyConcurrentIndexMigration(f.client,nameSpec);
+ assert.ok(f.calls.some(c=>c.sql.startsWith('CREATE INDEX CONCURRENTLY stations_name_fold')));
+ await assert.rejects(applyConcurrentIndexMigration(fixture(definition).client,nameSpec),/unexpected definition/);
+ assert.throws(()=>parseConcurrentIndexMigration(sql+'DROP TABLE stations;'),/Unsupported concurrent-index/);
+});
 test('only the exact reviewed single concurrent-index statement is accepted', () => {
   assert.equal(spec.name, 'stations_source_genre_trgm_idx');
   assert.equal(parseConcurrentIndexMigration('CREATE TABLE ordinary(id int);'), null);

@@ -1,3 +1,10 @@
+import {registerChatInboxRoutes} from './chat-inbox-routes';
+import {getPostgresPool} from '../postgres-runtime';
+import {registerChatGroupRoutes} from './chat-group-routes';
+import { chatListening } from '../services/chat-listening';
+import { radioRequest, canonicalRadio } from '../utils/chat-radio';
+import { getPublicStationByIdentifier } from '../data/station-read-store';
+import { chatAudioExtension, validChatAudioPath } from '../utils/chat-audio';
 import type { Express } from "express";
 import crypto from "crypto";
 import path from "path";
@@ -12,7 +19,7 @@ import { notificationStore, pgMarkConversationNotificationsRead, pgUpsertMessage
 import { pgFindUserById, userStore } from "../data/postgres-user-store";
 import { engagementStore } from "../services/user-engagement-service";
 import { pgFollowPage, pgIsFollowing } from "../data/postgres-engagement-store";
-import { messageStore, pgConversationMessages, pgConversations, pgCreateMessage, pgMarkMessagesRead, pgMessageContacts, pgUnreadMessageCount, pgHasConversation } from "../data/postgres-message-store";
+import { messageStore, pgPinChatMessage, pgPinnedChatMessages, pgDeleteChatMessage, pgChatMessageById, pgConversationMessages, pgConversations, pgCreateMessage, pgMarkMessagesRead, pgMessageContacts, pgUnreadMessageCount, pgHasConversation } from "../data/postgres-message-store";
 function normalizeIp(ip: string | undefined): string {
     if (!ip)
         return 'unknown';
@@ -122,6 +129,13 @@ async function canChat(userA: string, userB: string): Promise<boolean> {
         return aFollowsB || bFollowsA;
     }
 }
+// Starting a conversation requires following an open profile. Existing participants
+// may reply without following the sender back; reading old history remains allowed.
+async function canSendConversation(senderId: string, recipientId: string): Promise<boolean> {
+    if (await pgHasConversation(senderId, recipientId)) return true;
+    const [follows, recipient] = await Promise.all([pgIsFollowing(senderId, recipientId), pgFindUserById(recipientId)]);
+    return follows && recipient?.isPublicProfile === true;
+}
 async function canReadConversation(userId: string, partnerId: string): Promise<boolean> {
     return await canChat(userId, partnerId) || await pgHasConversation(userId, partnerId);
 }
@@ -132,6 +146,8 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
         res.setHeader('Cache-Control', 'private, no-store');
         next();
     });
+    registerChatGroupRoutes(app,requireAuth);
+    registerChatInboxRoutes(app,requireAuth);
     // ── GET /api/messages/ws-ticket ─────────────────────────────────────────────
     // Returns a one-time ticket for WebSocket auth (expires in 60s)
     app.get("/api/messages/ws-ticket", requireAuth, (req, res) => {
@@ -220,6 +236,9 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
                     messages,
                     partner: partner ? { ...publicChatUser(partner), online: chatService.isOnline(partnerId) } : null,
                     hasMore: pageMessages.length > limit,
+                    canSend: await canSendConversation(rawId, partnerId),
+                    listening: chatListening.between(rawId,partnerId),
+                    pinnedMessages:await pgPinnedChatMessages(rawId,partnerId),
                 });
             }
         }
@@ -227,6 +246,20 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             logger.error("Failed to fetch messages:", error);
             res.status(500).json({ error: "Failed to fetch messages" });
         }
+    });
+    // Voice notes use bounded memory uploads and server-selected file extensions.
+    const voiceUpload = multer({ storage: multer.memoryStorage(), limits: {fileSize:8*1024*1024,files:1}, fileFilter:(_req,file,cb)=>cb(null,/^audio\/(?:webm|mp4|x-m4a|ogg)(?:;|$)/i.test(file.mimetype)) });
+    app.post('/api/messages/upload-audio',requireAuth,imageUploadLimiter,(req:any,res)=>{
+      voiceUpload.single('audio')(req,res,async(error:any)=>{
+        if(error)return void res.status(error.code==='LIMIT_FILE_SIZE'?413:400).json({error:'Voice upload failed'});
+        const bytes=req.file?.buffer;
+        const ext=bytes&&chatAudioExtension(bytes);
+        if(!ext)return void res.status(400).json({error:'Unsupported voice format'});
+        const directory=path.resolve(process.cwd(),'public','uploads','chat');
+        const filename=`voice-${crypto.randomBytes(16).toString('hex')}.${ext}`;
+        try{await fs.mkdir(directory,{recursive:true});await fs.writeFile(path.join(directory,filename),bytes,{flag:'wx'});res.json({audioUrl:`/uploads/chat/${filename}`});}
+        catch{res.status(500).json({error:'Voice upload failed'});}
+      });
     });
     // ── POST /api/messages/upload-image ─────────────────────────────────────────
     const chatUploadsDir = path.resolve(process.cwd(), 'public', 'uploads', 'chat');
@@ -272,13 +305,39 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             res.status(500).json({ error: "Upload failed" });
         }
     });
+    app.post('/api/messages/pin',requireAuth,messageSendLimiter,async(req,res)=>{
+      try{
+        const userId=getSessionUserId(req);if(!userId)return void res.status(401).json({error:'Not authenticated'});
+        const {messageId,pinned}=req.body||{};
+        if(typeof messageId!=='string'||!/^[a-f0-9]{24}$/i.test(messageId)||typeof pinned!=='boolean')return void res.status(400).json({error:'Invalid pin request'});
+        const message=await pgPinChatMessage(userId,messageId.toLowerCase(),pinned);if(!message)return void res.status(404).json({error:'Message not found'});
+        chatService.broadcastToUsers([message.fromUserId,message.toUserId],{type:'chat:pinned',message});
+        res.json({message});
+      }catch(error){logger.error('Chat pin failed:',error);res.status(500).json({error:'Unable to pin message'});}
+    });
+    app.post('/api/messages/delete',requireAuth,messageSendLimiter,async(req,res)=>{
+      try{
+        const userId=getSessionUserId(req);if(!userId)return void res.status(401).json({error:'Not authenticated'});
+        const {messageId,scope}=req.body||{};
+        if(typeof messageId!=='string'||!/^[a-f0-9]{24}$/i.test(messageId)||!['self','everyone'].includes(scope))return void res.status(400).json({error:'Invalid deletion request'});
+        const id=messageId.toLowerCase(),message=await pgChatMessageById(id);
+        if(!message||![message.fromUserId,message.toUserId].includes(userId))return void res.status(404).json({error:'Message not found'});
+        if(scope==='everyone'&&message.fromUserId!==userId)return void res.status(403).json({error:'Only the sender can delete for everyone'});
+        const deleted=await pgDeleteChatMessage(userId,id,scope);if(!deleted)return void res.status(404).json({error:'Message not found'});
+        chatListening.removeMessage(id,scope==='everyone'?[message.fromUserId,message.toUserId]:[userId]);
+        await markConversationNotificationsRead(scope==='everyone'?message.toUserId:userId,scope==='everyone'?message.fromUserId:message.fromUserId===userId?message.toUserId:message.fromUserId);
+        const payload={type:'chat:deleted',messageId:id,scope,fromUserId:message.fromUserId,toUserId:message.toUserId,deletedAt:deleted.deletedAt};
+        chatService.broadcastToUsers(scope==='everyone'?[message.fromUserId,message.toUserId]:[userId],payload);
+        res.json({success:true,...payload});
+      }catch(error){logger.error('Chat deletion failed:',error);res.status(500).json({error:'Unable to delete message'});}
+    });
     // ── POST /api/messages/send ──────────────────────────────────────────────────
     app.post("/api/messages/send", requireAuth, messageSendLimiter, async (req, res) => {
         try {
             const fromUserId = getSessionUserId(req);
             if (!fromUserId)
                 return void res.status(401).json({ error: "Not authenticated" });
-            const { toUserId, content, messageType, imageUrl } = req.body || {};
+            const { toUserId, content, messageType, imageUrl,replyToId } = req.body || {};
             if (!toUserId || typeof content !== 'string' || !content.trim()) {
                 return void res.status(400).json({ error: "toUserId and content are required" });
             }
@@ -292,25 +351,39 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             if (targetId.toString() === fromUserId) {
                 return void res.status(400).json({ error: "Cannot message yourself" });
             }
-            const allowed = await canChat(fromUserId, targetId.toString());
+            const allowed = await canSendConversation(fromUserId, targetId.toString());
             if (!allowed) {
                 return void res.status(403).json({
-                    error: "You can only message people you follow or who follow you",
+                    error: "Follow this public profile before starting a conversation",
                 });
             }
             const targetUser: any = await pgFindUserById(targetId.toString());
             if (!targetUser || (targetUser.status && targetUser.status !== 'active')) {
                 return void res.status(404).json({ error: "User not found" });
             }
-            const validType = ['text', 'image', 'emoji', 'gif'].includes(messageType) ? messageType : 'text';
+            const validType = ['text', 'image', 'emoji', 'gif', 'audio', 'station'].includes(messageType) ? messageType : 'text';
             if (validType === 'image' && (typeof imageUrl !== 'string' || !/^\/uploads\/chat\/[a-z0-9_-]+\.(?:jpe?g|png|gif|webp)$/i.test(imageUrl)))
                 return void res.status(400).json({ error: 'Invalid uploaded image URL' });
             // GIFs store a KLIPY reference, never arbitrary external media URLs.
+            if (validType === 'audio' && !validChatAudioPath(imageUrl)) return void res.status(400).json({error:'Invalid voice URL'});
             if (validType === 'gif' && (typeof imageUrl !== 'string' || !/^klipy:[a-zA-Z0-9_-]{1,200}$/.test(imageUrl)))
                 return void res.status(400).json({ error: 'Invalid GIF reference' });
+            let storedContent=content.trim();
+            if(validType==='station'){
+              const radio=radioRequest(storedContent);if(!radio)return void res.status(400).json({error:'Invalid shared radio'});
+              const station=await getPublicStationByIdentifier(radio.stationId);if(!station)return void res.status(404).json({error:'Radio unavailable'});
+              storedContent=JSON.stringify(canonicalRadio(radio,station));
+            }
+            let replyTo:any;
+            if(replyToId!==undefined){
+              if(typeof replyToId!=='string'||!/^[a-f0-9]{24}$/i.test(replyToId))return void res.status(400).json({error:'Invalid reply'});
+              const original=await pgChatMessageById(replyToId.toLowerCase());
+              if(!original||original.deletedAt||original.hiddenFor?.includes(fromUserId)||!((original.fromUserId===fromUserId&&original.toUserId===targetId)||(original.toUserId===fromUserId&&original.fromUserId===targetId)))return void res.status(404).json({error:'Reply message unavailable'});
+              replyTo={_id:original._id,fromUserId:original.fromUserId,content:original.content,messageType:original.messageType};
+            }
             const messageInput = {
-                fromUserId, toUserId: targetId.toString(), content: content.trim(),
-                messageType: validType, imageUrl: (validType === 'image' || validType === 'gif') && imageUrl ? imageUrl : undefined,
+                fromUserId, toUserId: targetId.toString(), content: storedContent,replyToId:replyTo?._id,
+                messageType: validType, imageUrl: (validType === 'image' || validType === 'gif' || validType === 'audio') && imageUrl ? imageUrl : undefined,
             };
             let message: any;
             {
@@ -324,6 +397,7 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
                     throw error;
                 }
             }
+            if(replyTo)message.replyTo=replyTo;
             const sender: any = await pgFindUserById(fromUserId);
             const wsPayload = {
                 type: "chat:message",
@@ -334,6 +408,7 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
                     content: message.content,
                     messageType: message.messageType || 'text',
                     imageUrl: message.imageUrl,
+                    replyToId:message.replyToId,replyTo:message.replyTo,
                     read: false,
                     createdAt: message.createdAt,
                 },
@@ -342,9 +417,9 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             chatService.sendToUser(targetId.toString(), wsPayload);
             chatService.sendToUser(fromUserId, { ...wsPayload, echo: true });
             // Only notify if recipient is NOT currently viewing this conversation
-            const recipientActiveWith = chatService.getActiveConversation(targetId.toString());
-            const isViewingConversation = recipientActiveWith === fromUserId;
-            if (!isViewingConversation) {
+            const isViewingConversation = chatService.isViewingConversation(targetId.toString(), fromUserId);
+            const muted=!isViewingConversation && (await getPostgresPool().query("SELECT 1 FROM chat_inbox_state WHERE user_id=$1 AND kind='direct' AND target_id=$2 AND muted",[targetId.toString(),fromUserId])).rows.length>0;
+            if (!isViewingConversation && !muted) {
                 try {
                     // Upsert: one unread notification per sender (10 messages → 1 notification)
                     const notificationInput = {
@@ -367,7 +442,8 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
                     void import('../services/pushNotificationService')
                         .then(({ PushNotificationService }) => PushNotificationService.sendToUserAllChannels(targetId.toString(), {
                         title: sender?.fullName || sender?.username || 'Mega Radio',
-                        body: content.trim().substring(0, 120),
+                        body: 'Yeni bir mesajınız var.',
+                        data: { type: 'new_message', screen: 'messages', fromUserId, userName: sender?.fullName || sender?.username || 'MegaRadio' },
                         url: '/profile/messages',
                         tag: `dm-${fromUserId}`,
                     } as any))
@@ -427,6 +503,24 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             res.status(500).json({ error: "Failed to check online status" });
         }
     });
+    // Listening is presence, never a durable message or a playback command.
+    const listeningLimiter=rateLimit({windowMs:60000,max:60,keyGenerator:messageRateLimitKey,standardHeaders:true,legacyHeaders:false});
+    app.post('/api/messages/listening',requireAuth,listeningLimiter,async(req,res)=>{
+      const userId=getSessionUserId(req);if(!userId)return void res.status(401).json({error:'Not authenticated'});
+      const {messageId,clientId,revision,listening}=req.body||{};
+      if(typeof messageId!=='string'||!/^[a-f0-9]{24}$/i.test(messageId)||typeof clientId!=='string'||!/^[a-zA-Z0-9_-]{8,80}$/.test(clientId)||!Number.isSafeInteger(revision)||revision<1||typeof listening!=='boolean')return void res.status(400).json({error:'Invalid listening state'});
+      try{
+       const message=await pgChatMessageById(messageId);
+       if(!message||message.deletedAt||message.hiddenFor?.includes(userId)||message.messageType!=='station'||(message.fromUserId!==userId&&message.toUserId!==userId))return void res.status(404).json({error:'Shared radio unavailable'});
+       const partnerId=message.fromUserId===userId?message.toUserId:message.fromUserId;
+       if(chatListening.update(userId,partnerId,messageId,clientId,revision,listening,Date.now(),radioRequest(message.content)?.stationId)){
+         const entries=chatListening.between(userId,partnerId);
+         chatService.sendToUser(partnerId,{type:'chat:listening',userId,participants:[userId,partnerId],entries});
+         chatService.sendToUser(userId,{type:'chat:listening',userId,participants:[userId,partnerId],entries});
+       }
+       res.json({success:true});
+      }catch{res.status(500).json({error:'Listening state unavailable'});}
+    });
     // ── WebSocket Handler at /ws/chat ────────────────────────────────────────────
     chatWss.on("connection", async (socket: WebSocket, request) => {
         try {
@@ -448,6 +542,7 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             deleteWsTicket(ticket);
             const onlineContacts = (await pgMessageContacts(userId)).filter(contact => chatService.isOnline(String(contact._id))).map(contact => String(contact._id));
             const client = chatService.addClient(userId, socket);
+            let activeRevision = 0;
             broadcastOnlineStatus(userId, true);
             socket.send(JSON.stringify({
                 type: "chat:connected",
@@ -459,7 +554,7 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
                     const msg = JSON.parse(rawData.toString());
                     switch (msg.type) {
                         case "chat:typing": {
-                            if (typeof msg.toUserId !== 'string' || !/^[0-9a-f]{24}$/i.test(msg.toUserId) || !await canChat(userId, msg.toUserId))
+                            if (typeof msg.toUserId !== 'string' || !/^[0-9a-f]{24}$/i.test(msg.toUserId) || !await canSendConversation(userId, msg.toUserId))
                                 break;
                             chatService.sendToUser(msg.toUserId, {
                                 type: "chat:typing",
@@ -484,10 +579,12 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
                         }
                         case "chat:active": {
                             // User opened/closed a conversation — track it to suppress duplicate notifications
+                            const revision = ++activeRevision;
                             const withId = msg.withUserId || null;
                             if (withId !== null && (typeof withId !== 'string' || !/^[0-9a-f]{24}$/i.test(withId) || !await canReadConversation(userId, withId)))
                                 break;
-                            chatService.setActiveConversation(userId, withId);
+                            if (revision !== activeRevision || socket.readyState !== 1) break;
+                            chatService.setActiveConversation(userId, withId, client);
                             // Immediately mark any pending notifications from that partner as read
                             if (withId) {
                                 try {
@@ -510,7 +607,7 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
                 }
             });
             socket.on("close", () => {
-                chatService.setActiveConversation(userId, null);
+                chatService.setActiveConversation(userId, null, client);
                 chatService.removeClient(userId, client);
                 if (!chatService.isOnline(userId)) {
                     broadcastOnlineStatus(userId, false);
@@ -518,7 +615,7 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             });
             socket.on("error", (err) => {
                 logger.error(`CHAT WS error for user ${userId}:`, err);
-                chatService.setActiveConversation(userId, null);
+                chatService.setActiveConversation(userId, null, client);
                 chatService.removeClient(userId, client);
                 if (!chatService.isOnline(userId)) {
                     broadcastOnlineStatus(userId, false);

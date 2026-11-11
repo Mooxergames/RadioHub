@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, mock, test } from 'node:test';
+import {readFile} from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 
@@ -23,6 +24,8 @@ before(async () => {
     id text PRIMARY KEY,from_user_id text NOT NULL,to_user_id text NOT NULL, content text,
     message_type text DEFAULT 'text',image_url text,is_read boolean DEFAULT false,read_at timestamptz,
     created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now())`);
+  for(const name of ['0044_chat_message_deletion.sql','0045_chat_reply_pin.sql'])await pool.query(await readFile(new URL('../../../lib/db/migrations/'+name,import.meta.url),'utf8'));
+  await pool.query(`CREATE TABLE chat_inbox_state(user_id text,kind text,target_id text,marked_unread boolean DEFAULT false,archived boolean DEFAULT false,deleted boolean DEFAULT false,updated_at timestamptz DEFAULT now())`);
   await pool.query(`INSERT INTO direct_messages(id,from_user_id,to_user_id,content,created_at)
     VALUES ($1,'a','b','a to b','2026-01-01'),($2,'b','a','b to a','2026-01-02'),
     ($3,'c','d','unrelated secret','2026-01-03'),($4,'b','a','same timestamp','2026-01-02')`, [id(1),id(2),id(3),id(4)]);

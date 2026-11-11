@@ -40,41 +40,9 @@ function nearbyCacheKey(query: Record<string, any>): string | null {
   ])}`;
 }
 
-// Synonym map: common non-English station/city names → English equivalents.
-// Keys are lower-case. Allows "Viyana FM" → finds "Vienna FM", etc.
-const SEARCH_SYNONYMS: Record<string, string> = {
-  // Turkish city names
-  viyana: 'vienna', münih: 'munich', londra: 'london', roma: 'rome',
-  venedik: 'venice', floransa: 'florence', napoli: 'naples',
-  barselona: 'barcelona', brüksel: 'brussels', moskova: 'moscow',
-  varşova: 'warsaw', prag: 'prague', budapeşte: 'budapest',
-  bükreş: 'bucharest', sofya: 'sofia', atina: 'athens',
-  lizbon: 'lisbon', kopenhag: 'copenhagen', stokholm: 'stockholm',
-  lahey: 'hague', zürih: 'zurich', cenevre: 'geneva',
-  // German city names
-  münchen: 'munich', köln: 'cologne', nürnberg: 'nuremberg',
-  zürich: 'zurich',
-  // Turkish country names
-  almanya: 'germany', avusturya: 'austria', ingiltere: 'england',
-  fransa: 'france', italya: 'italy', ispanya: 'spain',
-  hollanda: 'netherlands', belçika: 'belgium', portekiz: 'portugal',
-  lehistan: 'poland', rusya: 'russia', japonya: 'japan',
-  çin: 'china', hindistan: 'india', brezilya: 'brazil',
-  avustralya: 'australia', kanada: 'canada', meksika: 'mexico',
-};
-
-// Substitute synonyms word-by-word in a search term.
-// "Viyana FM" → "vienna FM" (synonym for "viyana" is "vienna").
-function applySynonyms(term: string): string {
-  return term
-    .split(/\s+/)
-    .map(w => {
-      const sub = SEARCH_SYNONYMS[w.toLowerCase()];
-      return sub ?? w;
-    })
-    .join(' ');
-}
-
+// Sanitise a raw user string for use in MongoDB $text search.
+// $text tokenises on whitespace/punctuation and ignores most special chars,
+// so we only strip characters that break the parser ($, ", \).
 function sanitiseForTextSearch(term: string): string {
   return term.replace(/[$"\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
 }
@@ -406,7 +374,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
         // small read for one minute. Details/full API responses remain live.
         const pgResult = compact
           ? await CacheManager.getOrSetSingleFlight(
-            `stations:cards:v1:${JSON.stringify(listOptions)}`,
+            `stations:cards:sort-v2:${search ? 'search-v2' : 'v1'}:${JSON.stringify(listOptions)}`,
             () => listStationsFromPostgres(listOptions), { ttl: 60 })
           : await listStationsFromPostgres(listOptions);
         const stations = pgResult.stations;
@@ -445,7 +413,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
 
       const streamUrl = station.urlResolved || station.url;
       if (!streamUrl) {
-        return void res.json({ title: station.name, artist: '', station: station.name });
+        return void res.json({ title: '', artist: '', station: station.name });
       }
 
       const { getStreamMetadataService } = await import('../services/stream-metadata');
@@ -453,7 +421,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
       const metadata = await metadataService.getStationMetadata(station);
 
       res.json({
-        title: metadata.title || station.name,
+        title: metadata.title || '',
         artist: metadata.artist || '',
         station: metadata.station || station.name,
         genre: metadata.genre || ''
@@ -526,7 +494,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
     const { page, limit } = safeParams;
 
     const webCacheKey = !search && !excludeStationIds
-      ? `stations:list:${country || 'all'}:${state || 'all'}:${genre || 'all'}:${tags || 'all'}:${language || 'all'}:${sort}:${page}:${limit}:${excludeBroken}:${minVotes}:${timePeriod}:${isTV ? 'tv' : 'web'}${compact ? ':cards:v1' : ''}`
+      ? `stations:list:sort-v2:${country || 'all'}:${state || 'all'}:${genre || 'all'}:${tags || 'all'}:${language || 'all'}:${sort}:${page}:${limit}:${excludeBroken}:${minVotes}:${timePeriod}:${isTV ? 'tv' : 'web'}${compact ? ':cards:v1' : ''}`
       : null;
 
     // Country-only LKG cache key — last successful payload for this
@@ -546,7 +514,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
           genre: genre && genre !== 'all' ? String(genre) : undefined,
           tags: tags && tags !== 'all' ? String(tags) : undefined,
           language: language && language !== 'all' ? String(language) : undefined,
-          search: search ? applySynonyms(String(search).trim()) : undefined,
+          search: search ? String(search).trim() : undefined,
           sort: String(sort), excludeBroken: excludeBroken === 'true',
           excludeIds: typeof excludeStationIds === 'string' ? excludeStationIds.split(',').map((value) => value.trim()).filter(Boolean) : [],
           minVotes: Number(minVotes) || 0, createdAfter, page: Number(page), limit: Number(limit),

@@ -30,9 +30,9 @@ after(() => {
   }
 });
 
-async function token(audience: string, issuer: string, options: { expired?: boolean; wrongKey?: boolean } = {}) {
+async function token(audience: string, issuer: string, options: { expired?: boolean; wrongKey?: boolean; unverified?: boolean } = {}) {
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ email: 'fixture@example.invalid', email_verified: true })
+  return new SignJWT({ email: 'fixture@example.invalid', email_verified: !options.unverified })
     .setProtectedHeader({ alg: 'RS256', kid: 'fixture' }).setSubject('fixture-user')
     .setAudience(audience).setIssuer(issuer)
     .setIssuedAt(now - (options.expired ? 7200 : 60))
@@ -57,6 +57,7 @@ test('Google rejects another app, wrong issuer, expired token and forged signatu
     await token(aud, 'https://untrusted.example.invalid'),
     await token(aud, 'https://accounts.google.com', { expired: true }),
     await token(aud, 'https://accounts.google.com', { wrongKey: true }),
+    await token(aud, 'https://accounts.google.com', { unverified: true }),
   ]) await assert.rejects(verifyMobileGoogleToken(jwt));
 });
 

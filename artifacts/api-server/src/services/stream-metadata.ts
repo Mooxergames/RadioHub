@@ -54,13 +54,12 @@ function isAdvertisement(metadata: Record<string, string>): boolean {
   return !!(metadata['AdCreativeId'] || metadata['adw_ad'] || metadata['AdTitle']);
 }
 
-function parseArtistTitle(streamTitle: string): MetadataResult {
-  if (!streamTitle || streamTitle.length < 2) return {};
-  if (streamTitle.includes(' - ')) {
-    const [artist, title] = streamTitle.split(' - ', 2);
-    return { title: title.trim(), artist: artist.trim() };
-  }
-  return { title: streamTitle.trim() };
+export function parseArtistTitle(streamTitle: string): MetadataResult {
+  const text=streamTitle?.trim();
+  if(!text)return {};
+  const separator=text.indexOf(' - ');
+  if(separator>=0)return {artist:text.slice(0,separator).trim(),title:text.slice(separator+3).trim()};
+  return {title:text};
 }
 
 const FETCH_HEADERS = {

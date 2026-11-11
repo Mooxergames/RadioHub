@@ -99,7 +99,7 @@ export async function pgMarkConversationNotificationsRead(userId: string, fromUs
   const result = await getPostgresPool().query(
     `UPDATE user_notifications SET is_read=true,read_at=COALESCE(read_at,now())
      WHERE user_id=$1 AND from_user_id=$2 AND type='new_message' AND is_read=false
-       AND NOT EXISTS (SELECT 1 FROM direct_messages WHERE to_user_id=$1 AND from_user_id=$2 AND is_read=false)`,
+       AND NOT EXISTS (SELECT 1 FROM direct_messages WHERE to_user_id=$1 AND from_user_id=$2 AND is_read=false AND deleted_at IS NULL AND NOT ($1=ANY(hidden_for)))`,
     [userId, fromUserId],
   );
   return result.rowCount || 0;
