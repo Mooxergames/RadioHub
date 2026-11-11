@@ -177,8 +177,8 @@ export default function StationDetails() {
   });
   
   const { user, isAuthenticated } = useAuth();
-  const { isPremium, isLoading: premiumLoading, error: premiumError } = usePremiumStatus();
-  const showAdvertisements = !isPremium && !premiumLoading && !premiumError
+  const { isActive: isAdFree, isLoading: premiumLoading, error: premiumError } = usePremiumStatus();
+  const showAdvertisements = !isAdFree && !premiumLoading && !premiumError
     && getAdSensePageType(window.location.pathname + window.location.search) === 'station';
   const { t, language, localeTranslations } = useTranslation();
   const controlLabels = useMemo(() => getStationControlLabels(language, localeTranslations), [language, localeTranslations]);
@@ -799,10 +799,10 @@ export default function StationDetails() {
                 {/* Desktop Ad Space - reserve the 250px slot + 24px top margin
                     in a grid track: responsive AdSense rewrites ancestor height
                     and min-height. The 218px carousel and premium layout stay unchanged. */}
-                <div className={isPremium ? 'mt-4 text-center sm:mt-0 hidden md:block' : 'mt-4 text-center sm:mt-0 hidden md:grid'}
+                <div className={isAdFree ? 'mt-4 text-center sm:mt-0 hidden md:block' : 'mt-4 text-center sm:mt-0 hidden md:grid'}
                   data-testid="station-desktop-ad-frame"
-                  style={isPremium ? undefined : { width: '224px', flexShrink: 0, gridTemplateRows: 'minmax(274px, auto)' }}>
-                  <div className="mt-6" style={isPremium ? undefined : { minHeight: '250px' }}>
+                  style={isAdFree ? undefined : { width: '224px', flexShrink: 0, gridTemplateRows: 'minmax(274px, auto)' }}>
+                  <div className="mt-6" style={isAdFree ? undefined : { minHeight: '250px' }}>
                     {showAdvertisements && (advertisements && advertisements.some((ad: any) => ad.position === 'desktop_sidebar' && ad.isActive) ? (
                       <Suspense fallback={<div className="bg-gray-800 rounded flex items-center justify-center text-gray-400 w-[218px] h-[218px] flex-none animate-pulse" />}>
                         <AdCarousel

@@ -1,5 +1,6 @@
 // Shared types and constants for the web premium subscription flow.
 // Consumed by PaywallModal, /premium page, and /activate page.
+import { subscriptionAccess, type SubscriptionAccessInput } from '@workspace/db-shared/subscription-access';
 
 export interface PlanInfo {
   planId: string;
@@ -9,7 +10,7 @@ export interface PlanInfo {
   amount: number;
   checkoutAvailable?: boolean;
   billingInterval?: 'month' | 'year' | null;
-  billingFrequency?: number;
+  billingFrequency?: number | null;
 }
 
 export const PLAN_LABEL: Record<string, string> = {
@@ -33,7 +34,6 @@ export function fmtPrice(amount: number, currency: string, locale = 'en'): strin
 export const PAID_PLANS = ['remove_ads', 'premium_monthly', 'premium_yearly', 'premium_lifetime'] as const;
 export function isAdFreeSubscription(sub: unknown, now = Date.now()): boolean {
   if (!sub || typeof sub !== 'object') return false;
-  const value = sub as { isActive?: boolean; plan?: string; expiresAt?: string | null };
-  if (value.isActive !== true || !PAID_PLANS.includes(value.plan as typeof PAID_PLANS[number])) return false;
-  return !value.expiresAt || (Number.isFinite(Date.parse(value.expiresAt)) && Date.parse(value.expiresAt) > now);
+  const value = sub as SubscriptionAccessInput;
+  return PAID_PLANS.includes(value.plan as typeof PAID_PLANS[number]) && subscriptionAccess(value, now).active;
 }

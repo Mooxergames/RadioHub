@@ -29,7 +29,7 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const PLAN_MODE: Record<string, string> = {
-  remove_ads:       "subscription",
+  remove_ads:       "ad-free access",
   premium_monthly:  "subscription",
   premium_yearly:   "subscription",
   premium_lifetime: "one-time payment",

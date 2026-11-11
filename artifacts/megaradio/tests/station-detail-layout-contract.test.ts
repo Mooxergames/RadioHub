@@ -21,11 +21,11 @@ function findFrame(node: ts.Node) {
 }
 findFrame(parsed);
 if (!frameNode) throw new Error('Station desktop reservation frame is missing');
-const compiled = ts.transpileModule(`export const Fixture = ({isPremium, showAdvertisements, advertisements}) => (${frameNode.getText(parsed)});`, {
+const compiled = ts.transpileModule(`export const Fixture = ({isAdFree, showAdvertisements, advertisements}) => (${frameNode.getText(parsed)});`, {
   compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
 
-it.each(['auth-loading', 'auth-error', 'google', 'manual', 'failed-manual', 'lazy-loading', 'premium'])
+it.each(['auth-loading', 'auth-error', 'google', 'manual', 'failed-manual', 'lazy-loading', 'premium', 'one-time-ad-free'])
   ('keeps one desktop frame during %s, including SDK dimension resets, without weakening the advertisement gate', state => {
     const suspended = new Promise(() => {});
     const exports: { Fixture?: React.ComponentType<any> } = {};
@@ -38,23 +38,23 @@ it.each(['auth-loading', 'auth-error', 'google', 'manual', 'failed-manual', 'laz
       exports, React, Suspense, manual, unit, (_key: string, fallback: string) => fallback,
       AD_SLOTS, DIRECT_AD_ROTATION_MS,
     );
-    const isPremium = state === 'premium';
-    const showAdvertisements = !isPremium && !state.startsWith('auth-');
+    const isAdFree = state === 'premium' || state === 'one-time-ad-free';
+    const showAdvertisements = !isAdFree && !state.startsWith('auth-');
     const advertisements = ['manual', 'failed-manual', 'lazy-loading'].includes(state)
       ? [{ position: 'desktop_sidebar', isActive: true }] : [];
     const container = document.createElement('div');
-    container.innerHTML = renderToStaticMarkup(React.createElement(exports.Fixture!, { isPremium, showAdvertisements, advertisements }));
+    container.innerHTML = renderToStaticMarkup(React.createElement(exports.Fixture!, { isAdFree, showAdvertisements, advertisements }));
     const frame = container.querySelector<HTMLElement>('[data-testid="station-desktop-ad-frame"]')!;
-    expect(frame.className).toContain(isPremium ? 'hidden md:block' : 'hidden md:grid');
-    expect(frame.style.width).toBe(isPremium ? '' : '224px');
-    expect(frame.style.flexShrink).toBe(isPremium ? '' : '0');
-    expect(frame.style.gridTemplateRows).toBe(isPremium ? '' : 'minmax(274px, auto)');
+    expect(frame.className).toContain(isAdFree ? 'hidden md:block' : 'hidden md:grid');
+    expect(frame.style.width).toBe(isAdFree ? '' : '224px');
+    expect(frame.style.flexShrink).toBe(isAdFree ? '' : '0');
+    expect(frame.style.gridTemplateRows).toBe(isAdFree ? '' : 'minmax(274px, auto)');
     const inner = frame.firstElementChild as HTMLElement;
-    expect(inner.style.minHeight).toBe(isPremium ? '' : '250px');
+    expect(inner.style.minHeight).toBe(isAdFree ? '' : '250px');
     if (!showAdvertisements || state === 'lazy-loading') expect(frame.querySelector('[data-ad]')).toBeNull();
     else expect(frame.querySelector('[data-ad]')?.getAttribute('data-ad')).toBe(state === 'manual' ? 'manual' : 'google');
     if (state === 'manual') expect((frame.querySelector('[data-ad]') as HTMLElement).style.height).toBe('218px');
-    if (!isPremium) {
+    if (!isAdFree) {
       // Replay the exact responsive-AdSense ancestor mutations seen in a real
       // filled slot. Height/min-height alone are not a durable reservation.
       // jsdom checks the independent CSS contract; live browser QA checks pixels.
@@ -78,7 +78,7 @@ it('desktop ad placeholders match the existing resolved carousel and AdSense min
   expect(desktop).not.toMatch(/aspect-square h-56/);
   expect(desktop).toContain('hidden md:block');
   expect(desktop).toContain('showAdvertisements &&');
-  expect(station).toContain('const showAdvertisements = !isPremium && !premiumLoading && !premiumError');
+  expect(station).toContain('const showAdvertisements = !isAdFree && !premiumLoading && !premiumError');
   expect(station).toContain("getAdSensePageType(window.location.pathname + window.location.search) === 'station'");
   expect(desktop).toContain('autoSwitchInterval={DIRECT_AD_ROTATION_MS}');
   expect(desktop).toContain('adSlot={AD_SLOTS.stationSidebar}');

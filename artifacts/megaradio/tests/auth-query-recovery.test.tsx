@@ -17,7 +17,7 @@ const network = vi.fn();
 let response: () => Promise<Response>;
 const anonymous = { authenticated: false, user: null };
 const premiumUser = { authenticated: true, user: {
-  _id: 'premium-listener', subscription: { plan: 'premium_monthly', isActive: true },
+  _id: 'premium-listener', subscription: { plan: 'premium_monthly', isActive: true, expiresAt: '2099-01-01T00:00:00Z' },
 } };
 
 function PremiumConsumer() {

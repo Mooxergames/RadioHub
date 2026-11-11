@@ -36,7 +36,8 @@ it('rejects stale and unknown entitlements without treating remove_ads as full f
   expect(isAdFreeSubscription({ isActive: true, plan: 'unknown' })).toBe(false);
   expect(isAdFreeSubscription({ isActive: true, plan: 'premium_monthly', expiresAt: '2000-01-01' })).toBe(false);
   expect(isAdFreeSubscription({ isActive: true, plan: 'premium_yearly', expiresAt: 'bad-date' })).toBe(false);
-  expect(isAdFreeSubscription({ isActive: true, plan: 'remove_ads' })).toBe(true);
+  expect(isAdFreeSubscription({ isActive: true, plan: 'remove_ads' })).toBe(false);
+  expect(isAdFreeSubscription({ isActive: true, plan: 'remove_ads', platform: 'paddle', paddleBillingKind: 'one_time', expiresAt: null, paddleSubscriptionId: null })).toBe(true);
 });
 it('does not invent prices and safely formats currencies using the current locale', () => {
   expect(fmtPrice(0, 'eur', 'de')).toBe(''); expect(fmtPrice(100, 'invalid', 'de')).toBe('');

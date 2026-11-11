@@ -210,7 +210,7 @@ export async function pgApplySubscriptionEvent(
       // Transaction processing can finish after subscription.canceled. Once a
       // lifecycle event exists, it alone owns recurring entitlement state.
       if (paddle.subscriptionId && current.paddleSubscriptionId === paddle.subscriptionId && current.lastPaddleSubscriptionTime) {
-        for (const key of ["isActive", "isTrial", "subscriptionStatus", "expiresAt", "renewsAt", "cancelAtPeriodEnd", "cancelledAt", "startedAt", "plan", "productId"]) delete orderedPatch[key];
+        for (const key of ["isActive", "isTrial", "subscriptionStatus", "expiresAt", "renewsAt", "cancelAtPeriodEnd", "cancelledAt", "startedAt", "plan", "productId", "paddleBillingKind"]) delete orderedPatch[key];
       }
       if (paddle.transactionId !== current.transactionId) {
         orderedPatch.paddleRefundedTransactionId = null;
