@@ -5086,6 +5086,7 @@ export const REVIEWED_STATION_EDITORIALS: readonly ReviewedStationEditorial[] = 
     "stationId": "69ffd89bda362ab542d50995",
     "slug": "virgin-radio-uk-rock-n-roll-radio-from-the-top-of-the-tower",
     "language": "en",
+    "title": "Virgin Radio UK | Listen Live Online",
     "summary": "Virgin Radio UK's main service pairs rock and pop records with presenter-led radio, live-music coverage and programmes including The Chris Evans Breakfast Show.",
     "sections": [
       {

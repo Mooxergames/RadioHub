@@ -227,6 +227,22 @@ test('approved data is present for en/de/tr rather than vacuously passing empty 
   for (const language of languages) firstApproved(language);
 });
 
+test('Virgin Radio UK uses a complete short title without truncating its country, preserving station identity', async () => {
+  const editorial = REVIEWED_STATION_EDITORIALS.find(item => item.stationId === '69ffd89bda362ab542d50995');
+  assert.ok(editorial);
+  prepareStation(editorial);
+  const name = ' VIRGIN RADIO UK: Rock\u2018n\u2019Roll Radio From The Top Of The Tower';
+  stationPatch.name = name;
+  stationPatch.country = 'The United Kingdom Of Great Britain And Northern Ireland';
+  stationPatch.countryCode = 'GB';
+  for (const page of await missAndHit(editorial.path, 'en')) {
+    assert.equal(page.seoTags.title, 'Virgin Radio UK | Listen Live Online');
+    assert.equal(page.pageData.station.name, name);
+    assert.equal(page.seoTags.canonical, origin + editorial.path);
+    assertSurfaces(page, editorial);
+  }
+});
+
 const adminCases: { label: string; metadata: Administrator | null }[] = [
   { label: 'no administrator override', metadata: null },
   ...fields.map(field => ({ label: `independent administrator ${field}`, metadata: { [field]: `Published ${field} & override` } })),
