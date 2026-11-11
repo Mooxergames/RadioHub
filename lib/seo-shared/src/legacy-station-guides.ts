@@ -2,7 +2,7 @@ import type { SeoMetaTags } from './seo-config';
 import { translateUrl } from './url-translations';
 import { getLegacyStationGuideRoute } from './legacy-station-guide-routes';
 
-export interface LegacyStationGuide {
+interface LegacyStationGuideBase {
   id: string;
   path: string;
   sourcePaths: readonly string[];
@@ -12,6 +12,11 @@ export interface LegacyStationGuide {
   description: string;
   intro: string;
   scopeNote: string;
+  faq: readonly { question: string; answer: string }[];
+}
+
+export type LegacyStationGuide = LegacyStationGuideBase & ({
+  kind?: 'disambiguation';
   choices: readonly {
     name: string;
     place: string;
@@ -19,8 +24,12 @@ export interface LegacyStationGuide {
     officialListen: { label: string; url: string };
     sources: readonly { label: string; url: string }[];
   }[];
-  faq: readonly { question: string; answer: string }[];
-}
+} | {
+  kind: 'history';
+  publishedAt: string;
+  sections: readonly { heading: string; paragraphs: readonly string[] }[];
+  sources: readonly { label: string; url: string }[];
+});
 
 export const LEGACY_GUIDE_REVIEWED_AT = '2026-11-11';
 
@@ -62,6 +71,74 @@ export const LEGACY_STATION_GUIDES: readonly LegacyStationGuide[] = [
       question: 'My Darmstadt preset is silent. Did RadaR move to Lisbon’s 97.8?',
       answer: 'No. They are separate stations. Radio Darmstadt says its FM distribution ended on 30 June 2026. For the Darmstadt programme, look for Radio Darmstadt on DAB+ or use its website; 97.8 identifies the Portuguese station.',
     }],
+  },
+  {
+    id: 'quran-radio-3',
+    path: '/ar/mahta/quran-radio-3',
+    sourcePaths: ['/ar/station/quran-radio-3', '/ar/mahta/quran-radio-3'],
+    language: 'ar',
+    title: 'إذاعة القرآن الكريم: هل تقصد السعودية أم قطر؟',
+    seoTitle: 'إذاعة القرآن الكريم السعودية أم قطر؟ | MegaRadio',
+    description: 'تعرّف على الفرق بين إذاعة القرآن الكريم السعودية وإذاعة القرآن الكريم من الدوحة، واختر صفحة الاستماع الرسمية بحسب البلد والبرامج التي تتذكرها.',
+    intro: 'تحمل أكثر من إذاعة اسم «إذاعة القرآن الكريم». البلد واسم البرنامج يساعدانك على تحديد الإذاعة التي تبحث عنها، بدلاً من الاعتماد على الاسم وحده. هنا معلومات تميّز الإذاعة السعودية عن إذاعة القرآن الكريم من الدوحة، مع رابط الاستماع الذي يقدمه كل ناشر.',
+    scopeNote: 'لا يحدد الرابط القديم أيًّا من الإذاعتين كان المقصود، والرقم 3 في عنوانه ليس دليلاً على رقم قناة رسمية. هاتان إذاعتان مستقلتان؛ لا نختار إحداهما تلقائيًا نيابة عنك.',
+    choices: [
+      {
+        name: 'إذاعة القرآن الكريم السعودية',
+        place: 'المملكة العربية السعودية',
+        copy: 'تقدم الإذاعة تلاوات وبرامج دينية، ومن أسمائها المعروفة «نور على الدرب». تنشر قناتها الرسمية أخبار البرامج وتوجّه المستمع إلى صفحة الإذاعة في Saudi Radio+. إذا كنت تتذكر هذا البرنامج أو إعلان الإذاعة السعودية، فافتح مدخل الاستماع السعودي. اسم الإذاعة هنا لا يعني قناة القرآن الكريم التلفزيونية؛ اختر خدمة الراديو في موقع الناشر.',
+        officialListen: { label: 'افتح إذاعة القرآن الكريم في Saudi Radio+', url: 'https://radioplus.sba.sa/ar/live/4' },
+        sources: [{ label: 'القناة الرسمية السعودية: البرامج ورابط البث', url: 'https://t.me/s/Quransr?before=16169' }],
+      },
+      {
+        name: 'إذاعة القرآن الكريم من الدوحة',
+        place: 'الدوحة، قطر',
+        copy: 'هذه خدمة المؤسسة القطرية للإعلام. تذكر تاريخها الرسمي أن إذاعة قطر أطلقت إذاعة القرآن الكريم عام 1992، للاهتمام بالقرآن وعلومه والحديث والتفسير. يعرض موقعها برامج مثل «فتوى» و«كيف أصبحت». إذا كنت تبحث عن برنامج سمعته من الدوحة، فاستخدم مشغّل هذا الموقع، وراجع جدول البث لدى الناشر لمعرفة موعد البرنامج الحالي.',
+        officialListen: { label: 'افتح البث في موقع إذاعة القرآن الكريم القطرية', url: 'https://www.quranradio.qa/' },
+        sources: [{ label: 'المؤسسة القطرية للإعلام: تاريخ إذاعة القرآن الكريم', url: 'https://www.quranradio.qa/AboutUs' }],
+      },
+    ],
+    faq: [
+      { question: 'كيف أعرف أي إذاعة تحمل البرنامج الذي أبحث عنه؟', answer: 'قارن البلد واسم البرنامج: «نور على الدرب» من علامات الإذاعة السعودية في مصادرها الرسمية، بينما يعرض موقع الإذاعة القطرية «فتوى» و«كيف أصبحت». مواعيد البرامج تتغير؛ خذ الموعد من جدول الناشر، لا من اسم هذا الرابط.' },
+      { question: 'هل اختيار إحدى الوصلتين يشغّل الإذاعة القديمة تلقائيًا؟', answer: 'لا. كل وصلة تفتح صفحة استماع لدى ناشر مستقل. هذا دليل للتمييز بين الاسمين، وليس تأكيدًا لهوية السجل القديم أو ضمانًا لتوفر الصوت في كل بلد.' },
+    ],
+  },
+  {
+    id: 'channel-v-international',
+    path: '/am/station/channel-v-international',
+    sourcePaths: ['/am/station/channel-v-international'],
+    language: 'en',
+    kind: 'history',
+    publishedAt: '2026-11-11',
+    title: 'Channel V: the 2021 regional television withdrawal',
+    seoTitle: 'Channel V: its 2021 regional TV withdrawal | MegaRadio',
+    description: 'What official notices say about Channel V leaving pay-TV services in Southeast Asia and Hong Kong in October 2021, and the limits of that evidence.',
+    intro: 'Looking for the Channel V you remember from a television channel list? Official notices from 2021 describe a pay-TV service, not an internet radio station. They explain its withdrawal from a particular region and platform, rather than establishing a worldwide closure date for every service using the name.',
+    scopeNote: 'This is a historical account of Channel V’s regional TV distribution. It does not identify a radio successor or confirm which regional feed was once attached to this directory address.',
+    sections: [
+      {
+        heading: 'What changed in 2021?',
+        paragraphs: [
+          'A notice published by Vietnam’s ministry on 7 September 2021 named Channel V among fourteen foreign television channels being withdrawn from pay-TV distribution. It attributed the change to announcements from Disney Networks Group Asia Pacific and Buena Vista International, covering Southeast Asia and Hong Kong, including Vietnam.',
+          'The dates describe different steps: 30 September was the last day of the authorised distributors’ existing rights in Vietnam; 1 October was the announced withdrawal date. Neither date is presented here as the end of every Channel V-branded feed worldwide.',
+        ],
+      },
+      {
+        heading: 'What MyTV’s notice confirms',
+        paragraphs: [
+          'MyTV separately told its subscribers that Channel V and other international channels would leave its own television service from 1 October 2021, following the rights provider’s regional business change. The operator’s notice is useful for a viewer who remembers Channel V disappearing from that particular channel lineup.',
+          'MyTV also announced replacement channels in its lineup. A platform adding another music channel does not make that channel a continuation of Channel V, and the notice does not identify an equivalent radio stream.',
+        ],
+      },
+    ],
+    sources: [
+      { label: 'Vietnam ministry: announcement published 7 September 2021', url: 'https://mst.gov.vn/14-kenh-truyen-hinh-nuoc-ngoai-se-ngung-phat-song-tai-viet-nam-tu-ngay-110-toi-197148600.htm' },
+      { label: 'MyTV: changes to its television channel lineup', url: 'https://mytv.com.vn/tin-tuc/tin-tu-mytv/thong-bao-thay-doi-danh-sach-kenh-tren-he-thong-truyen-hinh-mytv-1871.html' },
+    ],
+    faq: [
+      { question: 'Was the service in these notices an FM or online radio station?', answer: 'No. Both notices concern television distribution. They do not provide a replacement audio-only broadcast.' },
+      { question: 'Do these documents establish a worldwide closure?', answer: 'No. The ministry describes the announced regional withdrawal; MyTV confirms the change on its own platform. Other territories and similarly named services require separate evidence.' },
+    ],
   },
   {
     id: 'rock-fm-23',
@@ -129,7 +206,7 @@ export function buildLegacyStationGuideSeo(guide: LegacyStationGuide): SeoMetaTa
     title: guide.seoTitle, description: guide.description, canonical,
     robots: 'index, follow, max-image-preview:large', noIndex: false,
     hreflangs: [], ogLocaleAlternates: [],
-    ogTitle: guide.seoTitle, ogDescription: guide.description, ogType: 'website', ogUrl: canonical,
+    ogTitle: guide.seoTitle, ogDescription: guide.description, ogType: guide.kind === 'history' ? 'article' : 'website', ogUrl: canonical,
     ogLocale: guide.language === 'ar' ? 'ar_AR' : 'en_US',
     twitterTitle: guide.seoTitle, twitterDescription: guide.description,
     language: guide.language,
@@ -145,7 +222,14 @@ export function buildLegacyStationGuideSchema(guide: LegacyStationGuide): unknow
       { '@type': 'ListItem', position: 1, name: home, item: `https://themegaradio.com/${guide.language}` },
       { '@type': 'ListItem', position: 2, name: guide.title, item: url },
     ],
-  }, {
+  }, guide.kind === 'history' ? {
+    '@context': 'https://schema.org', '@type': 'Article', '@id': `${url}#article`,
+    mainEntityOfPage: url, headline: guide.title, description: guide.description,
+    inLanguage: guide.language, datePublished: guide.publishedAt, dateModified: LEGACY_GUIDE_REVIEWED_AT,
+    author: { '@type': 'Organization', name: 'MegaRadio', url: 'https://themegaradio.com/en' },
+    citation: guide.sources.filter(source => safeSource(source.url)).map(source => source.url),
+    isAccessibleForFree: true,
+  } : {
     '@context': 'https://schema.org', '@type': 'CollectionPage', '@id': `${url}#webpage`,
     url, name: guide.title, description: guide.description, inLanguage: guide.language,
     dateModified: LEGACY_GUIDE_REVIEWED_AT, isAccessibleForFree: true,
@@ -162,11 +246,15 @@ export function renderLegacyStationGuideHtml(guide: LegacyStationGuide): string 
   const ar = guide.language === 'ar';
   const sourceLink = (source: { label: string; url: string }) => safeSource(source.url)
     ? `<a href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.label)}</a>` : esc(source.label);
+  const content = guide.kind === 'history'
+    ? guide.sections.map(section => `<section><h2>${esc(section.heading)}</h2>${section.paragraphs.map(paragraph => `<p>${esc(paragraph)}</p>`).join('')}</section>`).join('')
+      + `<section><h2>Official documents</h2><ul>${guide.sources.map(source => `<li>${sourceLink(source)}</li>`).join('')}</ul></section>`
+    : guide.choices.map(choice => `<section><h2>${esc(choice.name)}</h2><p><strong>${esc(choice.place)}</strong></p><p>${esc(choice.copy)}</p><p>${sourceLink(choice.officialListen)}</p><ul>${choice.sources.map(source => `<li>${sourceLink(source)}</li>`).join('')}</ul></section>`).join('');
   return `<main class="radio-journal radio-legacy-guide" lang="${guide.language}" dir="${ar ? 'rtl' : 'ltr'}" data-legacy-guide-id="${esc(guide.id)}">
     <nav aria-label="breadcrumb"><ol class="radio-journal-crumbs"><li><a href="/${guide.language}">${ar ? 'الرئيسية' : 'Home'}</a></li><li><span aria-current="page">${esc(guide.title)}</span></li></ol></nav>
-    <article><header class="radio-journal-heading"><span class="radio-journal-eyebrow">${ar ? 'دليل المحطات' : 'Station guide'}</span><h1>${esc(guide.title)}</h1><p class="radio-journal-intro">${esc(guide.intro)}</p><div class="radio-journal-byline"><span>MegaRadio</span><span>${ar ? 'آخر مراجعة للمصادر' : 'Sources reviewed'} <time datetime="${LEGACY_GUIDE_REVIEWED_AT}">${LEGACY_GUIDE_REVIEWED_AT}</time></span></div></header>
-    <div class="radio-journal-prose"><p>${esc(guide.scopeNote)}</p>${guide.choices.map(choice => `<section><h2>${esc(choice.name)}</h2><p><strong>${esc(choice.place)}</strong></p><p>${esc(choice.copy)}</p><p>${sourceLink(choice.officialListen)}</p><ul>${choice.sources.map(source => `<li>${sourceLink(source)}</li>`).join('')}</ul></section>`).join('')}
-    <section><h2>${ar ? 'أسئلة شائعة' : 'Questions about these stations'}</h2>${guide.faq.map(item => `<h3>${esc(item.question)}</h3><p>${esc(item.answer)}</p>`).join('')}</section>
+    <article><header class="radio-journal-heading"><span class="radio-journal-eyebrow">${ar ? 'دليل المحطات' : guide.kind === 'history' ? 'Broadcast history' : 'Station guide'}</span><h1>${esc(guide.title)}</h1><p class="radio-journal-intro">${esc(guide.intro)}</p><div class="radio-journal-byline"><span>MegaRadio</span><span>${ar ? 'آخر مراجعة للمصادر' : 'Sources reviewed'} <time datetime="${LEGACY_GUIDE_REVIEWED_AT}">${LEGACY_GUIDE_REVIEWED_AT}</time></span></div></header>
+    <div class="radio-journal-prose"><p>${esc(guide.scopeNote)}</p>${content}
+    <section><h2>${ar ? 'أسئلة شائعة' : guide.kind === 'history' ? 'Questions about Channel V' : 'Questions about these stations'}</h2>${guide.faq.map(item => `<h3>${esc(item.question)}</h3><p>${esc(item.answer)}</p>`).join('')}</section>
     <section class="radio-journal-explore"><h2>${ar ? 'اكتشف محطات أخرى' : 'Explore more stations'}</h2><a href="/${guide.language}">${ar ? 'دليل MegaRadio' : 'MegaRadio directory'}</a><a href="/${guide.language}${translateUrl('/search', guide.language)}">${ar ? 'ابحث عن محطة بالاسم' : 'Search for a station by name'}</a></section></div></article>
   </main>`;
 }
