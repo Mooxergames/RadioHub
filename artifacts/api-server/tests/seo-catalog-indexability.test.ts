@@ -213,5 +213,5 @@ test('new404 HTTP response preserves body and HEAD semantics, cannot enter the l
   const web = await readFile(new URL('../src/index-web.ts', import.meta.url), 'utf8');
   assert.ok(web.indexOf('if (seoData.pageData?.httpNotFound)') < web.indexOf('const stationNotFound = !!seoData.pageData?.notFound;'));
   assert.match(web, /const parsedPage = parseSeoCatalogPage\(url\)/);
-  assert.match(web, /parsedPage\.valid \? performanceCache\.getSeoHtml/);
+  assert.match(web, /parsedPage\.valid && !legacyGuideCandidate \? performanceCache\.getSeoHtml/);
 });

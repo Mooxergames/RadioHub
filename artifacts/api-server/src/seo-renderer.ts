@@ -97,6 +97,7 @@ import { resolveFaqPageItems, resolveFaqPageText } from '@workspace/seo-shared/f
 import { loadBlogContent, buildBlogSeo, buildBlogSchema } from '@workspace/seo-shared/blog';
 import { isBlogPath, parseBlogPath, BLOG_LABELS, isBlogLocale, blogPath } from '@workspace/seo-shared/blog-manifest';
 import { renderBlogHtml } from '@workspace/seo-shared/blog-html';
+import { getLegacyStationGuide, buildLegacyStationGuideSeo, buildLegacyStationGuideSchema, renderLegacyStationGuideHtml } from '@workspace/seo-shared/legacy-station-guides';
 
 // SEO audit fix (2026-05-12) — per-language fallback labels used by the
 // regions/country page <title>+<h1> when the corresponding DB translation
@@ -375,6 +376,7 @@ export class SeoRenderer {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const cleanUrl = url.split('?')[0].split('#')[0];
     const retiredLocale = getRetiredLocaleFromPath(cleanUrl);
+    const legacyGuideCandidate = getLegacyStationGuide(cleanUrl);
 
     // Get language from URL path, but prefer user's stored preference if available
     let { language, cleanPath } = resolveBareDiscoveryPath(cleanUrl) || getLanguageFromPath(cleanUrl);
@@ -407,7 +409,7 @@ export class SeoRenderer {
     // CRITICAL: Language/Country separation
     // If user has a stored language preference (from cookie), use that instead of country-derived language
     // This ensures a Turkish user viewing /de/ sees Turkish UI, not German
-    if (!retiredLocale && preferredLanguage && preferredLanguage.toLowerCase() !== language.toLowerCase()) {
+    if (!retiredLocale && !legacyGuideCandidate && preferredLanguage && preferredLanguage.toLowerCase() !== language.toLowerCase()) {
       // Validate the preferred language is enabled (case-insensitive comparison for hyphenated codes like pt-BR)
       const normalizedPref = preferredLanguage.toLowerCase();
       const matchedLang = SEO_LANGUAGES.find(l => l.code.toLowerCase() === normalizedPref && l.enabled);
@@ -441,7 +443,8 @@ export class SeoRenderer {
       + (cleanPath === '/genres' ? `|genre-whitelist=${(await import('./seo/directory-hub-data')).genreDirectoryCacheRevision()}` : '');
     
     // Check cache for complete page data first
-    const cachedPageData = performanceCache.getPageData(cacheKey);
+    // A published guide must never mask a newly assigned native or alias owner.
+    const cachedPageData = legacyGuideCandidate ? undefined : performanceCache.getPageData(cacheKey);
     if (cachedPageData) {
       return cachedPageData;
     }
@@ -683,6 +686,15 @@ export class SeoRenderer {
           }
 
           if (stationData) stationData = withPilotEditorial(stationData);
+
+          if (!stationData && legacyGuideCandidate) {
+            const guide = legacyGuideCandidate;
+            const seoTags = buildLegacyStationGuideSeo(guide);
+            return {
+              language: guide.language, cleanPath, translations, urlTranslations, seoTags,
+              pageData: { pageType: 'legacy-guide', legacyGuide: guide, additionalData: { legacyGuide: guide }, notFound: false },
+            };
+          }
 
           // If station truly doesn't exist, mark notFound and synthesize minimal data so SSR
           // can still render a 404 body (avoids 500). Caller (index-web.ts) maps this to HTTP 404,
@@ -1790,7 +1802,7 @@ export class SeoRenderer {
     
     // A failed lookup must be retried on the very next request. Caching its
     // synthetic data kept healthy station URLs unavailable after PG recovered.
-    if (!stationDbErrorFlag && !additionalData.hubReadFailed && !additionalData.httpNotFound) performanceCache.setPageData(cacheKey, pageData);
+    if (!legacyGuideCandidate && !stationDbErrorFlag && !additionalData.hubReadFailed && !additionalData.httpNotFound) performanceCache.setPageData(cacheKey, pageData);
     
     return pageData;
     }, url);
@@ -2447,6 +2459,7 @@ export class SeoRenderer {
   generateHtmlBody(pageData: { pageType: string; language: string; translations: Record<string, string>; seoTags?: any; stationData?: any; additionalData?: any; urlTranslations?: Map<string, string>; cleanPath?: string }): string {
     const { pageType, language, translations, seoTags, stationData, additionalData, urlTranslations, cleanPath } = pageData;
     if (pageType === 'blog' && additionalData?.blog) return renderBlogHtml(additionalData.blog);
+    if (pageType === 'legacy-guide' && additionalData?.legacyGuide) return renderLegacyStationGuideHtml(additionalData.legacyGuide);
     const h1Text = this.getH1Text(pageType, language, translations, seoTags, stationData, additionalData);
 
     // Visible breadcrumb trail — Task #280. Rendered above <main> on every
@@ -3426,6 +3439,10 @@ export class SeoRenderer {
     const websiteSchema = generateWebSiteSchema(schemaDomain, schemaLanguage, translations);
     const organizationSchema = generateOrganizationSchema(schemaDomain, schemaLanguage, translations);
     const visionGoOrgSchema = generateDeveloperOrganizationSchema(schemaLanguage);
+    if (additionalData?.legacyGuide) return {
+      global: [websiteSchema, organizationSchema, visionGoOrgSchema],
+      page: buildLegacyStationGuideSchema(additionalData.legacyGuide),
+    };
     if (additionalData?.blog) return {
       global: [websiteSchema, organizationSchema, visionGoOrgSchema],
       page: buildBlogSchema(additionalData.blog),
@@ -3837,7 +3854,8 @@ export class SeoRenderer {
 
     return `
     <title>${safeTitle}</title>
-    ${additionalData?.blog ? '<link rel="stylesheet" href="/blog.css?v=20260925">' : ''}
+    ${additionalData?.legacyGuide ? `<meta name="megaradio-legacy-guide" content="${esc(additionalData.legacyGuide.id)}">` : ''}
+    ${additionalData?.blog || additionalData?.legacyGuide ? '<link rel="stylesheet" href="/blog.css?v=20261111">' : ''}
     <meta name="description" content="${safeDescription}">
     <meta name="author" content="MegaRadio">
     

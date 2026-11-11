@@ -4,9 +4,10 @@ import { mobileAppLinkPaths } from '../seo/mobile-app-links';
 import { isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 import crypto from 'crypto';
 import { buildBlogSitemap } from '../seo/blog-sitemap';
+import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
+import { BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
 import { SITEMAP_STYLESHEET, withSitemapStylesheet } from '../seo/sitemap-presentation';
 import { INDEXING_PILOT, matchingPilotProfile, type IndexingPilotProfile } from '../seo/indexing-pilot';
-import { BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
 import { pgReportStationDebugLog, pgListStationDebugLogs } from '../data/postgres-station-debug-store';
 import { pgActiveManifests, pgSeoGenres, pgTouchSitemapStations, pgSitemapStationDiagnostics, pgSitemapStationBatch, SITEMAP_STATION_READ_BATCH_SIZE } from '../data/postgres-seo-indexing-store';
 import { markSeoTemporarilyUnavailable } from '../seo/temporary-unavailable';
@@ -473,6 +474,7 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
   app.get("/api/seo/page-data", async (req, res) => {
     try {
       const url = req.query.url as string || '/';
+      if (getLegacyStationGuideRoute(url)) res.set('Cache-Control', 'no-store');
       
       // CRITICAL SEO FIX: Always use themegaradio.com as the PRIMARY domain
       const getProductionDomain = (requestHost: string = ''): string => {
@@ -488,6 +490,15 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
         return;
       }
       if (seoData.pageData?.httpNotFound) res.status(404).set('Cache-Control', 'no-store');
+      if (getLegacyStationGuideRoute(url) && (seoData.pageData?.notFound || seoData.pageData?.stationIsJunk)) {
+        res.status(410).set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, follow' }).json({
+          legacyGuideId: null,
+          seoTags: { title: seoData.language === 'ar' ? 'الصفحة غير متوفرة | MegaRadio' : 'Page unavailable | MegaRadio', description: '',
+            noIndex: true, robots: 'noindex, follow', hreflangs: [] },
+          structuredData: { global: [], page: [] },
+        });
+        return;
+      }
       const retiredStation = getRetiredLocaleFromPath(url) && seoData.pageData?.pageType === 'station';
       if (retiredStation && (seoData.pageData?.notFound || seoData.pageData?.stationIsJunk)) {
         res.status(410).set('Cache-Control', 'no-store').json({ error: 'Station unavailable' });
@@ -507,6 +518,8 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
         res.json({
           language: (seoData as any).language,
           cleanPath: (seoData as any).cleanPath,
+          ...(getLegacyStationGuideRoute(url) ? { legacyGuideId: seoData.pageData?.legacyGuide?.id ?? null } : {}),
+          ...(getLegacyStationGuideRoute(url) && seoData.pageData?.redirectTo ? { redirectTo: seoData.pageData.redirectTo } : {}),
           // SPA entry without SSR bootstrap must resolve the same verified
           // station before enrichment; do not expose the archived/source row.
           ...(retiredStation && seoData.pageData?.station?._id

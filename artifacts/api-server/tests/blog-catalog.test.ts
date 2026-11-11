@@ -19,6 +19,7 @@ import {
 } from "@workspace/seo-shared/blog-manifest";
 import { buildBlogSitemap } from "../src/seo/blog-sitemap";
 import { getKnownOgImageDimensions } from "@workspace/seo-shared/og-image-metadata";
+import { LEGACY_STATION_GUIDES } from '@workspace/seo-shared/legacy-station-guides';
 
 test("catalog retains the original 140 editions and adds exactly 48 sparse market editions", () => {
   assert.equal(BLOG_IDS.length, 10);
@@ -81,7 +82,7 @@ test("Hong Kong articles keep /zh URLs but use their genuine language tag; core 
   assert.equal(blogAlternates("radio-data-usage").length, 15);
 });
 
-test("202 sitemap URLs have only real reciprocal alternates and stable per-edition dates", () => {
+test("202 blog sitemap URLs retain stable dates and only real alternates without ownership-dependent guides", () => {
   const entries = new XMLParser({ ignoreAttributes: false }).parse(
     buildBlogSitemap(),
   ).urlset.url;
@@ -90,6 +91,7 @@ test("202 sitemap URLs have only real reciprocal alternates and stable per-editi
     entries.map((entry: any) => [entry.loc, entry]),
   );
   assert.equal(byUrl.size, 202);
+  for (const guide of LEGACY_STATION_GUIDES) assert.equal(byUrl.has(`https://themegaradio.com${guide.path}`), false);
   assert.equal(BLOG_SITEMAP_UPDATED, BLOG_REVIEWED);
   for (const entry of entries) {
     const route = parseBlogPath(new URL(entry.loc).pathname)!;

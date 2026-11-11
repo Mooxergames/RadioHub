@@ -43,6 +43,7 @@ import { PushNotificationBridge } from "@/components/PushNotificationBridge";
 import { useState, useEffect, useDeferredValue } from "react";
 import { useLocation } from "wouter";
 import { getLanguageFromPath, getRetiredLocaleFromPath } from "@workspace/seo-shared/seo-config";
+import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 import { syncDocumentLocale } from '@/lib/document-locale';
 import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useAnalytics } from "./hooks/use-analytics";
@@ -241,6 +242,7 @@ export function PublicRouter({ selectedCountry, onCountryChange }: { selectedCou
     // CRITICAL FIX: Strip query params and hash for route matching
     // GenresPage adds ?page=1 which would break the equality check
     const pathToUse = deferredPath.split('?')[0].split('#')[0];
+    if (getLegacyStationGuideRoute(location)) return <LazyRoutes.LegacyStationGuidePage />;
     
     
     if (pathToUse === '/') return <LazyRoutes.RadioFrontend selectedCountry={selectedCountry} onCountryChange={onCountryChange} />;

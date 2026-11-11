@@ -44,6 +44,7 @@ import {
 } from "@workspace/seo-shared/url-translations";
 import { buildLocalizedUrl } from "../src/seo/url-helpers";
 import { buildBlogSitemap } from "../src/seo/blog-sitemap";
+import { LEGACY_STATION_GUIDES } from '@workspace/seo-shared/legacy-station-guides';
 
 for (const locale of BLOG_LOCALES)
   test(`complete native blog content + SEO contract: ${locale}`, async () => {
@@ -261,6 +262,7 @@ test("editorial sitemap preserves 140 editions and lists only actual market edit
   const expected = 154 + Object.keys(MARKET_BLOG_MANIFEST).length;
   assert.equal(entries.length, expected);
   assert.equal(new Set(entries.map((entry: any) => entry.loc)).size, expected);
+  for (const guide of LEGACY_STATION_GUIDES) assert.ok(!entries.some((entry: any) => entry.loc === `https://themegaradio.com${guide.path}`));
   let images = 0;
   for (const entry of entries) {
     const route = parseBlogPath(new URL(entry.loc).pathname)!;

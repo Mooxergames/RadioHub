@@ -8,6 +8,7 @@ import { StationDirectoryContext, type SeoPagePayload } from '@/hooks/useStation
 import { useLocation, useSearch } from "wouter";
 import { preserveInitialSsrHead, ServerSeoHeadContext } from "@/utils/ssr-seo-head";
 import { clearGenreStationLists, clearPageStructuredData, withoutGenreStationLists } from "@/utils/server-structured-data";
+import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 
 interface SeoPageWrapperProps {
   children: React.ReactNode;
@@ -25,6 +26,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   const isGenrePage = /^\/genres(?:\/|$)/.test(routePath);
   const isDirectory = isStationDirectoryPath(routePath, !getRetiredLocaleFromPath(location));
   const isBlog = /^\/[a-z]{2}\/blog(?:\/|$)/.test(location);
+  const isLegacyGuideCandidate = !!getLegacyStationGuideRoute(location);
   // Wouter decodes paths/search. Catalog validation and cache identity must
   // retain their original encoding, parameter order and duplicate parameters.
   const fullUrl = isDirectory && typeof window !== 'undefined'
@@ -49,14 +51,20 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   // slim=1 omits dictionaries; only exact catalog routes include the bounded DTO.
   const query = useQuery<SeoPagePayload, Error>({
     queryKey: ['/api/seo/page-data', fullUrl, currentLanguage],
-    enabled: (isDirectory || !ssrHeadAlreadyCorrect) && directoryLanguageReady,
+    enabled: (isDirectory || isLegacyGuideCandidate || !ssrHeadAlreadyCorrect) && directoryLanguageReady,
     placeholderData: undefined,
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/seo/page-data?url=${encodeURIComponent(fullUrl)}&slim=1`, { signal });
-      if (!response.ok && !((isDirectory || isBlog) && response.status === 404)) {
+      if (!response.ok && !(((isDirectory || isBlog) && response.status === 404) || (isLegacyGuideCandidate && response.status === 410))) {
         throw new Error(`SEO page data unavailable (${response.status})`);
       }
       const payload: SeoPagePayload = await response.json();
+      if (isLegacyGuideCandidate && response.status === 410) return {
+        ...payload, httpStatus: 410, legacyGuideId: null,
+        seoTags: { ...payload.seoTags, title: payload.seoTags?.title || '410 | MegaRadio', description: payload.seoTags?.description || '',
+          noIndex: true, robots: 'noindex, follow', canonical: undefined, hreflangs: [] },
+        structuredData: { global: payload.structuredData?.global || [], page: [] },
+      };
       if (isDirectory && response.status !== 404 && !isStationDirectoryData(payload?.stationDirectory)) {
         throw new Error('Station directory data unavailable');
       }
@@ -72,10 +80,14 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
       }
       return { ...payload, httpStatus: response.status === 404 ? 404 : 200 };
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: isLegacyGuideCandidate ? 0 : 5 * 60 * 1000,
+    ...(isLegacyGuideCandidate ? { refetchOnMount: 'always' as const } : {}),
     ...(isDirectory ? { retry: false } : {}),
   });
   const seoData = query.data;
+  const applyCurrentHead = isLegacyGuideCandidate
+    ? query.isSuccess && !query.isFetching && !seoData?.redirectTo
+    : !ssrHeadAlreadyCorrect || ((isDirectory || isBlog) && seoData?.httpStatus === 404);
   const structuredData = useMemo(() => seoData?.structuredData && isGenrePage
     ? withoutGenreStationLists(seoData.structuredData) : seoData?.structuredData,
   [seoData?.structuredData, isGenrePage]);
@@ -85,9 +97,9 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
       <StationDirectoryContext.Provider value={{ active: isDirectory, language: currentLanguage, query }}>
         {/* Never replace a complete SSR head with homepage translation keys or
             the previous route's tags while the current request is pending. */}
-        {(!ssrHeadAlreadyCorrect || ((isDirectory || isBlog) && seoData?.httpStatus === 404)) && seoData?.seoTags
+        {applyCurrentHead && seoData?.seoTags
           && <SeoHead key={fullUrl} seoData={seoData.seoTags} structuredData={structuredData}
-            clearCanonical={(isDirectory || isBlog) && seoData.httpStatus === 404} />}
+            clearCanonical={((isDirectory || isBlog) && seoData.httpStatus === 404) || (isLegacyGuideCandidate && seoData.httpStatus === 410)} />}
         {children}
       </StationDirectoryContext.Provider>
     </ServerSeoHeadContext.Provider>

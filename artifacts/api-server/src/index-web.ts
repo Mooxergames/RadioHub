@@ -40,6 +40,7 @@ import { startOperation, endOperation, getActiveOperations, getGcStats } from '.
 import { requestGracefulRestart, requestedShutdownExitCode } from './utils/graceful-restart';
 import { createWebShutdown, WEB_SHUTDOWN_TIMEOUT_MS } from './utils/web-shutdown';
 import { getLanguageFromPath, getRetiredLocaleFromPath } from '@workspace/seo-shared/seo-config';
+import { getLegacyStationGuide } from '@workspace/seo-shared/legacy-station-guides';
 
 import { geoBlockMiddleware } from './middleware/geo-block';
 import { canonicalUrlMiddleware } from './middleware/canonical-url';
@@ -699,7 +700,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
     const parsedPage = parseSeoCatalogPage(url);
     const pageNum = parsedPage.valid ? parsedPage.page : 1;
     const seoHtmlKey = pageNum > 1 ? `${cleanUrl}|page=${pageNum}` : cleanUrl;
-    const cachedHtml = parsedPage.valid ? performanceCache.getSeoHtml(seoHtmlKey) : undefined;
+    const legacyGuideCandidate = getLegacyStationGuide(cleanUrl);
+    const cachedHtml = parsedPage.valid && !legacyGuideCandidate ? performanceCache.getSeoHtml(seoHtmlKey) : undefined;
     if (cachedHtml) {
       // Cache-HIT junk guard: a station URL whose pageData cache reports
       // stationIsJunk must serve 410 even if a stale SSR HTML is still in
@@ -971,7 +973,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
 
         // Only complete, current documents may enter the HTML cache.
         const stationDbError = !!seoData.pageData?.stationDbError;
-        if (!stationNotFound && !stationDbError) {
+        if (!legacyGuideCandidate && !stationNotFound && !stationDbError) {
           performanceCache.setSeoHtml(seoHtmlKey, htmlContent, 'bot', sourceExpiresAt);
         }
         // Soft-404 guard (2026-05-15): when the SSR resolves to "not

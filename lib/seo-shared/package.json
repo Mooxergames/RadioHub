@@ -10,6 +10,8 @@
     "./blog": "./src/blog/index.ts",
     "./blog-manifest": "./src/blog/manifest.ts",
     "./blog-html": "./src/blog/html.ts",
+    "./legacy-station-guides": "./src/legacy-station-guides.ts",
+    "./legacy-station-guide-routes": "./src/legacy-station-guide-routes.ts",
     "./visitor-activity": "./src/visitor-activity.ts",
     "./slug-utils": "./src/slug-utils.ts",
     "./faq-schema": "./src/faq-schema.ts",

@@ -26,6 +26,7 @@ import type { Server as HttpServer } from 'node:http';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { INDEXING_PILOT } from '../src/seo/indexing-pilot';
 import { MARKET_BLOG_MANIFEST, BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
+import { LEGACY_STATION_GUIDES } from '@workspace/seo-shared/legacy-station-guides';
 import { buildLocalizedUrl } from '../src/seo/url-helpers';
 import { PUBLIC_SEO_LOCALE_CODES } from '../src/seo/public-route-matchers';
 import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
@@ -2039,6 +2040,7 @@ test('blog sitemap serves core editions plus actual market articles with editori
   const parsed = assertValidXml(await response.text(), 'blog sitemap') as any;
   const marketCount = Object.keys(MARKET_BLOG_MANIFEST).length;
   assert.equal(parsed.urlset.url.length, 154 + marketCount);
+  for (const guide of LEGACY_STATION_GUIDES) assert.equal(parsed.urlset.url.filter((entry: any) => entry.loc === `https://themegaradio.com${guide.path}`).length, 0);
   assert.equal(parsed.urlset.url.filter((entry: any) => entry['image:image']).length, 140 + marketCount);
   assert.equal(response.headers.get('last-modified'), new Date(BLOG_SITEMAP_UPDATED).toUTCString());
   const indexResponse = await fetch(`${baseUrl}/sitemap-index.xml`);

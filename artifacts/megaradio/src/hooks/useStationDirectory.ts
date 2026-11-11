@@ -8,7 +8,9 @@ export interface SeoPagePayload {
   seoTags?: SeoMetaTags;
   structuredData?: ServerStructuredData;
   stationDirectory?: StationDirectoryData;
-  httpStatus?: 200 | 404;
+  httpStatus?: 200 | 404 | 410;
+  legacyGuideId?: string | null;
+  redirectTo?: string;
 }
 
 export const StationDirectoryContext = createContext<{
