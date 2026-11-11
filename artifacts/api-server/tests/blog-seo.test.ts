@@ -44,6 +44,7 @@ import {
 } from "@workspace/seo-shared/url-translations";
 import { buildLocalizedUrl } from "../src/seo/url-helpers";
 import { buildBlogSitemap } from "../src/seo/blog-sitemap";
+import { getLegacyStationGuide, LEGACY_STATION_GUIDES, LEGACY_GUIDE_REVIEWED_AT } from '@workspace/seo-shared/legacy-station-guides';
 
 for (const locale of BLOG_LOCALES)
   test(`complete native blog content + SEO contract: ${locale}`, async () => {
@@ -258,11 +259,19 @@ test("editorial sitemap preserves 140 editions and lists only actual market edit
   assert.equal(XMLValidator.validate(xml), true);
   const entries = new XMLParser({ ignoreAttributes: false }).parse(xml).urlset
     .url;
-  const expected = 154 + Object.keys(MARKET_BLOG_MANIFEST).length;
+  const expected = 154 + Object.keys(MARKET_BLOG_MANIFEST).length + LEGACY_STATION_GUIDES.length;
   assert.equal(entries.length, expected);
   assert.equal(new Set(entries.map((entry: any) => entry.loc)).size, expected);
   let images = 0;
   for (const entry of entries) {
+    const guide = getLegacyStationGuide(new URL(entry.loc).pathname);
+    if (guide) {
+      assert.equal(entry.loc, `https://themegaradio.com${guide.path}`);
+      assert.equal(entry.lastmod, LEGACY_GUIDE_REVIEWED_AT);
+      assert.equal(entry['xhtml:link'], undefined);
+      assert.equal(entry['image:image'], undefined);
+      continue;
+    }
     const route = parseBlogPath(new URL(entry.loc).pathname)!;
     const alternates = [entry["xhtml:link"]].flat();
     assert.deepEqual(

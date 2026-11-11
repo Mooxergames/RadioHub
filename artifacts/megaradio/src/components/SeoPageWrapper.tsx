@@ -8,6 +8,7 @@ import { StationDirectoryContext, type SeoPagePayload } from '@/hooks/useStation
 import { useLocation, useSearch } from "wouter";
 import { preserveInitialSsrHead, ServerSeoHeadContext } from "@/utils/ssr-seo-head";
 import { clearGenreStationLists, clearPageStructuredData, withoutGenreStationLists } from "@/utils/server-structured-data";
+import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 
 interface SeoPageWrapperProps {
   children: React.ReactNode;
@@ -25,6 +26,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   const isGenrePage = /^\/genres(?:\/|$)/.test(routePath);
   const isDirectory = isStationDirectoryPath(routePath, !getRetiredLocaleFromPath(location));
   const isBlog = /^\/[a-z]{2}\/blog(?:\/|$)/.test(location);
+  const isLegacyGuideCandidate = !!getLegacyStationGuideRoute(location);
   // Wouter decodes paths/search. Catalog validation and cache identity must
   // retain their original encoding, parameter order and duplicate parameters.
   const fullUrl = isDirectory && typeof window !== 'undefined'
@@ -49,7 +51,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   // slim=1 omits dictionaries; only exact catalog routes include the bounded DTO.
   const query = useQuery<SeoPagePayload, Error>({
     queryKey: ['/api/seo/page-data', fullUrl, currentLanguage],
-    enabled: (isDirectory || !ssrHeadAlreadyCorrect) && directoryLanguageReady,
+    enabled: (isDirectory || isLegacyGuideCandidate || !ssrHeadAlreadyCorrect) && directoryLanguageReady,
     placeholderData: undefined,
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/seo/page-data?url=${encodeURIComponent(fullUrl)}&slim=1`, { signal });

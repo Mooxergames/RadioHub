@@ -9,6 +9,7 @@ export interface SeoPagePayload {
   structuredData?: ServerStructuredData;
   stationDirectory?: StationDirectoryData;
   httpStatus?: 200 | 404;
+  legacyGuideId?: string | null;
 }
 
 export const StationDirectoryContext = createContext<{

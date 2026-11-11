@@ -8,6 +8,7 @@ import { PROFILE_CONTENT_INSET } from '@/lib/profile-layout';
 import { resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
 import { StationDirectoryContext } from '@/hooks/useStationDirectory';
 import { preserveInitialSsrHead } from '@/utils/ssr-seo-head';
+import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 
 /**
  * Visible breadcrumb trail rendered on every non-home page in the React app —
@@ -230,7 +231,7 @@ export function RouteBreadcrumbs({ placement = 'page' }: { placement?: 'page' | 
     [language, cleanPath, t, localeTranslations, override.lastItemName, stationCanonicalPath],
   );
 
-  if (items.length === 0) return null;
+  if (items.length === 0 || (getLegacyStationGuideRoute(location) && seoPage?.query.data?.legacyGuideId)) return null;
 
   return (
     <nav
