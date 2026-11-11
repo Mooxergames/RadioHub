@@ -8,14 +8,17 @@ import { initOAuthTokenExchange } from './lib/oauth-token-exchange';
 import { preloadInitialHomeComponents } from './lib/initial-home-components';
 import { mountWithInitialHomeHandover } from './lib/initial-home-handover';
 import { initializeGoogleTagManager } from './lib/google-tag-manager';
+import { isPaymentLinkPath } from './lib/payment-link-navigation';
+import { PaymentLinkDocument } from './components/PaymentLinkDocument';
 
-initializeGoogleTagManager();
+const paymentDocument = isPaymentLinkPath(window.location.pathname);
+if (!paymentDocument) initializeGoogleTagManager();
 
 // CRITICAL: must run BEFORE App renders so the /api/auth/me query cache is
 // pre-seeded (with either {_pendingTokenExchange:true} placeholder OR the
 // hydrated user) before any component subscribes to it. Otherwise the first
 // /me fetch would race with the token-session POST.
-initOAuthTokenExchange();
+if (!paymentDocument) initOAuthTokenExchange();
 
 // Asset-load recovery lives in index.html so it also runs when this module's
 // static dependencies fail before any of main.tsx can execute.
@@ -41,7 +44,7 @@ if (VITE_API_BASE) {
 }
 
 // Initialize performance monitoring and optimizations
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && !paymentDocument) {
   const isDev = import.meta.env.DEV;
   // Keep real production errors visible to users, monitoring and browser audits.
   // Only local Vite HMR noise is filtered; hiding all errors masked regressions.
@@ -119,7 +122,8 @@ if (typeof window !== 'undefined') {
 }
 
 const rootElement = document.getElementById('root')!;
-void mountWithInitialHomeHandover({
+if (paymentDocument) createRoot(rootElement).render(<PaymentLinkDocument />);
+else void mountWithInitialHomeHandover({
   root: rootElement,
   pathname: window.location.pathname,
   production: import.meta.env.PROD,

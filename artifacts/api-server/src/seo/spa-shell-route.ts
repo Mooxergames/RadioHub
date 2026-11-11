@@ -13,6 +13,7 @@ const routeRoots = new Set([
 export function isKnownSpaShellRoute(pathname: string): boolean {
   try {
     const rawPath = new URL(pathname, 'https://themegaradio.com').pathname;
+    if (/^\/pay\/?$/.test(rawPath)) return true;
     const decoded = decodePublicSeoPath(rawPath);
     if (decoded === null) return false;
     const prefix = decoded.split('/').filter(Boolean)[0];

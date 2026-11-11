@@ -14,10 +14,11 @@ import { pgFindUserById } from "../data/postgres-user-store";
 import { ACTIVE_SITEMAP_LANGUAGES } from "@workspace/seo-shared/seo-config";
 import { processPaddleEvent, signedPaddleCustomData, validPaddlePrice } from "../services/paddle-billing";
 import { configuredPaddlePriceId } from "../services/paddle-plan-catalog";
+import { paddleClientConfig } from '../services/paddle-client-config';
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://www.themegaradio.com";
+const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://themegaradio.com";
 
 // ── Paddle config ─────────────────────────────────────────────────────────────
 const PADDLE_API_KEY = process.env.PADDLE_API_KEY;
@@ -109,6 +110,13 @@ export function formatSubscriptionStatus(sub: Record<string, any>): Record<strin
 export function registerStripeSubscriptionRoutes(app: Express, deps: any) {
   const { requireAuth, requireAdmin } = deps;
 
+  app.get('/api/subscription/paddle/client-config', (_req: Request, res: Response) => {
+    res.set({ 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store', 'Cloudflare-CDN-Cache-Control': 'no-store' });
+    const config = paddleClientConfig();
+    if (!config) return void res.status(503).json({ error: 'Payment provider unavailable' });
+    res.json(config);
+  });
+
   // Admin debug endpoint — shows Paddle config without exposing full secret
   app.get("/api/admin/paddle/debug", requireAdmin, async (_req: Request, res: Response) => {
     const apiKey = process.env.PADDLE_API_KEY || "";
@@ -122,6 +130,7 @@ export function registerStripeSubscriptionRoutes(app: Express, deps: any) {
       PADDLE_ENVIRONMENT: process.env.PADDLE_ENVIRONMENT || "production",
       apiKeyConfigured: !!apiKey,
       clientTokenConfigured: !!clientToken,
+      webBaseOrigin: (() => { try { return new URL(WEB_BASE_URL).origin; } catch { return null; } })(),
       plans,
     });
   });
