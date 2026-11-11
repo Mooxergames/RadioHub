@@ -10,6 +10,7 @@ export interface SeoPagePayload {
   stationDirectory?: StationDirectoryData;
   httpStatus?: 200 | 404 | 410;
   legacyGuideId?: string | null;
+  redirectTo?: string;
 }
 
 export const StationDirectoryContext = createContext<{

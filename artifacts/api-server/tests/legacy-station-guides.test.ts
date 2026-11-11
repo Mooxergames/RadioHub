@@ -180,6 +180,9 @@ for (const kind of ['merge', 'alias']) {
     } else { live.slugAliases.push('rock-fm-23'); rows = [live]; }
     const r = await get(rock); assert.equal(r.status, 301);
     assert.equal(r.location, '/ar/mahta/real-owner'); assert.equal((await get(r.location!)).status, 200);
+    const dto = await slim(rock); assert.equal(dto.status, 200);
+    assert.equal(JSON.parse(dto.body).redirectTo, r.location);
+    assert.equal(JSON.parse(dto.body).legacyGuideId, null);
   });
 }
 

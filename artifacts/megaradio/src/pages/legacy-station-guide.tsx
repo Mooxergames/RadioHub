@@ -5,6 +5,7 @@ import { StationDirectoryContext } from '@/hooks/useStationDirectory';
 import { InitialStation } from '@/lib/initial-home-components';
 import NotFound from './not-found';
 import { preserveInitialSsrHead } from '@/utils/ssr-seo-head';
+import { getLanguageFromPath, isSafeStationDetailSlug } from '@workspace/seo-shared/seo-config';
 
 export default function LegacyStationGuidePage() {
   const [location, navigate] = useLocation();
@@ -12,6 +13,21 @@ export default function LegacyStationGuidePage() {
   const guide = getLegacyStationGuide(location);
   const initialGuide = guide && preserveInitialSsrHead(window.location.pathname + window.location.search)
     && document.querySelector('meta[name="megaradio-legacy-guide"]')?.getAttribute('content') === guide.id;
+  const redirectTo = page?.query.data?.redirectTo;
+  let stationRedirect: string | null = null;
+  if (redirectTo?.startsWith('/') && !redirectTo.startsWith('//') && !/[\s\\]/.test(redirectTo)) {
+    try {
+      const url = new URL(redirectTo, window.location.origin);
+      const match = getLanguageFromPath(url.pathname).cleanPath.match(/^\/station\/([^/]+)$/);
+      if (url.origin === window.location.origin && !url.search && !url.hash && url.pathname !== window.location.pathname
+        && match && isSafeStationDetailSlug(match[1])) stationRedirect = url.pathname;
+    } catch { /* Invalid server targets must never become external navigation. */ }
+  }
+  useEffect(() => {
+    if (stationRedirect && page?.query.isSuccess && !page.query.isFetching) {
+      navigate(stationRedirect + window.location.search + window.location.hash, { replace: true });
+    }
+  }, [stationRedirect, page?.query.isSuccess, page?.query.isFetching, navigate]);
   useEffect(() => {
     const href = '/blog.css?v=20261111';
     if (document.querySelector(`link[href="${href}"]`)) return;
@@ -31,6 +47,7 @@ export default function LegacyStationGuidePage() {
   if (page.query.isError && !initialGuide) return <main className="radio-journal"><button type="button" onClick={() => void page.query.refetch()}>{guide.language === 'ar' ? 'إعادة المحاولة' : 'Try again'}</button></main>;
   if (page.query.isFetching && !initialGuide) return <main className="radio-journal" aria-busy="true"><div className="radio-journal-loading" /></main>;
   if (!page.query.data && !initialGuide) return <main className="radio-journal" aria-busy="true"><div className="radio-journal-loading" /></main>;
+  if (redirectTo) return stationRedirect ? <main className="radio-journal" aria-busy="true"><div className="radio-journal-loading" /></main> : <NotFound />;
   // A real catalogue owner takes precedence; a URL match alone is not approval.
   if (page.query.data && page.query.data.legacyGuideId !== guide.id) return <InitialStation />;
   return <div onClick={onClick} dangerouslySetInnerHTML={{ __html: renderLegacyStationGuideHtml(guide) }} />;

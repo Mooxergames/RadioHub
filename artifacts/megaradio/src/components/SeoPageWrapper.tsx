@@ -85,6 +85,9 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
     ...(isDirectory ? { retry: false } : {}),
   });
   const seoData = query.data;
+  const applyCurrentHead = isLegacyGuideCandidate
+    ? query.isSuccess && !query.isFetching && !seoData?.redirectTo
+    : !ssrHeadAlreadyCorrect || ((isDirectory || isBlog) && seoData?.httpStatus === 404);
   const structuredData = useMemo(() => seoData?.structuredData && isGenrePage
     ? withoutGenreStationLists(seoData.structuredData) : seoData?.structuredData,
   [seoData?.structuredData, isGenrePage]);
@@ -94,7 +97,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
       <StationDirectoryContext.Provider value={{ active: isDirectory, language: currentLanguage, query }}>
         {/* Never replace a complete SSR head with homepage translation keys or
             the previous route's tags while the current request is pending. */}
-        {(!ssrHeadAlreadyCorrect || ((isDirectory || isBlog) && seoData?.httpStatus === 404) || (isLegacyGuideCandidate && query.isSuccess && !query.isFetching)) && seoData?.seoTags
+        {applyCurrentHead && seoData?.seoTags
           && <SeoHead key={fullUrl} seoData={seoData.seoTags} structuredData={structuredData}
             clearCanonical={((isDirectory || isBlog) && seoData.httpStatus === 404) || (isLegacyGuideCandidate && seoData.httpStatus === 410)} />}
         {children}

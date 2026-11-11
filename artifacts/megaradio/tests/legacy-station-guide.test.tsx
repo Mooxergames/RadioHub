@@ -4,12 +4,13 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LEGACY_STATION_GUIDES, buildLegacyStationGuideSeo, buildLegacyStationGuideSchema, renderLegacyStationGuideHtml } from '@workspace/seo-shared/legacy-station-guides';
 import { LEGACY_STATION_GUIDE_ROUTES, getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
+const headGuard = vi.hoisted(() => ({ initial: true }));
 
 vi.mock('@/lib/initial-home-components', () => ({ InitialStation: () => <h1>Real catalogue station</h1> }));
 vi.mock('@/pages/not-found', () => ({ default: () => <h1>Not found</h1> }));
 vi.mock('@/utils/ssr-seo-head', async importOriginal => ({
   ...await importOriginal<typeof import('../src/utils/ssr-seo-head')>(),
-  preserveInitialSsrHead: () => true,
+  preserveInitialSsrHead: () => headGuard.initial,
 }));
 vi.mock('@/lib/translation-navigation-prefetch', () => ({ prefetchNavigationTranslations: vi.fn() }));
 import LegacyStationGuidePage from '../src/pages/legacy-station-guide';
@@ -17,6 +18,7 @@ import { SeoPageWrapper } from '../src/components/SeoPageWrapper';
 
 let client: QueryClient;
 beforeEach(() => {
+  headGuard.initial = true;
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0, refetchOnMount: false } } });
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
 });
@@ -58,6 +60,8 @@ it('a real catalogue owner is not replaced by a guide or selected broadcaster', 
 });
 
 it('a cached guide payload is rechecked on navigation so it cannot hide a new catalogue owner', async () => {
+  headGuard.initial = false;
+  document.title = 'Prior page';
   const guide = LEGACY_STATION_GUIDES[0];
   client.setQueryData(['/api/seo/page-data', guide.path, guide.language], payload());
   let resolve!: (value: Response) => void;
@@ -66,11 +70,29 @@ it('a cached guide payload is rechecked on navigation so it cannot hide a new ca
   const view = mount(guide.path);
   expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
   expect(view.container.querySelector('main')).toHaveAttribute('aria-busy', 'true');
+  expect(document.title).toBe('Prior page');
+  expect(document.querySelector('script[data-managed="seo-structured-data"][data-schema-scope="page"]')).toBeNull();
   expect(fetcher).toHaveBeenCalledTimes(1);
   resolve(new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'New station' } })));
   await view.findByRole('heading', { name: 'Real catalogue station' });
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it('uses the resolved local station redirect rather than displaying the old alias as an owner', async () => {
+  const guide = LEGACY_STATION_GUIDES[1];
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo: '/ar/mahta/real-owner', seoTags: {} }))));
+  const view = mount(guide.path);
+  await waitFor(() => expect(window.location.pathname).toBe('/ar/mahta/real-owner'));
+  expect(view.queryByRole('heading', { name: 'Real catalogue station' })).toBeNull();
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it.each(['https://outside.invalid/station/fm', '//outside.invalid/station/fm', '/admin', '/ar/mahta/rock-fm-23'])('rejects unsafe or self redirect %s', async redirectTo => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo, seoTags: {} }))));
+  const view = mount(LEGACY_STATION_GUIDES[1].path);
+  await view.findByRole('heading', { name: 'Not found' });
+  expect(window.location.pathname).toBe(LEGACY_STATION_GUIDES[1].path);
 });
 
 it('a definite410 invalidates even verified initial SSR content, canonical and page entities', async () => {

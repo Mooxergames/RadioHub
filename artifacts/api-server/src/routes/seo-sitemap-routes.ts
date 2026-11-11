@@ -519,6 +519,7 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
           language: (seoData as any).language,
           cleanPath: (seoData as any).cleanPath,
           ...(getLegacyStationGuideRoute(url) ? { legacyGuideId: seoData.pageData?.legacyGuide?.id ?? null } : {}),
+          ...(getLegacyStationGuideRoute(url) && seoData.pageData?.redirectTo ? { redirectTo: seoData.pageData.redirectTo } : {}),
           // SPA entry without SSR bootstrap must resolve the same verified
           // station before enrichment; do not expose the archived/source row.
           ...(retiredStation && seoData.pageData?.station?._id
