@@ -22,7 +22,7 @@ describe('group message actions on isolated local PostgreSQL',{skip:!connectionS
   const url=new URL(connectionString!);assert.ok(['127.0.0.1','localhost','[::1]'].includes(url.hostname),'integration fixtures require a local test database');
   admin=new pg.Pool({connectionString});await admin.query(`CREATE SCHEMA "${schema}"`);url.searchParams.set('options',`-c search_path=${schema},public`);pool=new pg.Pool({connectionString:url.toString()});
   await pool.query("CREATE TABLE users(id text PRIMARY KEY,full_name text,username text,avatar text,source jsonb DEFAULT '{}')");
-  for(const file of ['0046_chat_groups.sql','0047_chat_group_music_styles.sql','0048_chat_group_message_actions.sql'])await pool.query(await readFile(new URL('../../../lib/db/migrations/'+file,import.meta.url),'utf8'));
+  for(const file of ['0046_chat_groups.sql','0047_chat_group_music_styles.sql','0048_chat_group_message_actions.sql','0049_chat_inbox_actions.sql'])await pool.query(await readFile(new URL('../../../lib/db/migrations/'+file,import.meta.url),'utf8'));
   await pool.query("INSERT INTO users(id,full_name) VALUES($1,'Owner'),($2,'Peer')",[owner,peer]);
   await pool.query("INSERT INTO chat_groups(id,name,created_by) VALUES($1,'Group',$3),($2,'Other',$3)",[group,otherGroup,owner]);
   await pool.query("INSERT INTO chat_group_members(group_id,user_id,status,joined_at) VALUES($1,$2,'active','2026-01-01'),($1,$3,'active','2026-01-01')",[group,owner,peer]);

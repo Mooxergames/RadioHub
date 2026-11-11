@@ -32,7 +32,9 @@ disposable loopback PostgreSQL 17.11 and MongoDB 8.2.6:
 No real source data, Railway variables, deployments or credentials were changed.
 The actual Linux Docker images were not built locally (Docker unavailable).
 Railway wiring, genuine source/target writer quiescence and independently verified
-source backup remain required before live import. See POSTGRES_AUTOMATIC_SETUP.md.
+source backup remained required before live import at that historical checkpoint.
+The offline importer has since been retired; see POSTGRES_ARCHITECTURE.md for the
+current PostgreSQL-only application boundary.
 
 ## Earlier migration baseline
 
@@ -135,4 +137,6 @@ were not built locally; the CI workflow has not been executed remotely.
 Mongo source tooling remains only in the isolated offline operator/test workspace,
 not in the application runtime or production package. PostgreSQL JSONB and opaque
 historical IDs are native data representations, not a Mongo compatibility server.
-See POSTGRES_REMAINING_WORK.md and POSTGRES_MIGRATION_RUNBOOK.md before cutover.
+These are historical verification results, not current deployment instructions.
+The retired importer and its runbooks were removed on 2026-10-22. Current runtime
+and recovery boundaries are documented in POSTGRES_ARCHITECTURE.md.

@@ -7,21 +7,19 @@ import { SITEMAP_PRIORITY_LANGUAGES } from '@workspace/seo-shared/seo-config';
 // RadioBroadcastService / category / isAccessibleForFree / additionalProperty /
 // keywords / BroadcastFrequencySpecification / geo.
 describe('radio service schema uses the applicable property domains', () => {
-  it('shared generator uses category/areaServed and a Place for coordinates', () => {
+  it('shared generator localizes coverage without inferring a physical location or frequency', () => {
     const schema = generateRadioStationSchema({
       name: 'Test Radio', slug: 'test', country: 'Germany', countryCode: 'DE',
       tags: 'news, AM 1030', bitrate: 128, codec: 'MP3', geoLat: '48.2', geoLong: '16.4',
     }, 'themegaradio.com', 'de', '/de/sender/test', 'Deutsche Beschreibung');
     expect(schema.category).toEqual(['news', 'AM 1030']);
-    expect(schema.areaServed).toEqual({ '@type': 'Country', name: 'Germany' });
+    expect(schema.areaServed).toEqual({ '@type': 'Country', name: 'Deutschland' });
     expect(schema.broadcaster.geo).toBeUndefined();
     expect(schema.broadcastAffiliateOf).toBeUndefined();
-    expect(schema.broadcaster.location.geo.latitude).toBe(48.2);
-    expect(schema.broadcastFrequency.broadcastFrequencyValue).toEqual({
-      '@type': 'QuantitativeValue', value: 1030, unitText: 'kHz',
-    });
+    expect(schema.broadcaster).not.toHaveProperty('location');
+    expect(schema.broadcaster).not.toHaveProperty('address');
+    expect(schema).not.toHaveProperty('broadcastFrequency');
     for (const key of ['keywords', 'area', 'additionalProperty', 'isAccessibleForFree']) expect(schema).not.toHaveProperty(key);
-    expect(schema.broadcastFrequency).not.toHaveProperty('frequencyUnit');
   });
 
   it('fallback client helper cannot fabricate stars from popularity counts', () => {

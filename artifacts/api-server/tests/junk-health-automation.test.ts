@@ -26,6 +26,7 @@ const catalog = {
 };
 
 before(async () => {
+  mock.module('../src/data/postgres-admin-settings-store', { namedExports: { getAdminSetting: async () => null } });
   mock.module('../src/data/postgres-catalog-store', { namedExports: {
     pgCatalog: () => catalog, pgCreateSyncRun: async () => ({}), pgSaveSyncRun: async () => {}, pgSyncLogs: async () => [], pgSyncBlacklist: async () => [],
   } });
@@ -109,6 +110,33 @@ test('nightly cleanup never clears unknown/manual/redirect/non-health flags', as
   }
 });
 
+test('nightly cleanup preserves empty-stream information pages and never reopens an existing empty-stream exclusion', async () => {
+  const information = row({ stationPageMode: 'information', url: '', urlResolved: '', isListVisible: false,
+    manualEditFields: { stationPageMode: true, url: true, urlResolved: true, isListVisible: true } });
+  const exclusion = { owner: 'radiohub-junk-policy', version: 1, active: true, reason: 'empty-stream-url' };
+  for (const existing of [information, { ...information, noIndex: true, automaticNoIndex: exclusion }]) {
+    reset([existing]);
+    await runJunkCleanup({ log() {} });
+    assert.deepEqual(updates, []);
+  }
+});
+
+test('nightly cleanup still marks genuine junk and fences the observed page mode', async () => {
+  for (const [station, modeFilter, reason] of [
+    [row({ url: '' }), { $exists: false }, 'empty-stream-url'],
+    [row({ stationPageMode: 'information', url: '', slug: 'radio-test-stream' }), { $eq: 'information' }, 'test-feed:test-stream'],
+  ] as const) {
+    reset([station]);
+    await runJunkCleanup({ log() {} });
+    assert.equal(updates.length, 1);
+    const { filter, update } = updates[0];
+    assert.deepEqual(filter.stationPageMode, modeFilter);
+    assert.deepEqual(Object.keys(update.$set).sort(), ['automaticNoIndex', 'noIndex']);
+    assert.equal(update.$set.noIndex, true);
+    assert.equal(update.$set.automaticNoIndex.reason, reason);
+  }
+});
+
 test('nightly cleanup owned-health retirement is guarded and audited while offline; dry-run never writes', async () => {
   const existing = recovered({ lastCheckOk: false }); reset([existing]);
   await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
@@ -120,6 +148,48 @@ test('nightly cleanup owned-health retirement is guarded and audited while offli
   assert.equal(updates[0].update.$set.lastCheckOk, undefined);
   reset([existing]); await runJunkCleanup({ dryRun: true, reportPath: '/not-written.csv', log() {} });
   assert.equal(updates.length, 0);
+});
+
+test('nightly cleanup never reassigns a freed collision URL to another published station', async () => {
+  const existing = row({ name: 'NRJ', slug: 'nrj-5', slugAliases: ['nrj-6'], country: 'France', countryCode: 'FR' });
+  const base = row({ _id: 'station-b', name: 'NRJ', slug: 'nrj', country: 'Germany', countryCode: 'DE', url: 'https://other.invalid/live' });
+  const firstCollision = row({ _id: 'station-c', name: 'NRJ', slug: 'nrj-1', country: 'Belgium', countryCode: 'BE', url: 'https://third.invalid/live' });
+  reset([existing, base, firstCollision]);
+  const result = await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+  assert.equal(result.slugRewrites, 0);
+  assert.equal(updates.some(write => write.update.$set.slug !== undefined), false);
+  assert.equal(updates.some(write => write.update.$set.slugAliases !== undefined), false);
+});
+
+test('nightly cleanup preserves published transliteration and manually protected URLs', async () => {
+  for (const manualEditFields of [{}, { slug: true }]) {
+    reset([row({ name: '\u00d6sterreich R\u00e1dio', slug: 'osterreich-radio-4', manualEditFields })]);
+    const result = await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+    assert.equal(result.slugRewrites, 0);
+    assert.equal(updates.length, 0);
+  }
+});
+
+test('nightly health-only retirement cannot rename an existing station', async () => {
+  reset([recovered({ name: 'NRJ', slug: 'nrj-5', slugAliases: ['nrj-6'] })]);
+  const result = await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+  assert.equal(result.slugRewrites, 0);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].update.$set.noIndex, false);
+  assert.equal(updates[0].update.$set.slug, undefined);
+  assert.equal(updates[0].update.$set.slugAliases, undefined);
+});
+
+test('nightly cleanup can still assign a genuinely missing station URL', async () => {
+  for (const slug of ['', null]) {
+    reset([row({ name: 'Fresh Radio', slug })]);
+    const result = await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+    assert.equal(result.slugRewrites, 1);
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].update.$set.slug, 'fresh-radio');
+    assert.equal(updates[0].update.$set.slugAliases, undefined);
+    assert.deepEqual(updates[0].filter.slug, { $eq: slug }, 'a concurrently assigned published URL must win');
+  }
 });
 
 test('cleanup new flags have provenance and existing unknown flags are not adopted', async () => {
@@ -159,4 +229,21 @@ test('cleanup still excludes verified collision-counter duplicates', async () =>
   const sibling = row({ _id: 'station-b', stationuuid: 'uuid-b', country: 'Germany', countryCode: 'DE' });
   reset([current, sibling]); await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
   assert.equal(updates.find(write => write.filter._id === current._id)?.update.$set.noIndex, true);
+});
+
+test('cleanup and sync never exclude a duplicate in favor of a blocked canonical', async () => {
+  for (const protection of [{ noIndex: true }, { redirectToSlug: 'elsewhere' }, { slug: '123' },
+    { name: 'Radio Test Stream', slug: 'radio-test-stream' }]) {
+    const sibling = row({ _id: 'station-b', stationuuid: 'uuid-b', country: 'Germany', countryCode: 'DE', ...protection });
+    for (const prefix of ['', '1046-']) {
+      const current = row({ name: sibling.name, slug: prefix ? `${prefix}${sibling.slug}` : `${sibling.slug}-1`, country: 'Germany', countryCode: 'DE' });
+      reset([current, sibling]);
+      await runJunkCleanup({ dryRun: false, reportPath: '/not-written.csv', log() {} });
+      assert.ok(!updates.some(write => write.update.$set.automaticNoIndex?.reason?.startsWith('duplicate-of:')));
+      if (prefix) {
+        reset([current, sibling]); await sync(incoming());
+        assert.ok(!updates.some(write => write.update.$set.automaticNoIndex?.reason?.startsWith('duplicate-of:')));
+      }
+    }
+  }
 });

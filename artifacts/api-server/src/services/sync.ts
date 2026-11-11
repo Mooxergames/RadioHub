@@ -2,6 +2,8 @@ import { pgCatalog, pgCreateSyncRun, pgSaveSyncRun, pgSyncLogs, pgSyncBlacklist 
 import { buildSyncBlacklist } from '../utils/sync-blacklist';
 import { assessDuplicateGroup, DUPLICATE_POLICY_FIELDS } from '../utils/station-duplicate-policy';
 import { getPostgresPool, getPostgresCoordinationPool } from '../postgres-runtime';
+import { getAdminSetting } from '../data/postgres-admin-settings-store';
+import { STATION_SYNC_POLICY_KEY, stationIntakeEnabled } from '../utils/station-sync-policy';
 import NodeCache from 'node-cache';
 import { radioBrowserHealthDate } from '../utils/provider-health-freshness';
 import { ImageManager } from './image-manager';
@@ -11,6 +13,7 @@ import { fetchWithMirrorFallback, RadioBrowserRequestCancelledError } from './ra
 export { fetchWithMirrorFallback } from './radio-browser-request';
 import {
   evaluateJunkStation,
+  getIndexableLanguagesForStation,
   slugifyStationName,
   frequencyPrefixBaseSlug,
   automaticNoIndexPatch,
@@ -397,7 +400,7 @@ export class SyncService {
       }
 
       // Get existing station UUIDs (and the fields needed to auto-flag junk
-      // on update — slug for codec-suffix matching, noIndex to detect
+      // on update: slug for test-feed matching, noIndex to detect
       // transitions so we don't double-count already-flagged stations).
       const batchUuids = nonBlacklistedBatch.map(s => s.stationuuid);
       const existingStations = await pgCatalog().find({ stationuuid: { $in: batchUuids } });
@@ -405,6 +408,7 @@ export class SyncService {
       const existingByUuid = new Map<string, any>(
         existingStations.map((s: any) => [s.stationuuid, s])
       );
+      const allowNewStations = stationIntakeEnabled(await getAdminSetting(STATION_SYNC_POLICY_KEY));
 
       // CONTENT-KEY DEDUP (2026-05-23): Radio-Browser occasionally re-issues a
       // stationuuid when records are merged/split upstream. Without this guard,
@@ -447,11 +451,11 @@ export class SyncService {
 
       // Insert new stations — auto-mark junk records with noIndex:true so
       // the upstream radio-browser feed cannot quietly re-pollute the sitemap.
-      if (newStations.length > 0) {
-        let batchAutoFlagged = 0;
+      if (!allowNewStations) skipped += newStations.length;
+      if (allowNewStations && newStations.length > 0) {
         const convertedNewStations = newStations.map(station => {
           const doc = this.convertStation(station);
-          // Use the slug we'd generate downstream so codec-suffix rules apply
+          // Use the slug we'd generate downstream so test-feed rules apply
           // even though `slug` isn't persisted by `convertStation` itself.
           const probeSlug = slugifyStationName(doc.name || '');
           const verdict = evaluateJunkStation({
@@ -467,7 +471,6 @@ export class SyncService {
           });
           if (verdict.isJunk) {
             Object.assign(doc, automaticNoIndexPatch({ ...doc, slug: probeSlug }, verdict));
-            batchAutoFlagged++;
           }
           return doc;
         });
@@ -477,6 +480,8 @@ export class SyncService {
             () => pgCatalog().insertMany(convertedNewStations, { syncRunId: syncLog._id }),
           );
           inserted += insertResult.length;
+          skipped += convertedNewStations.length - insertResult.length;
+          const batchAutoFlagged = insertResult.filter(station => station.automaticNoIndex?.active === true).length;
           autoFlagged += batchAutoFlagged;
           logger.log(`➕ Batch ${Math.ceil((i + 1) / batchSize)}: Inserted ${insertResult.length} new stations (🚯 ${batchAutoFlagged} auto-flagged junk)`);
         } catch (error: any) {
@@ -507,7 +512,7 @@ export class SyncService {
         let siblingLookupFailed = false;
         if (baseSlugSet.size > 0) {
           try {
-            const found = await pgCatalog().find({ slug: { $in: Array.from(baseSlugSet) } }, { fields: ['slug', ...DUPLICATE_POLICY_FIELDS] });
+            const found = await pgCatalog().find({ slug: { $in: Array.from(baseSlugSet) } }, { fields: ['slug', 'noIndex', 'redirectToSlug', ...DUPLICATE_POLICY_FIELDS] });
             existingBaseStations = new Map(found.map((s: any) => [s.slug, s]));
           } catch (err) {
             siblingLookupFailed = true;
@@ -529,7 +534,7 @@ export class SyncService {
           merged.slug ||= slugifyStationName(merged.name || '');
           const candidateBase = freqCandidates.get(apiStation.stationuuid);
           const sibling = candidateBase ? existingBaseStations.get(candidateBase) : undefined;
-          const verdict = sibling && sibling._id !== merged._id && assessDuplicateGroup([merged, sibling]).eligible
+          const verdict = sibling && sibling._id !== merged._id && getIndexableLanguagesForStation(sibling).includes('en') && assessDuplicateGroup([merged, sibling]).eligible
             ? { isJunk: true, reason: `duplicate-of:${candidateBase}` }
             : evaluateJunkStation(merged);
           const policyPatch = automaticNoIndexPatch(merged, verdict);
@@ -720,6 +725,7 @@ export class SyncService {
     const lastSyncLog = (await pgSyncLogs(1))[0] || null;
     
     const status = {
+      allowNewStations: stationIntakeEnabled(await getAdminSetting(STATION_SYNC_POLICY_KEY)),
       isRunning: this.isRunning || lastSyncLog?.status === 'running',
       lastFullSync: lastSyncLog?.syncType === 'full' ? lastSyncLog.completedAt : null,
       lastSyncLog: lastSyncLog || null

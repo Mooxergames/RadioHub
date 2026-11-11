@@ -1,0 +1,132 @@
+[
+  {
+    "id": "kral-fm-canli-dinle-sorunlari",
+    "title": "Kral FM canlı dinle: Yayın açılmadığında ne kontrol edilmeli?",
+    "seoTitle": "Kral FM canlı dinle açılmıyor: Kontrol rehberi",
+    "description": "Kral FM açılmadığında doğru kanalı, ses çıkışını ve bağlantıyı ayrı ayrı kontrol et; istasyon sayfasıyla yayıncı oynatıcısını karşılaştır.",
+    "primaryKeyword": "Kral FM canlı dinle açılmıyor",
+    "secondaryKeywords": ["Kral FM ses gelmiyor", "Kral FM Kral Pop farkı", "Kral FM yayın sorunu"],
+    "imageAlt": "Telefon ekranı ve yanında kulaklık bulunan bir radyo dinleme çizimi",
+    "intro": "Kral FM canlı dinle seçeneği açılmıyorsa önce Kral FM ile Kral Pop'u karıştırmadığını kontrol et, ardından aynı cihazda yayıncının resmî oynatıcısıyla karşılaştır. Bu iki adım, yanlış kanal seçimi ile oynatma sorununu ayırır. Aşağıdaki kontroller bir kesinti tespiti veya sesli yayın testi değildir; kendi cihazındaki sorunu daraltmana yardımcı olur.",
+    "sections": [
+      {
+        "heading": "Önce kanalın gerçekten Kral FM olduğundan emin ol",
+        "paragraphs": ["Kral'ın resmî radyo sayfasında Kral FM ve Kral Pop ayrı seçeneklerdir. Benzer adlar, arama sonucunda yanlış kaydı açmayı kolaylaştırır. Önce seçili kanalın adını oku; yalnızca kapaktaki sanatçıya bakarak karar verme. Şarkılar değişir, kanal kimliği değişmez. Dinlediğin içerik beklediğinden farklıysa bu tek başına teknik arıza anlamına gelmez.", "Örneğin daha önce kaydettiğin bir bağlantı Kral Pop'a gidiyorsa ses sorunsuz gelse de aradığın istasyona ulaşmış olmazsın. Geri dönüp tam adıyla Kral FM'i ara. Yalın canlı dinleme için istasyon sayfasını kullan; bu rehberin amacı ikinci bir oynatıcı sunmak değil, açılmayan yayını anlamlandırmak."]
+      },
+      {
+        "heading": "Resmî oynatıcıyı bir karşılaştırma noktası olarak kullan",
+        "paragraphs": ["İlk oynatmayı durdur, sonra Kral'ın resmî radyo sayfasında aynı kanalı seç. İki sekmeyi aynı anda çaldırmak karşılaştırmayı zorlaştırır; farklı gecikmeler yüzünden yankı veya üst üste konuşma duyabilirsin. Aynı cihazı ve bağlantıyı koruyarak yalnızca dinlediğin sayfayı değiştir.", "Resmî sayfada ses duyulup diğer yerde duyulmaması, iki erişim yolunun farklı davrandığını gösterir; kesin nedeni kanıtlamaz. Her ikisi de sessizse önce cihazdaki ses yolunu incele. Başka bir istasyonun çalışması bağlantının genel olarak işlediğini gösterebilir, fakat Kral FM'in o anda herkese kapalı olduğunu göstermez."]
+      },
+      {
+        "heading": "Sessizlik ile bağlantının kesilmesini ayrı değerlendir",
+        "paragraphs": ["Oynatma göstergesi hareket ediyor diye sesin telefon hoparlörüne gittiğini varsayma. Daha önce bağlandığın araç, kulaklık veya Bluetooth hoparlör hâlâ seçili olabilir. Çıkışı değiştirmeden önce mevcut ayarı not et; birkaç ayarı birlikte değiştirmek hangi adımın etkili olduğunu belirsizleştirir. Ekran kilitlenince durma ise ilk açılıştaki sessizlikten farklı bir sorundur."],
+        "items": ["Seçili kanal adını ve oynatma durumunu kontrol et.", "Sekme, cihaz ve bağlı kulaklığın ses düzeylerini ayrı incele.", "Bluetooth çıkışını doğrula; gerekirse telefon hoparlörüyle karşılaştır.", "Bağlantıyı değiştireceksen mobil veri maliyetini önce gözden geçir."]
+      },
+      {
+        "heading": "Yayıncıya iletilebilecek kısa bir sorun kaydı oluştur",
+        "paragraphs": ["Sorun sürüyorsa tam saati, bulunduğun ülkeyi, cihazı, tarayıcıyı ve gördüğün hata mesajını yaz. 'Çalmıyor' yerine 'aynı Wi-Fi bağlantısında resmî sayfa açılıyor, diğer oynatıcı beklemede kalıyor' gibi gözlenebilir bir fark bildir. Kişisel hesap veya ağ şifresi paylaşma.", "FM, uydu ve internet ayrı alım yollarıdır. Birindeki sorun diğerinin de bozuk olduğunu kanıtlamaz. Resmî iletişim kanalına başvururken hangisini kullandığını belirt. Ülke veya ağ kaynaklı erişim farklılıkları olabilir; herhangi bir web bağlantısı için her yerde kullanılabilirlik ya da kesintisiz ses sözü verilemez."]
+      }
+    ],
+    "faq": [
+      {"question": "Kral FM yerine neden Kral Pop açılıyor?", "answer": "İki kanal ayrı kayıtlardır. Arama sonucunu ve seçili kanal adını kontrol et; eski bir yer imi seni farklı kanala götürebilir. Bu durum mutlaka ses arızası değildir."},
+      {"question": "Resmî sayfada çalması diğer oynatıcının bozuk olduğunu kanıtlar mı?", "answer": "Hayır. Yalnızca iki erişim yolunun sende farklı sonuç verdiğini gösterir. Tarayıcı, bağlantı ve oynatıcı davranışları ayrıca incelenmelidir."},
+      {"question": "Uydu alıcısındaki kesinti için bu kontroller yeterli mi?", "answer": "Hayır. Buradaki adımlar internetten dinleme içindir. Uydu sorununu bildirirken alıcı ve yayın yolunu belirt; web oynatıcısındaki sonuçla uydu arızasına karar verme."}
+    ],
+    "links": [
+      {"route": "station:kral-fm", "label": "Kral FM canlı dinleme sayfası"},
+      {"route": "blog:listen-to-radio-online", "label": "İnternetten dinlemenin temel adımları"},
+      {"route": "blog:radio-app-iphone-android", "label": "Telefonda ses ve arka plan kontrolleri"},
+      {"route": "blog:internet-radio-explained", "label": "FM ve internet yayını arasındaki fark"},
+      {"route": "search", "label": "Kral FM veya başka bir istasyon ara"}
+    ],
+    "sources": [{"name": "Kral Müzik: resmî radyo seçimi ve iletişim", "url": "https://www.kralmuzik.com.tr/radyo"}],
+    "relatedIds": ["listen-to-radio-online", "radio-app-iphone-android", "internet-radio-explained"]
+  },
+  {
+    "id": "trt-turku-nagme-farki",
+    "title": "TRT Türkü mü TRT Nağme mi? Dinlemek istediğin müziğe göre seç",
+    "seoTitle": "TRT Türkü ve TRT Nağme farkı: Hangi kanalı seçmeli?",
+    "description": "Türk halk müziği ile Türk sanat müziği arasında kanal seçimini kolaylaştır; TRT Türkü ve TRT Nağme'nin güncel akışını nasıl okuyacağını öğren.",
+    "primaryKeyword": "TRT Türkü TRT Nağme farkı",
+    "secondaryKeywords": ["TRT Türkü halk müziği", "TRT Nağme sanat müziği", "TRT radyo kanal seçimi"],
+    "imageAlt": "Bir radyo alıcısı ile yanında duran kulaklığın çizimi",
+    "intro": "TRT Türkü, Türk halk müziği; TRT Nağme ise Türk sanat müziği odaklı kanal arayanlar için iki farklı başlangıç noktasıdır. Seçimi yalnızca sevdiğin sanatçının adına göre değil, duymak istediğin repertuvar ve programın sunumuna göre yapmak daha yararlı olur. Ardından güncel yayın akışını kontrol ederek o saatte hangi içeriğe katıldığını anlayabilirsin.",
+    "sections": [
+      {
+        "heading": "Kanal adını müzik beklentinle eşleştir",
+        "paragraphs": ["TRT Dinle'nin resmî listesi Türkü ile Nağme'yi farklı müzik başlıkları altında sunar. Bu ayrım, arama yaparken kullanabileceğin bir pusuladır; her eserin tek bir kutuya girdiği anlamına gelmez. Aynı yorumcu farklı geleneklerden eserler seslendirebilir. Bu yüzden yalnızca bir sanatçıyı sevdiğin için bütün yayın gününü aynı duyacağını düşünme.", "Başlangıçta kendi isteğini kısa bir cümleyle tarif et: 'Yöresel türkü yorumları arıyorum' veya 'Türk sanat müziği repertuvarını dinlemek istiyorum.' Böyle bir tanım, belirsiz bir 'eski şarkılar' aramasından daha açıklayıcıdır. Dönem, müzik geleneği ve kayıt tarihi birbirinden farklı seçim ölçütleridir."]
+      },
+      {
+        "heading": "Bir şarkı yerine programın bütününü değerlendir",
+        "paragraphs": ["İlk duyduğun eser sevdiğin yönde değilse kanalın yanlış olduğu sonucuna hemen varma. Bir program besteciye, bir yorumcuya veya belirli bir repertuvara odaklanabilir. Müzik arasındaki açıklamalar da dinleme deneyimini değiştirir. Kesintisiz bir eser dizisi mi, eserlerin hikâyesini anlatan bir sunum mu istediğini kendine sor.", "Örneğin çalışırken konuşmanın daha az olduğu bir akış arıyor olabilirsin; akşam ise eser hakkında açıklama duymak isteyebilirsin. İki tercihi aynı ölçütle değerlendirmek zorunda değilsin. Beğendiğin programın adını ve dinlediğin tarihi not etmek, daha sonra yalnızca kanal adına dayanarak yeniden aramaktan daha somut bir yol sağlar."]
+      },
+      {
+        "heading": "Güncel akıştan ne dinlediğini kontrol et",
+        "paragraphs": ["Resmî kanal listesinde yayın akışına geçiş bulunur. Bugünkü bilgiyle hareket et; arama motorunda görünen eski bir saat veya başka günün ekran görüntüsü güncel programı göstermeyebilir. Türkiye dışında dinliyorsan yayıncının verdiği saat ile cihazındaki yerel saati karıştırmamaya dikkat et. Bir adı bulamamak, programın tamamen kaldırıldığı anlamına gelmez."],
+        "items": ["Doğru kanalı ve baktığın günü birlikte doğrula.", "Program adını, gösterilen saati ve varsa tekrar bilgisini oku.", "Hatırladığın sanatçıyla program adını ayrı arama ipuçları olarak dene.", "Sonraki dinleme için kanaldan önce beğendiğin programı not et."]
+      },
+      {
+        "heading": "Canlı yayınla belirli bir kaydı aramayı ayır",
+        "paragraphs": ["Bir eseri başından dinlemek istiyorsan canlı radyoyu açmak yeterli olmayabilir. Canlı yayında devam eden akışa katılırsın; sevdiğin parçanın yeniden çalacağına dair bir kontrolün yoktur. Belirli bir program kaydı arıyorsan yayıncının içerik sayfasına bak ve başlığı, tarihi, varsa bölüm bilgisini karşılaştır.", "Bu rehberdeki kanal ayrımı bir şarkı sipariş hizmeti, eksiksiz arşiv veya indirme hakkı vaat etmez. Web erişimi de ülkeye, bağlantıya ve içerik koşullarına göre değişebilir. Kararını 'hangi kanal daha iyi?' sorusu yerine 'bugün dinlemek istediğim içerik ve sunum hangisinde?' sorusuyla vermek daha kullanışlıdır."]
+      }
+    ],
+    "faq": [
+      {"question": "Türk halk müziği için hangisinden başlamalıyım?", "answer": "TRT'nin resmî kanal tanımına göre TRT Türkü uygun başlangıçtır. Yine de o anda hangi programın sürdüğünü akıştan kontrol et; bütün saatler aynı sunuma sahip olmayabilir."},
+      {"question": "TRT Nağme ile TRT FM aynı kanal mı?", "answer": "Hayır. TRT Dinle'de ayrı kanallar olarak listelenirler. Nağme'nin Türk sanat müziği odağı, TRT FM'in Türkçe pop başlığından farklıdır."},
+      {"question": "Bir sanatçı iki kanalda da duyulabilir mi?", "answer": "Sanatçı adı tek başına kanal sınırı değildir. Seçimi eserin repertuvarı ve güncel program üzerinden yap; belirli bir sanatçının hangi saatte çalacağını doğrulanmış akış olmadan varsayma."}
+    ],
+    "links": [
+      {"route": "blog:listen-to-radio-online", "label": "İstasyon ve program aramasına başla"},
+      {"route": "blog:internet-radio-explained", "label": "Canlı akış ile kayıt farkını öğren"},
+      {"route": "blog:80s-90s-radio-guide", "label": "Dönem seçimini tür seçiminden ayır"},
+      {"route": "search", "label": "TRT kanallarını ara"}
+    ],
+    "sources": [{"name": "TRT Dinle: kanallar ve yayın akışları", "url": "https://www.trtdinle.com/radyolar"}],
+    "relatedIds": ["listen-to-radio-online", "internet-radio-explained", "80s-90s-radio-guide"]
+  },
+  {
+    "id": "trt-radyo-tiyatrosu-arkasi-yarin",
+    "title": "Radyo tiyatrosu ve Arkası Yarın: Tek oyun mu, bölümlü hikâye mi?",
+    "seoTitle": "TRT radyo tiyatrosu ve Arkası Yarın: Dinleme sırası",
+    "description": "TRT Dinle'de tek oturumluk oyunla bölümlü hikâyeyi ayırt et; bölüm sırası, künye ve süre bilgisiyle kendine uygun radyo tiyatrosunu seç.",
+    "primaryKeyword": "TRT radyo tiyatrosu Arkası Yarın farkı",
+    "secondaryKeywords": ["TRT Dinle radyo tiyatrosu", "Arkası Yarın bölüm sırası", "tek bölümlük radyo oyunu"],
+    "imageAlt": "Mikrofon ve ses dalgalarıyla radyo anlatımını gösteren çizim",
+    "intro": "Radyo tiyatrosu seçerken tek oturumluk oyun mu yoksa bölüm bölüm süren bir hikâye mi istediğine karar ver. TRT Dinle'de 'Radyo Tiyatrosu' ve 'Arkası Yarın' etiketleri birlikte bulunabildiğinden yalnızca kategori adına bakmak yeterli değildir. İçerik sayfasındaki bölüm listesi, süre ve künye, nereden başlayacağını daha iyi gösterir.",
+    "sections": [
+      {
+        "heading": "Etiketleri kesin ve kapalı kutular gibi okuma",
+        "paragraphs": ["Bir içerik hem radyo tiyatrosu hem Arkası Yarın olarak işaretlenebilir. Resmî katalogdaki Bu Bizim Hayatımız buna örnektir; Piyango ise tek bölümlük bir dinleme örneği sunar. Buradan bütün radyo tiyatrolarının tek bölüm olduğu veya her dizinin aynı uzunlukta sürdüğü sonucu çıkmaz. Önce açtığın eserin kendi bilgilerini incele.", "Başlığını tanıdığın bir romanın uyarlamasıyla karşılaşsan bile bildiğin baskının bölüm düzenini sesli yapıya taşıma. Radyo uyarlamasının anlatım biçimi farklı olabilir. Yazar ve oyuncu bilgileri, aynı veya benzer adla sunulan kayıtları ayırırken başlığın tek başına veremediği bağlamı sağlar."]
+      },
+      {
+        "heading": "Dinleme sürene göre oyun veya dizi seç",
+        "paragraphs": ["Kısa bir yolculukta hikâyeyi bitirmek istiyorsan toplam süreyi kontrol et. Dizinin tek bölüm süresini toplam süre sanmak, finali beklerken yarıda kalmana neden olabilir. Akşamları birkaç oturum ayıracaksan bölüm yapısı daha uygun olabilir; önemli olan en kısa veya en uzun eseri bulmak değil, ayırabileceğin zamanı bilmek.", "Birlikte dinleyeceksen diğer kişinin de aynı bölümde olduğundan emin ol. Telefonunda görünen 'devam et' ifadesi varsa bunun hangi kayıt ve noktaya ait olduğunu kontrol et. Her platformda senkronizasyon veya kaldığın yeri hatırlama özelliği bulunduğunu varsayma; gerektiğinde bölüm adını kendin not etmek yeterlidir."]
+      },
+      {
+        "heading": "Bölüm listesini hikâye sırasına göre oku",
+        "paragraphs": ["Bir liste en yeni kayıt üstte olacak şekilde sıralanabilir; ekrandaki ilk öğe her zaman hikâyenin ilk bölümü değildir. Özellikle bir arama motorundan doğrudan bölüm sayfasına geldiğinde üst başlığa dönüp bütün diziyi görmeye çalış. Açıklamayı okurken sonraki bölümlerin özetlerinin olayları önceden söyleyebileceğini de hesaba kat."],
+        "items": ["Dizinin ana başlığı ile bölüm başlığını ayır.", "Başlangıç için açıkça birinci bölüm olarak belirtilen kaydı seç.", "Liste sırasını ve toplam bölüm sayısını karşılaştır.", "Ara verirken bölüm numarası ve kaldığın dakikayı not et."]
+      },
+      {
+        "heading": "Canlı yayın, katalog ve indirmeyi birbirinden ayır",
+        "paragraphs": ["Radyoda duyduğun oyunu daha sonra bulmak için dinlediğin günü, kanalı ve hatırladığın başlığı yaz. Canlı yayını yeniden açmak aynı oyunu baştan başlatmaz. Katalogda bir eser sayfasının bulunması da her eski yayının eksiksiz olarak saklandığı veya bütün bölgelerden açıldığı anlamına gelmez.", "Oyunu çocuklarla ya da ailece dinlemeyi düşünüyorsan yalnızca 'aile' etiketine güvenmek yerine açıklamadaki konuyu değerlendir. Bu bir yaş uygunluğu onayı değildir. İndirme, çevrim dışı dinleme veya paylaşım için ise ilgili hizmetin sunduğu seçeneklere bak; bir oynatma düğmesi dosyayı kopyalama izni sayılmaz."]
+      }
+    ],
+    "faq": [
+      {"question": "Her radyo tiyatrosu tek bölüm mü?", "answer": "Hayır. TRT Dinle'de tek bölümlük oyunlar da bölümlü yapımlar da bulunur. Kategori adından süre çıkarmak yerine eserin bölüm listesini kontrol et."},
+      {"question": "Arkası Yarın'a herhangi bir bölümden başlanır mı?", "answer": "Olay örgüsünü takip etmek için belirtilen ilk bölümden başlamak daha uygundur. Arama sonucu seni sonraki bölüme götürmüş olabilir; önce dizinin ana sayfasını kontrol et."},
+      {"question": "Sesli kitap ile radyo oyunu aynı kayıt mı?", "answer": "Aynı eserden uyarlansalar bile aynı kayıt oldukları varsayılamaz. İçerik türü, oyuncular, anlatım ve bölüm düzeni farklı olabilir; künyeyi karşılaştır."}
+    ],
+    "links": [
+      {"route": "blog:internet-radio-explained", "label": "Canlı yayın ve isteğe bağlı kayıt farkı"},
+      {"route": "blog:radio-app-iphone-android", "label": "Telefonda uzun dinleme oturumları"},
+      {"route": "blog:news-talk-radio-guide", "label": "Konuşma odaklı radyo içeriğini değerlendirme"},
+      {"route": "search", "label": "Radyo kanalı ara"}
+    ],
+    "sources": [
+      {"name": "TRT Dinle: Piyango", "url": "https://www.trtdinle.com/show/piyango"},
+      {"name": "TRT Dinle: Bu Bizim Hayatımız", "url": "https://www.trtdinle.com/show/bu-bizim-hayatimiz"}
+    ],
+    "relatedIds": ["internet-radio-explained", "radio-app-iphone-android", "news-talk-radio-guide"]
+  }
+]

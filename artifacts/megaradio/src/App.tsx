@@ -42,10 +42,12 @@ import { RecommendationsPrefetcher } from "@/components/recommendations/Recommen
 import { PushNotificationBridge } from "@/components/PushNotificationBridge";
 import { useState, useEffect, useDeferredValue } from "react";
 import { useLocation } from "wouter";
-import { getLanguageFromPath } from "@workspace/seo-shared/seo-config";
+import { usePaymentSafeLocation } from '@/lib/payment-link-navigation';
+import { PaymentLinkDocument } from '@/components/PaymentLinkDocument';
+import { getLanguageFromPath, getRetiredLocaleFromPath } from "@workspace/seo-shared/seo-config";
+import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 import { syncDocumentLocale } from '@/lib/document-locale';
 import { useScrollToTop } from "@/hooks/useScrollToTop";
-import { initGA } from "./lib/analytics";
 import { useAnalytics } from "./hooks/use-analytics";
 import { logger } from '@/lib/logger';
 // Lazy load all route pages for optimal performance (reduces initial bundle from 1.8MB to <100KB)
@@ -118,6 +120,7 @@ import { TranslationProvider, useTranslation } from "@/hooks/useTranslation";
 import { FavoriteStateProvider } from "@/hooks/useFavoriteState";
 import { COUNTRY_TO_CODE } from "@workspace/seo-shared/seo-config";
 import { getSeoRouteCandidates } from '@/lib/seo-route-candidates';
+import { isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 
 import { URL_TRANSLATIONS } from "@workspace/seo-shared/url-translations";
 
@@ -215,6 +218,7 @@ function AdminRouterContent() {
         {/* Error Monitoring */}
         <Route path="/admin/error-logs" component={LazyAdminRoutes.AdminErrorLogs} />
         <Route path="/admin/app-logs" component={LazyAdminRoutes.AdminAppLogs} />
+        <Route path="/admin/tv-diagnostics" component={LazyAdminRoutes.TvDiagnostics} />
 
         
         <Route component={LazyRoutes.NotFound} />
@@ -224,7 +228,7 @@ function AdminRouterContent() {
   );
 }
 
-function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: string; onCountryChange?: (country: string, isManual?: boolean) => void }) {
+export function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: string; onCountryChange?: (country: string, isManual?: boolean) => void }) {
   const { cleanPath, englishPath, currentLanguage } = useSeoRouting();
   const [location, setLocation] = useLocation();
 
@@ -240,6 +244,7 @@ function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: 
     // CRITICAL FIX: Strip query params and hash for route matching
     // GenresPage adds ?page=1 which would break the equality check
     const pathToUse = deferredPath.split('?')[0].split('#')[0];
+    if (getLegacyStationGuideRoute(location)) return <LazyRoutes.LegacyStationGuidePage />;
     
     
     if (pathToUse === '/') return <LazyRoutes.RadioFrontend selectedCountry={selectedCountry} onCountryChange={onCountryChange} />;
@@ -358,21 +363,8 @@ function PublicRouter({ selectedCountry, onCountryChange }: { selectedCountry?: 
     // Austria radios with URL parameter support like GitHub example
     if (pathToUse === '/radios/austria') return <LazyRoutes.AustriaRadiosPage />;
 
-    // Bare /stations is the SEO-eligible public catalog hub (SSR renders a
-    // paginated station list). The SPA previously had no branch for it, so it
-    // hydrated to <NotFound/> — a 404 flash for users AND, worse, Googlebot's
-    // rendered view showed a 404 for a page we want indexed. Reuse the existing
-    // public Radios listing (the same station-grid UI as /radios) so the
-    // rendered page is real station content, not a 404. Must precede the
-    // '/stations/' detail check below.
-    if (pathToUse === '/stations') return <LazyRoutes.Radios selectedCountry={selectedCountry} onCountryChange={onCountryChange} />;
-
-    // A-Z station index pages (/stations/a … /stations/0-9 and the singular
-    // reverse-translated form). SSR renders the crawlable letter list; on
-    // hydration the SPA shows the same station-grid UI as the /stations hub.
-    // Must precede the station-detail checks below or the letter would be
-    // treated as a (nonexistent) station slug and hydrate to a 404.
-    if (pathToUse.match(/^\/stations?\/(?:0-9|[a-z])$/)) return <LazyRoutes.Radios selectedCountry={selectedCountry} onCountryChange={onCountryChange} />;
+    // Match the wrapper's server-backed catalog before station detail routes.
+    if (isStationDirectoryPath(pathToUse, !getRetiredLocaleFromPath(location))) return <LazyRoutes.StationDirectory />;
 
     // CRITICAL FIX: Station routing - handle BOTH English and translated paths
     // Support both /station/ and /stations/ formats without redirect (avoids losing country code)
@@ -659,6 +651,7 @@ export const SeoMainRouter = React.memo(() => {
   
   return (
     <Switch>
+      <Route path="/pay" component={PaymentLinkDocument} />
       {/* API Documentation - standalone page without header/footer */}
       <Route path="/api-docs/:category?">
         <Suspense fallback={<div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0a0a14", color: "#fff" }}>Loading API Docs...</div>}>
@@ -1236,15 +1229,10 @@ function App() {
   // must not navigate, scroll the page, or remount the player/route subtree.
 
   // 🚀 MAIN THREAD OPTIMIZATION: Defer non-critical initialization
-  // Initialize Google Analytics and background playback after initial render
+  // Google measurement initializes before mount in main.tsx; background audio
+  // setup can yield to the initial render.
   useEffect(() => {
     const deferInit = () => {
-      const isAdminRoute = /^\/admin(?:\/|$|-login(?:\/|$))/.test(window.location.pathname);
-      // Verify required environment variable is present
-      if (!isAdminRoute) {
-        // Admin activity must not bootstrap public analytics/Partytown.
-        initGA();
-      }
       // Initialize background playback if user previously accepted
       initializeBackgroundPlayback();
     };
@@ -1307,12 +1295,12 @@ function App() {
   // Keep both language and writing direction aligned with SSR after SPA switches.
   useEffect(() => {
     const { language } = getLanguageFromPath(location);
-    syncDocumentLocale(language);
+    syncDocumentLocale(language, location);
   }, [location]);
   
   return (
     <QueryClientProvider client={queryClient}>
-      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <WouterRouter hook={usePaymentSafeLocation} base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
         <TranslationProvider>
         <FavoriteStateProvider>
         <TranslationPreloader />

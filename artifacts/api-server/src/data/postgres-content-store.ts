@@ -167,12 +167,14 @@ function seoWhere(filter: SeoFilter) {
     values: pairs.map(([field]) => filter[field as keyof SeoFilter]),
   };
 }
-export async function pgSeoMetadata(filter: SeoFilter): Promise<any | null> {
+export async function pgSeoMetadata(filter: SeoFilter,
+  reader?: { query(text: string, values: any[]): Promise<{ rows: any[] }> },
+): Promise<any | null> {
   const { sql, values } = seoWhere(filter);
   return shape(
     "seo_metadata",
     (
-      await getPostgresPool().query(
+      await (reader ?? getPostgresPool()).query(
         "SELECT * FROM seo_metadata WHERE " +
           sql +
           " ORDER BY updated_at DESC,id LIMIT 1",

@@ -7,10 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import StationCard from '@/components/ui/station-card';
 import { TrendingUp, Heart, Star, Users, Globe, Clock, Flame, Award } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { useGlobalPlayer } from '@/hooks/useGlobalPlayer';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/hooks/useTranslation';
+import { SeoPageWrapper } from '@/components/SeoPageWrapper';
+import { ServerSeoHeadContext } from '@/utils/ssr-seo-head';
 
 interface TrendingStation {
   stationId: string;
@@ -49,6 +51,15 @@ interface CommunityFavorite {
 }
 
 export default function TrendingStations() {
+  const hasSeoOwner = useContext(ServerSeoHeadContext);
+  // Localized routes can mount this page without PlayerWrapper. Reuse its
+  // existing SEO owner when present, otherwise own the navigation metadata.
+  return hasSeoOwner ? <TrendingStationsContent /> : (
+    <SeoPageWrapper pageType="trending"><TrendingStationsContent /></SeoPageWrapper>
+  );
+}
+
+function TrendingStationsContent() {
   const [, setLocation] = useLocation();
   const [selectedCountry, setSelectedCountry] = useState<string>('global');
   const [selectedGenre, setSelectedGenre] = useState<string>('all');

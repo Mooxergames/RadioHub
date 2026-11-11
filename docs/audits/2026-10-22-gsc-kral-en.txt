@@ -1,0 +1,48 @@
+help_outline
+Yardım
+manage_accounts
+Kullanıcı ayarları
+	
+notifications
+İletiler
+13
+https://themegaradio.com/en/station/kral-fm
+URL Denetimi
+CANLI URL'Yİ TEST ET
+info
+URL Google'da yok
+Bu sayfa dizine eklenmedi. Dizine eklenmeyen sayfalar Google'da sunulamaz. Sayfanın neden dizine eklenmediğini öğrenmek için aşağıdaki ayrıntılara bakın. Daha fazla bilgi
+TARANAN SAYFAYI GÖSTER
+Sayfa değişti mi?
+DİZİNE EKLENMESİNİ İSTE
+info
+Sayfayı dizine ekleme
+Sayfa dizine eklenmedi: URL Google tarafından bilinmiyor
+
+Bulunma
+Site Haritaları
+Yönlendiren site haritası algılanmadı
+Yönlendiren sayfa
+Hiç yönlendiren sayfa algılanmadı
+URL şu anda raporlanmamış olan diğer kaynaklardan bilinebilir
+Tarama
+Son tarama
+Yok
+Tarama aracısı:
+Yok
+Taramaya izin verildi mi?
+Yok
+Sayfa getirme
+Yok
+Dizine eklenmesine izin verildi mi?
+info
+Yok
+Dizin oluşturma
+Kullanıcı tarafından beyan edilen standart URL
+Yok
+Google tarafından seçilen standart URL
+
+Yok
+DAHA FAZLA BİLGİ EDİNİN
+Geliştirmeler ve Deneyim
+Yalnızca dizine eklenmiş URL'lerde geliştirmeler olabilir

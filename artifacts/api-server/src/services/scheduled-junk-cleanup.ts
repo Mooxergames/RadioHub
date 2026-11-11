@@ -23,6 +23,7 @@ import { runJunkCleanup, type JunkCleanupResult } from '../utils/clean-content-q
  *   still in flight is silently skipped — DB writes from `runJunkCleanup` are
  *   per-station updateOne, but a second concurrent cursor would double the
  *   read pressure and write contention.
+ * Published station URLs are preserved; this routine only fills missing slugs.
  *
  * noIndex transitions are delegated to the shared provenance-aware policy:
  * only proven, solely automatic health flags can be retired; stream failures

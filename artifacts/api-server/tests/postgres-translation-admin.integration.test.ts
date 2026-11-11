@@ -113,8 +113,17 @@ describe('Native PostgreSQL translation admin, genre merge and favorites', {skip
   it('keeps the explicitly selected station, applies approved fields and moves favorite relations',async()=>{
     const primary=await station('Primary',{votes:1}),duplicate=await station('Different Name',{votes:99});
     const user=await store.pgAdminAddFavorites('manual-merge@example.invalid',[duplicate._id]);
-    const response=await fetch(`${base}/api/admin/stations/merge`,{method:'POST',headers:adminHeaders,body:JSON.stringify({primaryStationId:primary._id,duplicateStationIds:[duplicate._id,'missing'],mergeData:{name:'Admin Title'}})});
+    const request={primaryStationId:primary._id,duplicateStationIds:[duplicate._id],mergeData:{name:'Admin Title'}};
+    assert.equal((await fetch(`${base}/api/admin/stations/merge-preview`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)})).status,401);
+    const previewResponse=await fetch(`${base}/api/admin/stations/merge-preview`,{method:'POST',headers:adminHeaders,body:JSON.stringify(request)});
+    assert.equal(previewResponse.status,200);assert.equal(previewResponse.headers.get('cache-control'),'no-store');
+    const {preview}=await previewResponse.json() as any;assert.equal(preview.requiresIdentityConfirmation,true);
+    assert.ok(await pgCatalog().findById(duplicate._id));assert.equal(Object.hasOwn(preview.primaryStation,'descriptions'),false);
+    const apply=()=>fetch(`${base}/api/admin/stations/merge`,{method:'POST',headers:adminHeaders,body:JSON.stringify({...request,expectedFingerprint:preview.fingerprint,confirm:true})});
+    assert.equal((await apply()).status,422);assert.ok(await pgCatalog().findById(duplicate._id));
+    const response=await fetch(`${base}/api/admin/stations/merge`,{method:'POST',headers:adminHeaders,body:JSON.stringify({...request,expectedFingerprint:preview.fingerprint,confirm:true,confirmIdentityOverride:true})});
     assert.equal(response.status,200);const body=await response.json() as any;assert.equal(body.mergedStation._id,primary._id);assert.equal(body.mergedStation.name,'Admin Title');
+    assert.equal(body.deletedCount,1);assert.equal(typeof body.cacheInvalidated,'boolean');assert.equal(body.async,undefined);
     assert.equal(await pgCatalog().findById(duplicate._id),null);assert.deepEqual(await store.pgFavoriteIds(user._id),[primary._id]);
   });
   it('atomically upserts favorite fixtures without lost additions and rejects nonexistent station IDs',async()=>{

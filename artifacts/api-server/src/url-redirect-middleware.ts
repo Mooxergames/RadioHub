@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { URL_TRANSLATIONS, normalizeUrlForLanguage, GLOBAL_REVERSE_URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
-import { SEO_LANGUAGES, COUNTRY_TO_LANGUAGE, ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { SEO_LANGUAGES, COUNTRY_TO_LANGUAGE, ACTIVE_SITEMAP_LANGUAGES, getRetiredLocaleFromPath } from '@workspace/seo-shared/seo-config';
 import { getPreferredLanguageCookie } from '@workspace/seo-shared/language-preference';
 import { logger } from './utils/logger';
 import { performanceCache } from './performance-cache';
-import { getCanonicalStationSlug, getRedirectableStationSlug, isSlugExistenceReady } from './seo/slug-existence';
+import { getCanonicalStationSlug, isSlugExistenceReady } from './seo/slug-existence';
 import { AZ_KEY_RE } from './seo/az-station-index';
+import { buildLocalizedUrl } from './seo/url-helpers';
+import { markSeoTemporarilyUnavailable } from './seo/temporary-unavailable';
 
 /**
  * 301 Redirect Middleware for Translated URL Patterns (single-hop edition)
@@ -44,6 +46,19 @@ function normalizeSegmentCase(segment: string): string {
     /%[0-9a-fA-F]{2}|[A-Z]/g,
     (m) => (m.length === 1 ? m.toLowerCase() : m.toUpperCase()),
   );
+}
+
+function recoverEncodedRouteSegment(segment: string): string | undefined {
+  if (!/%25/i.test(segment)) return;
+  let decoded = segment;
+  for (let depth = 0; depth < 3; depth++) {
+    try { decoded = decodeURIComponent(decoded); } catch { return; }
+    // Only known route names may be decoded repeatedly, never station slugs,
+    // encoded separators, arbitrary input or API/auth payloads.
+    if (GLOBAL_REVERSE_URL_TRANSLATIONS.has(decoded)) return decoded;
+    if (!decoded.includes('%')) return;
+  }
+  return undefined;
 }
 
 // Old English path segments that need redirects
@@ -203,12 +218,12 @@ function detectLanguageFromRequest(req: Request): string {
   // language negotiation respects regional tags, quality weights and q=0.
   const saved = getPreferredLanguageCookie(req.headers.cookie || '');
   if (saved) return saved;
-  const supported = ['en', ...SEO_LANGUAGES.filter(lang => lang.enabled && lang.code !== 'en').map(lang => lang.code)];
-  return req.acceptsLanguages(...supported) || 'en';
+  return req.acceptsLanguages(...ACTIVE_SITEMAP_LANGUAGES) || 'en';
 }
 
 export async function urlRedirectMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   const urlPath = req.path;
+  if (/^\/pay\/?$/.test(urlPath)) return next();
 
   // Skip static assets, API routes, and special paths
   if (
@@ -223,13 +238,14 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
     return next();
   }
 
+  // Resolve known retired editions as English in SSR and the client, without
+  // changing their address or applying warm-cache station alias shortcuts.
+  if ((req.method === 'GET' || req.method === 'HEAD') && getRetiredLocaleFromPath(urlPath)) return next();
+
   const originalUrl = req.originalUrl;
   const origQIdx = originalUrl.indexOf('?');
   const originalQueryString = origQIdx >= 0 ? originalUrl.substring(origQIdx) : '';
 
-  // Lazy DB translation cache — only fetched when actually needed.
-  // 2s race-timeout so a stalled mongo lookup cannot push us into the 30s
-  // gateway timeout (would otherwise become a 504).
   let cachedDbTranslations: Map<string, string> | null = null;
   const getDbTranslations = async (): Promise<Map<string, string>> => {
     if (cachedDbTranslations !== null) return cachedDbTranslations;
@@ -274,6 +290,16 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
       params.delete('lang');
       const remaining = params.toString();
       queryString = remaining ? '?' + remaining : '';
+    }
+  }
+
+  let recoveredRouteEncoding = false;
+  if ((req.method === 'GET' || req.method === 'HEAD') && segments.length >= 2
+      && SEO_LANGUAGES.some(language => language.enabled && language.code === segments[0].toLowerCase())) {
+    const recovered = recoverEncodedRouteSegment(segments[1]);
+    if (recovered) {
+      segments[1] = recovered;
+      recoveredRouteEncoding = true;
     }
   }
 
@@ -459,7 +485,9 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
   //     removed or its canonical re-mapped, that pin would route
   //     visitors to the wrong URL until the cache evicts.
   let aliasRedirectApplied = false;
-  if (segments.length === 3 && isSlugExistenceReady()) {
+  // Some locales use the same token for station details and the A-Z list.
+  // A legacy one-letter alias must never consume a reserved directory key.
+  if (segments.length === 3 && !AZ_KEY_RE.test(segments[2]) && isSlugExistenceReady()) {
     const currentFirst = segments[0];
     const currentIsLanguageCode = SEO_LANGUAGES.some((l) => l.code === currentFirst);
     const currentIsCountryCode =
@@ -482,42 +510,52 @@ export async function urlRedirectMiddleware(req: Request, res: Response, next: N
     }
   }
 
-  // Fold the later pre-SSR language fallback into this same hop, but ONLY for
-  // known non-excluded station identities. Before this, /af/station/<alias>
-  // first became /af/stasie/<canonical>, then /en/station/<canonical>.
-  // Keep the existing SSR path for a cold cache, missing/noindex/junk stations
-  // and explicit redirect records. No locale-only rule is added for private,
-  // directory, A-Z, query-only or mutation routes, and all 14 live locales stay.
-  if ((req.method === 'GET' || req.method === 'HEAD') && segments.length === 3
-      && isSlugExistenceReady() && !AZ_KEY_RE.test(segments[2])
-      && encodeURIComponent(segments[2]) === segments[2]
-      && SEO_LANGUAGES.some(language => language.enabled && language.code === segments[0])
-      && !(ACTIVE_SITEMAP_LANGUAGES as readonly string[]).includes(segments[0])) {
+  // ---- Final: compare and emit ONE 301 if anything changed ----
+  if (recoveredRouteEncoding) segments[1] = encodeURIComponent(segments[1]);
+  const newPath = '/' + segments.join('/');
+
+  // Resolve legacy ID routes through the existing SSR identity/quality gates
+  // before publishing a route-only redirect. Ordinary slug URLs and already
+  // normalized ID URLs keep their existing path and incur no extra reads.
+  if ((req.method === 'GET' || req.method === 'HEAD') && newPath !== urlPath
+      && segments.length === 3 && /^[0-9a-f]{24}$/.test(segments[2])
+      && SEO_LANGUAGES.some(language => language.enabled && language.code === segments[0])) {
+    const language = segments[0];
     const db = await getDbTranslations();
-    const stationSegment = db.get(`${segments[0]}:station`) || URL_TRANSLATIONS[segments[0]]?.station || 'station';
-    let decodedSegment: string | undefined;
-    try {
-      decodedSegment = decodeURIComponent(segments[1]);
-    } catch { /* Malformed encoding remains on the existing error/SSR path. */ }
-    // English SSR currently looks up the raw slug component. Do not decode an
-    // encoded alias here or shortcut to a destination requiring encoding: that
-    // would make warm-cache identity/status differ from the existing cold path.
-    const canonical = decodedSegment === stationSegment
-      ? getRedirectableStationSlug(segments[2]) : null;
-    if (canonical && encodeURIComponent(canonical) === canonical) {
-      segments = ['en', db.get('en:station') || 'station', encodeURIComponent(canonical)];
-      aliasRedirectApplied = true;
+    const detail = db.get(`${language}:station`) || URL_TRANSLATIONS[language]?.station || 'station';
+    const aliases = STATION_DETAIL_ALIASES.get(language);
+    let route: string | undefined;
+    try { route = decodeURIComponent(segments[1]); } catch { /* Leave malformed paths to the existing handler. */ }
+    if (route && (route === detail || route === aliases?.canonical || aliases?.aliases.has(route))) {
+      const normalizedIdPath = buildLocalizedUrl(`/station/${segments[2]}`, language, undefined, db);
+      try {
+        const { SeoRenderer } = await import('./seo-renderer');
+        const data = await new SeoRenderer().renderStaticPage(normalizedIdPath, 'https://themegaradio.com');
+        if (data.pageData?.stationDbError) throw new Error('station-identity-unavailable');
+        const destination = data.pageData?.redirectTo;
+        if (typeof destination === 'string' && destination.startsWith('/') && !destination.startsWith('//')
+            && !/[\\?#\r\n]/.test(destination) && destination !== normalizedIdPath
+            && !data.seoTags?.noIndex && !data.pageData?.notFound && !data.pageData?.stationIsJunk) {
+          res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+          res.redirect(301, destination + queryString);
+          return;
+        }
+      } catch (error) {
+        // A lookup/qualification failure must not become a cached permanent
+        // destination. The renderer already bounds concurrency and read time.
+        logger.warn('Legacy station ID redirect temporarily unavailable', error);
+        markSeoTemporarilyUnavailable(res);
+        res.type('text/plain').send('Temporarily unavailable. Please try again shortly.');
+        return;
+      }
     }
   }
-
-  // ---- Final: compare and emit ONE 301 if anything changed ----
-  const newPath = '/' + segments.join('/');
   if (newPath === urlPath && queryString === originalQueryString) {
     return next();
   }
 
   const target = newPath + queryString;
-  if (aliasRedirectApplied) {
+  if (aliasRedirectApplied || recoveredRouteEncoding) {
     res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
   }
   logger.log(`🔀 SEO 301: ${originalUrl} → ${target} (single-hop canonicalization${aliasRedirectApplied ? ' + slug-alias' : ''})`);

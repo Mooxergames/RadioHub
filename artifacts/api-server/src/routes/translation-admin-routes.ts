@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { registerStationVoteRoutes } from "./station-vote-routes";
-import { CODE_TO_COUNTRY } from "@workspace/seo-shared/seo-config";
+import { CODE_TO_COUNTRY, SEO_LANGUAGES, isActiveUiLanguage } from "@workspace/seo-shared/seo-config";
+import { registerAdminLanguageArchiveRoutes } from './admin-language-archive-routes';
 import { SAFE_GENRE_SLUG_RE, normalizeGenreSlug } from '../seo/genre-slug';
 import { findActiveAuthToken } from '../data/auth-token-store';
 import { pgLocalization } from '../data/postgres-localization-store';
@@ -22,8 +23,12 @@ import { logger } from "../utils/logger";
 import { stripPlaceholders } from "./shared-utils";
 import { refreshCommunityFavoritesCache, fetchTranslationsForLanguage, refreshTranslationsCache } from "./cache-refresh-utils";
 import { syncService } from "../services/sync";
+import { registerAdminStationSyncPolicyRoutes } from './admin-station-sync-policy-routes';
 import { isQuotaExceeded, isQuotaError, handleQuotaError, safeWrite } from "../utils/quota-guard";
 import { performanceCache } from "../performance-cache";
+import { invalidatePublicStationDetails, stationDetailIdentifiers } from '../services/station-detail-cache';
+import { triggerGenreStationCountsRecompute } from '../services/genre-station-counts';
+import { buildManualStationMergePreview, ManualStationMergeError, parseManualStationMerge } from '../utils/manual-station-merge-review';
 import { getPhaseCTranslations } from "../data/phase-c-translations";
 import { UserEngagementService } from "../services/user-engagement-service";
 import { getCommunityProfiles } from '../services/community-profiles';
@@ -41,6 +46,38 @@ import { pgFindUserByEmail, pgFindUserByIdOrSlug, pgUpdateUser, pgUserFavoriteCo
 // per-language Set fails fast locally; the PostgreSQL singleton below also
 // excludes other replicas and background sync while fencing every write.
 const inFlightTranslateJobs = new Set<string>();
+
+async function invalidateManualMergeCaches(result: { primary: Record<string, any> | null; duplicates: Record<string, any>[]; deletedCount: number }): Promise<boolean> {
+    const attempts: (() => unknown)[] = [
+        () => invalidatePublicStationDetails(stationDetailIdentifiers(...[result.primary, ...result.duplicates].filter(station => station !== null))),
+        ...['stations:', 'popular_stations:', 'precomputed_stations:', 'similar_stations:', 'similar:', 'nearby:',
+            'community_favorites:', 'radio-browser:', 'station_stats', 'filters:', 'user-favorites:', 'recently-played:']
+            .map(pattern => () => publicStationCache.clearByPattern(pattern)),
+        () => CacheManager.clearByPattern('admin_stations:'),
+        () => CacheManager.clearByPattern('admin:stations:'),
+        () => CacheManager.del('admin-station-filter-options:v1'),
+        () => performanceCache.clearSeoAndQuickCaches(),
+        () => performanceCache.clearSimilarStationPools(),
+    ];
+    if (result.deletedCount > 0) attempts.push(() => triggerGenreStationCountsRecompute('manual-station-merge'));
+    const settled = Promise.allSettled(attempts.map(attempt => Promise.resolve().then(attempt)))
+        .then(results => results.every(result => result.status === 'fulfilled'));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        // Report only the local adapters' outcome, never all-replica acknowledgement.
+        return await Promise.race([settled, new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), 500); })]);
+    } finally { clearTimeout(timer); }
+}
+
+function manualMergeError(res: any, error: unknown): void {
+    if (error instanceof ManualStationMergeError) {
+        res.status(error.status).json({ error: error.message, code: error.code });
+    } else if ((error as any)?.code === 'MERGE_ALIAS_CONFLICT') {
+        res.status(409).json({ error: 'Station alias ownership changed; review the group again', code: 'MANUAL_MERGE_ALIAS_CONFLICT' });
+    } else {
+        res.status(503).json({ error: 'Station merge is temporarily unavailable', code: 'MANUAL_MERGE_UNAVAILABLE' });
+    }
+}
 async function healthyRadioBrowserStations(order: 'clickCount' | 'votes' | 'updatedAt', requested: unknown) {
     const limit = Math.max(1, Math.min(Math.trunc(Number(requested)) || 100, 500));
     return publicStationCache.getOrSetSingleFlight(`radio-browser:${order}:${limit}`, async () => {
@@ -58,6 +95,8 @@ async function healthyRadioBrowserStations(order: 'clickCount' | 'votes' | 'upda
 export function registerTranslationAdminRoutes(app: Express, deps: any) {
     app.use(['/api/filters','/api/recently-played','/api/community-favorites','/api/radio-browser','/api/user/favorites','/api/users'], publicStationResponseCache);
     const { requireAuth, requireAdmin } = deps;
+    registerAdminStationSyncPolicyRoutes(app, requireAdmin);
+    registerAdminLanguageArchiveRoutes(app, requireAdmin);
     const userEngagementService = new UserEngagementService();
     async function authenticatedUserId(req: any): Promise<string | undefined> {
         const sessionUserId = req.session?.userId || req.session?.user?.userId;
@@ -98,6 +137,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
             if (typeof code !== 'string' || !code.trim() || typeof name !== 'string' || !name.trim()) {
                 return void res.status(400).json({ error: 'Language code and name are required' });
             }
+            if (!isActiveUiLanguage(code)) return void res.status(400).json({ error: 'Only the 14 published UI languages can be added' });
             {
                 const language = await pgLocalization().saveTranslationLanguage({ code, name, isEnabled, isDefault });
                 return void res.status(201).json(language);
@@ -116,6 +156,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
         try {
             const { id } = req.params;
             const { code, name, isEnabled, isDefault } = req.body;
+            if (code !== undefined && !isActiveUiLanguage(code)) return void res.status(400).json({ error: 'Only the 14 published UI languages can be added' });
             {
                 const language = await pgLocalization().saveTranslationLanguage({ code, name, isEnabled, isDefault }, String(id));
                 return void (language ? res.json(language) : res.status(404).json({ error: 'Translation language not found' }));
@@ -180,25 +221,10 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
             res.status(500).json({ error: 'Failed to bump translation version' });
         }
     });
-    // SEED Translation Languages - Sync all 55 URL translation languages to database
+    // Seed only the published UI cohort, not the historical URL-language catalog.
     app.post("/api/admin/seed-translation-languages", requireAdmin, async (req, res) => {
         try {
-            const languageMapping = {
-                "af": "Afrikaans", "am": "Amharic", "ar": "Arabic", "az": "Azerbaijani",
-                "bg": "Bulgarian", "bn": "Bengali", "cs": "Czech", "da": "Danish",
-                "de": "German", "el": "Greek", "es": "Spanish", "et": "Estonian",
-                "fa": "Persian", "fi": "Finnish", "fr": "French", "gu": "Gujarati",
-                "he": "Hebrew", "hi": "Hindi", "hr": "Croatian", "hu": "Hungarian",
-                "hy": "Armenian", "id": "Indonesian", "it": "Italian", "ja": "Japanese",
-                "kn": "Kannada", "ko": "Korean", "lt": "Lithuanian", "lv": "Latvian",
-                "ml": "Malayalam", "mr": "Marathi", "ms": "Malay", "nl": "Dutch",
-                "no": "Norwegian", "pa": "Punjabi", "pl": "Polish", "pt": "Portuguese",
-                "ro": "Romanian", "ru": "Russian", "sk": "Slovak", "sl": "Slovenian",
-                "so": "Somali", "sq": "Albanian", "sr": "Serbian", "sv": "Swedish",
-                "sw": "Swahili", "ta": "Tamil", "te": "Telugu", "th": "Thai",
-                "tl": "Tagalog", "tr": "Turkish", "uk": "Ukrainian", "ur": "Urdu",
-                "vi": "Vietnamese", "zh": "Chinese", "zu": "Zulu"
-            };
+            const languageMapping = Object.fromEntries(SEO_LANGUAGES.filter(l => isActiveUiLanguage(l.code)).map(l => [l.code, l.name]));
             let created = 0;
             let updated = 0;
             let skipped = 0;
@@ -230,6 +256,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
     app.post("/api/admin/translation-languages/:code/translate", requireAdmin, async (req, res) => {
         const { code } = req.params;
         const lockKey = (code || '').toLowerCase();
+        if (!isActiveUiLanguage(lockKey)) return void res.status(400).json({ error: 'Language is not in the published UI cohort' });
         // Server-side lock: reject if a job for this language is already running.
         // Without this, double-clicks on "Auto-translate" or two admins clicking
         // simultaneously kick off two pipelines that both insert/update the same
@@ -245,22 +272,22 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
         }
         try {
             const { pgTranslationSync } = await import('../data/postgres-translation-sync-store');
-            await pgTranslationSync().withLeader(async writer => {
+            const reply = await pgTranslationSync().withLeader(async writer => {
             // missingOnly=true → only insert truly missing translations, never overwrite existing rows
             const missingOnly = req.query.missingOnly === 'true' || req.body?.missingOnly === true;
             // Skip English - no need to translate
             if (code.toLowerCase() === 'en') {
-                return void res.json({
+                return { status: 200, body: {
                     message: 'English is the source language, no translation needed',
                     stats: { total: 0, existing: 0, translated: 0, fixed: 0, failed: 0 }
-                });
+                } };
             }
             // Find the language
             const language = (await pgLocalization().findTranslationLanguage(code.toLowerCase()));
             if (!language) {
-                return void res.status(404).json({ error: 'Translation language not found' });
+                return { status: 404, body: { error: 'Translation language not found' } };
             }
-            if (!language.isEnabled) return void res.status(409).json({ error: 'Translation language is disabled' });
+            if (!language.isEnabled) return { status: 409, body: { error: 'Translation language is disabled' } };
             // Protected terms that should NOT be translated (brand names and placeholders)
             const PROTECTED_TERMS = [
                 'Mega Radio', 'MegaRadio', 'mega radio',
@@ -354,7 +381,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
                 }
             }
             if (keysToTranslate.length === 0) {
-                return void res.json({
+                return { status: 200, body: {
                     message: 'All translations are complete and correct for this language',
                     stats: {
                         total: allKeys.length,
@@ -363,7 +390,7 @@ export function registerTranslationAdminRoutes(app: Express, deps: any) {
                         fixed: 0,
                         failed: 0
                     }
-                });
+                } };
             }
             logger.log(`🔄 ${language.name}: Found ${keysToTranslate.filter(k => k.isNew).length} missing, ${keysToFix.length} to fix`);
             // Complete language mapping for all 57 languages
@@ -515,7 +542,7 @@ ${keysText}`;
                 logger.log(`✅ ${language.name}: Translated ${translated} new, fixed ${fixed} incorrect`);
             }
             writer.assertOwned();
-            res.json({
+            return { status: 200, body: {
                 message: `Translation complete for ${language.name}`,
                 stats: {
                     total: allKeys.length,
@@ -525,8 +552,10 @@ ${keysText}`;
                     failed,
                     keysFixed: keysToFix
                 }
+            } };
             });
-            });
+            // A completed response must not race the asynchronous leader unlock.
+            res.status(reply.status).json(reply.body);
         }
         catch (error: any) {
             console.error('Error auto-translating language:', error);
@@ -639,26 +668,26 @@ ${keysText}`;
             res.status(500).json({ error: 'Failed to fetch real languages' });
         }
     });
-    // ADMIN MERGE STATIONS API - Merge duplicate stations manually (Admin Only)
-    app.post("/api/admin/stations/merge", requireAdmin, async (req, res) => {
+    app.post("/api/admin/stations/merge-preview", requireAdmin, async (req, res) => {
+        res.set('Cache-Control', 'no-store');
         try {
-            const { primaryStationId, duplicateStationIds, mergeData = {} } = req.body;
-            if (typeof primaryStationId !== 'string' || !Array.isArray(duplicateStationIds) || duplicateStationIds.some(id => typeof id !== 'string') || duplicateStationIds.includes(primaryStationId)) {
-                return void res.status(400).json({ error: 'A primary station and distinct duplicate IDs are required' });
-            }
-            const result = await pgCatalog().mergeDuplicates([primaryStationId, ...new Set<string>(duplicateStationIds)], { primaryId: primaryStationId, validateGroup: false, patch: mergeData });
-            if (!result.primary)
-                return void res.status(404).json({ error: 'Primary station not found' });
-            for (const station of [result.primary, ...result.duplicates])
-                if (station.slug)
-                    performanceCache.invalidateStationCache(station.slug);
-            res.json({ success: true, message: `Successfully merged ${result.deletedCount} stations`, mergedStation: result.primary });
+            const selection = parseManualStationMerge(req.body);
+            const documents = await pgCatalog().find({ _id: { $in: [selection.primaryStationId, ...selection.duplicateStationIds] } });
+            res.json({ success: true, preview: buildManualStationMergePreview(selection, documents) });
+        } catch (error) { manualMergeError(res, error); }
+    });
+    // Manual override stays available, but only for the explicitly reviewed snapshot.
+    app.post("/api/admin/stations/merge", requireAdmin, async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        try {
+            const selection = parseManualStationMerge(req.body, true);
+            const result = await pgCatalog().mergeDuplicates([selection.primaryStationId, ...selection.duplicateStationIds], {
+                primaryId: selection.primaryStationId, validateGroup: false, patch: selection.changes, manualReview: selection.review,
+            });
+            const cacheInvalidated = await invalidateManualMergeCaches(result).catch(() => false);
+            res.json({ success: true, deletedCount: result.deletedCount, mergedStation: result.primary, cacheInvalidated });
         }
-        catch (error) {
-            if ((error as any)?.code === 'PRIMARY_NOT_FOUND')
-                return void res.status(404).json({ error: 'Primary station not found' });
-            res.status(500).json({ error: 'Failed to merge stations' });
-        }
+        catch (error) { manualMergeError(res, error); }
     });
     // ADMIN GENRES API - Returns only real genres from database for management (Admin Only)
     app.get("/api/admin/genres", requireAdmin, async (req, res) => {
@@ -1522,9 +1551,6 @@ ${keysText}`;
             res.status(500).json({ error: 'Failed to fetch user profile' });
         }
     });
-    // REMOVED: Conflicting route for favorites that only handled MongoDB IDs
-    // Using slug-capable route instead which is defined further below
-    // GET COMMUNITY FAVORITES - Most-favorited stations across all users (Public)
     app.get("/api/community-favorites", async (req, res) => {
         try {
             const { country } = req.query;
@@ -1904,7 +1930,6 @@ ${keysText}`;
                 if (!user.isPublicProfile) {
                     updateData.isPublicProfile = true;
                 }
-                // Generate slug if missing or if it's a MongoDB ID
                 if (!user.slug || /^[0-9a-fA-F]{24}$/.test(user.slug)) {
                     updateData.slug = await generateUserSlug(user, user._id);
                 }
@@ -2686,7 +2711,7 @@ ${keysText}`;
             const keyIdByName: Record<string, any> = {};
             (keyDocs as any[]).forEach((k) => { keyIdByName[k.key] = k._id; });
             const presentKeyIds = Object.values(keyIdByName);
-            const allLangCodes = (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled).map((l: any) => l.code as string);
+            const allLangCodes = (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && isActiveUiLanguage(l.code)).map((l: any) => l.code as string);
             // One aggregation — fetch all translations for the 15 SEO keys across all languages.
             const translationRows: {
                 language: string;
@@ -2701,7 +2726,7 @@ ${keysText}`;
             const qualifiedSet = new Set(qualifiedState.languages);
             const allKeys = Array.from(SEO_KEYS_ALL);
             const languages = (SEO_LANGUAGES as any[])
-                .filter((l: any) => l.enabled)
+                .filter((l: any) => l.enabled && isActiveUiLanguage(l.code))
                 .map((l: any) => {
                 const completedKeys = allKeys.filter((k) => byLang[l.code]?.has(k));
                 const missingKeys = allKeys.filter((k) => !byLang[l.code]?.has(k));
@@ -2736,7 +2761,7 @@ ${keysText}`;
         try {
             const TRANSLATIONS: Record<string, Record<string, string>> = getPhaseCTranslations();
             const ALL_KEYS = Object.keys(TRANSLATIONS.en ?? {});
-            const LANG_CODES = Object.keys(TRANSLATIONS);
+            const LANG_CODES = Object.keys(TRANSLATIONS).filter(isActiveUiLanguage);
             const EN = TRANSLATIONS.en ?? {};
             // Upsert TranslationKey documents for each key.
             const keyIdMap: Record<string, any> = {};
@@ -2804,8 +2829,8 @@ ${keysText}`;
         const force: boolean = req.body?.force === true;
         const requestedLangs: string[] | undefined = Array.isArray(req.body?.languages) ? req.body.languages : undefined;
         const targetLangs = requestedLangs
-            ? (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && requestedLangs.includes(l.code)).map((l: any) => l.code as string)
-            : (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled).map((l: any) => l.code as string);
+            ? (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && isActiveUiLanguage(l.code) && requestedLangs.includes(l.code)).map((l: any) => l.code as string)
+            : (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && isActiveUiLanguage(l.code)).map((l: any) => l.code as string);
         const startMs = Date.now();
         let resolve!: () => void;
         inFlightRegenerateJob = new Promise<void>((r) => { resolve = r; });
@@ -2916,14 +2941,14 @@ ${keysText}`;
         }
     });
     // POST /api/admin/seo-translations/warm-all
-    // Triggers the batched 57-language translation warmup in the background.
+    // Warm only published UI languages.
     app.post('/api/admin/seo-translations/warm-all', deps.requireAdmin, async (_req: any, res: any) => {
         try {
             const { performanceCache: pc } = await import('../performance-cache');
             // Reset the memoized warmup promise so it runs again even if already completed.
             (pc as any).warmupPromise = null;
             const { SEO_LANGUAGES } = await import('@workspace/seo-shared/seo-config');
-            const total = (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled).length;
+            const total = (SEO_LANGUAGES as any[]).filter((l: any) => l.enabled && isActiveUiLanguage(l.code)).length;
             // Fire-and-forget — client gets immediate response.
             void pc.warmupCaches().catch((e: any) => logger.warn('warm-all failed:', e?.message));
             res.json({ message: `Warming ${total} languages in background (batches of 5, 500ms between batches)`, totalLanguages: total });

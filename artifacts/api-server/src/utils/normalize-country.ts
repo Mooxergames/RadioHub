@@ -715,13 +715,13 @@ export function normalizeCountryFilter(input: string | undefined | null): Record
   }
 
   const lower = normalizeTurkishLower(trimmed);
-  if (ALIAS_TO_DB[lower]) {
+  if (Object.hasOwn(ALIAS_TO_DB, lower)) {
     const dbName = ALIAS_TO_DB[lower];
     return { country: { $regex: new RegExp(escapeRegex(dbName), 'i') } };
   }
 
   const stdLower = trimmed.toLowerCase();
-  if (stdLower !== lower && ALIAS_TO_DB[stdLower]) {
+  if (stdLower !== lower && Object.hasOwn(ALIAS_TO_DB, stdLower)) {
     const dbName = ALIAS_TO_DB[stdLower];
     return { country: { $regex: new RegExp(escapeRegex(dbName), 'i') } };
   }
@@ -742,12 +742,12 @@ export function resolveToDbName(input: string | undefined | null): string | null
   }
 
   const lower = normalizeTurkishLower(trimmed);
-  if (ALIAS_TO_DB[lower]) {
+  if (Object.hasOwn(ALIAS_TO_DB, lower)) {
     return ALIAS_TO_DB[lower];
   }
 
   const stdLower = trimmed.toLowerCase();
-  if (stdLower !== lower && ALIAS_TO_DB[stdLower]) {
+  if (stdLower !== lower && Object.hasOwn(ALIAS_TO_DB, stdLower)) {
     return ALIAS_TO_DB[stdLower];
   }
 

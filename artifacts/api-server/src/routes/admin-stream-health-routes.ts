@@ -6,6 +6,7 @@ import { performanceCache } from '../performance-cache';
 import CacheManager from '../cache';
 import { getPostgresPool } from '../postgres-runtime';
 import { stationListVisibleSql, stationAvailabilityStatusSql } from '../utils/station-visibility';
+import { invalidatePublicStationDetails, stationDetailIdentifiers } from '../services/station-detail-cache';
 
 const invalidBody: ErrorRequestHandler = (_error, _req, res, _next) => {
   res.status(400).json({ error: 'Invalid recovery request' });
@@ -58,10 +59,9 @@ export function registerAdminStreamHealthRoutes(app: Express, requireAdmin: Requ
       if (result.status === 'conflict') return void res.status(409).json({ error: 'Station changed; reload before recovering' });
       if (result.status === 'rejected') return void res.status(422).json({ error: 'Station recovery could not be verified' });
       const saved = result.station;
-      const keys = [...new Set([saved._id, saved.slug, ...(saved.slugAliases || [])].filter(Boolean))];
       const cacheResults = await Promise.allSettled([
         Promise.resolve().then(() => performanceCache.invalidateStationCache(saved.slug)),
-        ...keys.map(key => Promise.resolve().then(() => CacheManager.del(`station:detail:${key}`))),
+        invalidatePublicStationDetails(stationDetailIdentifiers(station, saved)),
         Promise.resolve().then(() => CacheManager.clearByPattern('admin_stations:')),
       ]);
       // The native transaction has committed. Cache failures must not invite a

@@ -2,7 +2,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { SEO_LANGUAGES, isActiveUiLanguage } from '@workspace/seo-shared/seo-config';
 import { TranslationPreloader } from '../src/components/translation/TranslationPreloader';
 
 let client: QueryClient;
@@ -35,9 +35,10 @@ describe('translation preloader URL locale', () => {
   it.each(SEO_LANGUAGES.filter(language => language.enabled).map(language => language.code))(
     'preloads /%s from its URL language, never from visitor IP', async language => {
       await load(`/${language}`);
+      const contentLanguage = isActiveUiLanguage(language) ? language : 'en';
       expect(fetch).toHaveBeenCalledTimes(1);
-      expect(fetch).toHaveBeenCalledWith(`/api/translations/${language}`);
-      expect(client.getQueryData(['/api/translations', language])).toEqual({ hello: 'translated' });
+      expect(fetch).toHaveBeenCalledWith(`/api/translations/${contentLanguage}`);
+      expect(client.getQueryData(['/api/translations', contentLanguage])).toEqual({ hello: 'translated' });
     },
   );
 

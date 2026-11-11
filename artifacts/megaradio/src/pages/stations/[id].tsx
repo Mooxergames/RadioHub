@@ -21,13 +21,22 @@ import StationControlButtonGroup from "@/components/ui/station-control-button-gr
 import MusicServiceIcon from "@/components/ui/music-service-icon";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StationStreamAvailability } from '@/components/StationStreamAvailability';
+import { StationArticle } from '@/components/stations/station-article';
+import { StationEditorial } from '@/components/stations/station-editorial';
+import { StationPlaybackReportButton } from '@/components/stations/station-playback-report';
+import { RotateCcw, X } from 'lucide-react';
+import { getStationEditorial } from '@workspace/seo-shared/station-editorial';
 import shareIcon from "@assets/sharebutton.png";
 import bgGradient from "@assets/bg-gradient.lossless.png";
 import nosignalIcon from "@assets/nosignal.png";
 import StationLogo from "@/components/ui/station-logo";
 import { readStationBootstrap } from '@/lib/station-bootstrap';
+import { apiRequest } from '@/lib/queryClient';
 import { getStationControlLabels } from '@/utils/station-control-labels';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
+import { getStationCountryName, getStationCountryQuery, getRetiredLocaleFromPath } from '@workspace/seo-shared/seo-config';
+import { getStationRelatedHeading, getStationInformationCopy, isStationInformationPage } from '@workspace/seo-shared/station-page-copy';
 import AnimatedEqualizer from "@/components/ui/animated-equalizer";
 import { StarRating } from "@/components/star-rating";
 import { ListeningTimer } from "@/components/ui/listening-timer";
@@ -79,6 +88,7 @@ const formatVoteCount = (count: number): string => {
 };
 
 interface Station {
+  stationPageMode?: string;
   _id: string;
   name: string;
   url: string;
@@ -129,7 +139,7 @@ interface Station {
 export default function StationDetails() {
   const isMobile = useIsMobile();
   // Use useSeoRouting to get cleanPath which handles ALL translated URLs automatically
-  const { cleanPath, getLocalizedUrl, navigateWithLanguage, currentLanguage } = useSeoRouting();
+  const { cleanPath, getLocalizedUrl, navigateWithLanguage } = useSeoRouting();
   const [, setLocation] = useLocation();
   useSearch();
   
@@ -167,8 +177,8 @@ export default function StationDetails() {
   });
   
   const { user, isAuthenticated } = useAuth();
-  const { isPremium, isLoading: premiumLoading, error: premiumError } = usePremiumStatus();
-  const showAdvertisements = !isPremium && !premiumLoading && !premiumError
+  const { isActive: isAdFree, isLoading: premiumLoading, error: premiumError } = usePremiumStatus();
+  const showAdvertisements = !isAdFree && !premiumLoading && !premiumError
     && getAdSensePageType(window.location.pathname + window.location.search) === 'station';
   const { t, language, localeTranslations } = useTranslation();
   const controlLabels = useMemo(() => getStationControlLabels(language, localeTranslations), [language, localeTranslations]);
@@ -189,6 +199,7 @@ export default function StationDetails() {
   // Immediate redirect for ObjectId URLs - don't wait for station data
   useEffect(() => {
     const currentIdentifier = stationSlug || stationId;
+    if (getRetiredLocaleFromPath(window.location.pathname)) return;
     
     // Check if the current identifier is an ObjectId (24 hex characters)
     if (currentIdentifier && currentIdentifier.match(/^[0-9a-fA-F]{24}$/)) {
@@ -212,12 +223,35 @@ export default function StationDetails() {
     }
   }, [stationSlug, stationId, setLocation]);
 
-  const { data: station, isLoading: stationLoading, error, refetch: refetchStation } = useQuery<any>({
-    queryKey: [`/api/station/${identifier}`],
+  const bootstrapStation = useMemo(() => readStationBootstrap(identifier, language), [identifier, language]);
+  const retiredPath = getRetiredLocaleFromPath(window.location.pathname) ? window.location.pathname : undefined;
+  const { data: apiStation, isLoading: stationLoading, error, refetch: refetchStation } = useQuery<any>({
+    queryKey: retiredPath ? ['/api/station', 'retired', retiredPath] : [`/api/station/${identifier}`],
+    ...(retiredPath ? { queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      // Initial HTML and SPA navigation use the same server-verified identity.
+      // Always enrich by ID: a stored slug may be unsafe or owned by another row.
+      let resolvedId = bootstrapStation?._id;
+      if (!resolvedId) {
+        const response = await apiRequest('GET', `/api/seo/page-data?url=${encodeURIComponent(retiredPath)}&slim=1`, { signal });
+        resolvedId = (await response.json()).stationIdentity;
+      }
+      if (typeof resolvedId !== 'string' || !resolvedId) throw new Error('503: Station identity unavailable');
+      const response = await apiRequest('GET', `/api/station/${encodeURIComponent(resolvedId)}`, { signal });
+      const station = await response.json();
+      if (String(station?._id) !== resolvedId) throw new Error('503: Station identity mismatch');
+      return station;
+    } } : {}),
     ...stationQueryFreshness,
-    placeholderData: () => readStationBootstrap(identifier, language),
+    placeholderData: bootstrapStation,
     enabled: !!identifier,
   });
+  // Query placeholder data disappears on error. Keep the matching SSR article
+  // through transient enrichment failures, without seeding the complete cache
+  // or reviving a station rejected by an authoritative client-error response.
+  const apiStatus = Number(error?.message.match(/^(\d{3}):/)?.[1]);
+  const canUseBootstrap = !(apiStatus >= 400 && apiStatus < 500 && apiStatus !== 408 && apiStatus !== 429);
+  const station = apiStation ?? (canUseBootstrap ? bootstrapStation : undefined);
+  const stationEditorial = getStationEditorial(station, language);
   const stationRatings = useStationRatings(station?._id, user?._id);
 
   // Task #371: publish the station name into the layout breadcrumb so the
@@ -225,18 +259,6 @@ export default function StationDetails() {
   // of the title-cased URL slug.
   useBreadcrumbLastItemName(station?.name);
   
-
-  // Fetch linked stations (Media Group Radios) - use station._id if available
-  const { data: linkedStations } = useQuery({
-    queryKey: ['/api/stations', station?._id, 'linked'],
-    queryFn: async () => {
-      const response = await fetch(`/api/stations/${station?._id}/linked`);
-      if (!response.ok) return [];
-      return response.json();
-    },
-    enabled: !!station?._id,
-    ...stationQueryFreshness,
-  });
 
   // Fetch user location for country-specific similar stations - Long cache (location rarely changes)
   // OPTIMIZED: Use cached location data from localStorage
@@ -260,7 +282,9 @@ export default function StationDetails() {
 
   // Get detected country for similar stations filtering
   const detectedCountry = (locationData as any)?.location?.country;
-  const targetCountry = station?.country || detectedCountry;
+  const stationCountryName = getStationCountryName(station || {}, language);
+  const stationCountryQuery = getStationCountryQuery(station || {});
+  const targetCountry = stationCountryQuery || getStationCountryQuery({ country: detectedCountry });
 
   // Note: Auto-play removed to comply with browser autoplay policies
   // Users must manually click the play button to start playback
@@ -334,10 +358,11 @@ export default function StationDetails() {
 
     try {
       // Always play the station - if it's the same station and playing, pause it, otherwise play it
-      if (currentStation?._id === station._id && isPlaying) {
+      if (currentStation?._id === station._id && isPlaying && !hasError) {
         pauseStation();
       } else {
         // This will automatically stop current station and play new one
+        if (isStationInformationPage(station)) return;
         await playStation(station);
       }
     } catch (error) {
@@ -446,6 +471,7 @@ export default function StationDetails() {
       <SeoHead 
         stationData={station ? {
           name: station.name,
+          stationPageMode: station.stationPageMode,
           slug: station.slug || station._id,
           favicon: station.favicon,
           descriptions: station.descriptions,
@@ -467,49 +493,32 @@ export default function StationDetails() {
               fed in via useBreadcrumbLastItemName(station?.name) above. */}
 
           {/* Radio Playing Section - Mobile First Responsive */}
-          <div className="relative bg-[#101010] md:bg-[#1D1D1D] py-4 md:py-0 overflow-hidden">
+          <div className={`relative bg-[#101010] md:bg-[#1D1D1D] py-4 md:py-0 overflow-hidden ${hasError && currentStation?._id === station._id ? 'isolate min-h-[420px] md:min-h-[340px]' : ''}`}>
             {/* Connection Failed Overlay - Figma: 1512x308, #00000080, blur(13px) */}
             {hasError && currentStation?._id === station._id && (
               <div 
-                className="absolute inset-0 z-50 flex flex-col items-center justify-center"
+                className="absolute inset-0 z-50 flex flex-col items-center overflow-y-auto px-4 py-6"
+                data-testid="station-playback-error"
                 style={{
                   backgroundColor: 'rgba(0, 0, 0, 0.5)',
                   backdropFilter: 'blur(13px)',
                   WebkitBackdropFilter: 'blur(13px)'
                 }}
               >
-                {/* Close Button (X) - Figma: 24x24 white circle, positioned relative to icon */}
                 <button
+                  type="button"
                   onClick={() => stopStation()}
-                  className="absolute flex items-center justify-center hover:opacity-80 transition-opacity"
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    top: '46px',
-                    left: 'calc(50% + 120px)',
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '50%'
-                  }}
+                  className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center hover:opacity-80 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                   aria-label={controlLabels.close}
                 >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="#1D1D1D" 
-                    strokeWidth="2.5" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                    style={{ width: '14px', height: '14px' }}
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[#1D1D1D]">
+                    <X aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </span>
                 </button>
                 
                 {/* Error Icon - Figma: 82x82 circle with nosignal.png inside */}
                 <div 
-                  className="flex items-center justify-center mb-4"
+                  className="mt-auto flex shrink-0 items-center justify-center mb-4"
                   style={{
                     width: '82px',
                     height: '82px',
@@ -529,39 +538,29 @@ export default function StationDetails() {
                 
                 {/* Error Message */}
                 <h3 
-                  className="text-white text-xl md:text-2xl font-medium mb-1"
+                  className="text-center text-white text-xl md:text-2xl font-medium mb-1"
                   style={{ fontFamily: "'Ubuntu', system-ui, sans-serif" }}
                 >
-                  Opps!
+                  {t('error_playback_error', language === 'de' ? 'Wiedergabefehler' : 'Playback error')}
                 </h3>
                 <p 
                   className="text-white/80 text-sm md:text-base text-center px-4 mb-6"
                   style={{ fontFamily: "'Ubuntu', system-ui, sans-serif" }}
                 >
-                  Connection failed.<br />
-                  Please try again or play other radios below.
+                  {t('error_unable_to_stream', language === 'de'
+                    ? 'Die Verbindung zum Stream ist fehlgeschlagen. Versuche es erneut oder wähle einen anderen Sender.'
+                    : 'The stream connection failed. Try again or choose another station.')}
                 </p>
                 
-                {/* Report Button - Figma: 122x42, #FF4199, border-radius 3.55px */}
-                <button
-                  onClick={() => {
-                    // Report functionality - can be expanded
-                    toast({
-                      title: t('report_submitted', 'Report submitted'),
-                      description: t('report_thank_you', 'Thank you for reporting this issue.'),
-                    });
-                  }}
-                  className="text-white text-sm font-medium hover:opacity-90 transition-opacity"
-                  style={{
-                    width: '122px',
-                    height: '42px',
-                    backgroundColor: '#FF4199',
-                    borderRadius: '3.55px',
-                    fontFamily: "'Ubuntu', system-ui, sans-serif"
-                  }}
-                >
-                  Report this
-                </button>
+                <div className="mb-auto flex max-w-full shrink-0 flex-wrap items-start justify-center gap-3">
+                  <button type="button" onClick={handlePlay}
+                    disabled={isStationInformationPage(station)}
+                    className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded border border-white/40 px-4 py-2 text-sm text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                    <RotateCcw aria-hidden="true" className="h-4 w-4 shrink-0" />
+                    {t('general_try_again', language === 'de' ? 'Erneut versuchen' : 'Try again')}
+                  </button>
+                  <StationPlaybackReportButton stationId={station._id} stationName={station.name} />
+                </div>
               </div>
             )}
             
@@ -667,7 +666,7 @@ export default function StationDetails() {
                             </>
                           )
                         ) : (
-                          <span>{station.country}</span>
+                          <span>{stationCountryName}</span>
                         )}
                       </div>
                     </div>
@@ -800,10 +799,10 @@ export default function StationDetails() {
                 {/* Desktop Ad Space - reserve the 250px slot + 24px top margin
                     in a grid track: responsive AdSense rewrites ancestor height
                     and min-height. The 218px carousel and premium layout stay unchanged. */}
-                <div className={isPremium ? 'mt-4 text-center sm:mt-0 hidden md:block' : 'mt-4 text-center sm:mt-0 hidden md:grid'}
+                <div className={isAdFree ? 'mt-4 text-center sm:mt-0 hidden md:block' : 'mt-4 text-center sm:mt-0 hidden md:grid'}
                   data-testid="station-desktop-ad-frame"
-                  style={isPremium ? undefined : { width: '224px', flexShrink: 0, gridTemplateRows: 'minmax(274px, auto)' }}>
-                  <div className="mt-6" style={isPremium ? undefined : { minHeight: '250px' }}>
+                  style={isAdFree ? undefined : { width: '224px', flexShrink: 0, gridTemplateRows: 'minmax(274px, auto)' }}>
+                  <div className="mt-6" style={isAdFree ? undefined : { minHeight: '250px' }}>
                     {showAdvertisements && (advertisements && advertisements.some((ad: any) => ad.position === 'desktop_sidebar' && ad.isActive) ? (
                       <Suspense fallback={<div className="bg-gray-800 rounded flex items-center justify-center text-gray-400 w-[218px] h-[218px] flex-none animate-pulse" />}>
                         <AdCarousel
@@ -830,79 +829,19 @@ export default function StationDetails() {
             <div className="container m-auto">
               <div className="block items-center justify-between py-4 md:flex md:py-8">
                 <div>
-                  <div className="mb-2 text-base font-bold text-white">
-                    {t('station_about_station', 'About the station')}
-                  </div>
+                  <div className="mb-2 text-base font-bold text-white">{t('station_about_station', 'About the station')}</div>
                   <div className="mb-2 w-full text-white">
-                    {/* About text with responsive char limit: 145 for mobile/tablet, 470 for desktop */}
-                    {(() => {
-                      let fullText = '';
-                      
-                      if (station.descriptions) {
-                        const desc = station.descriptions[language] || station.descriptions['en'];
-                        if (desc) {
-                          if (typeof desc === 'object' && desc.full) {
-                            fullText = desc.full;
-                          } else if (typeof desc === 'string') {
-                            fullText = desc;
-                          }
-                          fullText = fullText.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').trim();
-                        }
-                      }
-                      
-                      if (!fullText) {
-                        fullText = language === 'tr' 
-                          ? `Şu anda ${station.name} dinliyorsunuz! – Mega Radio üzerinde binlerce radyo istasyonunu HD kalitede ücretsiz online dinleyin.`
-                          : t('default_station_about', `You are now listening to ${station.name}! – Listen to thousands of radio stations in HD quality online for free on Mega Radio.`, {
-                              STATION_NAME: station.name
-                            });
-                      }
-                      
-                      const mobileCharLimit = 145;
-                      const desktopCharLimit = 470;
-                      const needsMobileTruncation = fullText.length > mobileCharLimit;
-                      const needsDesktopTruncation = fullText.length > desktopCharLimit;
-                      
-                      if (isAboutExpanded) {
-                        return <p>{fullText}</p>;
-                      }
-                      
-                      const mobileTruncatedText = fullText.slice(0, mobileCharLimit).trim() + '...';
-                      const desktopTruncatedText = fullText.slice(0, desktopCharLimit).trim() + '...';
-                      
-                      return (
-                        <>
-                          {/* Mobile/Tablet: 145 char limit */}
-                          <p className="md:hidden">
-                            {needsMobileTruncation ? (
-                              <>
-                                {mobileTruncatedText}{' '}
-                                <button 
-                                  onClick={() => setIsAboutExpanded(true)}
-                                  className="text-[#FF4199] hover:underline font-medium"
-                                >
-                                  {t('general_more', 'more')}
-                                </button>
-                              </>
-                            ) : fullText}
-                          </p>
-                          {/* Desktop: 470 char limit */}
-                          <p className="hidden md:block">
-                            {needsDesktopTruncation ? (
-                              <>
-                                {desktopTruncatedText}{' '}
-                                <button 
-                                  onClick={() => setIsAboutExpanded(true)}
-                                  className="text-[#FF4199] hover:underline font-medium"
-                                >
-                                  {t('general_more', 'more')}
-                                </button>
-                              </>
-                            ) : fullText}
-                          </p>
-                        </>
-                      );
-                    })()}
+                    {isStationInformationPage(station) && (
+                      <p className="station-intro mb-3">{getStationInformationCopy(language, station.name).intro}</p>
+                    )}
+                    {/* Keep the complete article in the DOM; only its visual height is clamped. */}
+                    <StationArticle
+                      text={stationEditorial?.summary ?? selectStationVisibleDescription(station, language, getStationCountryName(station, 'en'))}
+                      expanded={isAboutExpanded}
+                      onExpandedChange={setIsAboutExpanded}
+                      moreLabel={t('general_more', 'more')}
+                      lessLabel={t('faq_show_less', 'less')}
+                    />
                   </div>
 
                   {/* Genuine listener ratings, scoped to station and viewer.
@@ -924,7 +863,7 @@ export default function StationDetails() {
 
                   <div className="flex flex-wrap items-center gap-2 md:gap-3 py-3">
                     {/* Country Flag - Figma: 20x20, perfectly circular, no border - only show if countryCode exists */}
-                    {station.countryCode && station.countryCode.trim() !== '' && (
+                    {stationCountryName && station.countryCode && station.countryCode.trim() !== '' && (
                       <TooltipProvider delayDuration={200}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -941,7 +880,7 @@ export default function StationDetails() {
                               <img 
                                 src={`https://flagcdn.com/w80/${station.countryCode.toLowerCase()}.png`}
                                 srcSet={`https://flagcdn.com/w40/${station.countryCode.toLowerCase()}.png 1x, https://flagcdn.com/w80/${station.countryCode.toLowerCase()}.png 2x`}
-                                alt={station.country || 'Country'}
+                                alt={stationCountryName}
                                 width={20}
                                 height={20}
                                 loading="lazy"
@@ -967,7 +906,7 @@ export default function StationDetails() {
                               fontFamily: 'Ubuntu, sans-serif'
                             }}
                           >
-                            {station.country || 'Unknown'}
+                            {stationCountryName}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -1008,59 +947,13 @@ export default function StationDetails() {
             </div>
           </div>
 
-          {/* Media Group Radios Section - Enhanced to match original exactly */}
-          {linkedStations && linkedStations.length > 0 && (
-            <div className="bg-[#181818] py-6">
-              <div className="container m-auto">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                  <h2 className="text-xl md:text-2xl font-bold text-white whitespace-nowrap">{t('station_media_group_radios', 'Media Group Radios')}</h2>
-                  <div className="flex-1 w-full overflow-hidden">
-                    <div className="flex gap-4 overflow-x-auto pb-2">
-                      {linkedStations.slice(0, 8).map((linkedStation: Station) => (
-                        <Link key={`${currentLanguage}-${linkedStation._id}`} to={getLocalizedUrl(`/station/${linkedStation.slug || linkedStation._id}`)}>
-                          <div className="flex items-center gap-4 border p-4 rounded-lg border-[#292929] hover:bg-[#252525] hover:border-[#7B7B7B] cursor-pointer overflow-hidden min-w-[250px] transition-colors">
-                            <div className="w-14 h-14 flex-shrink-0">
-                              <img
-                                loading="lazy"
-                                decoding="async"
-                                height={56}
-                                width={56}
-                                src={(() => { const v = linkedStation.logoAssets?.webp256 || linkedStation.logoAssets?.webp96; return v ? (v.startsWith('http') ? v : `/station-logos/${linkedStation.logoAssets?.folder}/${v}`) : linkedStation.favicon || "/images/no-image.webp"; })()}
-                                alt={getStationImageAlt(linkedStation, language, t)}
-                                className="w-14 h-14 rounded object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = "/images/no-image.webp";
-                                }}
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-lg font-semibold text-white truncate mb-1">
-                                {linkedStation.name}
-                              </h3>
-                              <p className="text-sm font-medium text-gray-300 truncate">
-                                {linkedStation.country}
-                                {linkedStation.state && linkedStation.state !== "" && (
-                                  <span className="font-normal text-gray-400">, {linkedStation.state}</span>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="container m-auto space-y-4 pb-10 text-white">
             {/* Similar Radios Section - Independent Loading */}
             {(loadingSimilar || (filteredSimilarStations && filteredSimilarStations.length > 0)) && (
               <div>
                 <div className="py-6">
                   <h2 className="text-xl font-bold">
-                    {t('station_similar_radios', 'Similar Radios')}
+                    {getStationRelatedHeading(language, 'country', '', localeTranslations)}
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
@@ -1090,8 +983,10 @@ export default function StationDetails() {
                           alt={getStationImageAlt(similarStation, language, t)}
                         />
                       </div>
-                      <button 
+                      <Link
+                        href={getLocalizedUrl(`/station/${similarStation.slug || similarStation._id}`)}
                         onClick={(e) => {
+                          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                           e.preventDefault();
                           e.stopPropagation();
                           handleStationCardPlay(similarStation);
@@ -1103,7 +998,7 @@ export default function StationDetails() {
                             {similarStation.name}
                           </h3>
                           <p className="text-[15px] text-white" style={{ fontFamily: "'Ubuntu', system-ui, sans-serif", fontWeight: 300 }}>
-                            <span className="truncate">{similarStation.country && similarStation.country.length > 21 ? similarStation.country.substring(0, 21) + '...' : similarStation.country}</span>
+                            <span className="truncate">{getStationCountryName(similarStation, language)}</span>
                             {similarStation.state && similarStation.state !== "" && (
                               <span className="font-normal text-gray-400">, {similarStation.state}</span>
                             )}
@@ -1116,7 +1011,7 @@ export default function StationDetails() {
                             </div>
                           )}
                         </div>
-                      </button>
+                      </Link>
                       <div className="ml-auto flex items-center gap-2">
                         {/* Favorite Button - Mobile Only - Figma: 40x40, border 1.6px, transparent bg, icon 22.4px */}
                         <div className="md:hidden">
@@ -1199,11 +1094,11 @@ export default function StationDetails() {
             )}
 
             {/* More from Country Section - Independent Loading with Skeleton */}
-            {(loadingCountry || (filteredCountryStations && filteredCountryStations.length > 0)) && (station as any)?.country && (
+            {stationCountryQuery && (loadingCountry || (filteredCountryStations && filteredCountryStations.length > 0)) && (
               <div>
                 <div className="py-6">
                   <h2 className="text-xl font-bold">
-                    {t('station_more_from_country', 'More from {country}', { country: (station as any).country })}
+                    {getStationRelatedHeading(language, 'country', stationCountryName, localeTranslations)}
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
@@ -1233,8 +1128,10 @@ export default function StationDetails() {
                           alt={getStationImageAlt(countryStation, language, t)}
                         />
                       </div>
-                      <button 
+                      <Link
+                        href={getLocalizedUrl(`/station/${countryStation.slug || countryStation._id}`)}
                         onClick={(e) => {
+                          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                           e.preventDefault();
                           e.stopPropagation();
                           handleStationCardPlay(countryStation);
@@ -1246,7 +1143,7 @@ export default function StationDetails() {
                             {countryStation.name}
                           </h3>
                           <p className="text-[15px] text-white" style={{ fontFamily: "'Ubuntu', system-ui, sans-serif", fontWeight: 300 }}>
-                            <span className="truncate">{countryStation.country && countryStation.country.length > 21 ? countryStation.country.substring(0, 21) + '...' : countryStation.country}</span>
+                            <span className="truncate">{getStationCountryName(countryStation, language)}</span>
                             {countryStation.state && countryStation.state !== "" && (
                               <span className="font-normal text-gray-400">, {countryStation.state}</span>
                             )}
@@ -1259,7 +1156,7 @@ export default function StationDetails() {
                             </div>
                           )}
                         </div>
-                      </button>
+                      </Link>
                       <div className="ml-auto flex items-center gap-2">
                         {/* Favorite Button - Mobile Only - Figma: 40x40, border 1.6px, transparent bg, icon 22.4px */}
                         <div className="md:hidden">
@@ -1310,7 +1207,7 @@ export default function StationDetails() {
                         // Second click: go to /radios page with country filter
                         // CRITICAL: Separate path and query string - getLocalizedUrl only translates the path portion
                         const localizedPath = getLocalizedUrl('/radios');
-                        setLocation(`${localizedPath}?country=${encodeURIComponent((station as any).country)}`);
+                        setLocation(`${localizedPath}?country=${encodeURIComponent(stationCountryQuery)}`);
                       }
                     }}
                     className="px-6 py-3 rounded-[25px] bg-white/20 hover:bg-white/30 transition-colors whitespace-nowrap"
@@ -1331,9 +1228,8 @@ export default function StationDetails() {
                 </div>
               </div>
             )}
-
-
           </div>
+          {stationEditorial && <StationEditorial content={stationEditorial} />}
         </>
       )}
       

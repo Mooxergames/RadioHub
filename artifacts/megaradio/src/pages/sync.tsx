@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { RefreshCw, Play, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { apiRequest } from '@/lib/queryClient';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface SyncLog {
   _id: string;
@@ -30,6 +32,19 @@ interface SyncStatus {
 export default function SyncStatus() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const policyQuery = useQuery<{ allowNewStations: boolean }>({ queryKey: ['/api/admin/sync/policy'] });
+  const policyMutation = useMutation({
+    mutationFn: async (allowNewStations: boolean) => {
+      const response = await apiRequest('PUT', '/api/admin/sync/policy', { body: { allowNewStations } });
+      return response.json();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['/api/admin/sync/policy'] });
+      void queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
+      toast({ title: 'Sync policy saved' });
+    },
+    onError: () => toast({ title: 'Unable to save sync policy', variant: 'destructive' }),
+  });
 
   const { data: syncStatus, isLoading: statusLoading, isError: statusError } = useQuery<SyncStatus>({
     queryKey: ['/api/sync/status'],
@@ -132,6 +147,17 @@ export default function SyncStatus() {
       </div>
 
       <div className="grid gap-6">
+        <section className="flex flex-wrap items-center justify-between gap-4 border-y py-4">
+          <div className="flex items-center gap-3">
+            <Switch id="station-intake" checked={policyQuery.data?.allowNewStations === true}
+              disabled={!policyQuery.isSuccess || policyQuery.isFetching || policyMutation.isPending}
+              onCheckedChange={value => policyMutation.mutate(value)} />
+            <Label htmlFor="station-intake">New station intake</Label>
+          </div>
+          {policyQuery.isError ? <Button variant="outline" onClick={() => void policyQuery.refetch()}>Retry sync policy</Button> :
+            <Badge variant="outline">{!policyQuery.isSuccess ? 'Loading policy' : policyMutation.isPending ? 'Saving policy' :
+              policyQuery.data.allowNewStations ? 'New and existing stations' : 'Existing stations only'}</Badge>}
+        </section>
         {/* Current Status */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>

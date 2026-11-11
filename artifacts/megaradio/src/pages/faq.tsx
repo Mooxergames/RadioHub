@@ -1,86 +1,61 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useSeoRouting } from "@/hooks/useSeoRouting";
 import { SeoHead } from "@/components/SeoHead";
-import { resolveFaqPageItems } from "@workspace/seo-shared/faq-schema";
-
-interface FaqItem {
-  q: string;
-  a: string;
-}
+import { resolveFaqPageItems, resolveFaqPageText } from "@workspace/seo-shared/faq-schema";
 
 export default function FaqPage() {
-  const { t } = useTranslation();
+  const { localeTranslations = {} } = useTranslation();
   const { currentLanguage, getLocalizedUrl } = useSeoRouting();
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
-
-  const h1 = t("faq_page_h1", "Mega Radio Frequently Asked Questions");
-  const intro = t(
-    "faq_page_intro",
-    "Answers to common questions about Mega Radio: how online radio streaming works, supported devices, free access, mobile apps, station coverage across 120+ countries, and account help."
-  );
-
-  const items: FaqItem[] = resolveFaqPageItems(currentLanguage, t).map(item => ({
-    q: item.question,
-    a: item.answer,
-  }));
+  const copy = resolveFaqPageText(currentLanguage, localeTranslations);
+  const items = resolveFaqPageItems(currentLanguage, (key, fallback) => localeTranslations[key] || fallback);
+  const [fragment, setFragment] = useState(() => window.location.hash.slice(1));
+  useEffect(() => {
+    const revealFragment = () => setFragment(window.location.hash.slice(1));
+    window.addEventListener('hashchange', revealFragment);
+    return () => window.removeEventListener('hashchange', revealFragment);
+  }, []);
+  useEffect(() => {
+    if (items.some(item => item.id === fragment)) document.getElementById(fragment)?.scrollIntoView?.({ block: 'start' });
+  }, [fragment]);
 
   return (
-    <div className="min-h-screen bg-[#0E0E0E] text-white">
+    <div className="min-h-screen bg-[#0E0E0E] text-white" lang={currentLanguage} dir={['ar', 'he'].includes(currentLanguage) ? 'rtl' : 'ltr'}>
       <SeoHead pageType="faq" />
 
       <div className="container mx-auto max-w-3xl px-4 py-12">
-        <h1 className="text-3xl md:text-4xl font-bold mb-4">{h1}</h1>
+        <h1 className="text-3xl md:text-4xl font-bold mb-4 break-words">{copy.h1}</h1>
         <p className="text-gray-400 text-base md:text-lg mb-10 leading-relaxed">
-          {intro}
+          {copy.intro}
         </p>
 
         <ul className="space-y-3" data-testid="faq-list">
           {items.map((item, idx) => {
-            const open = openIndex === idx;
             return (
               <li
-                key={idx}
-                className="bg-white/5 rounded-xl overflow-hidden border border-white/5"
+                key={item.id}
+                className="border-b border-white/10"
               >
-                <button
-                  type="button"
-                  data-testid={`faq-toggle-${idx}`}
-                  onClick={() => setOpenIndex(open ? null : idx)}
-                  aria-expanded={open}
-                  className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-white/5 transition-colors"
-                >
-                  <span className="font-semibold text-base md:text-lg">
-                    {item.q}
-                  </span>
-                  <ChevronDown
-                    size={20}
-                    className={`flex-shrink-0 text-gray-400 transition-transform ${
-                      open ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-                {open && (
-                  <div className="px-5 pb-5 text-gray-300 leading-relaxed">
-                    {item.a}
-                  </div>
-                )}
+                <details id={item.id} open={idx === 0 || item.id === fragment} className="group scroll-mt-24" data-testid={`faq-item-${item.id}`}>
+                  <summary data-testid={`faq-toggle-${idx}`} className="flex list-none cursor-pointer items-center justify-between gap-4 rounded-sm py-5 text-start hover:text-[#FF4199] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4199] [&::-webkit-details-marker]:hidden">
+                    <h2 className="min-w-0 break-words font-semibold text-base md:text-lg">{item.question}</h2>
+                    <ChevronDown size={20} aria-hidden="true" className="shrink-0 text-gray-400 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <p className="pb-6 text-gray-300 leading-relaxed [overflow-wrap:anywhere]">{item.answer}</p>
+                </details>
               </li>
             );
           })}
         </ul>
 
-        <div className="mt-12 p-6 bg-white/5 rounded-xl">
+        <section className="mt-12 border-t border-white/10 pt-8">
           <h2 className="text-xl font-semibold mb-3">
-            {t("faq_more_help_title", "Still need help?")}
+            {copy.helpTitle}
           </h2>
           <p className="text-gray-400 mb-4">
-            {t(
-              "faq_more_help_text",
-              "Reach out to our team or explore more of Mega Radio."
-            )}
+            {copy.helpText}
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
@@ -88,24 +63,27 @@ export default function FaqPage() {
               className="px-4 py-2 bg-[#FF4199] rounded-lg font-medium hover:opacity-90 transition-opacity"
               data-testid="link-contact"
             >
-              {t("nav_contact", "Contact Us")}
+              {localeTranslations.nav_contact || copy.contact}
             </Link>
             <Link
               href={getLocalizedUrl('/about')}
               className="px-4 py-2 bg-white/10 rounded-lg font-medium hover:bg-white/20 transition-colors"
               data-testid="link-about"
             >
-              {t("nav_about", "About Mega Radio")}
+              {localeTranslations.nav_about || copy.about}
             </Link>
             <Link
               href={getLocalizedUrl('/search')}
               className="px-4 py-2 bg-white/10 rounded-lg font-medium hover:bg-white/20 transition-colors"
               data-testid="link-search"
             >
-              {t("nav_search", "Search Stations")}
+              {localeTranslations.nav_search || copy.search}
             </Link>
+            {([['/stations', copy.stations], ['/genres', copy.genres], ['/regions', copy.regions], ['/applications', copy.applications]] as const).map(([path, label]) => (
+              <Link key={path} href={getLocalizedUrl(path)} className="py-2 text-sm text-gray-300 underline underline-offset-4 hover:text-[#FF4199]">{label}</Link>
+            ))}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

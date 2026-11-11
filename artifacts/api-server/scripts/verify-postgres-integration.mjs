@@ -16,7 +16,6 @@ const suffix = `${process.pid}-${Date.now()}`;
 try {
   const required = ["stations", "users", "user_favorites", "station_ratings", "subscriptions",
     "payment_events", "auth_tokens", "user_sessions", "user_notifications", "direct_messages",
-    "legacy_documents", "migration_runs", "mongo_change_stream_checkpoints",
     "translation_metadata", "translation_languages", "country_language_mappings",
     "country_language_mapping_audit", "database_write_authority"];
   const tables = await client.query(
@@ -50,8 +49,6 @@ try {
   if (insertedEvent.rows[0]?.origin !== "runtime") {
     throw new Error("payment_events origin default must preserve PostgreSQL-native runtime events");
   }
-  await client.query("INSERT INTO mongo_change_stream_checkpoints(stream_name,status) VALUES ($1,'test')",
-    [`integration-${suffix}`]);
   await client.query("SAVEPOINT duplicate_check");
   let duplicateRejected = false;
   try {

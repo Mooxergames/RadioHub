@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AdCarousel } from '../src/components/ad-carousel';
 
-const premium = vi.hoisted(() => ({ isPremium: false, isLoading: false, error: null as unknown }));
+const premium = vi.hoisted(() => ({ isPremium: false, isActive: false, isLoading: false, error: null as unknown }));
 vi.mock('../src/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => premium }));
 let intersections: { callback: IntersectionObserverCallback; target?: Element; disconnect: ReturnType<typeof vi.fn> }[];
 let width = 320;
@@ -11,7 +11,7 @@ let top = 0;
 
 beforeEach(() => {
   vi.useFakeTimers(); vi.resetModules();
-  Object.assign(premium, { isPremium: false, isLoading: false, error: null });
+  Object.assign(premium, { isPremium: false, isActive: false, isLoading: false, error: null });
   window.history.replaceState({}, '', '/de');
   document.querySelectorAll('script[src*="adsbygoogle.js"]').forEach(script => script.remove());
   window.adsbygoogle = [];
@@ -47,6 +47,17 @@ it('starts one SDK for several placements, waits for SDK and width, and pushes o
   view.rerender(<><Unit adSlot="one" /><Unit adSlot="two" /></>);
   expect([...document.querySelectorAll('ins')]).toEqual(elements);
   expect(window.adsbygoogle).toHaveLength(2);
+});
+
+it('one-time ad-free access suppresses ads without full Premium status', async () => {
+  premium.isActive = true;
+  premium.isPremium = false;
+  const { default: Unit } = await import('../src/components/ads/AdSenseUnit');
+  const view = render(<Unit />); enter();
+  await act(async () => { vi.advanceTimersByTime(5000); });
+  expect(view.container).toBeEmptyDOMElement();
+  expect(document.querySelector('script[src*="adsbygoogle.js"]')).toBeNull();
+  expect(window.adsbygoogle).toHaveLength(0);
 });
 
 it('never creates a hidden zero-width ins; a later responsive resize enables it', async () => {
@@ -129,7 +140,7 @@ it.each(['loading', 'premium', 'error', 'admin', 'localized-admin', 'payment-con
   'does not request an SDK or push when %s', async kind => {
     const { default: Unit } = await import('../src/components/ads/AdSenseUnit');
     if (kind === 'loading') premium.isLoading = true;
-    if (kind === 'premium') premium.isPremium = true;
+    if (kind === 'premium') { premium.isPremium = true; premium.isActive = true; }
     if (kind === 'error') premium.error = new Error('auth unavailable');
     if (kind === 'admin') window.history.replaceState({}, '', '/admin/advertisements');
     if (kind === 'localized-admin') window.history.replaceState({}, '', '/tr/admin/login');
@@ -257,7 +268,7 @@ it.each(['premium', 'unmounted', 'admin'])('does not reconnect an ad SDK after t
   const failed = document.querySelector('script[src*="adsbygoogle.js"]')!;
   await act(async () => { failed.dispatchEvent(new Event('error')); });
   if (kind === 'unmounted') view.unmount();
-  if (kind === 'premium') { premium.isPremium = true; view.rerender(<Unit />); }
+  if (kind === 'premium') { premium.isPremium = true; premium.isActive = true; view.rerender(<Unit />); }
   if (kind === 'admin') { window.history.replaceState({}, '', '/admin'); view.rerender(<Unit />); }
   await act(async () => { window.dispatchEvent(new Event('online')); });
   expect(document.querySelector('script[src*="adsbygoogle.js"]')).toBe(failed);

@@ -5,6 +5,13 @@ export function descriptionTextSql(json: string): string {
   return `(jsonb_typeof(${json})='string' AND (${json} #>> '{}') ~ '[^\\u0009-\\u000D\\u0020\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]')`;
 }
 
+/** Presence metadata only: sitemap readers must not transfer article bodies. */
+export function completeDescriptionLanguagesSql(json: string): string {
+  return `COALESCE((SELECT array_agg(d.key ORDER BY d.key)
+    FROM jsonb_each(CASE WHEN jsonb_typeof(${json})='object' THEN ${json} ELSE '{}'::jsonb END) d
+    WHERE ${descriptionTextSql("d.value->'full'")} AND ${descriptionTextSql("d.value->'meta'")}),ARRAY[]::text[])`;
+}
+
 export function adminDescriptionFilterSql(status?: string): string {
   if (!['yes', 'no', 'partial'].includes(status || '')) return 'TRUE';
   const any = '(d.full_mask | d.meta_mask)<>0';

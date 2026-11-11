@@ -1,0 +1,32 @@
+help_outline
+Yardım
+manage_accounts
+Kullanıcı ayarları
+	
+notifications
+İletiler
+13
+arrow_back
+Ana makinenin durumu
+
+DIŞA AKTAR
+Son güncellenme tarihi: 20.10.2026
+
+Ana makinede geçmişte sorun yaşandı
+Google son zamanlarda sitenizi tararken herhangi bir güçlükle karşılaşmamış olsa da durum daha önce böyle değildi. Aşağıda sorun içeren konuları inceleyip bunların tekrar etmesini önlemeye çalışın. Daha fazla bilgi
+Ayrıntılar
+
+robots.txt getirme
+
+Kabul edilebilir başarısızlık oranı
+
+
+DNS çözümlemesi
+
+Kabul edilebilir başarısızlık oranı
+
+
+Sunucu bağlantısı
+
+Başarısızlık oranı yakın zamanda kabul edilebilir seviyede, ancak geçmişte yüksekti
+

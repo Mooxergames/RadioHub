@@ -29,10 +29,8 @@
 import { test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import type {
-  IBackfillRun,
-  IBackfillRunAttempt,
-} from '@workspace/legacy-migration/mongo-schemas';
+import type { BackfillRun as IBackfillRun } from '../src/data/postgres-coverage-store';
+type IBackfillRunAttempt = NonNullable<IBackfillRun['attempts']>[number];
 
 function makeRun(overrides: Partial<IBackfillRun> = {}): IBackfillRun {
   const base = {
@@ -50,7 +48,7 @@ function makeRun(overrides: Partial<IBackfillRun> = {}): IBackfillRun {
   return { ...base, ...overrides } as unknown as IBackfillRun;
 }
 
-function attempts(n: number, lastError = 'mongo timeout'): IBackfillRunAttempt[] {
+function attempts(n: number, lastError = 'database timeout'): IBackfillRunAttempt[] {
   const out: IBackfillRunAttempt[] = [];
   for (let i = 1; i <= n; i++) {
     out.push({

@@ -91,6 +91,32 @@ describe('admin station form session and save contracts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(view.submit).toHaveBeenCalledWith({}));
   });
+  it('can clear an unverified country and its code without changing region or indexing', async () => {
+    const data = { ...station(), state: 'Retained region', noIndex: true };
+    mocks.request.mockResolvedValue({ json: async () => data });
+    const view = mount(data); await ready();
+    const country = screen.getByRole('combobox', { name: 'Country', exact: true });
+    fireEvent.keyDown(country, { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('option', { name: 'Unknown / not verified' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(view.submit).toHaveBeenCalledWith({ country: '', countryCode: '' }));
+    expect(screen.getByLabelText('State/Region')).toHaveValue('Retained region');
+    expect(screen.getByRole('switch', { name: 'Allow search engine indexing' })).not.toBeChecked();
+    expect(data.country).toBe('Germany');
+  });
+  it('does not submit untouched unknown countries and can replace one with a verified country', async () => {
+    const data = { ...station(), country: '', countryCode: '' };
+    mocks.request.mockResolvedValue({ json: async () => data });
+    const view = mount(data); await ready();
+    const country = screen.getByRole('combobox', { name: 'Country', exact: true });
+    expect(country).toHaveTextContent('Unknown / not verified');
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(view.submit).toHaveBeenCalledWith({}));
+    fireEvent.keyDown(country, { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('option', { name: 'Austria (AT)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(view.submit).toHaveBeenLastCalledWith({ country: 'Austria', countryCode: 'AT' }));
+  });
   it('resets indexing drafts on a different station and on close/reopen', async () => {
     const first = { ...station(a), noIndex: true }, second = { ...station(b), noIndex: true };
     mocks.request.mockImplementation(async (_method: string, url: string) => ({ json: async () => url.endsWith(a) ? first : second }));

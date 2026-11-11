@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { pgCatalog } from '../data/postgres-catalog-store';
 import { pgSaveDescriptionJob, pgReadDescriptionJob } from '../data/postgres-runtime-operations';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import type pg from 'pg';
 import { SITEMAP_PRIORITY_LANGUAGES } from '@workspace/seo-shared/seo-config';
 import { getPostgresCoordinationPool } from '../postgres-runtime';
@@ -10,6 +11,7 @@ import { pgAdminDescriptionCoverage, pgDescriptionRepairStationIds } from '../da
 import { logger } from "../utils/logger";
 import { stripPlaceholders } from "./shared-utils";
 import { performanceCache } from "../performance-cache";
+import { descriptionRepairIdentity, inspectSelectedDescriptionRepair, validSelectedDescriptionRepairBody } from '../services/description-repair-policy';
 
 export async function registerAiDescriptionRoutes(app: Express, deps: any) {
   const { requireAdmin } = deps;
@@ -280,7 +282,8 @@ export async function registerAiDescriptionRoutes(app: Express, deps: any) {
 
   // Snapshot the selected work list before writes: missing-content filters shrink
   // as stations finish, so offset pagination would silently skip records.
-  const startDescriptionJob = async (req: any, res: any, missingEnglishOnly = false, repairAll = false) => {
+  const startDescriptionJob = async (req: any, res: any, missingEnglishOnly = false, repairAll = false, selectedRepair = false) => {
+    if (selectedRepair) res.set('Cache-Control', 'private, no-store');
     let leader: pg.PoolClient | undefined;
     let ownsFillLock = false;
     let ownsJobLock = false;
@@ -301,6 +304,9 @@ export async function registerAiDescriptionRoutes(app: Express, deps: any) {
     };
     try {
       const body = req.body ?? {};
+      if (selectedRepair && (!validSelectedDescriptionRepairBody(body) || Object.keys(req.query).length)) {
+        return void res.status(400).json({ error: 'Review 1-100 distinct selected station IDs and an optional nominated English source.' });
+      }
       if (repairAll && (Array.isArray(body) || typeof body !== 'object' || Object.keys(body).length)) {
         return void res.status(400).json({ error: 'Global repair accepts an empty object only and always checks all 14 languages.' });
       }
@@ -318,13 +324,28 @@ export async function registerAiDescriptionRoutes(app: Express, deps: any) {
         [`descriptions.en.${field}`]: { $not: { $regex: '[^[:space:]]' } },
       }));
       const effectiveLimit = limit ?? (hasSelection ? selectedStationIds.length : 10);
+      const reviewedIdentities = new Map<string, ReturnType<typeof descriptionRepairIdentity>>();
+      const reviewedSources = new Map<string, 'en' | undefined>();
+      const repairActor = String(req.user?._id || req.user?.id || 'authenticated-admin');
       jobId = `bulk-desc-${randomUUID()}`;
       leader = await getPostgresCoordinationPool().connect();
       leader.on('error', onLeadershipError);
       ownsFillLock = (await leader.query("SELECT pg_try_advisory_lock(hashtext('radiohub-description-fill')) AS acquired")).rows[0].acquired;
       if (!ownsFillLock) return void res.status(409).json({ error: 'A description fill job is already running. Wait for it to finish before starting another.' });
-      const stationIds = repairAll ? await pgDescriptionRepairStationIds()
+      let stationIds: string[] = selectedRepair ? [] : repairAll ? await pgDescriptionRepairStationIds()
         : (await pgCatalog().find(query, { fields: ['_id'], offset: skip, limit: effectiveLimit })).map(station => station._id);
+      if (selectedRepair) {
+        const { pgReviewSelectedDescriptionRepairs } = await import('../data/postgres-legacy-noindex-recovery');
+        const reviewed = await pgReviewSelectedDescriptionRepairs(selectedStationIds);
+        stationIds = [];
+        for (const row of reviewed) {
+          const inspection = inspectSelectedDescriptionRepair(row, body.sourceLanguage);
+          if (inspection.changes.length && row.identity) {
+            stationIds.push(row.id); reviewedIdentities.set(row.id, row.identity);
+            reviewedSources.set(row.id, inspection.sourceLanguage);
+          }
+        }
+      }
       if (!stationIds.length) return void res.json({ success: false, total: 0, message: 'No matching stations need processing.' });
       ownsJobLock = (await leader.query('SELECT pg_try_advisory_lock(hashtext($1)) AS acquired', [`radiohub-description-job:${jobId}`])).rows[0].acquired;
       if (!ownsJobLock) throw new Error('Could not acquire description job leadership');
@@ -364,10 +385,24 @@ export async function registerAiDescriptionRoutes(app: Express, deps: any) {
               job.currentStation = station.name;
               job.currentAction = 'analyzing';
               try {
+                const reviewedIdentity = reviewedIdentities.get(String(stationId));
+                if (selectedRepair && (!reviewedIdentity || !isDeepStrictEqual(descriptionRepairIdentity(station), reviewedIdentity))) {
+                  throw new Error('Reviewed station identity changed; run a new selected review before generating');
+                }
                 const outcome = await fillMissingStationDescriptions(station, targetLanguages, (action, currentLanguages) => {
                   job.currentAction = action;
                   job.currentLanguage = currentLanguages.join(', ');
-                }, assertActive, { repairInvalid: repairAll, onSaved: () => { savedAnyDescription = true; } });
+                }, assertActive, { repairInvalid: repairAll || selectedRepair, onSaved: () => { savedAnyDescription = true; },
+                  ...(selectedRepair && reviewedIdentity ? { reviewedExcluded: {
+                    sourceLanguage: reviewedSources.get(String(stationId)),
+                    save: async (language: string, expected: unknown, next: Record<string, any>) => {
+                      assertActive();
+                      const { pgSaveScopedDescriptionRepair } = await import('../data/postgres-scoped-description-repair');
+                      return pgSaveScopedDescriptionRepair({ identity: reviewedIdentity, language, expected, next, jobId,
+                        actor: repairActor });
+                    },
+                  } } : {}),
+                });
                 if (outcome.skipped) {
                   job.skipped++;
                   pushLimited(job.skippedStations, { name: station.name, reason: 'Already complete, manually protected, or previously skipped' });
@@ -432,6 +467,24 @@ export async function registerAiDescriptionRoutes(app: Express, deps: any) {
   app.post("/api/admin/stations/fix-missing-english", requireAdmin, (req, res) => startDescriptionJob(req, res, true));
   app.post("/api/admin/stations/generate-bulk-descriptions", requireAdmin, (req, res) => startDescriptionJob(req, res));
   app.post("/api/admin/stations/repair-description-gaps", requireAdmin, (req, res) => startDescriptionJob(req, res, false, true));
+  app.post('/api/admin/stations/repair-selected-descriptions', requireAdmin, (req, res) => startDescriptionJob(req, res, false, false, true));
+  app.post('/api/admin/stations/review-selected-description-repairs', requireAdmin, async (req, res) => {
+    if (!validSelectedDescriptionRepairBody(req.body) || Object.keys(req.query).length) {
+      return void res.status(400).json({ error: 'Review 1-100 distinct selected station IDs and an optional nominated English source.' });
+    }
+    res.set('Cache-Control', 'private, no-store');
+    const controller = new AbortController();
+    const disconnected = () => { if (!res.writableFinished) controller.abort(); };
+    res.on('close', disconnected);
+    try {
+      const { pgReviewSelectedDescriptionRepairs } = await import('../data/postgres-legacy-noindex-recovery');
+      const rows = await pgReviewSelectedDescriptionRepairs(req.body.selectedStationIds, controller.signal);
+      const reviewed = rows.map(row => inspectSelectedDescriptionRepair(row, req.body.sourceLanguage));
+      res.json({ reviewedAt: new Date().toISOString(), languages: [...SITEMAP_PRIORITY_LANGUAGES.universal14], rows: reviewed });
+    } catch {
+      if (!res.headersSent) res.status(503).json({ error: 'Selected content review could not finish. No generation started.' });
+    } finally { res.off('close', disconnected); }
+  });
 
   // Get AI description generation job status
   app.get("/api/admin/stations/description-job-status/:jobId", requireAdmin, async (req, res) => {

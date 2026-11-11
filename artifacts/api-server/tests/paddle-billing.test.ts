@@ -52,9 +52,59 @@ describe("Paddle entitlement decisions", () => {
     assert.equal(result.outcome, "applied");
     assert.equal(applications[0][1].plan, "premium_monthly");
     assert.equal(applications[0][1].transactionId, "txn_A");
+    assert.equal(applications[0][1].paddleBillingKind, "recurring");
     assert.ok(applications[0][1].expiresAt instanceof Date);
     assert.equal(applications[0][3].order.field, "lastPaddleTransactionTime");
     assert.deepEqual(result.tv, { code: "123456", codeId: "issuance-A", userId: "user-A", plan: "premium_monthly", transactionId: "txn_A" });
+  });
+  it("writes the one-time marker only from accepted provider price data, not custom_data", async () => {
+    const oneTimePrice = { id: "pri_remove_ads_once", status: "active", type: "standard", billing_cycle: null };
+    const custom = signedPaddleCustomData(secret, { userId: "user-A", plan: "remove_ads", priceId: oneTimePrice.id });
+    const input = event({
+      subscription_id: null, billing_period: null,
+      items: [{ price: oneTimePrice, quantity: 1 }],
+      custom_data: { ...custom, paddleBillingKind: "recurring" },
+    });
+    const accepted = await processPaddleEvent(input, { secret, getPriceId: async plan => plan === "remove_ads" ? oneTimePrice.id : null });
+    assert.equal(accepted.outcome, "applied");
+    const patch = applications[0][1];
+    assert.equal(patch.plan, "remove_ads");
+    assert.equal(patch.platform, "paddle");
+    assert.equal(patch.paddleBillingKind, "one_time");
+    assert.equal(patch.paddleSubscriptionId, null);
+    assert.equal(patch.expiresAt, null);
+    assert.equal(patch.renewsAt, null);
+    assert.equal(patch.isActive, true);
+  });
+  for (const [label, endsAt] of [
+    ["past", "2020-01-01T00:00:00Z"],
+    ["future", "2099-01-01T00:00:00Z"],
+  ]) {
+    it("ignores a " + label + " billing_period for an accepted one-time Remove Ads price", async () => {
+      const once = { id: "pri_remove_ads_once", status: "active", type: "standard", billing_cycle: null };
+      const input = event({
+        subscription_id: null, billing_period: { ends_at: endsAt },
+        items: [{ price: once, quantity: 1 }],
+        custom_data: signedPaddleCustomData(secret, { userId: "user-A", plan: "remove_ads", priceId: once.id }),
+      });
+      assert.equal((await processPaddleEvent(input, { secret, getPriceId: async plan => plan === "remove_ads" ? once.id : null })).outcome, "applied");
+      const patch = applications[0][1];
+      assert.equal(patch.paddleBillingKind, "one_time");
+      assert.equal(patch.paddleSubscriptionId, null);
+      assert.equal(patch.isActive, true);
+      assert.equal(patch.expiresAt, null);
+      assert.equal(patch.renewsAt, null);
+    });
+  }
+  it("corrects one-time history to recurring when the provider verifies a recurring ad-free price", async () => {
+    linkedUser = "user-A";
+    current = { platform: "paddle", plan: "remove_ads", paddleCustomerId: "ctm_A", paddleBillingKind: "one_time", isActive: true };
+    const recurring = { ...price, id: "pri_remove_ads_monthly" };
+    const input = event({ items: [{ price: recurring, quantity: 1 }], custom_data: { paddleBillingKind: "one_time" } });
+    assert.equal((await processPaddleEvent(input, { secret, getPriceId: async plan => plan === "remove_ads" ? recurring.id : null })).outcome, "applied");
+    assert.equal(applications[0][1].paddleBillingKind, "recurring");
+    assert.equal(applications[0][1].paddleSubscriptionId, "sub_A");
+    assert.ok(applications[0][1].expiresAt instanceof Date);
   });
   it("does not invent unlimited access if the initial recurring transaction lacks a period", async () => {
     await processPaddleEvent(event({ billing_period: null }), options);
@@ -67,6 +117,7 @@ describe("Paddle entitlement decisions", () => {
     const input = { ...event(), event_type: "subscription.canceled", data: { id: "sub_A", customer_id: "ctm_A", status: "canceled", items: [{ price, quantity: 1 }] } };
     assert.equal((await processPaddleEvent(input, options)).outcome, "applied");
     assert.equal(applications[0][1].isActive, false);
+    assert.equal(applications[0][1].paddleBillingKind, "recurring");
     assert.equal(applications[0][3].order.field, "lastPaddleSubscriptionTime");
     await processPaddleEvent({ ...input, data: { ...input.data, custom_data: { userId: "user-B" } } }, options);
     assert.equal(applications.length, 1);

@@ -11,6 +11,7 @@ function fixture(seed: Record<string, any>[] = []) {
     queries.push(sql);
     if (sql.includes("hashtextextended('admin-slug-assignment',0)")) locked = true;
     if (sql.startsWith('SELECT status,cancel_requested')) return { rowCount: 1, rows: [{ status: 'running', cancel_requested: false }] };
+    if (sql.startsWith('SELECT value FROM admin_settings')) return { rowCount: 0, rows: [] };
     if (sql.startsWith('SELECT 1 FROM station_blacklist')) return { rowCount: 0, rows: [] };
     if (sql.startsWith('SELECT id FROM stations WHERE station_uuid=')) {
       const existing = rows.find(row => row.station_uuid === values[0]
@@ -97,12 +98,15 @@ test('final inserted slug applies junk policy and never clears a prior noindex d
   const result = await f.catalog.insertMany([
     station('codec', { name: 'Radio Test MP3' }),
     station('excluded', { name: 'News Radio', noIndex: true, manualEditFields: { noIndex: true } }),
+    station('signal', { name: 'Radio Test Stream' }),
   ], { syncRunId: 'run' });
   assert.equal(result[0].slug, 'radio-test-mp3');
-  assert.equal(result[0].noIndex, true);
-  assert.equal(result[0].automaticNoIndex.owner, 'radiohub-junk-policy');
+  assert.notEqual(result[0].noIndex, true, 'format labels alone never create an exclusion');
+  assert.equal(result[0].automaticNoIndex, undefined);
   assert.equal(result[1].noIndex, true);
   assert.deepEqual(result[1].manualEditFields, { noIndex: true });
+  assert.equal(result[2].noIndex, true);
+  assert.equal(result[2].automaticNoIndex.owner, 'radiohub-junk-policy');
 });
 
 test('non-provider catalog inserts keep their existing identity behavior', async () => {

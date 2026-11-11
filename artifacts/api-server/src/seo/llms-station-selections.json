@@ -1,0 +1,5221 @@
+{
+  "verifiedOn": "2026-10-29",
+  "selectionBasis": "directory-votes-editorial-v1",
+  "selections": {
+    "en": [
+      {
+        "name": "Classic Vinyl HD",
+        "path": "/en/station/classic-vinyl-hd",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "1930",
+          "1940",
+          "1950"
+        ]
+      },
+      {
+        "name": "Christmas Vinyl HD",
+        "path": "/en/station/christmas-vinyl-hd",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "christian",
+          "christmas",
+          "easy listening"
+        ]
+      },
+      {
+        "name": "BBC World Service",
+        "path": "/en/station/bbc-world-service",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "news",
+          "talk"
+        ]
+      },
+      {
+        "name": "WALM HD",
+        "path": "/en/station/walm-hd",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "christian",
+          "christian music",
+          "contemporary christian"
+        ]
+      },
+      {
+        "name": "Adroit Jazz Underground",
+        "path": "/en/station/adroit-jazz-underground",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "avant-garde",
+          "bebop",
+          "big band"
+        ]
+      },
+      {
+        "name": "WALM - Old Time Radio",
+        "path": "/en/station/walm-old-time-radio",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "78",
+          "78-rpm",
+          "78rpm"
+        ]
+      },
+      {
+        "name": "WALM 2 HD",
+        "path": "/en/station/walm-2-hd",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "choral",
+          "christian",
+          "christian music"
+        ]
+      },
+      {
+        "name": "Deep House Lounge",
+        "path": "/en/station/deep-house-lounge",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "deep house",
+          "disco",
+          "electronica"
+        ]
+      },
+      {
+        "name": "Your Classical - Relax",
+        "path": "/en/station/your-classical-relax",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "classical",
+          "relax"
+        ]
+      },
+      {
+        "name": "Frisky",
+        "path": "/en/station/frisky",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "electronic",
+          "frisky",
+          "new york city"
+        ]
+      },
+      {
+        "name": "LBC Radio",
+        "path": "/en/station/lbc-radio",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "political talk"
+        ]
+      },
+      {
+        "name": "Classic FM UK",
+        "path": "/en/station/classic-fm-uk-1",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "Radio Caroline",
+        "path": "/en/station/radio-caroline",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "country",
+          "pop",
+          "rock"
+        ]
+      },
+      {
+        "name": "VOA Voice of America Global English",
+        "path": "/en/station/voa-voice-of-america-global-english",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "news",
+          "world news"
+        ]
+      },
+      {
+        "name": "Big R Radio - 80s Metal FM",
+        "path": "/en/station/big-r-radio-80s-metal-fm",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "80s",
+          "aor",
+          "glam metal"
+        ]
+      },
+      {
+        "name": "Capital FM London",
+        "path": "/en/station/capital-fm-london",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "SomaFM Secret Agent (128k MP3)",
+        "path": "/en/station/somafm-secret-agent-128k-mp3",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "ambient",
+          "downtempo",
+          "jazz"
+        ]
+      },
+      {
+        "name": "Heart 80s",
+        "path": "/en/station/heart-80s",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "80s",
+          "national",
+          "pop"
+        ]
+      },
+      {
+        "name": "NPR 24 Hour Program Stream",
+        "path": "/en/station/npr-24-hour-program-stream",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "news",
+          "news talk",
+          "political talk"
+        ]
+      },
+      {
+        "name": "Cryosleep",
+        "path": "/en/station/cryosleep",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "ambient",
+          "calm",
+          "music"
+        ]
+      },
+      {
+        "name": "SomaFM Underground 80s (128k MP3)",
+        "path": "/en/station/somafm-underground-80s-128k-mp3",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "80s",
+          "new wave",
+          "uk synthpop"
+        ]
+      },
+      {
+        "name": "Bassdrive",
+        "path": "/en/station/bassdrive",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "drum and bass"
+        ]
+      },
+      {
+        "name": "SomaFM Space Station Soma (128k AAC)",
+        "path": "/en/station/somafm-space-station-soma-128k-aac",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "ambient",
+          "electronica",
+          "mid-tempo"
+        ]
+      },
+      {
+        "name": "Smooth Radio",
+        "path": "/en/station/smooth-radio",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "easy listening",
+          "smooth",
+          "soft music"
+        ]
+      },
+      {
+        "name": "SomaFM PopTron (128k MP3)",
+        "path": "/en/station/somafm-poptron-128k-mp3",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "electropop",
+          "indie",
+          "synthpop"
+        ]
+      },
+      {
+        "name": "TMM 1",
+        "path": "/en/station/tmm-1",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "alternative",
+          "alternative rock",
+          "garage"
+        ]
+      },
+      {
+        "name": "NBC News Radio",
+        "path": "/en/station/nbc-news-radio",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "SomaFM Left Coast 70s (320k MP3)",
+        "path": "/en/station/somafm-left-coast-70s-320k-mp3",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "easy listening",
+          "mellow album rock",
+          "rock"
+        ]
+      },
+      {
+        "name": "LBC London (National stream)",
+        "path": "/en/station/lbc-london-national-stream",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "news",
+          "talk"
+        ]
+      },
+      {
+        "name": "Gold",
+        "path": "/en/station/gold-1",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "classic hits",
+          "national",
+          "oldies"
+        ]
+      },
+      {
+        "name": "Miami Beach Radio",
+        "path": "/en/station/miami-beach-radio",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "hits",
+          "ocean drive",
+          "rsl"
+        ]
+      },
+      {
+        "name": "Radio Marti",
+        "path": "/en/station/radio-marti",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "news talk",
+          "talk show"
+        ]
+      },
+      {
+        "name": "RNB and Hip Hop Radio",
+        "path": "/en/station/rnb-and-hip-hop-radio",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "1990s",
+          "90s",
+          "black"
+        ]
+      },
+      {
+        "name": "Heart Dance",
+        "path": "/en/station/heart-dance",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "dance",
+          "national",
+          "pop"
+        ]
+      },
+      {
+        "name": "Jazz London Radio",
+        "path": "/en/station/jazz-london-radio",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "jazz"
+        ]
+      },
+      {
+        "name": "SomaFM Lush (128k MP3)",
+        "path": "/en/station/somafm-lush-128k-mp3",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "electronic",
+          "femalevocals",
+          "lounge"
+        ]
+      },
+      {
+        "name": "Heart 90s",
+        "path": "/en/station/heart-90s",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "90s",
+          "national",
+          "pop"
+        ]
+      },
+      {
+        "name": "TMM 2",
+        "path": "/en/station/tmm-2",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "alternative",
+          "hiphop",
+          "electronic"
+        ]
+      },
+      {
+        "name": "Smooth Chill",
+        "path": "/en/station/smooth-chill",
+        "country": "The United Kingdom Of Great Britain And Northern Ireland",
+        "countryCode": "GB",
+        "tags": [
+          "chillout",
+          "national",
+          "public radio"
+        ]
+      },
+      {
+        "name": "Soft Classic Rock Radio",
+        "path": "/en/station/soft-classic-rock-radio",
+        "country": "The United States Of America",
+        "countryCode": "US",
+        "tags": [
+          "classic rock",
+          "soft rock"
+        ]
+      }
+    ],
+    "es": [
+      {
+        "name": "Cadena 100",
+        "path": "/es/estacion/cadena-100",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "music"
+        ]
+      },
+      {
+        "name": "Chocolate FM",
+        "path": "/es/estacion/chocolate-fm",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "chr",
+          "dance",
+          "español"
+        ]
+      },
+      {
+        "name": "Cadena SER España",
+        "path": "/es/estacion/cadena-ser-espana",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "cultural news",
+          "live",
+          "news"
+        ]
+      },
+      {
+        "name": "LOS 40 Principales España",
+        "path": "/es/estacion/los-40-principales-espana",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "music",
+          "pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "Rock FM",
+        "path": "/es/estacion/rock-fm-4",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": []
+      },
+      {
+        "name": "Los 40 Urban",
+        "path": "/es/estacion/los-40-urban",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "dance",
+          "music",
+          "pop"
+        ]
+      },
+      {
+        "name": "Cope Directo 2",
+        "path": "/es/estacion/cope-directo-2",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "deportes",
+          "radio"
+        ]
+      },
+      {
+        "name": "Los 40 Dance",
+        "path": "/es/estacion/los-40-dance",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "dance",
+          "dance music",
+          "edm"
+        ]
+      },
+      {
+        "name": "Los 40 Principales México",
+        "path": "/es/estacion/los-40-principales-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "hits",
+          "latin pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "La Ranchera de Monterrey - 1050 AM - XEG-AM - Núcleo Radio Monterrey - Monterrey, NL",
+        "path": "/es/estacion/la-ranchera-de-monterrey-1050-am-xeg-am-nucleo-radio-monterrey-monterrey-nl",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "1050",
+          "1050 am",
+          "am"
+        ]
+      },
+      {
+        "name": "Chocolate FM [calidad móvil-low bandwidth]",
+        "path": "/es/estacion/chocolate-fm-calidad-movil-low-bandwidth",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "chr",
+          "dance",
+          "español"
+        ]
+      },
+      {
+        "name": "Cadena Dial",
+        "path": "/es/estacion/cadena-dial-1",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "música en español"
+        ]
+      },
+      {
+        "name": "88.9 Noticias - 88.9 FM - XHM-FM - Grupo ACIR - Ciudad de México",
+        "path": "/es/estacion/88-9-noticias-88-9-fm-xhm-fm-grupo-acir-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "88.9",
+          "88.9 fm",
+          "acir"
+        ]
+      },
+      {
+        "name": "SABROSITA Ciudad de México - 590 AM - XEPH-AM - NRM Comunicaciones - Ciudad de México",
+        "path": "/es/estacion/sabrosita-ciudad-de-mexico-590-am-xeph-am-nrm-comunicaciones-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "590",
+          "590 am",
+          "am"
+        ]
+      },
+      {
+        "name": "Amor Ciudad de México - 95.3 FM - XHSH-FM - Grupo ACIR - Ciudad de México",
+        "path": "/es/estacion/amor-ciudad-de-mexico-95-3-fm-xhsh-fm-grupo-acir-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "95.3",
+          "95.3 fm",
+          "acir"
+        ]
+      },
+      {
+        "name": "La Ke Buena Ciudad de México - 92.9 FM - XEQ-FM - Radiópolis - Ciudad de México",
+        "path": "/es/estacion/la-ke-buena-ciudad-de-mexico-92-9-fm-xeq-fm-radiopolis-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "92.9",
+          "92.9 fm",
+          "banda"
+        ]
+      },
+      {
+        "name": "Cadena SER Radio MADRID",
+        "path": "/es/estacion/cadena-ser-radio-madrid",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "cultural",
+          "local",
+          "news"
+        ]
+      },
+      {
+        "name": "W Radio Ciudad de México (XEW-AM 900 kHz, XEW-FM 96.9 MHz) Televisa Radio",
+        "path": "/es/estacion/w-radio-ciudad-de-mexico-xew-am-900-khz-xew-fm-96-9-mhz-televisa-radio",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "adult contemporary",
+          "live sports",
+          "local news"
+        ]
+      },
+      {
+        "name": "Panda Show Radio - Online - El Panda Zambrano - Ciudad de México",
+        "path": "/es/estacion/panda-show-radio-online-el-panda-zambrano-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "banda",
+          "cdmx",
+          "ciudad de mexico"
+        ]
+      },
+      {
+        "name": "Costa Del Mar - Chillout (AAC 96kbps)",
+        "path": "/es/estacion/costa-del-mar-chillout-aac-96kbps",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "chill",
+          "chillout"
+        ]
+      },
+      {
+        "name": "LOS40 Classic",
+        "path": "/es/estacion/los40-classic",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "pop rock"
+        ]
+      },
+      {
+        "name": "Absolute Chillout",
+        "path": "/es/estacion/absolute-chillout",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": []
+      },
+      {
+        "name": "MegaStarFM",
+        "path": "/es/estacion/megastarfm",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "Radio Marca Barcelona",
+        "path": "/es/estacion/radio-marca-barcelona",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "sports news"
+        ]
+      },
+      {
+        "name": "La Comadre Ciudad de México - 1260 AM - XEL-AM - Grupo ACIR - Ciudad de México",
+        "path": "/es/estacion/la-comadre-ciudad-de-mexico-1260-am-xel-am-grupo-acir-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "1260",
+          "1260 am",
+          "acir"
+        ]
+      },
+      {
+        "name": "MIX Ciudad de México - 106.5 FM - XHDFM-FM - Grupo ACIR - Ciudad de México",
+        "path": "/es/estacion/mix-ciudad-de-mexico-106-5-fm-xhdfm-fm-grupo-acir-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "2000s",
+          "2010s",
+          "80s"
+        ]
+      },
+      {
+        "name": "XHEXA \"Exa FM\" 104.9 FM Mexico City, DF",
+        "path": "/es/estacion/xhexa-exa-fm-104-9-fm-mexico-city-df",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "electronica",
+          "latin pop",
+          "mexico city"
+        ]
+      },
+      {
+        "name": "ALFA 91.3 (Ciudad de México) - 91.3 FM - XHFAJ-FM - Grupo Radio Centro - Ciudad de México",
+        "path": "/es/estacion/alfa-91-3-ciudad-de-mexico-91-3-fm-xhfaj-fm-grupo-radio-centro-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "91.3",
+          "91.3 fm",
+          "alfa"
+        ]
+      },
+      {
+        "name": "UNIVERSAL Ciudad de México - 88.1 FM - XHRED-FM - Grupo Radio Centro - Ciudad de México",
+        "path": "/es/estacion/universal-ciudad-de-mexico-88-1-fm-xhred-fm-grupo-radio-centro-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "88.1",
+          "88.1 fm",
+          "adult contemporary"
+        ]
+      },
+      {
+        "name": "Radio Felicidad - 1180 AM - XEFR-AM - Grupo ACIR - Ciudad de México",
+        "path": "/es/estacion/radio-felicidad-1180-am-xefr-am-grupo-acir-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "1180 am",
+          "60s",
+          "70s"
+        ]
+      },
+      {
+        "name": "La Z Ciudad de México - 107.3 FM - XEQR-FM - Grupo Radio Centro - Ciudad de México",
+        "path": "/es/estacion/la-z-ciudad-de-mexico-107-3-fm-xeqr-fm-grupo-radio-centro-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "107.3",
+          "107.3 fm",
+          "banda"
+        ]
+      },
+      {
+        "name": "ElectroDanceWorld Radio",
+        "path": "/es/estacion/electrodanceworld-radio",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "big room",
+          "club house",
+          "dance"
+        ]
+      },
+      {
+        "name": "Radio Felicidad Ciudad de México - 1180 AM - XEFR-AM - Grupo ACIR - Ciudad de México",
+        "path": "/es/estacion/radio-felicidad-ciudad-de-mexico-1180-am-xefr-am-grupo-acir-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "1180",
+          "1180 am",
+          "60s"
+        ]
+      },
+      {
+        "name": "Llegó El Mariachi (iHeart Radio) - Online - ACIR Online / iHeart Radio - Ciudad de México",
+        "path": "/es/estacion/llego-el-mariachi-iheart-radio-online-acir-online-iheart-radio-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "acir",
+          "acir online",
+          "ciudad de mexico"
+        ]
+      },
+      {
+        "name": "Bikini FM Marina Baja (Benidorm)",
+        "path": "/es/estacion/bikini-fm-marina-baja-benidorm",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": [
+          "80s",
+          "90s",
+          "dance"
+        ]
+      },
+      {
+        "name": "Radiolé",
+        "path": "/es/estacion/radiole",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": []
+      },
+      {
+        "name": "La Mejor Ciudad de México - 97.7 FM - XERC-FM - MVS Radio - Ciudad de México",
+        "path": "/es/estacion/la-mejor-ciudad-de-mexico-97-7-fm-xerc-fm-mvs-radio-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "97.7",
+          "97.7 fm",
+          "aquí nomás"
+        ]
+      },
+      {
+        "name": "Loca FM live",
+        "path": "/es/estacion/loca-fm-live",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": []
+      },
+      {
+        "name": "RockFM 101.7",
+        "path": "/es/estacion/rockfm-101-7",
+        "country": "España",
+        "countryCode": "ES",
+        "tags": []
+      },
+      {
+        "name": "Radio Fórmula - 104.1 FM - XERFR-FM - Grupo Fórmula - Ciudad de México",
+        "path": "/es/estacion/radio-formula-104-1-fm-xerfr-fm-grupo-formula-ciudad-de-mexico",
+        "country": "México",
+        "countryCode": "MX",
+        "tags": [
+          "104.1",
+          "104.1 fm",
+          "acustic"
+        ]
+      }
+    ],
+    "fr": [
+      {
+        "name": "France Info",
+        "path": "/fr/station/france-info",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "RFI Afrique",
+        "path": "/fr/station/rfi-afrique",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "africa",
+          "news"
+        ]
+      },
+      {
+        "name": "RMC FR",
+        "path": "/fr/station/rmc-fr",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "france",
+          "info",
+          "sport"
+        ]
+      },
+      {
+        "name": "Jazz Radio Blues",
+        "path": "/fr/station/jazz-radio-blues",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "blues",
+          "jazz"
+        ]
+      },
+      {
+        "name": "France Inter",
+        "path": "/fr/station/france-inter",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "Skyrock",
+        "path": "/fr/station/skyrock-1",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "rap"
+        ]
+      },
+      {
+        "name": "Nostalgie",
+        "path": "/fr/station/nostalgie-2",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "France Culture",
+        "path": "/fr/station/france-culture",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "aac",
+          "culture",
+          "public radio"
+        ]
+      },
+      {
+        "name": "EuroDance 90 radio",
+        "path": "/fr/station/eurodance-90-radio",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "dancefloor",
+          "electronic dance music",
+          "eurodance"
+        ]
+      },
+      {
+        "name": "Chérie Fm",
+        "path": "/fr/station/cherie-fm-2",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "musique"
+        ]
+      },
+      {
+        "name": "FIP",
+        "path": "/fr/station/fip",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "aac",
+          "music",
+          "public radio"
+        ]
+      },
+      {
+        "name": "100% Radio 80",
+        "path": "/fr/station/100-radio-80",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "80s"
+        ]
+      },
+      {
+        "name": "La Grosse Radio Reggae",
+        "path": "/fr/station/la-grosse-radio-reggae",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "music",
+          "reggae"
+        ]
+      },
+      {
+        "name": "Jazz Radio Classic Jazz",
+        "path": "/fr/station/jazz-radio-classic-jazz",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "classical",
+          "jazz"
+        ]
+      },
+      {
+        "name": "Chante France",
+        "path": "/fr/station/chante-france",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "Radio Nova",
+        "path": "/fr/station/radio-nova",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "alternative",
+          "pop",
+          "world music"
+        ]
+      },
+      {
+        "name": "BFM radio",
+        "path": "/fr/station/bfm-radio",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "information",
+          "news"
+        ]
+      },
+      {
+        "name": "Latina Salsa",
+        "path": "/fr/station/latina-salsa",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "latin"
+        ]
+      },
+      {
+        "name": "Sud Radio",
+        "path": "/fr/station/sud-radio",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "conservative",
+          "info",
+          "mp3"
+        ]
+      },
+      {
+        "name": "100% Radio Hit",
+        "path": "/fr/station/100-radio-hit",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "Europe 1",
+        "path": "/fr/station/europe-1",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "aac",
+          "news",
+          "talk"
+        ]
+      },
+      {
+        "name": "Jazz Radio Funk",
+        "path": "/fr/station/jazz-radio-funk",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "funk"
+        ]
+      },
+      {
+        "name": "Chante France 80's",
+        "path": "/fr/station/chante-france-80-s",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "80s"
+        ]
+      },
+      {
+        "name": "Latina Reggaeton",
+        "path": "/fr/station/latina-reggaeton",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "latin",
+          "reggaeton"
+        ]
+      },
+      {
+        "name": "FIP Jazz",
+        "path": "/fr/station/fip-jazz",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "aac",
+          "jazz",
+          "public radio"
+        ]
+      },
+      {
+        "name": "Jazz Radio Only Women",
+        "path": "/fr/station/jazz-radio-only-women",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "jazz",
+          "women"
+        ]
+      },
+      {
+        "name": "ChroniX Radio Metalcore",
+        "path": "/fr/station/chronix-radio-metalcore",
+        "country": "Canada",
+        "countryCode": "CA",
+        "tags": [
+          "death metal",
+          "heavy metal",
+          "industrial"
+        ]
+      },
+      {
+        "name": "RFM",
+        "path": "/fr/station/rfm",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "Yoga Chill",
+        "path": "/fr/station/yoga-chill",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "meditation",
+          "spiritual",
+          "yoga"
+        ]
+      },
+      {
+        "name": "Generations Rap U.S",
+        "path": "/fr/station/generations-rap-u-s",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "Generations Rap FR Gold",
+        "path": "/fr/station/generations-rap-fr-gold",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "Calm Radio - Solo Piano",
+        "path": "/fr/station/calm-radio-solo-piano",
+        "country": "Canada",
+        "countryCode": "CA",
+        "tags": [
+          "easy listening",
+          "piano"
+        ]
+      },
+      {
+        "name": "Nostalgie Génération 80",
+        "path": "/fr/station/nostalgie-generation-80",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "nostalgie"
+        ]
+      },
+      {
+        "name": "RMC Info Talk Sport",
+        "path": "/fr/station/rmc-info-talk-sport",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "sports news"
+        ]
+      },
+      {
+        "name": "Jazz Radio Electro Swing",
+        "path": "/fr/station/jazz-radio-electro-swing",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "electro",
+          "jazz",
+          "swing"
+        ]
+      },
+      {
+        "name": "680 News Toronto",
+        "path": "/fr/station/680-news-toronto",
+        "country": "Canada",
+        "countryCode": "CA",
+        "tags": []
+      },
+      {
+        "name": "Kiss FM (de Saint-Tropez à Monaco)",
+        "path": "/fr/station/kiss-fm-de-saint-tropez-a-monaco",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": []
+      },
+      {
+        "name": "CFRB News/Talk 1010 (Toronto, ON)",
+        "path": "/fr/station/cfrb-news-talk-1010-toronto-on",
+        "country": "Canada",
+        "countryCode": "CA",
+        "tags": [
+          "commercial",
+          "local news",
+          "news"
+        ]
+      },
+      {
+        "name": "Jazz Radio Soul",
+        "path": "/fr/station/jazz-radio-soul",
+        "country": "France",
+        "countryCode": "FR",
+        "tags": [
+          "soul"
+        ]
+      },
+      {
+        "name": "CBC Radio 1 Toronto",
+        "path": "/fr/station/cbc-radio-1-toronto",
+        "country": "Canada",
+        "countryCode": "CA",
+        "tags": [
+          "public radio"
+        ]
+      }
+    ],
+    "de": [
+      {
+        "name": "MANGORADIO",
+        "path": "/de/sender/mangoradio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "music",
+          "variety"
+        ]
+      },
+      {
+        "name": "Rock Antenne - Heavy Metal",
+        "path": "/de/sender/rock-antenne-heavy-metal",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "heavy metal",
+          "metal"
+        ]
+      },
+      {
+        "name": "1LIVE",
+        "path": "/de/sender/1live",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "ard",
+          "public radio",
+          "rock"
+        ]
+      },
+      {
+        "name": "90s90s HipHop & Rap",
+        "path": "/de/sender/90s90s-hiphop-rap",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "hiphop",
+          "rap"
+        ]
+      },
+      {
+        "name": "Rock Antenne",
+        "path": "/de/sender/rock-antenne",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "rock"
+        ]
+      },
+      {
+        "name": "TranceBase.FM - AAC HD 256k",
+        "path": "/de/sender/trancebase-fm-aac-hd-256k",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "electronic",
+          "techno",
+          "trance"
+        ]
+      },
+      {
+        "name": "WDR 5",
+        "path": "/de/sender/wdr-5",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "information",
+          "news",
+          "news talk"
+        ]
+      },
+      {
+        "name": "TechnoBase.FM",
+        "path": "/de/sender/technobase-fm",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "dance",
+          "eurodance",
+          "handsup"
+        ]
+      },
+      {
+        "name": "SWR3",
+        "path": "/de/sender/swr3",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "news",
+          "pop",
+          "rock"
+        ]
+      },
+      {
+        "name": "- 0 N - Classic Rock on Radio",
+        "path": "/de/sender/0-n-classic-rock-on-radio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "80er",
+          "80s",
+          "90er"
+        ]
+      },
+      {
+        "name": "Radio Eins",
+        "path": "/de/sender/radio-eins",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "adult contemporary",
+          "alternative",
+          "ard"
+        ]
+      },
+      {
+        "name": "Inforadio",
+        "path": "/de/sender/inforadio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "ard",
+          "information",
+          "news"
+        ]
+      },
+      {
+        "name": "Deutschlandfunk | DLF | MP3 128k",
+        "path": "/de/sender/deutschlandfunk-dlf-mp3-128k",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "culture",
+          "news",
+          "public service"
+        ]
+      },
+      {
+        "name": "ROCK ANTENNE Classic Perlen",
+        "path": "/de/sender/rock-antenne-classic-perlen",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "rock classics"
+        ]
+      },
+      {
+        "name": "- 0 N - 70s on Radio",
+        "path": "/de/sender/0-n-70s-on-radio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "70er",
+          "70s",
+          "oldies"
+        ]
+      },
+      {
+        "name": "Best Of Rock.FM Alternative Rock",
+        "path": "/de/sender/best-of-rock-fm-alternative-rock-1",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "alternative metal",
+          "alternative rock",
+          "grunge"
+        ]
+      },
+      {
+        "name": "Country 108",
+        "path": "/de/sender/country-108-1",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "country"
+        ]
+      },
+      {
+        "name": "- 0 N - 80s on Radio",
+        "path": "/de/sender/0-n-80s-on-radio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "80er",
+          "80s",
+          "oldies"
+        ]
+      },
+      {
+        "name": "B5 aktuell",
+        "path": "/de/sender/b5-aktuell",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "ard",
+          "bayerischer rundfunk",
+          "information"
+        ]
+      },
+      {
+        "name": "Reggae Radio Rastamusic.com",
+        "path": "/de/sender/reggae-radio-rastamusic-com",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "reggae"
+        ]
+      },
+      {
+        "name": "WDR 2 Rheinland",
+        "path": "/de/sender/wdr-2-rheinland",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "music",
+          "news",
+          "talk"
+        ]
+      },
+      {
+        "name": "Hit Radio FFH",
+        "path": "/de/sender/hit-radio-ffh",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "Antenne Bayern - Classic Rock Live (MP3)",
+        "path": "/de/sender/antenne-bayern-classic-rock-live-mp3",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "classic rock"
+        ]
+      },
+      {
+        "name": "80s80s Radio",
+        "path": "/de/sender/80s80s-radio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "80s",
+          "new wave",
+          "pop"
+        ]
+      },
+      {
+        "name": "MDR Aktuell",
+        "path": "/de/sender/mdr-aktuell",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "information",
+          "news"
+        ]
+      },
+      {
+        "name": "__TRANCE__ by rautemusik (rm.fm)",
+        "path": "/de/sender/trance-by-rautemusik-rm-fm",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "electro",
+          "electro house",
+          "electronic"
+        ]
+      },
+      {
+        "name": "Laut.FM 1000 Oldies",
+        "path": "/de/sender/laut-fm-1000-oldies",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "50s",
+          "60s",
+          "70s"
+        ]
+      },
+      {
+        "name": "- 0 N - 90s on Radio",
+        "path": "/de/sender/0-n-90s-on-radio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "90er",
+          "90s",
+          "dance"
+        ]
+      },
+      {
+        "name": "Radio Arabella München",
+        "path": "/de/sender/radio-arabella-munchen",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "hits",
+          "music",
+          "oldies"
+        ]
+      },
+      {
+        "name": "i love radio - hip hop turnup",
+        "path": "/de/sender/i-love-radio-hip-hop-turnup",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "hiphop",
+          "rap",
+          "trap"
+        ]
+      },
+      {
+        "name": "0nlineradio SOFT ROCK",
+        "path": "/de/sender/0nlineradio-soft-rock",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "70s soft rock",
+          "80s soft rock",
+          "pop rock"
+        ]
+      },
+      {
+        "name": "- 0 N - Indie on Radio",
+        "path": "/de/sender/0-n-indie-on-radio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "alternative",
+          "electro",
+          "hip hop"
+        ]
+      },
+      {
+        "name": "MDR Klassik",
+        "path": "/de/sender/mdr-klassik",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "- 0 N - Smooth Jazz on Radio",
+        "path": "/de/sender/0-n-smooth-jazz-on-radio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "chillout",
+          "easy listening",
+          "jazz"
+        ]
+      },
+      {
+        "name": "98.8 Kiss FM",
+        "path": "/de/sender/98-8-kiss-fm",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "hits",
+          "pop"
+        ]
+      },
+      {
+        "name": "- 0 N - Chillout on Radio",
+        "path": "/de/sender/0-n-chillout-on-radio",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "ambient",
+          "chillout",
+          "easy listening"
+        ]
+      },
+      {
+        "name": "NDR Info (Hamburg)",
+        "path": "/de/sender/ndr-info-hamburg",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "culture",
+          "information",
+          "kultur"
+        ]
+      },
+      {
+        "name": "NDR Info (Schleswig-Holstein)",
+        "path": "/de/sender/ndr-info-schleswig-holstein",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "culture",
+          "information",
+          "kultur"
+        ]
+      },
+      {
+        "name": "Antenne Bayern - Top 40",
+        "path": "/de/sender/antenne-bayern-top-40",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "top 40"
+        ]
+      },
+      {
+        "name": "Radio Paloma",
+        "path": "/de/sender/radio-paloma",
+        "country": "Deutschland",
+        "countryCode": "DE",
+        "tags": [
+          "schlager"
+        ]
+      }
+    ],
+    "pt": [
+      {
+        "name": "Antena 1 FM 94.7 São Paulo",
+        "path": "/pt/estacao/antena-1-fm-94-7-sao-paulo",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "adult contemporary",
+          "lite"
+        ]
+      },
+      {
+        "name": "Rádio Bossa Nova Brazil",
+        "path": "/pt/estacao/radio-bossa-nova-brazil",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "bossa nova",
+          "brazilian music"
+        ]
+      },
+      {
+        "name": "RFM",
+        "path": "/pt/estacao/rfm-1",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "64kbps"
+        ]
+      },
+      {
+        "name": "Rádio Saudade FM 99.7",
+        "path": "/pt/estacao/radio-saudade-fm-99-7",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "adult",
+          "classic hits",
+          "flashback"
+        ]
+      },
+      {
+        "name": "Antena 1 (Portugal)",
+        "path": "/pt/estacao/antena-1-portugal",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "portugal",
+          "portuguese",
+          "sports"
+        ]
+      },
+      {
+        "name": "Rádio Observador",
+        "path": "/pt/estacao/radio-observador-1",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": []
+      },
+      {
+        "name": "Máquina do Tempo (MPB Brasil)",
+        "path": "/pt/estacao/maquina-do-tempo-mpb-brasil",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": []
+      },
+      {
+        "name": "Rádio Renascença",
+        "path": "/pt/estacao/radio-renascenca",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "national news"
+        ]
+      },
+      {
+        "name": "Bossa Jazz Brasil",
+        "path": "/pt/estacao/bossa-jazz-brasil",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "bossa nova",
+          "jazz",
+          "mpb"
+        ]
+      },
+      {
+        "name": "Bons Tempos FM",
+        "path": "/pt/estacao/bons-tempos-fm",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "nostalgia",
+          "nostalgic",
+          "rock"
+        ]
+      },
+      {
+        "name": "RDP Africa (Portugal)",
+        "path": "/pt/estacao/rdp-africa-portugal",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "africa",
+          "antena 1",
+          "portugal"
+        ]
+      },
+      {
+        "name": "Mega Hits",
+        "path": "/pt/estacao/mega-hits",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "The VIBE - Dancefloor Radio",
+        "path": "/pt/estacao/the-vibe-dancefloor-radio",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "charts",
+          "dancefloor",
+          "electro"
+        ]
+      },
+      {
+        "name": "TOP 80 - Todos Os Exitos De 80 A 2000",
+        "path": "/pt/estacao/top-80-todos-os-exitos-de-80-a-2000",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": []
+      },
+      {
+        "name": "Rádio Amália",
+        "path": "/pt/estacao/radio-amalia",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "fado",
+          "folklore",
+          "local music"
+        ]
+      },
+      {
+        "name": "Smooth Jazz Lounge",
+        "path": "/pt/estacao/smooth-jazz-lounge",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "jazz",
+          "smooth jazz",
+          "smooth lounge"
+        ]
+      },
+      {
+        "name": "4Drive Jazz",
+        "path": "/pt/estacao/4drive-jazz",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "jazz fusion",
+          "nu-jazz",
+          "smooth jazz"
+        ]
+      },
+      {
+        "name": "Rádio Nova Era",
+        "path": "/pt/estacao/radio-nova-era-1",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "dj",
+          "pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "bandnews fm sp",
+        "path": "/pt/estacao/bandnews-fm-sp",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "news",
+          "news talk"
+        ]
+      },
+      {
+        "name": "Gaúcha",
+        "path": "/pt/estacao/gaucha",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "futebol",
+          "notícias"
+        ]
+      },
+      {
+        "name": "Atlântida - ATL",
+        "path": "/pt/estacao/atlantida-atl",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "m3u8"
+        ]
+      },
+      {
+        "name": "Rádio Planície 92.8 Moura",
+        "path": "/pt/estacao/radio-planicie-92-8-moura",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "local music",
+          "pop",
+          "talkshow"
+        ]
+      },
+      {
+        "name": "Rádio Band FM 96.1 FM",
+        "path": "/pt/estacao/radio-band-fm-96-1-fm",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "Rádio Comercial",
+        "path": "/pt/estacao/radio-comercial",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "contemporary",
+          "dance",
+          "pop"
+        ]
+      },
+      {
+        "name": "Alpha FM 101.7 MHz (São Paulo - SP)",
+        "path": "/pt/estacao/alpha-fm-101-7-mhz-sao-paulo-sp",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "light",
+          "misc",
+          "portuguese music"
+        ]
+      },
+      {
+        "name": "Fita Cassete",
+        "path": "/pt/estacao/fita-cassete",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "adult",
+          "adulta",
+          "flashback"
+        ]
+      },
+      {
+        "name": "RÁDIO LIGA SAMBA",
+        "path": "/pt/estacao/radio-liga-samba",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": []
+      },
+      {
+        "name": "Rádio MEO Music",
+        "path": "/pt/estacao/radio-meo-music",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "adult contemporary",
+          "pop",
+          "rock"
+        ]
+      },
+      {
+        "name": "Rádio Nova 98.9 FM",
+        "path": "/pt/estacao/radio-nova-98-9-fm",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": []
+      },
+      {
+        "name": "GOLD INSTRUMENTAL",
+        "path": "/pt/estacao/gold-instrumental",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "orquestrada"
+        ]
+      },
+      {
+        "name": "Rádio Marginal",
+        "path": "/pt/estacao/radio-marginal",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "jazz"
+        ]
+      },
+      {
+        "name": "Rádio Transamérica 100.1 FM",
+        "path": "/pt/estacao/radio-transamerica-100-1-fm",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "adult",
+          "soccer"
+        ]
+      },
+      {
+        "name": "M80 Rádio – 80s",
+        "path": "/pt/estacao/m80-radio-80s",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "80s",
+          "pop",
+          "romantic"
+        ]
+      },
+      {
+        "name": "Rádio Metropolitana 98.5 FM Sertanejo",
+        "path": "/pt/estacao/radio-metropolitana-98-5-fm-sertanejo",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": []
+      },
+      {
+        "name": "Rádio Transamérica Hits (São João Nepomuceno)",
+        "path": "/pt/estacao/radio-transamerica-hits-sao-joao-nepomuceno",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "brazilian pop"
+        ]
+      },
+      {
+        "name": "Rádio Itatiaia 95.7 FM",
+        "path": "/pt/estacao/radio-itatiaia-95-7-fm",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "news",
+          "soccer",
+          "sports"
+        ]
+      },
+      {
+        "name": "Hiper FM",
+        "path": "/pt/estacao/hiper-fm",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "electro",
+          "pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "Rádio Regional de Arouca",
+        "path": "/pt/estacao/radio-regional-de-arouca",
+        "country": "Portugal",
+        "countryCode": "PT",
+        "tags": [
+          "fado",
+          "folklore",
+          "local music"
+        ]
+      },
+      {
+        "name": "WebRadio Cantares",
+        "path": "/pt/estacao/webradio-cantares",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": []
+      },
+      {
+        "name": "GOLD INSTRUMENTAL 32",
+        "path": "/pt/estacao/gold-instrumental-32",
+        "country": "Brasil",
+        "countryCode": "BR",
+        "tags": [
+          "orquestrada"
+        ]
+      }
+    ],
+    "it": [
+      {
+        "name": "Radio 24 il sole 24 ore",
+        "path": "/it/stazione/radio-24-il-sole-24-ore",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "news talk"
+        ]
+      },
+      {
+        "name": "Radio 105 Network",
+        "path": "/it/stazione/radio-105-network",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "hits",
+          "mediaset",
+          "pop"
+        ]
+      },
+      {
+        "name": "Armisa Classica",
+        "path": "/it/stazione/armisa-classica",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "anni 80",
+          "anni 90",
+          "balera"
+        ]
+      },
+      {
+        "name": "Virgin Radio Italia",
+        "path": "/it/stazione/virgin-radio-italia",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "mediaset",
+          "pop rock"
+        ]
+      },
+      {
+        "name": "Radio 80",
+        "path": "/it/stazione/radio-80",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "80s",
+          "noventa padovana"
+        ]
+      },
+      {
+        "name": "Radio Studio Più - HQ",
+        "path": "/it/stazione/radio-studio-piu-hq",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "dance"
+        ]
+      },
+      {
+        "name": "Tele Radio Stereo",
+        "path": "/it/stazione/tele-radio-stereo",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "roma",
+          "sport",
+          "talk"
+        ]
+      },
+      {
+        "name": "Radio Italia Solo Musica Italiana",
+        "path": "/it/stazione/radio-italia-solo-musica-italiana",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "italian pop"
+        ]
+      },
+      {
+        "name": "RADIO RADIO (ITALIA)",
+        "path": "/it/stazione/radio-radio-italia",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "sport",
+          "talk"
+        ]
+      },
+      {
+        "name": "Radio Kiss Kiss Italia",
+        "path": "/it/stazione/radio-kiss-kiss-italia",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "R101 FM",
+        "path": "/it/stazione/r101-fm",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "adult contemporary",
+          "mediaset",
+          "pop"
+        ]
+      },
+      {
+        "name": "Radio Ibiza",
+        "path": "/it/stazione/radio-ibiza",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "dance",
+          "electronica",
+          "napoli"
+        ]
+      },
+      {
+        "name": "Radio Viva FM",
+        "path": "/it/stazione/radio-viva-fm",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "adult contemporary",
+          "entertainment",
+          "gavardo"
+        ]
+      },
+      {
+        "name": "Radio Kiss Kiss Hits",
+        "path": "/it/stazione/radio-kiss-kiss-hits",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "hits"
+        ]
+      },
+      {
+        "name": "Radio Kiss Kiss",
+        "path": "/it/stazione/radio-kiss-kiss",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "adult contemporary",
+          "pop"
+        ]
+      },
+      {
+        "name": "Italia Dance Music",
+        "path": "/it/stazione/italia-dance-music",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "dance",
+          "electronica",
+          "genova"
+        ]
+      },
+      {
+        "name": "Radio Sportiva",
+        "path": "/it/stazione/radio-sportiva",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "sport"
+        ]
+      },
+      {
+        "name": "Radio Sei (Italia)",
+        "path": "/it/stazione/radio-sei-italia",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "talk"
+        ]
+      },
+      {
+        "name": "RDS relax",
+        "path": "/it/stazione/rds-relax",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": []
+      },
+      {
+        "name": "Retesport (Italia)",
+        "path": "/it/stazione/retesport-italia",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "talk"
+        ]
+      },
+      {
+        "name": "Radio Italia Anni 60 - Trentino Alto Adige",
+        "path": "/it/stazione/radio-italia-anni-60-trentino-alto-adige",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "60s",
+          "70s",
+          "80s"
+        ]
+      },
+      {
+        "name": "RTL 102.5",
+        "path": "/it/stazione/rtl-102-5",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "local",
+          "news",
+          "varied"
+        ]
+      },
+      {
+        "name": "Radio Deejay",
+        "path": "/it/stazione/radio-deejay",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "music"
+        ]
+      },
+      {
+        "name": "Radio 24, Il Sole 24 Ore, AAC 48k",
+        "path": "/it/stazione/radio-24-il-sole-24-ore-aac-48k",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "business",
+          "business news",
+          "economics"
+        ]
+      },
+      {
+        "name": "Radio 105 - Rap Italia",
+        "path": "/it/stazione/radio-105-rap-italia",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "hiphop",
+          "italian",
+          "mediaset"
+        ]
+      },
+      {
+        "name": "One Dance",
+        "path": "/it/stazione/one-dance",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": []
+      },
+      {
+        "name": "Rai Südtirol",
+        "path": "/it/stazione/rai-sudtirol",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "ladin",
+          "public radio",
+          "rai"
+        ]
+      },
+      {
+        "name": "Lolli Radio Italia",
+        "path": "/it/stazione/lolli-radio-italia",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "italian pop"
+        ]
+      },
+      {
+        "name": "Radio Blackout",
+        "path": "/it/stazione/radio-blackout",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "alternative rock",
+          "punk",
+          "talk"
+        ]
+      },
+      {
+        "name": "Radio Sorrriso",
+        "path": "/it/stazione/radio-sorrriso",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "folk music",
+          "italian",
+          "pop"
+        ]
+      },
+      {
+        "name": "Lattemiele",
+        "path": "/it/stazione/lattemiele",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "musica italiana"
+        ]
+      },
+      {
+        "name": "Radio Piterpan",
+        "path": "/it/stazione/radio-piterpan",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "electronica",
+          "pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "RMC Marine",
+        "path": "/it/stazione/rmc-marine",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "chillout",
+          "latin jazz",
+          "lounge"
+        ]
+      },
+      {
+        "name": "RADIO NOSTALGIA PIEMONTE",
+        "path": "/it/stazione/radio-nostalgia-piemonte",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": []
+      },
+      {
+        "name": "Radio Balla Balla",
+        "path": "/it/stazione/radio-balla-balla",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "belvedere marittimo",
+          "folk music",
+          "local music"
+        ]
+      },
+      {
+        "name": "Musica Jazz Radio",
+        "path": "/it/stazione/musica-jazz-radio",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "blues",
+          "jazz",
+          "milano"
+        ]
+      },
+      {
+        "name": "RTR 99 Canale Pooh",
+        "path": "/it/stazione/rtr-99-canale-pooh",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "italian pop",
+          "pop rock"
+        ]
+      },
+      {
+        "name": "RMC Kay Kay",
+        "path": "/it/stazione/rmc-kay-kay",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "mediaset",
+          "pop"
+        ]
+      },
+      {
+        "name": "Radio Marte",
+        "path": "/it/stazione/radio-marte",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "news",
+          "pop",
+          "sport"
+        ]
+      },
+      {
+        "name": "m2o originals radio",
+        "path": "/it/stazione/m2o-originals-radio",
+        "country": "Italia",
+        "countryCode": "IT",
+        "tags": [
+          "dance",
+          "hands up",
+          "house"
+        ]
+      }
+    ],
+    "ru": [
+      {
+        "name": "DFM RUSSIAN DANCE",
+        "path": "/ru/stantsiya/dfm-russian-dance",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "dance"
+        ]
+      },
+      {
+        "name": "дорожное радио (Dorognoe Radio)",
+        "path": "/ru/stantsiya/dorozhnoe-radio-dorognoe-radio",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "moscow"
+        ]
+      },
+      {
+        "name": "Европа плюс",
+        "path": "/ru/stantsiya/evropa-plyus-2",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "поп"
+        ]
+      },
+      {
+        "name": "ROCK FM",
+        "path": "/ru/stantsiya/rock-fm",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "classic rock",
+          "pop rock",
+          "rock"
+        ]
+      },
+      {
+        "name": "Nashe Radio",
+        "path": "/ru/stantsiya/nashe-radio",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "live air"
+        ]
+      },
+      {
+        "name": "Русское Радио",
+        "path": "/ru/stantsiya/russkoe-radio-1",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "misc"
+        ]
+      },
+      {
+        "name": "Ретро FM 70e",
+        "path": "/ru/stantsiya/retro-fm-70e",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "70s"
+        ]
+      },
+      {
+        "name": "Спокойное радио",
+        "path": "/ru/stantsiya/spokoynoe-radio",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "ambient",
+          "chillout",
+          "easy listening"
+        ]
+      },
+      {
+        "name": "Наше Радио",
+        "path": "/ru/stantsiya/nashe-radio-1",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "рок",
+          "этно"
+        ]
+      },
+      {
+        "name": "Радио Книга",
+        "path": "/ru/stantsiya/radio-kniga",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "audiobooks",
+          "literature",
+          "talk"
+        ]
+      },
+      {
+        "name": "Шансон без цензуры",
+        "path": "/ru/stantsiya/shanson-bez-cenzury",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "russia",
+          "russian",
+          "shanson"
+        ]
+      },
+      {
+        "name": "Radio record - Main Channel",
+        "path": "/ru/stantsiya/radio-record-main-channel",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "music",
+          "news"
+        ]
+      },
+      {
+        "name": "Радио Рекорд Russian Mix",
+        "path": "/ru/stantsiya/radio-rekord-russian-mix",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      },
+      {
+        "name": "Beta Anon.FM",
+        "path": "/ru/stantsiya/beta-anon-fm",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "anonymous",
+          "various"
+        ]
+      },
+      {
+        "name": "Mixadance FM",
+        "path": "/ru/stantsiya/mixadance-fm",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "dance",
+          "electro",
+          "electronic"
+        ]
+      },
+      {
+        "name": "комерсант (Kommersant FM) 93.6 Moscow",
+        "path": "/ru/stantsiya/komersant-kommersant-fm-93-6-moscow",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "music",
+        "path": "/ru/stantsiya/music",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "radio"
+        ]
+      },
+      {
+        "name": "Говорит Москва",
+        "path": "/ru/stantsiya/govorit-moskva",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "dorenko",
+          "moscow",
+          "news"
+        ]
+      },
+      {
+        "name": "Соловьёв FM",
+        "path": "/ru/stantsiya/solovyov-fm",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "news",
+          "politics",
+          "talk"
+        ]
+      },
+      {
+        "name": "Комсомольская правда",
+        "path": "/ru/stantsiya/komsomolskaya-pravda",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "news",
+          "talk"
+        ]
+      },
+      {
+        "name": "Юмор FM",
+        "path": "/ru/stantsiya/yumor-fm-3",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      },
+      {
+        "name": "Модель для сборки",
+        "path": "/ru/stantsiya/model-dlya-sborki",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "аудиокниги",
+          "рассказы",
+          "фантастика"
+        ]
+      },
+      {
+        "name": "Radio Caprice - Eurodance",
+        "path": "/ru/stantsiya/radio-caprice-eurodance",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "eurodance"
+        ]
+      },
+      {
+        "name": "Instrumental Jazz",
+        "path": "/ru/stantsiya/instrumental-jazz",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "instrumental",
+          "jazz"
+        ]
+      },
+      {
+        "name": "Новое Радио 91.1 (СПб)",
+        "path": "/ru/stantsiya/novoe-radio-91-1-spb",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      },
+      {
+        "name": "Ностальгия - Дорожное радио",
+        "path": "/ru/stantsiya/nostalgiya-dorozhnoe-radio",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      },
+      {
+        "name": "Radio Caprice - Retrowave",
+        "path": "/ru/stantsiya/radio-caprice-retrowave",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "80s",
+          "electronic",
+          "retrowave"
+        ]
+      },
+      {
+        "name": "Бизнес FM",
+        "path": "/ru/stantsiya/biznes-fm",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "business",
+          "business news",
+          "business programs"
+        ]
+      },
+      {
+        "name": "Соловьёв LIVE",
+        "path": "/ru/stantsiya/solovyov-live",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "politics",
+          "world news"
+        ]
+      },
+      {
+        "name": "эльдорадио (Eldo Radio) 101.4 St. Petersburg",
+        "path": "/ru/stantsiya/eldoradio-eldo-radio-101-4-st-petersburg",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "Радио Sputnik (новости) / Radio Sputnik (news)",
+        "path": "/ru/stantsiya/radio-sputnik-novosti-radio-sputnik-news",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "Радио Рекорд Remix",
+        "path": "/ru/stantsiya/radio-rekord-remix",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      },
+      {
+        "name": "Эхо online",
+        "path": "/ru/stantsiya/eho-online",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "talk & speech"
+        ]
+      },
+      {
+        "name": "Radio Caprice - Thrash Metal",
+        "path": "/ru/stantsiya/radio-caprice-thrash-metal",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "thrash metal"
+        ]
+      },
+      {
+        "name": "Radio Caprice - Classical Piano",
+        "path": "/ru/stantsiya/radio-caprice-classical-piano",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "classical",
+          "piano"
+        ]
+      },
+      {
+        "name": "Радио Рекорд Russian Hits",
+        "path": "/ru/stantsiya/radio-rekord-russian-hits",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      },
+      {
+        "name": "Relax FM Chillout",
+        "path": "/ru/stantsiya/relax-fm-chillout",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": [
+          "chill",
+          "chillout",
+          "chillout+lounge"
+        ]
+      },
+      {
+        "name": "Радио Рекорд Нафталин FM",
+        "path": "/ru/stantsiya/radio-rekord-naftalin-fm",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      },
+      {
+        "name": "Радио Рекорд Супердискотека 90-х",
+        "path": "/ru/stantsiya/radio-rekord-superdiskoteka-90-h",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      },
+      {
+        "name": "101.ru - Relax FM",
+        "path": "/ru/stantsiya/101-ru-relax-fm",
+        "country": "Россия",
+        "countryCode": "RU",
+        "tags": []
+      }
+    ],
+    "ar": [
+      {
+        "name": "إذاعة القرآن الكريم من القاهرة",
+        "path": "/ar/mahta/dhaa-lqran-lkrym-mn-lqhr",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "اسلامي",
+          "دين"
+        ]
+      },
+      {
+        "name": "Radio 9090 90.9",
+        "path": "/ar/mahta/radio-9090-90-9",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "Nogoum FM",
+        "path": "/ar/mahta/nogoum-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "On sports FM",
+        "path": "/ar/mahta/on-sports-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "إذاعة محمود خليل الحصري",
+        "path": "/ar/mahta/dhaa-mhmwd-khlyl-lhsry",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "إذاعة مشاري العفاسي",
+        "path": "/ar/mahta/dhaa-mshry-laafsy",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "Tes3enat FM",
+        "path": "/ar/mahta/tes3enat-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "إذاعة مصطفى إسماعيل",
+        "path": "/ar/mahta/dhaa-mstf-smaayl",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "Amr Diab Radio",
+        "path": "/ar/mahta/amr-diab-radio",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "---تراتيل قصيرة متميزة---",
+        "path": "/ar/mahta/trtyl-qsyr-mtmyz",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "قران كريم"
+        ]
+      },
+      {
+        "name": "إذاعة ياسر الدوسري",
+        "path": "/ar/mahta/dhaa-ysr-ldwsry",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "القران الكريم من القاهره",
+        "path": "/ar/mahta/lqrn-lkrym-mn-lqhrh",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "Radio القارئ علي حجاج السويسي",
+        "path": "/ar/mahta/radio-lqry-aaly-hjj-lswysy",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "القرآن",
+          "القرآن الكريم"
+        ]
+      },
+      {
+        "name": "Abdulrasheed Soufi",
+        "path": "/ar/mahta/abdulrasheed-soufi",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "QURAN KAREEM",
+        "path": "/ar/mahta/quran-kareem",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": [
+          "quran",
+          "religious"
+        ]
+      },
+      {
+        "name": "تكبيرات العيد",
+        "path": "/ar/mahta/tkbyrt-laayd-1",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "القرآن",
+          "مسلم"
+        ]
+      },
+      {
+        "name": "Diab FM",
+        "path": "/ar/mahta/diab-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "Radio Quran",
+        "path": "/ar/mahta/radio-quran",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "Mp3Quran Tarateel",
+        "path": "/ar/mahta/mp3quran-tarateel",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": []
+      },
+      {
+        "name": "NRJ EGYPT",
+        "path": "/ar/mahta/nrj-egypt",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "القران الكريم من القاهره1",
+        "path": "/ar/mahta/lqrn-lkrym-mn-lqhrh1",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "Al Arabiya FM",
+        "path": "/ar/mahta/al-arabiya-fm",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "Radio 9090",
+        "path": "/ar/mahta/radio-9090",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "SHA3BY FM",
+        "path": "/ar/mahta/sha3by-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "87.8\tMix FM",
+        "path": "/ar/mahta/87-8-mix-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "Mp3Quran Main",
+        "path": "/ar/mahta/mp3quran-main",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": [
+          "quran"
+        ]
+      },
+      {
+        "name": "إذاعة القرآن الكريم (القاهرة)",
+        "path": "/ar/mahta/dhaa-lqran-lkrym-lqhr",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "AlifAlif FM",
+        "path": "/ar/mahta/alifalif-fm",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": []
+      },
+      {
+        "name": "Radio Hits 88.2 Cairo",
+        "path": "/ar/mahta/radio-hits-88-2-cairo",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "arabic music"
+        ]
+      },
+      {
+        "name": "MBC FM",
+        "path": "/ar/mahta/mbc-fm",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": []
+      },
+      {
+        "name": "RadioSunna",
+        "path": "/ar/mahta/radiosunna",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": [
+          "arabic",
+          "islam",
+          "islamic"
+        ]
+      },
+      {
+        "name": "90s FM",
+        "path": "/ar/mahta/90s-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      },
+      {
+        "name": "NileFM",
+        "path": "/ar/mahta/nilefm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "hits"
+        ]
+      },
+      {
+        "name": "القارئ علي الحذيفي رواية قالون",
+        "path": "/ar/mahta/lqry-aaly-lhdhyfy-rwy-qlwn",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "Panorama FM",
+        "path": "/ar/mahta/panorama-fm-1",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": []
+      },
+      {
+        "name": ".صور من حياة الصحابة",
+        "path": "/ar/mahta/swr-mn-hy-lshb",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "Arab Mix FM",
+        "path": "/ar/mahta/arab-mix-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "classic hits",
+          "hits",
+          "pop"
+        ]
+      },
+      {
+        "name": "Saudi Quran1",
+        "path": "/ar/mahta/saudi-quran1",
+        "country": "المملكة العربية السعودية",
+        "countryCode": "SA",
+        "tags": []
+      },
+      {
+        "name": ". beautiful recitation",
+        "path": "/ar/mahta/beautiful-recitation",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "On Sport FM",
+        "path": "/ar/mahta/on-sport-fm",
+        "country": "مصر",
+        "countryCode": "EG",
+        "tags": []
+      }
+    ],
+    "zh": [
+      {
+        "name": "怀集音乐之声",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/huai-ji-yin-le-zhi-sheng",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "music"
+        ]
+      },
+      {
+        "name": "新闻听天下",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/xin-wen-ting-tian-xia",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "internet radio",
+          "news"
+        ]
+      },
+      {
+        "name": "RTHK Radio 1",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/rthk-radio-1-1",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": [
+          "educational",
+          "entertainment",
+          "news"
+        ]
+      },
+      {
+        "name": "国际新闻",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/guo-ji-xin-wen",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "information",
+          "news"
+        ]
+      },
+      {
+        "name": "RTHK Radio 2",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/rthk-radio-2",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": [
+          "entertainment",
+          "pop"
+        ]
+      },
+      {
+        "name": "清晨音乐台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/qing-chen-yin-le-tai",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "music",
+          "pop music"
+        ]
+      },
+      {
+        "name": "臺北電台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/tai-bei-dian-tai",
+        "country": "台湾",
+        "countryCode": "TW",
+        "tags": [
+          "news",
+          "public radio",
+          "talk"
+        ]
+      },
+      {
+        "name": "两广之声音乐台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/liang-guang-zhi-sheng-yin-le-tai",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "internet radio",
+          "oldies"
+        ]
+      },
+      {
+        "name": "雨声轻音乐",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/yu-sheng-qing-yin-le",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "ambient",
+          "instrumental",
+          "relax"
+        ]
+      },
+      {
+        "name": "CGTN English",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/cgtn-english-1",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "beijing",
+          "hls video"
+        ]
+      },
+      {
+        "name": "AsiaFM亚洲经典台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/asiafmya-zhou-jing-dian-tai",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "classic hits",
+          "hd",
+          "music"
+        ]
+      },
+      {
+        "name": "AisaFM亚洲粤语台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/aisafmya-zhou-yue-yu-tai",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "music"
+        ]
+      },
+      {
+        "name": "FM88888",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/fm88888",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": []
+      },
+      {
+        "name": "广东珠江经济台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/guang-dong-zhu-jiang-jing-ji-tai",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "economics"
+        ]
+      },
+      {
+        "name": "CRI环球资迅广播",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/crihuan-qiu-zi-xun-guang-bo",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "905fm",
+          "china",
+          "information"
+        ]
+      },
+      {
+        "name": "Digital Radio Hong Kong",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/digital-radio-hong-kong",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": [
+          "cantonese",
+          "internet radio",
+          "music"
+        ]
+      },
+      {
+        "name": "夜空傳情",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/ye-kong-chuan-qing",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": [
+          "music"
+        ]
+      },
+      {
+        "name": "Hit FM台北之音廣播",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/hit-fmtai-bei-zhi-yin-guang-bo",
+        "country": "台湾",
+        "countryCode": "TW",
+        "tags": [
+          "music"
+        ]
+      },
+      {
+        "name": "古风音乐",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/gu-feng-yin-le",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "ancient music",
+          "music"
+        ]
+      },
+      {
+        "name": "臺北電台AM",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/tai-bei-dian-tai-am",
+        "country": "台湾",
+        "countryCode": "TW",
+        "tags": [
+          "public radio"
+        ]
+      },
+      {
+        "name": "CGTN Arabic",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/cgtn-arabic",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "beijing",
+          "hls video"
+        ]
+      },
+      {
+        "name": "台北廣播電台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/tai-bei-guang-bo-dian-tai",
+        "country": "台湾",
+        "countryCode": "TW",
+        "tags": []
+      },
+      {
+        "name": "北京新闻广播",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/bei-jing-xin-wen-guang-bo",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "94.5",
+          "94.5 fm",
+          "am828"
+        ]
+      },
+      {
+        "name": "香港普通话台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/xiang-gang-pu-tong-hua-tai",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": []
+      },
+      {
+        "name": "AXR Hong Kong",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/axr-hong-kong",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": [
+          "news",
+          "sport"
+        ]
+      },
+      {
+        "name": "Fing Radio",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/fing-radio",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": [
+          "news",
+          "pop",
+          "talk"
+        ]
+      },
+      {
+        "name": "江苏新闻广播",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/jiang-su-xin-wen-guang-bo",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "1766線上電臺-私房音樂",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/1766xian-shang-dian-tai-si-fang-yin-le",
+        "country": "台湾",
+        "countryCode": "TW",
+        "tags": [
+          "music"
+        ]
+      },
+      {
+        "name": "Apple FM",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/apple-fm",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "故事广播-阿基米德故事会",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/gu-shi-guang-bo-a-ji-mi-de-gu-shi-hui",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "storytelling"
+        ]
+      },
+      {
+        "name": "Raggakings雷鬼音乐频道",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/raggakingslei-gui-yin-le-pin-dao",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "music",
+          "reggae"
+        ]
+      },
+      {
+        "name": "90.7mixfm",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/90-7mixfm",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": []
+      },
+      {
+        "name": "正聲廣播公司",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/zheng-sheng-guang-bo-gong-si",
+        "country": "台湾",
+        "countryCode": "TW",
+        "tags": [
+          "104.1",
+          "104.1 fm",
+          "public radio"
+        ]
+      },
+      {
+        "name": "CGTN Radio",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/cgtn-radio",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "news",
+          "propaganda",
+          "talks"
+        ]
+      },
+      {
+        "name": "AsiaFM亚洲音乐台(新)",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/asiafmya-zhou-yin-le-tai-xin",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "music",
+          "pop"
+        ]
+      },
+      {
+        "name": "Shanghai FM 101 上海动感101",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/shanghai-fm-101-shang-hai-dong-gan-101",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": []
+      },
+      {
+        "name": "第四台",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/di-si-tai",
+        "country": "中国香港特别行政区",
+        "countryCode": "HK",
+        "tags": []
+      },
+      {
+        "name": "雨声",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/yu-sheng",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "ambient",
+          "relax",
+          "relaxing"
+        ]
+      },
+      {
+        "name": "河北新闻广播",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/he-bei-xin-wen-guang-bo",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "Cinemix电影音乐频道",
+        "path": "/zh/%E7%94%B5%E5%8F%B0/cinemixdian-ying-yin-le-pin-dao",
+        "country": "中国",
+        "countryCode": "CN",
+        "tags": [
+          "film",
+          "film music",
+          "movie"
+        ]
+      }
+    ],
+    "tr": [
+      {
+        "name": "Virgin Radio Türkiye",
+        "path": "/tr/istasyon/virgin-radio-turkiye",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "pop rock"
+        ]
+      },
+      {
+        "name": "DAMAR TURK FM",
+        "path": "/tr/istasyon/damar-turk-fm",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Radyo 7",
+        "path": "/tr/istasyon/radyo-7-1",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Türkülerle Türkiye",
+        "path": "/tr/istasyon/turkulerle-turkiye",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "türkü"
+        ]
+      },
+      {
+        "name": "Radyo Şiran",
+        "path": "/tr/istasyon/radyo-siran",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "folk"
+        ]
+      },
+      {
+        "name": "Metro FM",
+        "path": "/tr/istasyon/metro-fm",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Power POP",
+        "path": "/tr/istasyon/power-pop",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "00s",
+          "70s",
+          "80s"
+        ]
+      },
+      {
+        "name": "KRAL TÜRK FM",
+        "path": "/tr/istasyon/kral-turk-fm",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "NTV Radyo",
+        "path": "/tr/istasyon/ntv-radyo",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "haber",
+          "haberler",
+          "news"
+        ]
+      },
+      {
+        "name": "Radio 5 Turkey",
+        "path": "/tr/istasyon/radio-5-turkey",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "adult contemporary",
+          "hits",
+          "non-stop"
+        ]
+      },
+      {
+        "name": "Ankara Havalari",
+        "path": "/tr/istasyon/ankara-havalari",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "folk"
+        ]
+      },
+      {
+        "name": "Alem FM",
+        "path": "/tr/istasyon/alem-fm",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "ALTIN SARKILAR",
+        "path": "/tr/istasyon/altin-sarkilar",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "golden oldies",
+          "retro"
+        ]
+      },
+      {
+        "name": "Baba Radyo",
+        "path": "/tr/istasyon/baba-radyo",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "folk"
+        ]
+      },
+      {
+        "name": "a HABER",
+        "path": "/tr/istasyon/a-haber",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Radyo Fenomen",
+        "path": "/tr/istasyon/radyo-fenomen",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "turkey"
+        ]
+      },
+      {
+        "name": "Radyo Vatan Türkü",
+        "path": "/tr/istasyon/radyo-vatan-turku",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Süper FM",
+        "path": "/tr/istasyon/super-fm-1",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "dinamo.fm sleep",
+        "path": "/tr/istasyon/dinamo-fm-sleep",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "ambient",
+          "chillout",
+          "lullaby"
+        ]
+      },
+      {
+        "name": "Radyo Dejavu",
+        "path": "/tr/istasyon/radyo-dejavu-1",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "DamarTurk FM",
+        "path": "/tr/istasyon/damarturk-fm",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Radyo Seymen",
+        "path": "/tr/istasyon/radyo-seymen",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Radyo Voyage",
+        "path": "/tr/istasyon/radyo-voyage-1",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "folk",
+          "mood",
+          "relaxing"
+        ]
+      },
+      {
+        "name": "Super Fm",
+        "path": "/tr/istasyon/super-fm-3",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "Pal station",
+        "path": "/tr/istasyon/pal-station",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Turku Radyo",
+        "path": "/tr/istasyon/turku-radyo",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "folk"
+        ]
+      },
+      {
+        "name": "pop 90 turkey",
+        "path": "/tr/istasyon/pop-90-turkey",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "RS FM",
+        "path": "/tr/istasyon/rs-fm",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "90lar turkey",
+        "path": "/tr/istasyon/90lar-turkey",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "JOY TÜRK TURKEY",
+        "path": "/tr/istasyon/joy-turk-turkey",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Joy Fm",
+        "path": "/tr/istasyon/joy-fm",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "international"
+        ]
+      },
+      {
+        "name": "Slow Turk",
+        "path": "/tr/istasyon/slow-turk",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "dinamo.fm deep",
+        "path": "/tr/istasyon/dinamo-fm-deep",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "deep house",
+          "house",
+          "nu disco"
+        ]
+      },
+      {
+        "name": "Diyanet Radyo",
+        "path": "/tr/istasyon/diyanet-radyo",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Number one",
+        "path": "/tr/istasyon/number-one",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "KRAL FM",
+        "path": "/tr/istasyon/kral-fm",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "SUPER FM 2 TURKEY",
+        "path": "/tr/istasyon/super-fm-2-turkey",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Radyo 45lik yeni",
+        "path": "/tr/istasyon/radyo-45lik-yeni",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": [
+          "70s",
+          "80s",
+          "90s"
+        ]
+      },
+      {
+        "name": "TRT Türkü",
+        "path": "/tr/istasyon/trt-turku",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      },
+      {
+        "name": "Dost",
+        "path": "/tr/istasyon/dost",
+        "country": "Türkiye",
+        "countryCode": "TR",
+        "tags": []
+      }
+    ],
+    "ja": [
+      {
+        "name": "Anime Para Ti",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/anime-para-ti",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "anime",
+          "anime openings",
+          "jpop"
+        ]
+      },
+      {
+        "name": "Listen.Moe JPop Vorbis",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/listen-moe-jpop-vorbis",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "jpop"
+        ]
+      },
+      {
+        "name": "NHK WORLD RADIO JAPAN",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/nhk-world-radio-japan",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "R/a/dio",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/r-a-dio",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "anime",
+          "jpop"
+        ]
+      },
+      {
+        "name": "Shonan Beach FM 78.9",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/shonan-beach-fm-78-9",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "classic jazz",
+          "hawaiian music",
+          "pop"
+        ]
+      },
+      {
+        "name": "Free FM 80 Tokyo",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/free-fm-80-tokyo",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "#80s",
+          "#freefm",
+          "#freefm80s"
+        ]
+      },
+      {
+        "name": "Kishiwada Radio",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/kishiwada-radio",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "NHK华语·韩语广播",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/nhkhua-yu-han-yu-guang-bo",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "Ottava",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/ottava",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "BOX : Japan City Pop - 日本のシティポップ",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/box-japan-city-pop-ri-ben-nositeipotupu",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "city pop",
+          "japanese"
+        ]
+      },
+      {
+        "name": "Chofu FM",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/chofu-fm",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "Súper Tokio Radio",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/super-tokio-radio",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "international"
+        ]
+      },
+      {
+        "name": "Voice of the Planet Ottava",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/voice-of-the-planet-ottava",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "Japan Hits",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/japan-hits",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "NHK-FM",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/nhk-fm",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "classical",
+          "jpop"
+        ]
+      },
+      {
+        "name": "Nightwave Plaza MP3 182",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/nightwave-plaza-mp3-182",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "OnlyHits Japan",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/onlyhits-japan",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "anime",
+          "j-pop",
+          "j-rock"
+        ]
+      },
+      {
+        "name": "J-POP Powerplay",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/j-pop-powerplay",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "J1 HITS",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/j1-hits",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "Real Love Music - Radio Future Funk",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/real-love-music-radio-future-funk",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "future funk"
+        ]
+      },
+      {
+        "name": "Asia DREAM Radio - Japan Hits",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/asia-dream-radio-japan-hits",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "FM世田谷",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/fmshi-tian-gu",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "83.4",
+          "full service",
+          "music"
+        ]
+      },
+      {
+        "name": "FM那覇 (FM Naha)",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/fmna-ba-fm-naha",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "Vaporwave",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/vaporwave",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "vaporwave"
+        ]
+      },
+      {
+        "name": "A&G+",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/a-g",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "AshiyaRadio〜アシヤ・ラヂヲ〜",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/ashiyaradio-asiyaradiwo",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "bossa nova",
+          "jazz",
+          "piano jazz"
+        ]
+      },
+      {
+        "name": "Hitsujikai Radio",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/hitsujikai-radio",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "christian"
+        ]
+      },
+      {
+        "name": "WVVV V96.9",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/wvvv-v96-9",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "Patchwork Archive - VTuber Songs and Covers",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/patchwork-archive-vtuber-songs-and-covers",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "anime",
+          "japan",
+          "japanese music"
+        ]
+      },
+      {
+        "name": "Opening Radio",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/opening-radio",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "NHKワールド・ラジオ日本",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/nhkwarudoraziori-ben",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "international"
+        ]
+      },
+      {
+        "name": "Japan Hits - asia DREAM radio",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/japan-hits-asia-dream-radio-1",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "j-pop",
+          "japanese",
+          "japanese idols"
+        ]
+      },
+      {
+        "name": "AFN GO TOKYO",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/afn-go-tokyo",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "military"
+        ]
+      },
+      {
+        "name": "99.1 HD3 - J1 HD",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/99-1-hd3-j1-hd",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "Friends Forever 128kbps MP3",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/friends-forever-128kbps-mp3",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "j-pop",
+          "j-rock",
+          "jpop"
+        ]
+      },
+      {
+        "name": "Tokyo Star Radio",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/tokyo-star-radio",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "超！A&G+",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/chao-a-g",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "anime"
+        ]
+      },
+      {
+        "name": "Shonan Beach FM",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/shonan-beach-fm",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      },
+      {
+        "name": "JPHiP Radio",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/jphip-radio",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": [
+          "j-pop",
+          "japanese",
+          "japanese music"
+        ]
+      },
+      {
+        "name": "J1HD - Southern California",
+        "path": "/ja/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/j1hd-southern-california",
+        "country": "日本",
+        "countryCode": "JP",
+        "tags": []
+      }
+    ],
+    "ko": [
+      {
+        "name": "Listen.moe Kpop",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/listen-moe-kpop",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "kpop"
+        ]
+      },
+      {
+        "name": "Big B Radio - Kpop",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/big-b-radio-kpop",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "music",
+          "pop"
+        ]
+      },
+      {
+        "name": "Oldpop Cafe",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/oldpop-cafe",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "oldies",
+          "pop music",
+          "popular music"
+        ]
+      },
+      {
+        "name": "KBS Classic FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/kbs-classic-fm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "MBC FM4U",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/mbc-fm4u",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "MBC FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/mbc-fm-1",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "KBS 1R",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/kbs-1r",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "Listen.moe (K-Pop)",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/listen-moe-k-pop",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "k-pop"
+        ]
+      },
+      {
+        "name": "SBS Power FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/sbs-power-fm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "올드팝카페",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/oldeupabkape",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "oldies",
+          "oldies 50's/60's",
+          "pop music"
+        ]
+      },
+      {
+        "name": "MBC FM for you",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/mbc-fm-for-you",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "KBS 1Radio",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/kbs-1radio",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "SBS Love FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/sbs-love-fm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "CBS 음악 FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/cbs-eumag-fm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "CBS 음악FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/cbs-eumagfm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "KBS Cool FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/kbs-cool-fm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "TBN 교통방송",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/tbn-gyotongbangsong",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "YTN 라디오",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/ytn-radio",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "Arirang Radio",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/arirang-radio",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "CBS 파워라디오 [Music FM]",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/cbs-paweoradio-music-fm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "music"
+        ]
+      },
+      {
+        "name": "kbs해피fm",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/kbshaepifm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "country"
+        ]
+      },
+      {
+        "name": "평양FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/pyeongyangfm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "105.2",
+          "105.2 fm",
+          "music"
+        ]
+      },
+      {
+        "name": "Gwangju Foreign Language Network 98.7 - English",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/gwangju-foreign-language-network-98-7-english",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "ethnic programming"
+        ]
+      },
+      {
+        "name": "MBC충북 표준FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/mbccungbug-pyojunfm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "안동MBC AM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/andongmbc-am",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "music",
+          "pop"
+        ]
+      },
+      {
+        "name": "MBC충북 FM4U",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/mbccungbug-fm4u",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "ebs tune in",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/ebs-tune-in",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "foreign languages"
+        ]
+      },
+      {
+        "name": "KBS_kor",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/kbs-kor",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "Fred Film Radio(한국어)",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/fred-film-radio-hangugeo",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "culture",
+          "film",
+          "movie"
+        ]
+      },
+      {
+        "name": "트로트 넘버원",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/teuroteu-neombeoweon",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "korean trot"
+        ]
+      },
+      {
+        "name": "gukak",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/gukak",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "OBS 라디오",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/obs-radio",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "마포FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/mapofm-1",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "music",
+          "talk"
+        ]
+      },
+      {
+        "name": "비전트로트",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/bijeonteuroteu",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "korean trot"
+        ]
+      },
+      {
+        "name": "TBN 울산교통방송",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/tbn-ulsangyotongbangsong",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "traffic"
+        ]
+      },
+      {
+        "name": "GugakFM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/gugakfm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "MBC 올댓뮤직",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/mbc-oldaesmyujig",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "경인방송",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/gyeonginbangsong",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      },
+      {
+        "name": "befm",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/befm-1",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": [
+          "classical"
+        ]
+      },
+      {
+        "name": "JTV 매직FM",
+        "path": "/ko/%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98/jtv-maejigfm",
+        "country": "대한민국",
+        "countryCode": "KR",
+        "tags": []
+      }
+    ],
+    "hi": [
+      {
+        "name": "Bollywood Gaane Purane",
+        "path": "/hi/station/bollywood-gaane-purane",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "MY RADIO DJ",
+        "path": "/hi/station/my-radio-dj",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Radio Mirchi Hindi",
+        "path": "/hi/station/radio-mirchi-hindi",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "MY CLUB REMIX",
+        "path": "/hi/station/my-club-remix",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "bollywood",
+          "club",
+          "dj remix"
+        ]
+      },
+      {
+        "name": "AIR Fm Gold Delhi",
+        "path": "/hi/station/air-fm-gold-delhi",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Mirchi Love",
+        "path": "/hi/station/mirchi-love",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "india",
+          "love",
+          "mirchi"
+        ]
+      },
+      {
+        "name": "Mirchi Top 20",
+        "path": "/hi/station/mirchi-top-20",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "bollywood",
+          "hindi",
+          "mirchi"
+        ]
+      },
+      {
+        "name": "Goldy Cool",
+        "path": "/hi/station/goldy-cool",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Bollywood Punjabi Radio",
+        "path": "/hi/station/bollywood-punjabi-radio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "24×4 hit punjabi hindi songs",
+          "bollywood",
+          "punjabi"
+        ]
+      },
+      {
+        "name": "Goldy Mukesh",
+        "path": "/hi/station/goldy-mukesh",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "bollywood",
+          "hindu",
+          "oldies"
+        ]
+      },
+      {
+        "name": "RADIO BOLLYWOOD 90s",
+        "path": "/hi/station/radio-bollywood-90s",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Hindi Gold Radio",
+        "path": "/hi/station/hindi-gold-radio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "My 90s Bengali",
+        "path": "/hi/station/my-90s-bengali",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "90s",
+          "bangla",
+          "bengali"
+        ]
+      },
+      {
+        "name": "Fm Rainbow Delhi",
+        "path": "/hi/station/fm-rainbow-delhi",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "local talk"
+        ]
+      },
+      {
+        "name": "Vividh Bharati",
+        "path": "/hi/station/vividh-bharati",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Red FM 93.5",
+        "path": "/hi/station/red-fm-93-5",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Hindi Retro",
+        "path": "/hi/station/hindi-retro",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Tamil 80's Radio",
+        "path": "/hi/station/tamil-80-s-radio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "south india",
+          "tamil"
+        ]
+      },
+      {
+        "name": "Diverse FM",
+        "path": "/hi/station/diverse-fm",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Ajmer Radio",
+        "path": "/hi/station/ajmer-radio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Old Monk Radio",
+        "path": "/hi/station/old-monk-radio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "latamangeshkarradio",
+        "path": "/hi/station/latamangeshkarradio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Magesh  Tamil Radio",
+        "path": "/hi/station/magesh-tamil-radio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "folk music",
+          "melody"
+        ]
+      },
+      {
+        "name": "Radio City Hindi",
+        "path": "/hi/station/radio-city-hindi",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "bollywood",
+          "hindi",
+          "pop"
+        ]
+      },
+      {
+        "name": "shreyaghosal",
+        "path": "/hi/station/shreyaghosal",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Radio Hungama Bollywood Dil Se",
+        "path": "/hi/station/radio-hungama-bollywood-dil-se",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Kodai FM",
+        "path": "/hi/station/kodai-fm",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Goldy Blast",
+        "path": "/hi/station/goldy-blast",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Madhur Sangeet Radio",
+        "path": "/hi/station/madhur-sangeet-radio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "90sonceagainradio",
+        "path": "/hi/station/90sonceagainradio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "City 92 FM",
+        "path": "/hi/station/city-92-fm",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "bollywood",
+          "hindi",
+          "retro"
+        ]
+      },
+      {
+        "name": "kishorekumarradio",
+        "path": "/hi/station/kishorekumarradio",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "90’s Tamil Melodies",
+        "path": "/hi/station/90-s-tamil-melodies",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Aaj Tak News Radio Live",
+        "path": "/hi/station/aaj-tak-news-radio-live",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Mixify Bollywood",
+        "path": "/hi/station/mixify-bollywood",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "KJ Yesudas",
+        "path": "/hi/station/kj-yesudas",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": [
+          "south india",
+          "tamil",
+          "yesudas"
+        ]
+      },
+      {
+        "name": "Mirchi Love Hindi",
+        "path": "/hi/station/mirchi-love-hindi",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "80’s Tamil Hits",
+        "path": "/hi/station/80-s-tamil-hits",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "AIR Kolkata Geetanjali",
+        "path": "/hi/station/air-kolkata-geetanjali",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      },
+      {
+        "name": "Sooriyan FM",
+        "path": "/hi/station/sooriyan-fm",
+        "country": "भारत",
+        "countryCode": "IN",
+        "tags": []
+      }
+    ],
+    "he": [
+      {
+        "name": "Лучшее Радио",
+        "path": "/he/tachana/luchshee-radio",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "Radio 103FM",
+        "path": "/he/tachana/radio-103fm",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "Glglz",
+        "path": "/he/tachana/glglz",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "اذاعة الشمس - A-Shams",
+        "path": "/he/tachana/dhaa-lshms-a-shams",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "Radios 100FM",
+        "path": "/he/tachana/radios-100fm",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "workout"
+        ]
+      },
+      {
+        "name": "Первое радио 89.1FM",
+        "path": "/he/tachana/pervoe-radio-89-1fm",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "pop"
+        ]
+      },
+      {
+        "name": "גלגלצ - Glglz",
+        "path": "/he/tachana/glglts-glglz",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "Nostalgia",
+        "path": "/he/tachana/nostalgia-2",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "israeli pop oldies"
+        ]
+      },
+      {
+        "name": "תל אביב Tel Aviv 102FM",
+        "path": "/he/tachana/tl-byb-tel-aviv-102fm",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "hebrew",
+          "ilstations",
+          "israeli pop"
+        ]
+      },
+      {
+        "name": "Jewish Music Stream",
+        "path": "/he/tachana/jewish-music-stream",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "נושמים מזרחית - Noshmim Mizrahit",
+        "path": "/he/tachana/nvshmym-mzrkhyt-noshmim-mizrahit",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations",
+          "oriental",
+          "מזרחי"
+        ]
+      },
+      {
+        "name": "KAN 88",
+        "path": "/he/tachana/kan-88",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "ECO99FM",
+        "path": "/he/tachana/eco99fm",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "pop",
+          "top 40"
+        ]
+      },
+      {
+        "name": "#joint radio Blues Rock",
+        "path": "/he/tachana/joint-radio-blues-rock",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "60s",
+          "70s",
+          "80s"
+        ]
+      },
+      {
+        "name": "Kan Reka",
+        "path": "/he/tachana/kan-reka",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "foreign languages",
+          "music",
+          "talk"
+        ]
+      },
+      {
+        "name": "#joint radio Reggae",
+        "path": "/he/tachana/joint-radio-reggae",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "dub",
+          "dub reggae",
+          "reggae"
+        ]
+      },
+      {
+        "name": "קבלה לעם רוסית - Kabbalah rus",
+        "path": "/he/tachana/qblh-l-m-rvsyt-kabbalah-rus",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "קול ברמה - Kol Barama",
+        "path": "/he/tachana/qvl-brmh-kol-barama",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations",
+          "דתי"
+        ]
+      },
+      {
+        "name": "Radios 100FM - 100% Oldies",
+        "path": "/he/tachana/radios-100fm-100-oldies",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "oldies"
+        ]
+      },
+      {
+        "name": "i24News Radio",
+        "path": "/he/tachana/i24news-radio",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "90FM",
+        "path": "/he/tachana/90fm",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "#joint radio Beat Trance",
+        "path": "/he/tachana/joint-radio-beat-trance",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ambient",
+          "edm",
+          "edm radioshows"
+        ]
+      },
+      {
+        "name": "קול חי מיוזיק - Kol Chai Music",
+        "path": "/he/tachana/qvl-khy-myvzyq-kol-chai-music",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "israel",
+          "orthodox",
+          "דתי"
+        ]
+      },
+      {
+        "name": "Kan Bet",
+        "path": "/he/tachana/kan-bet",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "קול השפלה - Kol Hashfela",
+        "path": "/he/tachana/qvl-hshplh-kol-hashfela",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "קבלה לעם אנגלית - Kabbalah eng",
+        "path": "/he/tachana/qblh-l-m-nglyt-kabbalah-eng",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "Radios 100FM - 100% 80s",
+        "path": "/he/tachana/radios-100fm-100-80s",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "1980s",
+          "80's"
+        ]
+      },
+      {
+        "name": "GUITAR - J. WILLIAMS",
+        "path": "/he/tachana/guitar-j-williams",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "Israeli voice radio",
+        "path": "/he/tachana/israeli-voice-radio",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "Radios 100FM   רדיוס",
+        "path": "/he/tachana/radios-100fm-rdyvs",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "הקצה - Hakatze",
+        "path": "/he/tachana/hqtsh-hakatze",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "AVIVmedia",
+        "path": "/he/tachana/avivmedia",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "electronic",
+          "trance"
+        ]
+      },
+      {
+        "name": "קבלה לעם עברית - Kabbalah heb",
+        "path": "/he/tachana/qblh-l-m-bryt-kabbalah-heb",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "קבלה לעם צרפתית - Kabbalah fre",
+        "path": "/he/tachana/qblh-l-m-tsrptyt-kabbalah-fre",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "ilstations"
+        ]
+      },
+      {
+        "name": "i24news",
+        "path": "/he/tachana/i24news",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "news"
+        ]
+      },
+      {
+        "name": "Ze Rock Radio",
+        "path": "/he/tachana/ze-rock-radio",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "indy",
+          "metal",
+          "post punk"
+        ]
+      },
+      {
+        "name": "Radio Nahariya",
+        "path": "/he/tachana/radio-nahariya",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "international"
+        ]
+      },
+      {
+        "name": "Radio Breslev Carmiel",
+        "path": "/he/tachana/radio-breslev-carmiel",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      },
+      {
+        "name": "101fm radio jerusalem",
+        "path": "/he/tachana/101fm-radio-jerusalem",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": [
+          "music",
+          "news"
+        ]
+      },
+      {
+        "name": "Radio Qualita",
+        "path": "/he/tachana/radio-qualita",
+        "country": "ישראל",
+        "countryCode": "IL",
+        "tags": []
+      }
+    ]
+  }
+}

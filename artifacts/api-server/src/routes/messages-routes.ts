@@ -103,8 +103,6 @@ if (typeof (_ticketCleanupTimer as any).unref === 'function')
 function getSessionUserId(req: any): string | null {
     return req.session?.user?.userId || req.session?.userId || null;
 }
-// PostgreSQL identity rows also contain credentials and billing data. Chat
-// responses must use the same public projection as the former Mongo queries.
 function publicChatUser(user: any): any | null {
     if (!user)
         return null;
@@ -420,7 +418,7 @@ export function registerMessagesRoutes(app: Express, chatWss: WebSocketServer, d
             chatService.sendToUser(fromUserId, { ...wsPayload, echo: true });
             // Only notify if recipient is NOT currently viewing this conversation
             const isViewingConversation = chatService.isViewingConversation(targetId.toString(), fromUserId);
-            const muted=(await getPostgresPool().query("SELECT 1 FROM chat_inbox_state WHERE user_id=$1 AND kind='direct' AND target_id=$2 AND muted",[targetId.toString(),fromUserId])).rows.length>0;
+            const muted=!isViewingConversation && (await getPostgresPool().query("SELECT 1 FROM chat_inbox_state WHERE user_id=$1 AND kind='direct' AND target_id=$2 AND muted",[targetId.toString(),fromUserId])).rows.length>0;
             if (!isViewingConversation && !muted) {
                 try {
                     // Upsert: one unread notification per sender (10 messages → 1 notification)

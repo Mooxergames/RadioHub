@@ -7,6 +7,8 @@ import { buildCommunityPageSeo } from '@workspace/seo-shared/community-page-seo-
 import { buildLocalizedUrl, validateRegionRouteShape } from '../src/seo/url-helpers';
 import { parseSeoCatalogPage, seoCatalogPageLinks } from '../src/seo/catalog-pagination';
 import { sendSeoNotFound } from '../src/seo/send-seo-not-found';
+import { canonicalRegionPath } from '../src/seo/region-route-existence';
+import { COUNTRY_TO_REGION_SLUG, countrySlug } from '@workspace/seo-shared/country-regions';
 
 const pageCache = new Map<string, any>();
 let readFails = false, cacheReady = true, reads = 0, totalPages = 2;
@@ -21,6 +23,11 @@ mock.module('../src/public-station-cache', { namedExports: { publicStationCache:
 mock.module('../src/data/postgres-seo-read-store', { namedExports: { pgSeoCatalog: () => ({
   find: async (filter: any) => { stationFilters.push(filter); return (await catalogRead()).stations; }, count: async () => totalPages * 60,
 }) } });
+mock.module('../src/data/postgres-az-station-store', { namedExports: { readAzStationPage: async (_key: string, page: number, pageSize: number) => {
+  if (readFails) throw Error('temporary catalogue failure');
+  const total = totalPages * pageSize;
+  return { docs: page > totalPages ? [] : (await catalogRead()).stations, total };
+} } });
 mock.module('../src/services/precomputed-stations', { namedExports: { PrecomputedStationsService: { getGlobalStations: catalogRead, getCountryStationsByName: catalogRead } } });
 mock.module('../src/services/precomputed-genres', { namedExports: { PrecomputedGenresService: {} } });
 mock.module('../src/data/postgres-content-store', { namedExports: { pgSeoMetadata: async () => null } });
@@ -53,7 +60,7 @@ test('public SSR grids exclude confirmed local unavailability without hiding pro
     assert.ok(body.includes('source-flagged-fm'), path);
     assert.ok(body.includes('unknown-fm'), path);
   }
-  assert.ok(stationFilters.length >= 3);
+  assert.ok(stationFilters.length >= 2);
   assert.ok(stationFilters.every(filter => filter.isListVisible === true && !Object.hasOwn(filter, 'lastCheckOk')),
     'raw SSR collection reads push confirmed visibility filtering into SQL without treating provider flags as proof');
 });
@@ -148,7 +155,7 @@ test('catalogue outage is retryable503 evidence, never inferred absence or a cac
 });
 
 test('invalid geography and extra genre suffixes are 404 without making empty country grids evidence', async () => {
-  for (const path of ['/en/regions/europe/not-a-real-country', '/en/regions/europe/germany/not-a-real-city', '/en/genres/rock/extra']) {
+  for (const path of ['/en/regions/europe/not-a-real-country', '/en/regions/europe/constructor', '/en/regions/europe/germany/not-a-real-city', '/en/genres/rock/extra']) {
     const page = await renderer.renderStaticPage(path, 'https://themegaradio.com');
     assert.equal(page.pageData.httpNotFound, true, path);
     assert.equal(page.seoTags.noIndex, true);
@@ -169,6 +176,29 @@ test('supported city/listing route shapes remain valid but appended extra segmen
   for (const path of ['/regions/europe/germany/berlin/garbage', '/regions/europe/germany/berlin/stations/garbage', '/country/germany/berlin/garbage']) assert.equal(validateRegionRouteShape(path).ok, false, path);
 });
 
+test('wrong-continent country copies redirect to the same geography without reading station grids', async () => {
+  for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+    for (const suffix of ['', '/stations', '/cities', '/berlin', '/berlin/stations']) {
+      const path = buildLocalizedUrl('/regions/asia/germany' + suffix, language, undefined, new Map());
+      const page = await renderer.renderStaticPage(path, 'https://themegaradio.com');
+      assert.equal(page.pageData.redirectTo, buildLocalizedUrl('/regions/europe/germany' + suffix, language, undefined, new Map()), path);
+    }
+  }
+  assert.equal(reads, 0);
+  const invalid = await renderer.renderStaticPage('/en/regions/asia/germany/not-a-real-city', 'https://themegaradio.com');
+  assert.equal(invalid.pageData.httpNotFound, true);
+  assert.equal(invalid.pageData.redirectTo, undefined);
+});
+
+test('every reference country keeps its existing valid continent URL', () => {
+  for (const [country, region] of Object.entries(COUNTRY_TO_REGION_SLUG)) {
+    const canonical = `/regions/${region}/${countrySlug(country)}`;
+    assert.equal(canonicalRegionPath(canonical), null, canonical);
+    const wrongRegion = region === 'asia' ? 'europe' : 'asia';
+    assert.equal(canonicalRegionPath(`/regions/${wrongRegion}/${countrySlug(country)}`), canonical);
+  }
+});
+
 test('new404 HTTP response preserves body and HEAD semantics, cannot enter the legacy410 branch', async () => {
   const app = express(); app.use((_req, res) => sendSeoNotFound(res, '<main><h1>Page not found</h1></main>'));
   const server = app.listen(0, '127.0.0.1'); await new Promise<void>(resolve => server.once('listening', resolve));
@@ -183,5 +213,5 @@ test('new404 HTTP response preserves body and HEAD semantics, cannot enter the l
   const web = await readFile(new URL('../src/index-web.ts', import.meta.url), 'utf8');
   assert.ok(web.indexOf('if (seoData.pageData?.httpNotFound)') < web.indexOf('const stationNotFound = !!seoData.pageData?.notFound;'));
   assert.match(web, /const parsedPage = parseSeoCatalogPage\(url\)/);
-  assert.match(web, /parsedPage\.valid \? performanceCache\.getSeoHtml/);
+  assert.match(web, /parsedPage\.valid && !legacyGuideCandidate \? performanceCache\.getSeoHtml/);
 });

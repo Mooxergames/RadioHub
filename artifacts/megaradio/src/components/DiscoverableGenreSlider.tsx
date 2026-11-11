@@ -17,9 +17,11 @@ interface Genre {
 
 interface DiscoverableGenreSliderProps {
   genres: Genre[];
+  headingLevel?: 3 | 4;
 }
 
-export default function DiscoverableGenreSlider({ genres }: DiscoverableGenreSliderProps) {
+export default function DiscoverableGenreSlider({ genres, headingLevel = 4 }: DiscoverableGenreSliderProps) {
+  const Heading = headingLevel === 3 ? 'h3' : 'h4';
   const { getLocalizedUrl } = useSeoRouting();
   const { t } = useTranslation();
   
@@ -43,7 +45,7 @@ export default function DiscoverableGenreSlider({ genres }: DiscoverableGenreSli
           bottom: auto !important;
           margin-top: 16px !important;
         }
-        .discoverable-genre-slider h4 {
+        .discoverable-genre-slider :is(h3, h4) {
           /* Industry-standard typography scaling */
           font-size: 30px;
           line-height: 1;
@@ -52,12 +54,12 @@ export default function DiscoverableGenreSlider({ genres }: DiscoverableGenreSli
           text-overflow: ellipsis;
         }
         @media (min-width: 640px) {
-          .discoverable-genre-slider h4 {
+          .discoverable-genre-slider :is(h3, h4) {
             font-size: 24px;
           }
         }
         @media (min-width: 1024px) {
-          .discoverable-genre-slider h4 {
+          .discoverable-genre-slider :is(h3, h4) {
             font-size: 32px;
           }
         }
@@ -130,9 +132,9 @@ export default function DiscoverableGenreSlider({ genres }: DiscoverableGenreSli
                 <div 
                   className="relative z-10 flex flex-col items-start justify-center h-full w-1/2 ml-auto px-3 sm:px-4 md:px-5 lg:px-8"
                 >
-                  <h4 className="font-bold text-white leading-tight drop-shadow-lg">
+                  <Heading className="font-bold text-white leading-tight drop-shadow-lg">
                     {genre.name}
-                  </h4>
+                  </Heading>
                   <p className="text-white mt-1 sm:mt-2 md:mt-3 font-medium drop-shadow-md">
                     {genre.discoverable_label || t('discover_all_stations', 'Discover all the stations')}
                   </p>

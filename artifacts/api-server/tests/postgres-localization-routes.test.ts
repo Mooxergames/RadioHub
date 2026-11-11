@@ -19,8 +19,8 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
   let server: Server;
   let baseUrl: string;
   let schemaCreated = false;
-  let mongoQueries = 0;
-  const forbiddenMongo = new Proxy({}, { get: () => () => { mongoQueries++; throw new Error('MongoDB query in PostgreSQL localization mode'); } });
+  let clearedTranslationCaches = 0;
+  let clearedPerformanceTranslations = 0;
 
   before(async () => {
     assert.match(schema, /^localization_http_\d+_[a-f0-9]{12}$/);
@@ -31,13 +31,12 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
       await pool.query(await readFile(path.join(migrations, file), 'utf8'));
     }
     mock.module('../src/data/postgres-localization-store', { namedExports: { localizationStore: 'postgres', pgLocalization: () => store } });
-    mock.module('@workspace/legacy-migration/mongo-schemas', { namedExports: {
-      TranslationKey: forbiddenMongo, Translation: forbiddenMongo, TranslationLanguage: forbiddenMongo,
-      TranslationMetadata: forbiddenMongo, CountryLanguageMapping: forbiddenMongo, ClearedOverridesAuditLog: forbiddenMongo,
-    } });
-    const cache = { clearByPattern: async () => 0, del: async () => {} };
+    const cache = { clearByPattern: async (pattern: string) => {
+      if (pattern === 'translations') clearedTranslationCaches++;
+      return 0;
+    }, del: async () => {} };
     mock.module('../src/cache', { defaultExport: cache, namedExports: { CacheManager: cache } });
-    mock.module('../src/performance-cache', { namedExports: { performanceCache: { clearCountryLanguageMappings: () => {}, getCountryLanguageMappings: async () => new Map((await store.getCountryLanguageMappings()).map((row) => [row.countryCode, row.languageCode])) } } });
+    mock.module('../src/performance-cache', { namedExports: { performanceCache: { clearTranslations: () => { clearedPerformanceTranslations++; }, clearCountryLanguageMappings: () => {}, getCountryLanguageMappings: async () => new Map((await store.getCountryLanguageMappings()).map((row) => [row.countryCode, row.languageCode])) } } });
     const { registerTranslationKeyRoutes } = await import('../src/routes/translation-keys-routes');
     const { registerCountryLanguageMappingRoutes } = await import('../src/routes/country-language-mappings');
     const app = express();
@@ -83,7 +82,6 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     assert.equal((await store.findTranslation(created.body._id, 'tr')).value, 'Merhaba');
     assert.equal((await request(`/api/admin/translation-keys/${created.body._id}`, 'DELETE')).status, 200);
     assert.equal(await store.findTranslation(created.body._id, 'tr'), null);
-    assert.equal(mongoQueries, 0);
   });
 
   it('returns compact completion counts and only requested translation values without changing the legacy contract', async () => {
@@ -132,6 +130,50 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     await store.deleteKey(emptyKey._id);
   });
 
+  it('saves source edits atomically, bumps metadata once and preserves translated values and key identity', async () => {
+    const key = await store.createKey({ key: 'bulk_default_contract', defaultValue: 'Old source' });
+    await store.upsertTranslation({ keyId: key._id, language: 'de', value: 'Existing translation', isCompleted: true });
+    const version = (await store.getMetadata()).languagesVersion;
+    const url = '/api/admin/translation-keys/bulk-update';
+    const body = { updates: [{ keyId: key._id, defaultValue: "New source with an apostrophe: don't" }] };
+    assert.equal((await fetch(baseUrl + url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).status, 401);
+    assert.equal((await request(url, 'PATCH', { updates: [{ keyId: key._id, defaultValue: 'No write' }, { keyId: 'missing-key', defaultValue: 'Missing' }] })).status, 409);
+    assert.equal((await store.findKey('bulk_default_contract')).defaultValue, 'Old source');
+    assert.deepEqual(await request(url, 'PATCH', body), { status: 200, body: { success: true, updated: 1 } });
+    assert.equal((await store.findKey('bulk_default_contract'))._id, key._id);
+    assert.equal((await store.findTranslation(key._id, 'de')).value, 'Existing translation');
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    assert.deepEqual(await request(url, 'PATCH', body), { status: 200, body: { success: true, updated: 0 } });
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    assert.equal((await request(url, 'PATCH', { updates: [{ keyId: key._id, defaultValue: '\n ' }] })).status, 400);
+    await store.deleteKey(key._id);
+  });
+
+  it('fills the published-language UI gaps once and preserves existing translations, IDs and unrelated locales', async () => {
+    const { seedUiCompletionTranslations, UI_COMPLETION_KEYS } = await import('../src/seo/ui-completion-translations-seed');
+    const key = await store.createKey({ key: 'premium_stat_languages', defaultValue: 'Custom source' });
+    await store.upsertTranslation({ keyId: key._id, language: 'de', value: 'Custom German text', isCompleted: true });
+    await store.upsertTranslation({ keyId: key._id, language: 'nl', value: 'Existing Dutch', isCompleted: true });
+    const version = (await store.getMetadata()).languagesVersion;
+    const invalidations = [clearedTranslationCaches, clearedPerformanceTranslations];
+    await seedUiCompletionTranslations();
+    assert.deepEqual([clearedTranslationCaches, clearedPerformanceTranslations], invalidations.map(count => count + 1));
+    assert.equal((await store.findKey(key.key))._id, key._id);
+    assert.equal((await store.findKey(key.key)).defaultValue, 'Custom source');
+    assert.equal((await store.findTranslation(key._id, 'de')).value, 'Custom German text');
+    assert.equal((await store.findTranslation(key._id, 'tr')).value, 'Diller');
+    assert.equal((await store.findTranslation(key._id, 'nl')).value, 'Existing Dutch');
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    const logo = await store.findKey('admin_filter_logo_no');
+    assert.equal(await store.findTranslation(logo._id, 'nl'), null);
+    const faq = await store.findKey('faq_q_genre_listen');
+    assert.ok((await store.findTranslation(faq._id, 'he')).value.includes('{GENRE}'));
+    await seedUiCompletionTranslations();
+    assert.equal((await store.getMetadata()).languagesVersion, version + 1);
+    assert.deepEqual([clearedTranslationCaches, clearedPerformanceTranslations], invalidations.map(count => count + 1));
+    for (const definition of UI_COMPLETION_KEYS) await store.deleteKey((await store.findKey(definition.key))._id);
+  });
+
   it('records country mapping changes, paginates audits and exports the original deletion snapshot', async () => {
     const saved = await request('/api/admin/country-language-mappings', 'POST', { countryCode: 'de', countryName: 'Germany', languageCode: 'tr' });
     assert.equal(saved.status, 200);
@@ -151,7 +193,6 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     const restored = await request('/api/admin/country-language-mappings/restore', 'POST', { mappings: [{ countryCode: 'de', countryName: 'Germany', languageCode: 'tr' }] });
     assert.equal(restored.status, 200);
     assert.equal(restored.body.restoredCount, 1);
-    assert.equal(mongoQueries, 0);
   });
 
   it('runs every startup localization seeder with PostgreSQL and keeps customized gap-fill translations', async () => {
@@ -185,7 +226,6 @@ describe('PostgreSQL localization HTTP contracts', { skip: !connectionString }, 
     const forced = await request('/api/admin/seed-turkish-ui', 'POST', { force: true });
     assert.equal(forced.status, 200);
     assert.notEqual((await store.findTranslation(navigation._id, 'tr')).value, 'Human Turkish draft');
-    assert.equal(mongoQueries, 0);
   });
 
   it('protects every legacy translation repair endpoint with admin authentication', async () => {

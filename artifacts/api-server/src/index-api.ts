@@ -1,3 +1,5 @@
+import { installTvDiagnosticsBoundary } from './lib/tv-diagnostics-boundary';
+import { applyPublicCatalogCors } from "./lib/public-catalog-cors";
 if (!process.env.FONTCONFIG_FILE || process.env.FONTCONFIG_FILE === '/dev/null') {
   process.env.FONTCONFIG_FILE = process.cwd() + '/fontconfig.conf';
 }
@@ -61,6 +63,7 @@ app.disable('x-powered-by');
 app.use(geoBlockMiddleware);
 app.use(['/api/admin', '/api/auth'], privateApiCachePolicy);
 app.use(databaseMaintenanceMiddleware);
+installTvDiagnosticsBoundary(app);
 app.use('/api/test', (_req, res, next) => {
   if (process.env.NODE_ENV === 'production') return void res.status(404).json({ error: 'Not found' });
   next();
@@ -69,9 +72,6 @@ app.use('/api/test', (_req, res, next) => {
 function getFrameOptionsHeader(): string | null {
   if (process.env.CLICKJACKING_MITIGATION) {
     return process.env.CLICKJACKING_MITIGATION;
-  }
-  if (process.env.REPLIT_DOMAINS) {
-    return null;
   }
   return 'DENY';
 }
@@ -122,6 +122,9 @@ function getHstsHeader(): string {
   return hstsConfigs[hstsPhase] || hstsConfigs.confident;
 }
 
+const API_DRAIN_TIMEOUT_MS = 125_000;
+const API_SHUTDOWN_TIMEOUT_MS = 130_000;
+
 let uncaughtExitScheduled = false;
 function scheduleFatalExit(label: string) {
   if (uncaughtExitScheduled) return;
@@ -129,7 +132,7 @@ function scheduleFatalExit(label: string) {
   console.error(`🚨 ${label} — scheduling fail-fast exit in 1s for clean restart`);
   setTimeout(() => {
     requestGracefulRestart();
-    setTimeout(() => process.exit(1), 10_000).unref();
+    setTimeout(() => process.exit(1), API_SHUTDOWN_TIMEOUT_MS).unref();
   }, 1000).unref();
 }
 
@@ -283,13 +286,11 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', origin!);
     res.header('Access-Control-Allow-Credentials', 'true');
   }
-  // Note: do NOT emit '*' for unknown origins when credentials are in play —
-  // browsers reject 'ACAO: *' on credentialed requests anyway, and emitting
-  // it just hides real misconfigurations.
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range, X-API-Key, X-API-User-Token, X-MegaRadio-Platform');
   res.header('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
   res.header('Access-Control-Max-Age', '86400');
+  if (!isAllowed) applyPublicCatalogCors(req, res);
 
   res.header('X-Content-Type-Options', 'nosniff');
   // SEO: API responses are JSON and must NEVER be indexed even if a stray
@@ -449,11 +450,10 @@ app.get('/admin', sendAdminSpa);
 app.get('/admin/*path', sendAdminSpa);
 app.get('/admin-login', sendAdminSpa);
 
-const isReplit = !!process.env.REPLIT_DOMAINS;
-const useSecureCookies = process.env.NODE_ENV === 'production' || isReplit;
+const useSecureCookies = process.env.NODE_ENV === 'production';
 
-if ((process.env.NODE_ENV === 'production' || isReplit) && !process.env.SESSION_SECRET) {
-  console.error('🚨 FATAL: SESSION_SECRET environment variable is required in production/Replit');
+if (useSecureCookies && !process.env.SESSION_SECRET) {
+  console.error('🚨 FATAL: SESSION_SECRET environment variable is required in production');
   process.exit(1);
 }
 
@@ -481,8 +481,8 @@ const sessionConfig: session.SessionOptions = {
     secure: useSecureCookies,
     httpOnly: true,
     maxAge: 3 * 24 * 60 * 60 * 1000,
-    // Force sameSite='none' whenever the cookie is secure (production /
-    // Replit / Railway). The frontend (themegaradio.com) and the API
+    // Force sameSite='none' whenever the cookie is secure. The frontend
+    // (themegaradio.com) and the API
     // (api.themegaradio.com) are different origins from the browser's POV,
     // so the session cookie MUST be SameSite=None;Secure to be sent on the
     // POST /api/auth/token-session call after the OAuth redirect.
@@ -495,7 +495,7 @@ const sessionConfig: session.SessionOptions = {
   rolling: false
 };
 
-logger.log(`🔐 API Session config: secure=${useSecureCookies}, isReplit=${isReplit}, NODE_ENV=${process.env.NODE_ENV}, cookieDomain=${cookieDomain || 'auto'}, sameSite=${cookieDomain ? 'none' : (isReplit ? 'none' : 'lax')}`);
+logger.log(`🔐 API Session config: secure=${useSecureCookies}, NODE_ENV=${process.env.NODE_ENV}, cookieDomain=${cookieDomain || 'auto'}, sameSite=${useSecureCookies ? 'none' : 'lax'}`);
 
 sessionConfig.store = new PostgresSessionStore(getPostgresPool());
 logger.log('🔐 Using PostgreSQL session store');
@@ -558,15 +558,17 @@ app.use(session(sessionConfig));
   const gracefulShutdown = async (signal: string) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
+    startupReady = false;
     // External deployment signals remain successful; internal recovery must
     // exit nonzero so Railway ON_FAILURE does not leave the API stopped.
     const shutdownExitCode = requestedShutdownExitCode();
     if (watchdogTimerRef) { try { clearInterval(watchdogTimerRef); } catch {} watchdogTimerRef = null; }
     console.log(`\n🛑 ${signal} received — starting graceful shutdown...`);
     const shutdownTimeout = setTimeout(() => {
-      console.error('🚨 Graceful shutdown timed out (15s) — forcing exit');
+      console.error('🚨 Graceful shutdown timed out (130s) — forcing exit');
       process.exit(1);
-    }, 15000);
+    }, API_SHUTDOWN_TIMEOUT_MS);
+    let drainTimeout: ReturnType<typeof setTimeout> | undefined;
 
     try {
       // Close all WebSocket clients first so server.close() can resolve promptly.
@@ -583,12 +585,19 @@ app.use(session(sessionConfig));
         console.warn('⚠️ Error closing WS servers:', wsErr?.message || wsErr);
       }
 
-      await new Promise<void>((resolve) => {
-        server.close(() => { console.log('✅ HTTP server closed'); resolve(); });
-        setTimeout(resolve, 10000);
+      await new Promise<void>((resolve, reject) => {
+        drainTimeout = setTimeout(() => {
+          server.closeAllConnections();
+          reject(new Error('HTTP request drain timed out (125s)'));
+        }, API_DRAIN_TIMEOUT_MS);
+        server.close(error => {
+          clearTimeout(drainTimeout);
+          if (error) return reject(error);
+          console.log('✅ HTTP server closed');
+          resolve();
+        });
       });
 
-      startupReady = false;
       await closePostgres();
 
       clearTimeout(shutdownTimeout);
@@ -598,6 +607,8 @@ app.use(session(sessionConfig));
       console.error('❌ Error during shutdown:', err.message);
       clearTimeout(shutdownTimeout);
       process.exit(1);
+    } finally {
+      clearTimeout(drainTimeout);
     }
   };
 
@@ -614,26 +625,11 @@ app.use(session(sessionConfig));
   });
 
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' }, () => {
+  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' && process.platform !== 'darwin' }, () => {
     logger.log(`🚀 BACKEND-API: Listening on port ${port}`);
     logger.log(`🔗 CORS allowed origins: ${CORS_ALLOWED_ORIGINS.join(', ')}`);
     logger.log(`🔗 Frontend URL: ${FRONTEND_URL}`);
 
-    // 2026-05-15 INCIDENT — GSC inspection cron + scheduled-* services were
-    // never starting in production because they live deep inside the giant
-    // (async () => { ... })() block below (line ~702), which awaits
-    // BulkDescriptionJob.find(), performanceCache.warmupCaches() and a
-    // 40k-station description-cleanup cursor BEFORE reaching the scheduler
-    // init section. When Mongo is stressed at boot (Atlas M10 + warmup
-    // hammer), those awaits hang for many minutes and the schedulers
-    // (including GSC cron) are never registered. The hourly :07 GSC tick
-    // therefore silently skipped every day.
-    //
-    // Fix: hoist scheduler initialization into its OWN parallel async block
-    // that runs as soon as Mongo is connected (we already awaited
-    // connectToMongoDB() at line 475). Each init call is sync (registers a
-    // node-cron schedule and returns immediately), so this completes in
-    // <1s and is independent of the heavy warmup chain.
     void (async () => {
       if (process.env.NODE_ENV === 'development' || !backgroundJobsEnabled) return;
       try {
@@ -666,11 +662,6 @@ app.use(session(sessionConfig));
       }
     })();
 
-    // Sitemap subsystem (manifest-driven). Mirrors the same init block in
-    // index-web.ts so the api-server keeps sitemap manifests fresh in
-    // production deployments where only this entrypoint runs. Without this
-    // the SitemapManifest docs in Mongo are never rebuilt and `/sitemap.xml`
-    // serves stale `<lastmod>` values for months.
     void (async () => {
       try {
         // ARCHITECT FIX (2026-05-10): WARM TRANSLATIONS FIRST. Previously
@@ -826,12 +817,6 @@ app.use(session(sessionConfig));
 
       logger.log('✅ BACKGROUND: All cache warmup operations completed');
 
-      // 2026-05-15: scheduler initialization moved to a parallel async block
-      // right after server.listen() (see ~line 611). It must NOT live here —
-      // this block awaits heavy Mongo cache warmup operations that hang for
-      // many minutes when Atlas is stressed at boot, which previously meant
-      // GSC cron and 12 other scheduled-* services were silently never
-      // registered. Do not re-add scheduler init here.
       if (process.env.NODE_ENV !== 'development' && backgroundJobsEnabled) {
         // Coverage backfill on boot (idempotent, gated on row count, can
         // safely live here since it's not a cron registration).
@@ -883,16 +868,6 @@ app.use(session(sessionConfig));
       console.log(`🔧 LD_PRELOAD=${ldPreload}`);
       console.log(`🔧 MALLOC_CONF=${mallocConf}`);
 
-      // INCIDENT 2026-05-17 v13 — alarm thresholds raised + thrash aksiyonları kaldırıldı.
-      // 17 Mayıs 5 saatlik log analizi: RSS 780-840 MB arası STABİL (sızıntı yok),
-      // V8 heap 50-200 MB sağlıklı, jemalloc working-set normal. Eski 600/800 MB
-      // eşikleri Node + Sharp + Mongoose + SSR yapan bir proses için çok düşüktü;
-      // her 5 dk seoHtmlCache + quickCache flush ediliyor, her 2 dk
-      // performanceCache + OG cache + force GC tetikleniyordu. Bu cache thrash
-      // 16 Mayıs M10 dalgalarının ortağıydı (#500 ana kök nedeni durdurdu).
-      // Yeni eşikler 4 GB --max-old-space-size + Railway plan limitine uygun.
-      // `heapMB > 3500` koşulu KORUNDU — gerçek V8 heap leak'i hâlâ yakalar.
-      // DO NOT lower without re-reading replit.md "Memory monitor thresholds".
       let lastMemoryGcTime = 0;
       const MEMORY_GC_COOLDOWN = 10 * 60 * 1000;
       let lastMemoryWarningTime = 0;
@@ -1020,17 +995,6 @@ app.use(session(sessionConfig));
           return;
         }
 
-        // INCIDENT 2026-05-17 v13 — RSS MEMORY RELIEF + MEMORY CRITICAL flush
-        // aksiyonları kaldırıldı. 17 Mayıs log analizi: heap 50-200 MB stabil,
-        // RSS 780-840 MB normal working set. Eski "relief" her 5 dk
-        // seoHtmlCache+quickCache flush ediyordu → bir sonraki SSR isteği
-        // Redis'e + Mongo'ya iniyor, cache thrash + cold-miss cascade. Eski
-        // "critical" her 2 dk performanceCache + OG cache flush + force GC
-        // yapıyordu — "OG image cache cleared: 0 entries" tekrarı silinecek
-        // bir şey olmadığı halde alarmın boşa çaldığını kanıtladı.
-        // YENİ DAVRANIŞ: sadece uyarı logla, aksiyon yok. Gerçek tehlike
-        // RSS_RESTART_MB'de SIGTERM ile karşılanır; heap > 3500 MB hâlâ
-        // gerçek V8 leak'i için bir backstop.
         if (rssMB > RSS_CRITICAL_MB || heapMB > 3500) {
           if ((now - lastMemoryWarningTime) > MEMORY_WARNING_INTERVAL) {
             const conns = await getConnectionCount();

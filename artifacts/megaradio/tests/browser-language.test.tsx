@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider as BaseQueryClientProvider } from '@ta
 import { getBrowserLanguage, saveBrowserLanguage, syncBrowserLanguageFromUrl } from '../src/lib/browser-language';
 import { TranslationProvider, useTranslation } from '../src/hooks/useTranslation';
 import { useSeoRouting } from '../src/hooks/useSeoRouting';
+import { ACTIVE_SITEMAP_LANGUAGES, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { syncDocumentLocale } from '../src/lib/document-locale';
 
 let client: QueryClient;
 let translation: ReturnType<typeof useTranslation>;
@@ -20,7 +22,11 @@ function Consumer({ route = false }: { route?: boolean }) {
   translation = useTranslation();
   return <>{route && <RoutingConsumer />}<span>{translation.language}</span></>;
 }
-function RoutingConsumer() { routing = useSeoRouting(); return null; }
+function RoutingConsumer() {
+  routing = useSeoRouting();
+  React.useEffect(() => syncDocumentLocale(routing.currentLanguage, window.location.pathname), [routing.currentLanguage]);
+  return null;
+}
 function mount(route = false) {
   return render(<QueryClientProvider client={client}><Consumer route={route} /></QueryClientProvider>);
 }
@@ -98,14 +104,65 @@ describe('same-task automatic URL preference sync', () => {
 
   it('ignores unsupported values without poisoning the next valid automatic sync', () => {
     const storage = vi.spyOn(Storage.prototype, 'getItem');
-    syncBrowserLanguageFromUrl('xx-invalid'); syncBrowserLanguageFromUrl('de');
+    syncBrowserLanguageFromUrl('xx-invalid'); syncBrowserLanguageFromUrl('am'); syncBrowserLanguageFromUrl('de');
     expect(storage).toHaveBeenCalledTimes(1);
+    expect(document.cookie).toContain('preferredLanguage=de');
+  });
+
+  it('does not save or synchronize inactive locales over an existing active preference', () => {
+    localStorage.setItem('preferredLanguage', 'de');
+    document.cookie = 'preferredLanguage=de; path=/';
+    const storage = vi.spyOn(Storage.prototype, 'setItem');
+    const cookie = vi.spyOn(Document.prototype, 'cookie', 'set');
+    for (const { code } of SEO_LANGUAGES.filter(language => !(ACTIVE_SITEMAP_LANGUAGES as readonly string[]).includes(language.code))) {
+      saveBrowserLanguage(code);
+      syncBrowserLanguageFromUrl(code);
+    }
+    expect(storage).not.toHaveBeenCalled();
+    expect(cookie).not.toHaveBeenCalled();
+    expect(localStorage.getItem('preferredLanguage')).toBe('de');
     expect(document.cookie).toContain('preferredLanguage=de');
   });
 });
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
 
 describe('root-only browser language selection', () => {
+  for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+    it(`accepts active device locale ${language}`, () => {
+      deviceLanguages([language]);
+      expect(getBrowserLanguage()).toBe(language);
+    });
+  }
+  it('skips an inactive cookie before an active localStorage preference', () => {
+    document.cookie = 'preferredLanguage=am; path=/';
+    localStorage.setItem('preferredLanguage', 'tr');
+    deviceLanguages(['de-AT']);
+    expect(getBrowserLanguage()).toBe('tr');
+  });
+  it('skips inactive saved and device preferences before the next active device locale', () => {
+    document.cookie = 'preferredLanguage=am; path=/';
+    localStorage.setItem('preferredLanguage', 'af');
+    deviceLanguages(['am-ET', 'af-ZA', 'de-AT']);
+    expect(getBrowserLanguage()).toBe('de');
+  });
+  it('falls back to English when every saved/device preference is inactive', () => {
+    document.cookie = 'preferredLanguage=am; path=/';
+    localStorage.setItem('preferredLanguage', 'af');
+    deviceLanguages(['am-ET', 'af-ZA']);
+    expect(getBrowserLanguage()).toBe('en');
+  });
+  for (const language of ['am', 'af']) {
+    it(`retains explicit /${language} parsing without replacing an active preference`, () => {
+      window.history.replaceState({}, '', `/${language}/station/example`);
+      document.cookie = 'preferredLanguage=de; path=/';
+      localStorage.setItem('preferredLanguage', 'de');
+      deviceLanguages(['tr-TR']);
+      expect(getBrowserLanguage()).toBe('en');
+      syncBrowserLanguageFromUrl(language);
+      expect(localStorage.getItem('preferredLanguage')).toBe('de');
+      expect(document.cookie).toContain('preferredLanguage=de');
+    });
+  }
   for (const tag of ['de-AT', 'de-DE']) {
     it(`selects German device ${tag} without a stored preference`, () => {
       deviceLanguages([tag, 'en-US']);
@@ -185,5 +242,80 @@ describe('root-only browser language selection', () => {
       });
       expect(translation.language).toBe(language);
     }
+  });
+  it.each(['/nl', '/sv/', '/rs/station/lorfm-30', '/af/stasie/profiel', '/hu/radios/radio', '/nl/station/old-safe-fm'])(
+    '%s remains at its address with English UI, ignoring device, saved and stale SSR locales', async pathname => {
+      window.history.replaceState({}, '', `${pathname}?utm_source=gsc#player`);
+      deviceLanguages(['de-AT']);
+      localStorage.setItem('preferredLanguage', 'tr');
+      document.cookie = 'preferredLanguage=tr; path=/';
+      window.__INITIAL_LANGUAGE__ = 'nl';
+      window.__INITIAL_TRANSLATIONS__ = { hello: 'Dutch must not render' };
+      mount(true);
+      await waitFor(() => expect(translation.language).toBe('en'));
+      expect(translation.t('hello')).toBe('en');
+      expect(routing.currentLanguage).toBe('en');
+      expect(document.documentElement.lang).toBe('en');
+      expect(document.documentElement.dir).toBe('ltr');
+      expect(window.location.pathname).toBe(pathname);
+      expect(window.location.search).toBe('?utm_source=gsc');
+      expect(window.location.hash).toBe('#player');
+      expect(localStorage.getItem('preferredLanguage')).toBe('tr');
+      expect(document.cookie).toContain('preferredLanguage=tr');
+      expect(routing.getLocalizedUrl('/')).toBe('/en');
+      expect(client.getQueryCache().getAll().some(query => query.queryKey[0] === '/api/translations' && query.queryKey[1] === 'nl')).toBe(false);
+    },
+  );
+  it('an explicit English selection leaves the retained URL; later back navigation restores its English fallback', async () => {
+    window.history.replaceState({}, '', '/sv/station/example');
+    mount(true);
+    await act(async () => routing.changeLanguage('en'));
+    expect(window.location.pathname).toBe('/en/station/example');
+    await act(async () => routing.changeLanguage('de'));
+    expect(window.location.pathname).toBe('/de/sender/example');
+    expect(translation.language).toBe('de');
+    await act(async () => {
+      window.history.replaceState({}, '', '/sv/station/example');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(translation.language).toBe('en');
+    expect(window.location.pathname).toBe('/sv/station/example');
+  });
+  it.each(['/nl/station/safe-fm', '/sv', '/rs/profile', '/af/stasie/profiel', '/hu/radios/radio'])(
+    'Back/Forward to %s renders English without overwriting the saved active preference', async path => {
+      window.history.replaceState({}, '', '/tr');
+      mount(true);
+      await act(async () => { window.history.pushState({}, '', `${path}?source=history#player`); });
+      expect(translation.language).toBe('en');
+      await act(async () => { window.history.pushState({}, '', '/tr'); });
+      for (let index = 0; index < 2; index++) {
+        act(() => window.history.back());
+        await waitFor(() => {
+          expect(window.location.pathname).toBe(path);
+          expect(translation.language).toBe('en');
+          expect(routing.currentLanguage).toBe('en');
+          expect(document.documentElement.lang).toBe('en');
+        });
+        expect(localStorage.getItem('preferredLanguage')).toBe('tr');
+        expect(document.cookie).toContain('preferredLanguage=tr');
+        expect(window.location.search + window.location.hash).toBe('?source=history#player');
+        act(() => window.history.forward());
+        await waitFor(() => {
+          expect(translation.language).toBe('tr');
+          expect(window.location.pathname).toBe('/tr');
+          expect(document.documentElement.lang).toBe('tr');
+        });
+        expect(localStorage.getItem('preferredLanguage')).toBe('tr');
+      }
+    },
+  );
+  it('R6-06: switching a retired English-only blog article to German opens the German index', async () => {
+    window.history.replaceState({}, '', '/nl/blog/bbc-radio-outside-uk?source=gsc#listen');
+    mount(true);
+    await act(async () => routing.changeLanguage('de'));
+    expect(window.location.pathname).toBe('/de/blog');
+    expect(window.location.search).toBe('');
+    expect(window.location.hash).toBe('');
+    expect(translation.language).toBe('de');
   });
 });

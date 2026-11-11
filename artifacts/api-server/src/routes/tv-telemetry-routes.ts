@@ -1,3 +1,4 @@
+import { validBundleVersion } from '../lib/tv-diagnostics-policy';
 /**
  * TV boot telemetry beacon.
  *
@@ -6,7 +7,7 @@
  *   ?v=20260601160253   — running bundle version
  *   ?plat=tizen|webos|other
  *   ?app=1.0.2          — store package version
- *   ?did=<anon-id>      — anonymous device id (for unique TV count)
+ *   ?did=<legacy-id>   — ignored; persistent identifiers are no longer ingested
  *
  * Writes a daily aggregate row: { day, plat, src, v, count, uniqueDids }.
  * Never returns data — always 204.
@@ -21,7 +22,6 @@ import { logger } from '../utils/logger';
 const SRC_VALUES  = new Set(['remote', 'local']);
 const PLAT_VALUES = new Set(['tizen', 'webos', 'other']);
 const VERSION_RE  = /^[0-9.]{1,20}$/;
-const DID_RE      = /^[a-z0-9-]{8,64}$/;
 
 function openCors(res: Response) {
   res.set({
@@ -57,8 +57,9 @@ export function registerTvTelemetryRoutes(app: Express, deps: any) {
       // Whitelist / validate each param; silently drop invalid values.
       const src  = SRC_VALUES.has(q.src)   ? q.src  : 'remote';
       const plat = PLAT_VALUES.has(q.plat) ? q.plat : 'other';
-      const v    = VERSION_RE.test(q.v ?? '')   ? q.v   : '';
-      const did  = DID_RE.test(q.did ?? '')     ? q.did : null;
+      const v    = validBundleVersion(q.v) ? q.v : '';
+      // Legacy clients may still send did; do not collect persistent identifiers.
+      const did = null;
 
       // Optional: country from Cloudflare header (no raw IP stored).
       const country = typeof req.headers['cf-ipcountry'] === 'string'

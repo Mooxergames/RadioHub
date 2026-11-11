@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { EventEmitter, once } from 'node:events';
+import { randomUUID } from 'node:crypto';
 import { AUDIT_LANGUAGES, auditCsvCell, classifyStationIndexability, createStationAudit, stationAuditCsv, type AuditStation } from '../src/seo/station-indexability-audit';
 import { pgAuditStationIndexability } from '../src/data/postgres-indexability-audit';
 import { pgAdminDescriptionCoverage } from '../src/data/postgres-admin-catalog-store';
@@ -94,8 +95,64 @@ test('full audit consumes bounded cursor pages in one read-only snapshot and com
   const projection = fixture.queries.find(query => query.startsWith('DECLARE'))!;
   assert.doesNotMatch(projection, /SELECT s\.\*|s\.descriptions\s+AS|s\.source\s*[, ]/);
   assert.match(projection, /jsonb_object_agg/);
+  assert.match(projection, /LEFT JOIN station_description_summary summary ON summary.station_id=s.id/);
+  assert.match(projection, /CASE WHEN summary.station_id IS NOT NULL THEN jsonb_build_object/);
+  assert.equal(projection.match(/s\.source->'automaticNoIndex'/g)?.length, 1);
+  for (const [index, language] of AUDIT_LANGUAGES.entries()) {
+    assert.ok(projection.includes(`'${language}',jsonb_build_object('full',CASE WHEN (summary.full_mask & ${1 << index})<>0`));
+  }
   assert.equal(fixture.queries.at(-1), 'COMMIT'); assert.equal(fixture.released(), true);
 });
+
+test('native audit uses transactional description masks and falls back for a missing summary without dropping the station',
+  { skip: !process.env.PG_TEST_DATABASE_URL }, async () => {
+    const { createNativePostgresFixture } = await import('./helpers/native-postgres-fixture');
+    const fixture = await createNativePostgresFixture('indexability_audit');
+    try {
+      const descriptions = structuredClone(full);
+      descriptions.en.full = 'Retained information '.repeat(10_000);
+      descriptions.de.meta = ' \t\u00a0\ufeff';
+      const inputs = [
+        { _id: 'complete', name: 'Complete Radio', slug: 'complete-radio', url: 'https://example.invalid/complete', descriptions: full },
+        { _id: 'legacy', name: 'Legacy Radio', slug: 'legacy-radio', url: 'https://example.invalid/legacy', noIndex: true, descriptions },
+        { _id: 'missing-summary', name: 'Missing Summary', slug: 'missing-summary', url: 'https://example.invalid/missing', descriptions: full },
+      ];
+      for (const input of inputs) await fixture.insert('stations', { stationuuid: randomUUID(), noIndex: false, ...input });
+      const native = await pgAuditStationIndexability({ qualifiedLanguages: AUDIT_LANGUAGES }, fixture.pool);
+      assert.equal(native.total, 3);
+      assert.equal(native.reasons['legacy-unknown-noindex'], 1);
+      assert.equal(native.languages.find(row => row.language === 'de')?.missingMeta, 1);
+      assert.equal(native.languages.find(row => row.language === 'en')?.missingFull, 0);
+
+      const queries: string[] = [];
+      const recordingPool = { connect: async () => {
+        const client = await fixture.pool.connect();
+        return { on: client.on.bind(client), removeListener: client.removeListener.bind(client), release: client.release.bind(client),
+          query: (sql: string) => { queries.push(sql); return client.query(sql); } };
+      } };
+      await pgAuditStationIndexability({ qualifiedLanguages: AUDIT_LANGUAGES }, recordingPool as any);
+      const declaration = queries.find(sql => sql.startsWith('DECLARE station_indexability_audit'))!;
+      const select = declaration.slice(declaration.indexOf('SELECT'));
+      const plan = (await fixture.pool.query(`EXPLAIN (ANALYZE, FORMAT JSON) ${select}`)).rows[0]['QUERY PLAN'][0].Plan;
+      const subplans: any[] = [];
+      const visit = (node: any) => {
+        if (node['Subplan Name']) subplans.push(node);
+        for (const child of node.Plans || []) visit(child);
+      };
+      visit(plan);
+      assert.ok(subplans.length, 'raw-article fallback remains available');
+      assert.ok(subplans.every(node => node['Actual Loops'] === 0), 'normal rows never expand the retained article JSON');
+
+      await fixture.pool.query("DELETE FROM station_description_summary WHERE station_id='missing-summary'");
+      const fallback = await pgAuditStationIndexability({ qualifiedLanguages: AUDIT_LANGUAGES }, fixture.pool);
+      assert.equal(fallback.total, 3);
+      assert.deepEqual(fallback.languages, native.languages);
+      assert.deepEqual(fallback.reasons, native.reasons);
+      await fixture.pool.query("UPDATE stations SET descriptions=jsonb_set(descriptions,'{de,meta}','\"Edited summary\"'::jsonb) WHERE id='legacy'");
+      const updated = await pgAuditStationIndexability({ qualifiedLanguages: AUDIT_LANGUAGES }, fixture.pool);
+      assert.equal(updated.languages.find(row => row.language === 'de')?.missingMeta, 0);
+    } finally { await fixture.close(); }
+  });
 
 test('busy, aborted and failed exports roll back and release their client', async () => {
   const busy = fakePool([], false);

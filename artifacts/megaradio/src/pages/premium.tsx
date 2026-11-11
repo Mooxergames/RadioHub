@@ -143,7 +143,8 @@ function PlanCard({ plan, selected, recommended, onSelect }: PlanCardProps) {
   const features = PLAN_FEATURES[plan.planId] ?? [];
   const price = fmtPrice(plan.amount, plan.currency, language);
   const period = plan.billingInterval === 'month' ? '/mo' : plan.billingInterval === 'year' ? '/yr' : '';
-  const isLifetime = plan.planId === "premium_lifetime";
+  const isOneTime = plan.planId === "premium_lifetime" || plan.planId === 'remove_ads'
+    && plan.checkoutAvailable === true && plan.billingInterval === null && plan.billingFrequency === null;
 
   return (
     <motion.button
@@ -192,10 +193,10 @@ function PlanCard({ plan, selected, recommended, onSelect }: PlanCardProps) {
               </span>
             </div>
           )}
-          {isLifetime && (
+          {isOneTime && (
             <div className="mt-1.5">
               <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-white/10 text-white/70 px-2.5 py-0.5 rounded-full">
-                One-Time
+                {t('premium_payment_once', 'One-time payment')}
               </span>
             </div>
           )}
@@ -311,11 +312,11 @@ export default function PremiumPage() {
   const { t, language } = useTranslation();
   const copy = subscriptionCopy(language);
   const { user, isLoading: authLoading, error: authError } = useAuth();
-  const { isPremium, plan: currentPlan } = usePremiumStatus();
+  const { isActive, plan: currentPlan } = usePremiumStatus();
   const [selectedPlan, setSelectedPlan] = useState(RECOMMENDED);
   const { loading, error, checkout } = useSubscriptionCheckout();
 
-  const catalog = useSubscriptionPlans(!isPremium);
+  const catalog = useSubscriptionPlans(!isActive);
   const rawPlans = catalog.plans;
   useEffect(() => {
     if (rawPlans.length && !rawPlans.some(plan => plan.planId === selectedPlan)) setSelectedPlan(rawPlans[0].planId);
@@ -328,7 +329,7 @@ export default function PremiumPage() {
   const selectedPlanInfo = plans.find(p => p.planId === selectedPlan);
   const checkoutDisabled = loading || !!authError || !catalog.canCheckout(selectedPlan);
 
-  if (!authLoading && isPremium) return <AlreadyPremium plan={currentPlan} />;
+  if (!authLoading && isActive) return <AlreadyPremium plan={currentPlan} />;
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#080808] flex items-center justify-center">

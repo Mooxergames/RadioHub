@@ -61,10 +61,12 @@ export const TermsAndConditions = lazy(() => import("@/pages/terms-and-condition
 export const PrivacyPolicy = lazy(() => import("@/pages/privacy-policy").then(mod => ({ default: mod.PrivacyPolicy })));
 export const LLMsPage = lazy(() => import("@/pages/llms-page"));
 export const BlogPage = lazy(() => import("@/pages/blog"));
+export const LegacyStationGuidePage = lazy(() => import('@/pages/legacy-station-guide'));
 
 // Genres - can be lazy loaded
 export const GenresPage = lazy(() => import("@/pages/genres"));
 export const Radios = lazy(() => import("@/pages/radios"));
+export const StationDirectory = lazy(() => import("@/pages/StationDirectory"));
 
 // Station requests
 export const RequestStation = lazy(() => import("@/pages/request-station"));

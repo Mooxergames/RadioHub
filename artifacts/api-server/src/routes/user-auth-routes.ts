@@ -1,5 +1,6 @@
 import {googleIdentity, canLinkGoogleAccount} from '../auth/google-identity-policy';
 import { pgListeningTotalMinutes } from '../data/postgres-listening-store';
+import { subscriptionAccess } from '@workspace/db-shared/subscription-access';
 import type { Express } from "express";
 import { profileFieldsSchema, authProfileSchema, notificationSettingsSchema } from '@workspace/api-zod';
 import { getPostgresPool } from '../postgres-runtime';
@@ -8,7 +9,7 @@ import { logger } from '../utils/logger';
 import { publicUserIdentity } from '../utils/public-user-identity';
 import { invalidateCommunityProfiles } from '../services/community-profiles';
 import { SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
-import { safeOAuthReturnTo, resolveGoogleOAuthReturnTo, buildRedirectWithToken, buildOAuthFailureRedirect, buildGoogleSessionRedirect } from '../auth/oauth-redirect';
+import { googleOAuthCallbackUrl, safeOAuthReturnTo, resolveGoogleOAuthReturnTo, buildRedirectWithToken, buildOAuthFailureRedirect, buildGoogleSessionRedirect } from '../auth/oauth-redirect';
 // 2026-05-13 hotfix: `deps` (built in routes.ts) does NOT export CacheKeys
 // or CacheManager — three sites in this file used to do
 // `const { CacheKeys, CacheManager } = deps;` which threw at runtime
@@ -31,6 +32,21 @@ const ENABLED_LANGUAGE_CODES = new Set(SEO_LANGUAGES.filter((l: any) => l.enable
 function notificationSettingsFor(user: any) {
     const stored = user?.notificationSettings || {};
     return Object.fromEntries(Object.entries({ pushEnabled: true, messages: true, followers: true, favorites: true, nowPlaying: true, newStations: false, recommendations: false }).map(([key, fallback]) => [key, typeof stored[key] === 'boolean' ? stored[key] : fallback]));
+}
+function safeSubscriptionForAuth(sub: Record<string, any> | null | undefined) {
+    if (!sub) return null;
+    // Evaluate the full record before omitting private provider identities.
+    const access = subscriptionAccess(sub);
+    const noPaddleSubscription = sub.paddleSubscriptionId == null || sub.paddleSubscriptionId === '';
+    return {
+        plan: sub.plan,
+        platform: sub.platform,
+        isActive: access.active,
+        expiresAt: sub.expiresAt ?? null,
+        ...(sub.platform === 'paddle' && (sub.paddleBillingKind === 'recurring' ||
+            access.active && noPaddleSubscription && sub.paddleBillingKind === 'one_time')
+            ? { paddleBillingKind: sub.paddleBillingKind } : {}),
+    };
 }
 async function invalidateProfileCaches(user: any): Promise<void> {
     await invalidateCommunityProfiles();
@@ -129,6 +145,7 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
     // Also supports sortBy: newest|oldest|most_radios|least_radios|recent_favorites.
     // Accepts BOTH `q` and `search` for query (legacy compat).
     app.get("/api/users/search", async (req, res) => {
+        res.set('X-Robots-Tag', 'noindex, nofollow');
         try {
             const { q, search, page = 1, limit = 20, sortBy = 'newest' } = req.query;
             const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 50);
@@ -400,32 +417,13 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
     });
     // Debug endpoint to show current callback URL for OAuth setup
     app.get("/api/auth/debug/callback-url", (req, res) => {
-        let baseUrl = 'http://localhost:3000';
-        if (process.env.REPLIT_DOMAINS) {
-            const domains = process.env.REPLIT_DOMAINS.split(',');
-            // Look for production domain (themegaradio.com only)
-            const productionDomain = domains.find(domain => domain.includes('themegaradio.com'));
-            if (productionDomain) {
-                baseUrl = `https://${productionDomain}`;
-            }
-            else {
-                // Look for deployed domain (.replit.app)
-                const deployedDomain = domains.find(domain => domain.includes('.replit.app'));
-                if (deployedDomain) {
-                    baseUrl = `https://${deployedDomain}`;
-                }
-                else {
-                    // Fallback to first domain (dev domain)
-                    baseUrl = `https://${domains[0]}`;
-                }
-            }
-        }
-        const callbackUrl = `${baseUrl}/api/auth/google/callback`;
+        const callbackUrl = googleOAuthCallbackUrl();
+        const baseUrl = new URL(callbackUrl).origin;
         res.json({
             message: 'Add this exact URL to your Google Cloud Console OAuth app as an authorized redirect URI',
             callbackUrl,
             currentDomain: baseUrl,
-            allDomains: process.env.REPLIT_DOMAINS?.split(',') || [],
+            allDomains: [new URL(callbackUrl).host],
             instructions: [
                 '1. Go to https://console.cloud.google.com/',
                 '2. Select your project',
@@ -473,12 +471,6 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
             (req.session as any).oauthReturnLang = refererLang;
             logger.log('🌍 Saved OAuth return language:', refererLang);
         }
-        // CRITICAL: persist the session BEFORE redirecting to Google. Without this
-        // explicit save, MongoStore writes asynchronously and Google may complete
-        // OAuth and redirect the user back to /api/auth/google/callback before the
-        // oauthReturnTo write finishes — causing the callback to fall back to the
-        // homepage instead of /tv (or wherever the user came from). The Apple
-        // endpoint already does this; Google was missing it.
         if (req.session) {
             try {
                 await new Promise<void>((resolve, reject) => {
@@ -1095,11 +1087,8 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
             }
             // Check if user exists
             const normalizedEmail = email.toLowerCase().trim();
-            const [existingMongoUser, existingPostgresUser] = await Promise.all([
-                Promise.resolve(null),
-                pgFindUserByIdentity({ email: normalizedEmail, username }),
-            ]);
-            if (existingMongoUser || existingPostgresUser) {
+            const existingUser = await pgFindUserByIdentity({ email: normalizedEmail, username });
+            if (existingUser) {
                 void logAuthEvent(req, { method: 'email', event: 'signup_duplicate', ok: false, email, message: `username=${username}` });
                 return void res.status(400).json({ error: 'User with this email or username already exists' });
             }
@@ -1265,10 +1254,6 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
             const { token } = req.body;
             const tokenPrefix = typeof token === 'string' ? `${token.slice(0, 16)}…(${token.length})` : `<${typeof token}>`;
             logger.log(`🔐 token-session POST received tokenPrefix=${tokenPrefix} origin=${req.headers.origin || '(none)'} ua=${(req.headers['user-agent'] || '').slice(0, 60)}`);
-            // CRITICAL: type guard before Mongoose query. Without this, an attacker
-            // can send `{"token":{"$ne":null}}` and match any non-revoked token,
-            // turning this into an account takeover. We also bound the length to
-            // avoid DoS via huge keys.
             if (typeof token !== 'string' || token.length < 16 || token.length > 512) {
                 logger.warn(`🔐 token-session REJECTED — bad token shape: ${tokenPrefix}`);
                 return void res.status(400).json({ success: false, error: 'Token is required' });
@@ -1320,6 +1305,7 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
                         lastLoginAt: u.lastLoginAt,
                         createdAt: u.createdAt,
                         following: [],
+                        subscription: safeSubscriptionForAuth(u.subscription),
                     },
                 });
             });
@@ -1400,7 +1386,8 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
                 totalListeningTime: await pgListeningTotalMinutes(userId),
                 lastLoginAt: user.lastLoginAt,
                 createdAt: user.createdAt,
-                following: following
+                following,
+                subscription: safeSubscriptionForAuth(user.subscription),
             };
             res.json({ user: userData, authenticated: true });
         }

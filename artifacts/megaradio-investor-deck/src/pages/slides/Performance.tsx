@@ -19,7 +19,7 @@ export default function Performance() {
             </p>
           </div>
           <div className="bg-surface border border-border rounded-[1vw] p-[2vw]">
-            <div className="font-display font-[800] text-accent text-[2vw]">MongoDB circuit breaker</div>
+            <div className="font-display font-[800] text-accent text-[2vw]">Database circuit breaker</div>
             <p className="mt-[1.5vh] font-body text-[1.25vw] text-muted leading-snug">
               Database failures degrade gracefully to cached responses instead of cascading into a full outage.
             </p>

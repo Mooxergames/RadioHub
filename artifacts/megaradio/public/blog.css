@@ -8,6 +8,24 @@
   font-family: inherit;
   text-align: start;
 }
+.radio-journal.radio-legacy-guide h1 {
+  font-size: 32px;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+.radio-legacy-guide .radio-journal-eyebrow {
+  letter-spacing: 0;
+}
+.radio-legacy-guide .radio-journal-intro {
+  font-size: 18px;
+}
+.radio-legacy-guide .radio-journal-prose {
+  max-width: 800px;
+}
+@media (max-width: 760px) {
+  .radio-journal.radio-legacy-guide h1 { font-size: 28px; }
+  .radio-legacy-guide .radio-journal-intro { font-size: 17px; }
+}
 .radio-journal * {
   box-sizing: border-box;
 }

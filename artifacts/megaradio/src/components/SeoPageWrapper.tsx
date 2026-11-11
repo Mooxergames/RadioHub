@@ -1,57 +1,107 @@
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { useSeoRouting } from "@/hooks/useSeoRouting";
 import { SeoHead } from "@/components/seo/SeoHead";
-import { SeoMetaTags } from "@workspace/seo-shared/seo-config";
+import { getLanguageFromPath, getRetiredLocaleFromPath } from "@workspace/seo-shared/seo-config";
+import { isStationDirectoryData, isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
+import { StationDirectoryContext, type SeoPagePayload } from '@/hooks/useStationDirectory';
 import { useLocation, useSearch } from "wouter";
 import { preserveInitialSsrHead, ServerSeoHeadContext } from "@/utils/ssr-seo-head";
-import { clearPageStructuredData, type ServerStructuredData } from "@/utils/server-structured-data";
+import { clearGenreStationLists, clearPageStructuredData, withoutGenreStationLists } from "@/utils/server-structured-data";
+import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 
 interface SeoPageWrapperProps {
   children: React.ReactNode;
   pageType?: string;
 }
 
-// SSR owns the initial head. Only fetch page-specific data after navigation
-// (or on a dev page with no SSR head), without downloading the translation
-// dictionary and station lists a second time.
+// SSR owns the initial head. Catalog pages also need the exact server list;
+// other initial pages still skip the duplicate metadata request.
 export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperProps) {
-  const { currentLanguage } = useSeoRouting();
+  const { currentLanguage, englishPath } = useSeoRouting();
   const [location] = useLocation();
   const search = useSearch();
   
-  // CRITICAL FIX: Use full URL with country code, not just cleanPath
-  // This ensures the API returns SEO in the correct language
-  const fullUrl = `${location}${search ? `?${search}` : ''}`;
+  const routePath = (englishPath || '').split(/[?#]/)[0];
+  const isGenrePage = /^\/genres(?:\/|$)/.test(routePath);
+  const isDirectory = isStationDirectoryPath(routePath, !getRetiredLocaleFromPath(location));
+  const isBlog = /^\/[a-z]{2}\/blog(?:\/|$)/.test(location);
+  const isLegacyGuideCandidate = !!getLegacyStationGuideRoute(location);
+  // Wouter decodes paths/search. Catalog validation and cache identity must
+  // retain their original encoding, parameter order and duplicate parameters.
+  const fullUrl = (isDirectory || isLegacyGuideCandidate) && typeof window !== 'undefined'
+    ? window.location.pathname + window.location.search
+    : `${location}${search ? `?${search}` : ''}`;
   const ssrHeadAlreadyCorrect = preserveInitialSsrHead(fullUrl);
+  // useSeoRouting synchronizes its language state in an effect. Wait for it
+  // on locale changes instead of requesting the new URL with the old locale.
+  const directoryLanguageReady = !isDirectory || currentLanguage === getLanguageFromPath(location).language;
 
   // Remove the old page's entities immediately on route change, including
   // failed/aborted navigation requests. Global entities remain applicable.
   // Layout timing ensures a cached current-route head can apply afterwards.
   useLayoutEffect(() => {
     if (!ssrHeadAlreadyCorrect) clearPageStructuredData();
-  }, [fullUrl, ssrHeadAlreadyCorrect]);
+    // Genre hubs and detail lists change with browser filters and pagination.
+    // Keep their raw SSR lists, but do not retain a stale list after mounting.
+    if (isGenrePage) clearGenreStationLists();
+  }, [fullUrl, ssrHeadAlreadyCorrect, isGenrePage]);
 
   // Fetch SEO data from server using FULL URL with country code.
-  // slim=1 keeps only metadata and structured data, excluding duplicate
-  // translations/urlTranslations/pageData dictionaries and station records.
-  const { data: seoData } = useQuery<{ seoTags?: SeoMetaTags; structuredData?: ServerStructuredData }>({
+  // slim=1 omits dictionaries; only exact catalog routes include the bounded DTO.
+  const query = useQuery<SeoPagePayload, Error>({
     queryKey: ['/api/seo/page-data', fullUrl, currentLanguage],
-    enabled: !ssrHeadAlreadyCorrect,
+    enabled: (isDirectory || isLegacyGuideCandidate || !ssrHeadAlreadyCorrect) && directoryLanguageReady,
+    placeholderData: undefined,
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/seo/page-data?url=${encodeURIComponent(fullUrl)}&slim=1`, { signal });
-      if (!response.ok) throw new Error(`SEO page data unavailable (${response.status})`);
-      return response.json();
+      if (!response.ok && !(((isDirectory || isBlog || isLegacyGuideCandidate) && response.status === 404) || (isLegacyGuideCandidate && response.status === 410))) {
+        throw new Error(`SEO page data unavailable (${response.status})`);
+      }
+      const payload: SeoPagePayload = await response.json();
+      if (isLegacyGuideCandidate && (response.status === 410 || response.status === 404)) return {
+        ...payload, httpStatus: response.status, legacyGuideId: null,
+        seoTags: { ...payload.seoTags, title: payload.seoTags?.title || `${response.status} | MegaRadio`, description: payload.seoTags?.description || '',
+          noIndex: true, robots: 'noindex, follow', canonical: undefined, hreflangs: [] },
+        structuredData: { global: payload.structuredData?.global || [], page: [] },
+      };
+      if (isDirectory && response.status !== 404 && !isStationDirectoryData(payload?.stationDirectory)) {
+        throw new Error('Station directory data unavailable');
+      }
+      if (isDirectory && response.status === 404 && !payload?.seoTags) {
+        throw new Error('Station directory error metadata unavailable');
+      }
+      if (isBlog && response.status === 404) {
+        if (!payload?.seoTags?.noIndex || !payload.seoTags.robots?.includes('noindex')) {
+          throw new Error('Blog error metadata unavailable');
+        }
+        return { ...payload, httpStatus: 404, seoTags: { ...payload.seoTags, canonical: undefined, hreflangs: [] },
+          structuredData: { global: payload.structuredData?.global || [], page: [] } };
+      }
+      return { ...payload, httpStatus: response.status === 404 ? 404 : 200 };
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: isLegacyGuideCandidate ? 0 : 5 * 60 * 1000,
+    ...(isLegacyGuideCandidate ? { refetchOnMount: 'always' as const } : {}),
+    ...(isDirectory ? { retry: false } : {}),
   });
+  const seoData = query.data;
+  const applyCurrentHead = isLegacyGuideCandidate
+    ? query.isSuccess && !query.isFetching && !seoData?.redirectTo
+    : !ssrHeadAlreadyCorrect || ((isDirectory || isBlog) && seoData?.httpStatus === 404);
+  const structuredData = useMemo(() => seoData?.structuredData && isGenrePage
+    ? withoutGenreStationLists(seoData.structuredData) : seoData?.structuredData,
+  [seoData?.structuredData, isGenrePage]);
 
   return (
     <ServerSeoHeadContext.Provider value={true}>
-      {/* Never replace a complete SSR head with homepage translation keys or
-          the previous route's tags while the current request is pending. */}
-      {!ssrHeadAlreadyCorrect && seoData?.seoTags && <SeoHead seoData={seoData.seoTags} structuredData={seoData.structuredData} />}
-      {children}
+      <StationDirectoryContext.Provider value={{ active: isDirectory, language: currentLanguage, query }}>
+        {/* Never replace a complete SSR head with homepage translation keys or
+            the previous route's tags while the current request is pending. */}
+        {applyCurrentHead && seoData?.seoTags
+          && <SeoHead key={fullUrl} seoData={seoData.seoTags} structuredData={structuredData}
+            clearCanonical={((isDirectory || isBlog || isLegacyGuideCandidate) && seoData.httpStatus === 404) || (isLegacyGuideCandidate && seoData.httpStatus === 410)} />}
+        {children}
+      </StationDirectoryContext.Provider>
     </ServerSeoHeadContext.Provider>
   );
 }

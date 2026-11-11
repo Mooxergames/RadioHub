@@ -63,7 +63,8 @@ function useTranslationRuntime() {
   useEffect(() => {
     const nextLanguage = getBrowserLanguage();
     if (nextLanguage !== language) setLanguageState(nextLanguage);
-    if (getExplicitLanguageFromPath(window.location.pathname)) syncBrowserLanguageFromUrl(nextLanguage);
+    const explicitLanguage = getExplicitLanguageFromPath(window.location.pathname);
+    if (explicitLanguage) syncBrowserLanguageFromUrl(explicitLanguage);
   }, [language, pathname]);
 
   const hasPreloadedTranslations = typeof window !== 'undefined' && 
@@ -442,25 +443,6 @@ function useTranslationRuntime() {
       });
     }
     
-    // Prefetch common languages for future instant switches
-    const commonLanguages = ['en', 'de', 'es', 'fr', 'it', 'pt', 'tr'];
-    commonLanguages.forEach(lang => {
-      if (!queryClient.getQueryData(["/api/translations", lang])) {
-        setTimeout(() => {
-          queryClient.prefetchQuery({
-            queryKey: ["/api/translations", lang],
-            queryFn: async () => {
-              const response = await fetch(`/api/translations/${lang}`);
-              if (!response.ok) throw new Error('Failed to fetch translations');
-              return response.json();
-            },
-            staleTime: 30 * 60 * 1000,
-            gcTime: 60 * 60 * 1000,
-          });
-        }, 100); // Stagger prefetching
-      }
-    });
-    
     // Force immediate refetch if needed, but don't block UI
     setTimeout(() => {
       queryClient.fetchQuery({
@@ -474,7 +456,8 @@ function useTranslationRuntime() {
     const handlePopstate = () => {
       const nextLanguage = getBrowserLanguage();
       setLanguageState(nextLanguage);
-      if (getExplicitLanguageFromPath(window.location.pathname)) syncBrowserLanguageFromUrl(nextLanguage);
+      const explicitLanguage = getExplicitLanguageFromPath(window.location.pathname);
+      if (explicitLanguage) syncBrowserLanguageFromUrl(explicitLanguage);
     };
 
     // Listen for URL changes (back/forward buttons)

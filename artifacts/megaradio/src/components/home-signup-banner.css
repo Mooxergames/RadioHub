@@ -15,7 +15,7 @@
 }
 
 .home-signup-banner__copy { position: relative; z-index: 1; width: 69%; }
-.home-signup-banner h3 { margin: 0; font-size: 33.194px; font-weight: 700; line-height: 38px; }
+.home-signup-banner__title { margin: 0; font-size: 33.194px; font-weight: 700; line-height: 38px; }
 .home-signup-banner p { margin: 9px 0 0; font-size: 16px; font-weight: 500; line-height: 19px; }
 .home-signup-banner__button {
   display: inline-flex;
@@ -50,14 +50,14 @@
 
 @media (min-width: 640px) and (max-width: 1023px) {
   .home-signup-banner { min-height: 264px; padding: 36px; }
-  .home-signup-banner h3 { font-size: 28px; line-height: 33px; }
+  .home-signup-banner__title { font-size: 28px; line-height: 33px; }
   .home-signup-banner__image { top: -12px; width: 36%; right: -3%; }
 }
 
 @media (max-width: 639px) {
   .home-signup-banner { align-items: flex-start; min-height: 320px; margin: 28px 0; padding: 26px 24px; }
   .home-signup-banner__copy { width: 100%; }
-  .home-signup-banner h3 { font-size: 25px; line-height: 30px; }
+  .home-signup-banner__title { font-size: 25px; line-height: 30px; }
   .home-signup-banner p { max-width: 220px; font-size: 14px; line-height: 19px; }
   .home-signup-banner__button { margin-top: 24px; }
   .home-signup-banner__image { top: auto; bottom: -67px; right: -34px; width: 210px; }

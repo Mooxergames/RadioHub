@@ -16,6 +16,51 @@ function endpoint(value: unknown): string | null {
   } catch { return null; }
 }
 
+function stationEndpoints(doc: StationIdentity): Set<string> {
+  const candidates = [doc.url];
+  if (doc.manualEditFields?.url !== true || doc.manualEditFields?.urlResolved === true) candidates.push(doc.urlResolved);
+  return new Set(candidates.map(endpoint).filter((url): url is string => url !== null));
+}
+
+/** Extract disjoint, independently verified subsets. A bridge record with two
+ * URLs must never turn two different broadcasts into a transitive match. */
+export function partitionDuplicateGroup<T extends StationIdentity>(docs: readonly T[]): { groups: T[][]; remaining: T[] } {
+  if (assessDuplicateMerge(docs).eligible) return { groups: [[...docs]], remaining: [] };
+  const buckets = new Map<string, T[]>();
+  for (const doc of docs) for (const url of stationEndpoints(doc)) {
+    const bucket = buckets.get(url) || [];
+    bucket.push(doc); buckets.set(url, bucket);
+  }
+  const claimed = new Set<T>(), groups: T[][] = [];
+  const candidates = [...buckets.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  for (const [, bucket] of candidates) {
+    const available = bucket.filter(doc => !claimed.has(doc));
+    if (!assessDuplicateMerge(available).eligible) continue;
+    groups.push(available);
+    available.forEach(doc => claimed.add(doc));
+  }
+  return { groups, remaining: docs.filter(doc => !claimed.has(doc)) };
+}
+
+export function assessDuplicateMerge(docs: readonly StationIdentity[]): { eligible: boolean; reason: string } {
+  const identity = assessDuplicateGroup(docs);
+  if (!identity.eligible) return identity;
+  if (docs.some(doc => doc.noIndex === true && doc.manualEditFields?.noIndex === true)) {
+    return { eligible: false, reason: 'Manual SEO exclusion requires review' };
+  }
+  if (docs.some(doc => typeof doc.redirectToSlug === 'string' && doc.redirectToSlug.trim())) {
+    return { eligible: false, reason: 'Existing redirect requires review' };
+  }
+  return identity;
+}
+
+/** Do not redirect an open page into an automatically excluded clone just
+ * because that clone has more votes. Explicit manual primary choices remain. */
+export function compareDuplicateSurvivors(a: StationIdentity, b: StationIdentity): number {
+  return Number(a.noIndex === true) - Number(b.noIndex === true)
+    || (Number(b.votes) || 0) - (Number(a.votes) || 0) || String(a._id).localeCompare(String(b._id));
+}
+
 /** A reviewed redirect keeps both records intact, so conflicting country
  * metadata can be retained. Require the same name AND exact primary endpoint;
  * stale resolved URLs, host-only matches and fuzzy names are not evidence. */
@@ -50,9 +95,7 @@ export function assessDuplicateGroup(docs: readonly StationIdentity[]): { eligib
   }
   let shared: Set<string> | undefined;
   for (const doc of docs) {
-    const candidates = [doc.url];
-    if (doc.manualEditFields?.url !== true || doc.manualEditFields?.urlResolved === true) candidates.push(doc.urlResolved);
-    const urls = new Set(candidates.map(endpoint).filter((url): url is string => url !== null));
+    const urls = stationEndpoints(doc);
     shared = shared === undefined ? urls : new Set([...shared].filter(url => urls.has(url)));
     if (!shared.size) return reject('No shared actual HTTP stream endpoint across every station');
   }

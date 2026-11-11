@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, mock, test } from 'node:test';
-import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { ACTIVE_SITEMAP_LANGUAGES, generateSeoTags, normalizeSeoTitle } from '@workspace/seo-shared/seo-config';
 import { HOME_HERO_COPY, getHomeHeroCopy } from '@workspace/seo-shared/home-hero-copy';
 import { buildHomeSeo } from '@workspace/seo-shared/home-seo-templates';
 
@@ -23,6 +23,32 @@ before(async () => {
   renderer = new SeoRenderer();
 });
 after(() => mock.restoreAll());
+
+test('concise English homepage title agrees across server, client and social metadata', async () => {
+  for (const translations of [{}, { hero_worlds_best_radio: 'Free Live Radio Online' }]) {
+    const tags = await renderer.generateEnhancedSeoTags('home', 'en', translations, '/', 'https://themegaradio.com');
+    assert.equal(tags.title, 'Free Live Radio Online | Mega Radio');
+    assert.equal(tags.title, generateSeoTags('home', 'en', translations, '/', 'https://themegaradio.com').title);
+    assert.equal(tags.ogTitle, tags.title);
+    assert.equal(tags.twitterTitle, tags.title);
+    assert.equal((tags.title.match(/Mega Radio/g) || []).length, 1);
+  }
+});
+
+for (const [language, raw, expected] of [
+  ['zh', 'Mega Radio：来自 120 个国家的免费直播电台', '来自 120 个国家的免费直播电台 | Mega Radio'],
+  ['ja', 'Mega Radio：120カ国からの無料ライブラジオ', '120カ国からの無料ライブラジオ | Mega Radio'],
+]) {
+  test(`${language}: actual fullwidth-colon DB title has one brand in SSR and social metadata`, async () => {
+    const translations = { meta_title: raw };
+    const tags = await renderer.generateEnhancedSeoTags('home', language, translations, '/', 'https://themegaradio.com');
+    assert.equal(tags.title, expected);
+    assert.equal(tags.ogTitle, expected);
+    assert.equal(tags.twitterTitle, expected);
+    const head = renderer.generateHtmlHead(tags, language, translations, '/', undefined, new Map(), { pageType: 'home' });
+    assert.ok(head.includes(`<title>${expected}</title>`));
+  });
+}
 
 const RADIO_WORDS: Record<string, RegExp> = {
   en: /radio/i, de: /radio/i, tr: /radyo/i, es: /radio/i,
@@ -95,16 +121,29 @@ for (const language of ACTIVE_SITEMAP_LANGUAGES) {
       meta_title: 'Custom homepage search title',
       meta_description: 'Custom homepage search description.',
       hero_worlds_best_radio: 'Previous hero wording',
-    }]) {
+    },
+      { meta_title: 'Mega Radio: Custom homepage search title | Mega Radio | Mega Radio' },
+      { meta_title: 'Mega Radio' },
+      { meta_title: '  ', hero_worlds_best_radio: 'Custom legacy title' },
+      { meta_title: 'Mega Radio: Listen to Free Live Radio & Music from 120 Countries' },
+      { meta_title: 'Mega Radio: Kostenlos Live-Radio & Musik aus 120 Ländern hören' },
+    ]) {
       const seo = buildHomeSeo(language, translations);
       const actual = await renderer.generateEnhancedSeoTags('home', language, translations, '/', 'https://themegaradio.com');
-      assert.equal(actual.title, `${seo.title} | Mega Radio`);
+      const client = generateSeoTags('home', language, translations, '/', 'https://themegaradio.com');
+      assert.equal(actual.title, seo.title);
+      assert.equal(actual.title, client.title);
       assert.equal(actual.description, seo.description);
       assert.equal(actual.ogTitle, actual.title);
       assert.equal(actual.twitterTitle, actual.title);
       assert.equal(actual.ogDescription, seo.description);
       assert.equal(actual.twitterDescription, seo.description);
       assert.notEqual(actual.title, getHomeHeroCopy(language).headline);
+      const head = renderer.generateHtmlHead(actual, language, translations, '/');
+      const escapedTitle = normalizeSeoTitle(actual.title).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      assert.ok(head.includes(`<title>${escapedTitle}</title>`));
+      assert.ok(head.includes(`<meta property="og:title" content="${escapedTitle}">`));
+      assert.ok(head.includes(`<meta name="twitter:title" content="${escapedTitle}">`));
     }
   });
 }

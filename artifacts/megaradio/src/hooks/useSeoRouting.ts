@@ -1,12 +1,13 @@
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { useQueryClient } from '@tanstack/react-query';
-import { getLanguageFromPath, DEFAULT_LANGUAGE, SEO_LANGUAGES, COUNTRY_TO_LANGUAGE, ACTIVE_SITEMAP_LANGUAGES } from "@workspace/seo-shared/seo-config";
+import { getLanguageFromPath, getRetiredLocaleFromPath, DEFAULT_LANGUAGE, SEO_LANGUAGES, COUNTRY_TO_LANGUAGE, ACTIVE_SITEMAP_LANGUAGES } from "@workspace/seo-shared/seo-config";
 import { translateUrl, reverseTranslateUrl, normalizeUrlForLanguage } from "@workspace/seo-shared/url-translations";
 import { getBrowserLanguage, saveBrowserLanguage, syncBrowserLanguageFromUrl } from '@/lib/browser-language';
 import { prefetchNavigationTranslations } from '@/lib/translation-navigation-prefetch';
 import { getExplicitLanguageFromPath } from '@workspace/seo-shared/language-preference';
 import { logger } from '@/lib/logger';
+import { parseBlogPath, isBlogLocale, blogAvailable, blogPath } from '@workspace/seo-shared/blog-manifest';
 
 // Language-prefixed URLs are authoritative; country selection is a content filter.
 export function useSeoRouting() {
@@ -29,13 +30,12 @@ export function useSeoRouting() {
   // Handles cases like /de/istasyon/slug → /de/sender/slug
   // When user manually changes language code, ensure path segments match the new language
   useEffect(() => {
-    if (typeof window !== 'undefined' && urlLanguage) {
+    if (typeof window !== 'undefined' && urlLanguage && !getRetiredLocaleFromPath(location)) {
       const normResult = normalizeUrlForLanguage(location, urlLanguage);
       if (normResult.needsRedirect) {
         logger.log(`🔄 Cross-language URL normalization: ${location} → ${normResult.normalized}`);
-        // Use replace to avoid adding to history stack
-        window.history.replaceState(null, '', normResult.normalized);
-        setLocation(normResult.normalized);
+        const normalizedUrl = `${normResult.normalized}${window.location.search}${window.location.hash}`;
+        setLocation(normalizedUrl, { replace: true });
       }
     }
   }, [location, urlLanguage, setLocation]);
@@ -64,7 +64,8 @@ export function useSeoRouting() {
     
     // Persist explicit URL choices in both stores, including English. A bare
     // content URL's fallback must not overwrite a previously chosen language.
-    if (getExplicitLanguageFromPath(location)) syncBrowserLanguageFromUrl(effectiveLanguage);
+    const explicitLanguage = getExplicitLanguageFromPath(location);
+    if (explicitLanguage) syncBrowserLanguageFromUrl(explicitLanguage);
   }, [location, effectiveLanguage, currentLanguage, queryClient]);
 
   // Note: Location data is fetched in radio-frontend.tsx to avoid duplicate calls
@@ -83,7 +84,7 @@ export function useSeoRouting() {
     
     // Store the preferred language immediately (localStorage + cookie for SSR)
     saveBrowserLanguage(newLanguage);
-    if (newLanguage === effectiveLanguage) return;
+    if (newLanguage === effectiveLanguage && !getRetiredLocaleFromPath(location)) return;
     
     // Translate current page to new language and stay on same page
     // Use englishPath (already computed) to get canonical English route
@@ -96,7 +97,9 @@ export function useSeoRouting() {
     
     // Build new URL: /{newLanguage}/{translatedPath}
     // Handle root path (homepage) case
-    const newPath = translatedPath === '/' 
+    const sourceBlog = parseBlogPath(getRetiredLocaleFromPath(location) ? `/en${cleanPath}` : location);
+    const missingBlogEdition = sourceBlog?.id && isBlogLocale(newLanguage) && !blogAvailable(sourceBlog.id, newLanguage);
+    const newPath = missingBlogEdition && isBlogLocale(newLanguage) ? blogPath(newLanguage) : translatedPath === '/'
       ? `/${newLanguage}` 
       : `/${newLanguage}${translatedPath}`;
     
@@ -106,7 +109,7 @@ export function useSeoRouting() {
     // current session mounted instead of reloading the entire document.
     // Warm only the chosen locale, without delaying navigation on the network.
     void prefetchNavigationTranslations(queryClient, newLanguage);
-    setLocation(`${newPath}${window.location.search}${window.location.hash}`);
+    setLocation(missingBlogEdition ? newPath : `${newPath}${window.location.search}${window.location.hash}`);
   };
   
   // Function to navigate with language prefix preservation (for SEO URLs)

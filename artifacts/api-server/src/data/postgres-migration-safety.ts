@@ -7,28 +7,12 @@ const writeStores = [
   "MESSAGE_STORE", "BILLING_STORE", "LOCALIZATION_STORE", "STATION_WRITE_MODE",
 ] as const;
 
-export function postgresOwnedDomains(environment: NodeJS.ProcessEnv = process.env): string[] {
-  return writeStores.filter((name) => (environment[name] || "mongo").toLowerCase() === "postgres");
-}
-
-export function validateMigrationWriteSafety(phase: string, environment: NodeJS.ProcessEnv = process.env): void {
-  if (phase === "verify") return;
-  const owned = postgresOwnedDomains(environment);
-  if (owned.length) {
-    throw new Error(`MongoDB replay is forbidden after PostgreSQL write cutover: ${owned.join(", ")}`);
-  }
-  // Maintenance middleware alone does not stop jobs, WebSockets or CDC.
-  if (environment.MIGRATION_TARGET_WRITERS_STOPPED !== "true") {
-    throw new Error("Migration writes require MIGRATION_TARGET_WRITERS_STOPPED=true after stopping all target writers (API, web, jobs and CDC), or using an isolated target database");
-  }
-}
-
 export async function assertNoPostgresWriteAuthority(client: Pick<pg.PoolClient, "query">): Promise<void> {
   const result = await client.query<{ domain: string }>(
     "SELECT domain FROM database_write_authority WHERE authority='postgres' ORDER BY domain",
   );
   if (result.rows.length) {
-    throw new Error(`MongoDB replay is forbidden: durable PostgreSQL write authority exists for ${result.rows.map((row) => row.domain).join(", ")}. Use a reviewed reverse migration or a fresh staging database; do not clear cutover markers.`);
+    throw new Error(`Snapshot replay is forbidden: durable PostgreSQL write authority exists for ${result.rows.map((row) => row.domain).join(", ")}. Restore into a fresh staging database; do not clear write-authority markers.`);
   }
 }
 

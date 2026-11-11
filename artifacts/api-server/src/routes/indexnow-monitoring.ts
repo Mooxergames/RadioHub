@@ -84,14 +84,6 @@ router.get('/stats', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/admin/indexnow/sitemap-diff-runs - Recent nightly sitemap-diff
-// runs (Task #190) grouped by calendar day so admins can see which new
-// URLs were pinged to search engines last night without querying Mongo.
-//
-// Each "run" is one calendar day (UTC) of `trigger=sitemap-diff` log
-// entries. We surface aggregate counts plus per-language breakdown
-// (parsed from the first path segment of `sampleUrls`) and the raw
-// submission rows (capped sampleUrls per row already at 5).
 router.get('/sitemap-diff-runs', async (req: Request, res: Response) => {
   try {
     const days = Math.min(Math.max(parseInt(req.query.days as string) || 14, 1), 60);

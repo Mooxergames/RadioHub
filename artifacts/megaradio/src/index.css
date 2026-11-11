@@ -576,7 +576,9 @@ img[loading="lazy"] {
   body {
     @apply font-sans antialiased bg-background text-foreground;
     font-family: 'Ubuntu', sans-serif;
-    height: 100%;
+    /* Grow with the page so overflow-x cannot create a second vertical scroller. */
+    height: auto;
+    min-height: 100%;
     scrollbar-width: none; /* Hide scrollbar - Firefox */
     -ms-overflow-style: none; /* Hide scrollbar - IE/Edge */
   }
@@ -700,7 +702,8 @@ img[loading="lazy"] {
   }
 
   /* Genre card text styling - Figma: 32px bold with text-shadow */
-  .genre-slide h4 {
+  .genre-slide h4,
+  .genre-slide h3.home-genre-title {
     font-family: 'Ubuntu', sans-serif !important;
     font-size: 32px !important;
     font-weight: 700 !important;
@@ -718,7 +721,8 @@ img[loading="lazy"] {
       border-radius: 5px;
     }
     
-    .genre-slide h4 {
+    .genre-slide h4,
+    .genre-slide h3.home-genre-title {
       font-family: 'Ubuntu', sans-serif !important;
       font-size: 18px !important;
       font-weight: 700 !important;
@@ -737,7 +741,8 @@ img[loading="lazy"] {
       border-radius: 5px;
     }
     
-    .genre-slide h4 {
+    .genre-slide h4,
+    .genre-slide h3.home-genre-title {
       font-family: 'Ubuntu', sans-serif !important;
       font-size: 18px !important;
       font-weight: 700 !important;

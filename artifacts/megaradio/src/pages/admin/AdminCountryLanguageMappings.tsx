@@ -311,7 +311,7 @@ export default function AdminCountryLanguageMappings() {
 
   // Server-side audit trail of every admin action on country-language
   // mappings (clear-overrides, reset-all, edit, delete, bulk-save).
-  // Persisted in Mongo (in addition to the opt-in audit email) so admins
+  // Persisted in PostgreSQL (in addition to the opt-in audit email) so admins
   // can reconstruct who changed which mapping after the fact.
   type AuditActionType =
     | 'clear-overrides'

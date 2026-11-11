@@ -4,6 +4,8 @@ import { normalizeCountryFilter, resolveToDbName } from '../utils/normalize-coun
 import { publicStationCache as CacheManager } from '../public-station-cache';
 import { publicStationResponseCache } from '../middleware/public-station-cache';
 import { logger } from '../utils/logger';
+import { withPilotEditorial } from '../seo/indexing-pilot';
+import { stationDetailCacheKey } from '../services/station-detail-cache';
 
 
 
@@ -23,12 +25,6 @@ import {
   updateStationDerivedFields,
 } from '../data/station-read-store';
 
-// Escape regex meta-characters from user input. Without this, callers can pass
-// patterns like `.*` or catastrophic-backtracking inputs (e.g. `(a+)+`) and
-// either bypass intended exact-match filters or pin a Mongo regex worker.
-// We also cap input length so a malicious 1MB query string cannot become a
-// multi-million-character RegExp source. Inputs are anchored where the call
-// site indicates an exact match is intended.
 function escapeRegex(input: any, maxLen: number = 80): string {
   if (typeof input !== 'string') return '';
   const s = input.length > maxLen ? input.slice(0, maxLen) : input;
@@ -72,7 +68,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
     try {
       const { identifier } = req.params;
 
-      const cacheKey = `station:detail:visibility-v2:${identifier}`;
+      const cacheKey = stationDetailCacheKey(identifier);
       const cached = await CacheManager.get(cacheKey);
       if (cached) return void res.json(cached);
 
@@ -84,11 +80,10 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
 
       if (!station.slug) {
         const newSlug = await generateUniqueSlug(station.name, 'station', station._id.toString());
-        // Re-evaluate junk now that we know the persisted slug — codec-suffix
-        // rules (incl. collision suffixes like `-mp3-1`) only fire once the
-        // slug is finalised, so flag noIndex at the same write.
+        // Re-evaluate actual test-feed rules against the persisted slug.
         const update: { slug: string; noIndex?: true } = { slug: newSlug };
         const verdict = evaluateJunkStation({
+          stationPageMode: station.stationPageMode,
           name: station.name,
           slug: newSlug,
           url: station.url,
@@ -107,13 +102,14 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
         station.slug = newSlug;
       }
 
-      const result = stripPlaceholders(station);
-      await CacheManager.set(cacheKey, result, { ttl: 60 });
-      res.json(result);
+      const result = withPilotEditorial(stripPlaceholders(station));
+      const { manualEditFields: _manualEditFields, ...publicResult } = result;
+      await CacheManager.set(cacheKey, publicResult, { ttl: 60 });
+      res.json(publicResult);
     } catch (error: any) {
       logger.error(`❌ /api/station/:identifier failed: code=${error?.code || 'unknown'} msg=${error?.message || error}`);
       let stale: any = null;
-      try { stale = await CacheManager.get(`station:detail:visibility-v2:${req.params.identifier}`); } catch {}
+      try { stale = await CacheManager.get(stationDetailCacheKey(req.params.identifier)); } catch {}
       res.set('Cache-Control', 'no-store');
       if (stale != null) { res.set('X-Data-Stale', 'true'); return void res.json(stale); }
       res.status(503).json({ error: 'Station data is temporarily unavailable' });
@@ -144,7 +140,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
       }
       // INCIDENT 2026-05-15 v10 — wrapped compute in single-flight so 100
       // concurrent cold misses (typical SSR fanout when CDN expires the
-      // homepage) coalesce into ONE Mongo aggregate. Previously each
+      // homepage) coalesce into one database query. Previously each
       // miss spawned its own pair of aggregates, draining the M10 pool.
       // INCIDENT 2026-05-15 v10.2 — upgraded to true SWR (1h fresh /
       // 6h stale) so a stressed cluster keeps serving last-known-good
@@ -445,15 +441,15 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
 
   // LINKED STATIONS - Related stations for station detail page
   app.get("/api/stations/:stationId/linked", async (req, res) => {
+    const { stationId } = req.params;
+    const compact = req.query.slim === '1';
+    const cacheKey = `stations:linked:${compact ? 'cards-v1:' : ''}${stationId}`;
     try {
-      const { stationId } = req.params;
-
-      const cacheKey = `stations:linked:${stationId}`;
       const cached = await CacheManager.get(cacheKey);
       if (cached) return void res.json(cached);
 
       {
-        const linked = await getRelatedStationsFromPostgres(stationId, 12);
+        const linked = await getRelatedStationsFromPostgres(stationId, 12, compact);
         if (linked === null) return void res.status(404).json({ error: 'Station not found' });
         const result = { stations: linked };
         await CacheManager.set(cacheKey, result, { ttl: 1800 });
@@ -464,7 +460,7 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
     } catch (error: any) {
       logger.error(`❌ /api/stations/:stationId/linked failed: code=${error?.code || 'unknown'} msg=${error?.message || error}`);
       let stale: any = null;
-      try { stale = await CacheManager.get(`stations:linked:${req.params.stationId}`); } catch {}
+      try { stale = await CacheManager.get(cacheKey); } catch {}
       res.set('Cache-Control', 'no-store');
       if (stale != null) { res.set('X-Data-Stale', 'true'); return void res.json(stale); }
       res.status(503).json({ error: 'Station data is temporarily unavailable' });
@@ -473,17 +469,6 @@ export function registerPublicStationRoutes(app: Express, deps: any) {
 
   // MAIN STATIONS LIST API - Full filter/sort/search/pagination
   app.get("/api/stations", async (req, res) => {
-    // INCIDENT 2026-05-16 v11 — restructured: cacheable path (no search,
-    // no excludeStationIds) is now wrapped in CacheManager.getOrSetSingleFlight
-    // so 50 concurrent SSR cold misses on the same country page coalesce
-    // into ONE Mongo aggregate. The Railway 15:06-16:18 log dump showed
-    // this endpoint draining the 100-slot pool over 4 minutes because
-    // every miss spawned its own aggregate. Pattern copied from
-    // /api/stations/popular at L163.
-    // Also writes a country-only LKG ("last known good") cache after
-    // every successful aggregate so the catch-block fallback can serve
-    // a populated country page even when the exact filter/sort/page
-    // combination has no cached entry.
     const isTV = req.query.tv === '1';
     // Existing API/admin clients keep full records; card-only consumers opt in.
     const compact = req.query.slim === '1';

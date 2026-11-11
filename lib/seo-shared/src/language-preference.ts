@@ -1,12 +1,13 @@
-import { SEO_LANGUAGES } from './seo-config';
+import { ACTIVE_SITEMAP_LANGUAGES, SEO_LANGUAGES } from './seo-config';
 
 const enabledLanguages = new Set(SEO_LANGUAGES.filter(language => language.enabled).map(language => language.code));
+const preferenceLanguages = new Set<string>(ACTIVE_SITEMAP_LANGUAGES);
 
 /** Device language tags such as de-AT/de-DE select the supported German locale. */
 export function getSupportedLanguage(value: unknown): string | undefined {
   if (typeof value !== 'string' || !/^[a-z]{2}(?:-[a-z0-9]{2,8})*$/i.test(value.trim())) return undefined;
   const language = value.trim().split('-')[0].toLowerCase();
-  return enabledLanguages.has(language) ? language : undefined;
+  return preferenceLanguages.has(language) ? language : undefined;
 }
 
 export function getPreferredLanguageCookie(cookieHeader: string): string | undefined {

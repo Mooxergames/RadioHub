@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { verifiedLegacyStationAlias } from '../src/seo/verified-legacy-station-alias';
+import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 
 const reads: string[] = [];
 let rows = new Map<string, Record<string, any>>();
 let slugRows: any[] = [];
+mock.module('../src/performance-cache', { namedExports: {
+  performanceCache: { getUrlTranslations: async () => new Map() },
+} });
 mock.module('../src/postgres-runtime', { namedExports: { getPostgresPool: () => ({
   query: async (_sql: string, values: string[]) => {
     reads.push(values[0]);
@@ -19,6 +24,7 @@ mock.module('../src/data/postgres-seo-indexing-store', { namedExports: {
 mock.module('../src/services/precomputed-cities', { namedExports: { PrecomputedCitiesService: { getSupportedCountries: () => [] } } });
 const { getStationByIdentifier } = await import('../src/data/station-read-store');
 const { loadSlugExistence, hasStationSlug, getCanonicalStationSlug, getRedirectableStationSlug } = await import('../src/seo/slug-existence');
+const { urlRedirectMiddleware } = await import('../src/url-redirect-middleware');
 
 beforeEach(async () => {
   reads.length = 0;
@@ -26,6 +32,37 @@ beforeEach(async () => {
   slugRows = [];
   await loadSlugExistence();
 });
+
+for (const language of ACTIVE_SITEMAP_LANGUAGES) {
+  test(`${language}: warm alias cache keeps station/sta identity redirects localized for GET and HEAD`, async () => {
+    slugRows = [{ _id: 'alias-target', slug: 'canonical-fm', name: 'Canonical FM', noIndex: false,
+      url: 'https://stream.example.invalid/live', slugAliases: ['station', 'sta'] }];
+    await loadSlugExistence();
+    const detail = URL_TRANSLATIONS[language]?.station || 'station';
+    const query = '?utm_source=a%26b&x=%23';
+    for (const alias of ['station', 'sta']) {
+      for (const method of ['GET', 'HEAD']) {
+        const path = `/${language}/${detail}/${alias}`;
+        let location: string | undefined;
+        let status: number | undefined;
+        let nextCalled = false;
+        const request = { path, originalUrl: `${path}${query}`, query: {}, headers: {}, method };
+        const response = {
+          setHeader: () => {},
+          redirect: (code: number, target: string) => { status = code; location = target; },
+        };
+        await urlRedirectMiddleware(request as any, response as any, () => { nextCalled = true; });
+        assert.equal(status, 301);
+        assert.equal(decodeURI(location!), `/${language}/${detail}/canonical-fm${query}`);
+        assert.equal(nextCalled, false);
+        const target = `/${language}/${detail}/canonical-fm`;
+        await urlRedirectMiddleware({ ...request, path: target, originalUrl: `${target}${query}` } as any,
+          response as any, () => { nextCalled = true; });
+        assert.equal(nextCalled, true, 'canonical target must not redirect again');
+      }
+    }
+  });
+}
 
 test('only individually reviewed historical spellings are eligible', () => {
   assert.equal(verifiedLegacyStationAlias('kpissfm-2'), 'kpiss-fm-2');
@@ -36,8 +73,14 @@ test('only individually reviewed historical spellings are eligible', () => {
   assert.equal(verifiedLegacyStationAlias('radio-russia'), 'radio-rossii');
   assert.equal(verifiedLegacyStationAlias('1fm-movie-soundtrack'), 'movie-soundtracks-hits-radio-1-fm');
   assert.equal(verifiedLegacyStationAlias('1fm-movie-soundtrack-hits'), 'movie-soundtracks-hits-radio-1-fm');
+  assert.equal(verifiedLegacyStationAlias('931-the-mountain-2'), '93-1-the-mountain');
+  assert.equal(verifiedLegacyStationAlias('paganradioorg-1'), 'paganradio-org');
+  assert.equal(verifiedLegacyStationAlias('jalisco-radio-fm-ciudad-guzmn-1071-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzmn-jc-1'),
+    'jalisco-radio-fm-ciudad-guzman-107-1-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzman-jc');
   for (const slug of ['kpissfm-1', 'kpiss-fm-2', 'randomfm-1', '-2173', '__proto__', 'constructor',
     'radio-onda-rossa-3', 'kiis-1065-sydney-1065-fm-mp3-2',
+    '931-the-mountain-1', '931-the-mountain-3', 'fm-megapolis-fm', '-23', 'abdulbasit-abdulsamad-176',
+    'jalisco-radio-fm-ciudad-guzmn-1071-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzmn-jc-2',
     'france-bleu-besanon-1', 'radio-russia-1', '1fm-movie-soundtrack-1', '1fm-movie-soundtrack-hits-1']) {
     assert.equal(verifiedLegacyStationAlias(slug), null, slug);
   }
@@ -50,6 +93,10 @@ for (const [legacy, canonical, id] of [
   ['radio-russia', 'radio-rossii', '68a8c4a8bd66579311ab8be1'],
   ['1fm-movie-soundtrack', 'movie-soundtracks-hits-radio-1-fm', '68a8c47fbd66579311ab27d0'],
   ['1fm-movie-soundtrack-hits', 'movie-soundtracks-hits-radio-1-fm', '68a8c47fbd66579311ab27d0'],
+  ['931-the-mountain-2', '93-1-the-mountain', '68a8c45cbd66579311aad14c'],
+  ['paganradioorg-1', 'paganradio-org', '6a0791a3bef34beb9148ca80'],
+  ['jalisco-radio-fm-ciudad-guzmn-1071-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzmn-jc-1',
+    'jalisco-radio-fm-ciudad-guzman-107-1-fm-xhcgj-fm-gobierno-del-estado-de-jalisco-ciudad-guzman-jc', '6a07917abef34beb9148c3cf'],
 ]) {
   const target = { id, slug: canonical, name: 'Verified Radio', no_index: false,
     url: 'https://stream.example.invalid/live', slug_aliases: [] };
@@ -203,7 +250,8 @@ test('legacy-locale shortcuts require actual non-excluded exact/alias identities
   ];
   await loadSlugExistence();
   for (const identifier of ['valid-fm', 'old-valid-fm', 'OLD-VALID-FM']) assert.equal(getRedirectableStationSlug(identifier), 'valid-fm');
-  for (const identifier of ['dzhem-fm', 'fm-100', 'format-mp3', 'old-format', '1234', 'numeric-brand',
+  for (const identifier of ['format-mp3', 'old-format']) assert.equal(getRedirectableStationSlug(identifier), 'format-mp3');
+  for (const identifier of ['dzhem-fm', 'fm-100', '1234', 'numeric-brand',
     'explicit-redirect', 'redirect-alias', 'missing', '__proto__']) assert.equal(getRedirectableStationSlug(identifier), null, identifier);
   assert.equal(hasStationSlug('fm-100'), true, 'excluded identity remains available to the existing SSR policy');
   slugRows = [{ ...valid, noIndex: true }]; await loadSlugExistence();

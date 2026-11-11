@@ -143,7 +143,7 @@ export async function pgTrendingStations(country: string | undefined, limit: num
       stationId: row.id, totalFavorites: row.total_favorites,
       weeklyFavorites: row.total_favorites, trendingScore: Math.round(row.trending_score * 10) / 10,
       averageRating: row.average_rating || 0,
-      station: { ...stationShape(row), genre: row.tags_raw },
+      station: { ...stationShape(row), genre: row.tags_raw, noIndex: row.no_index },
     })),
     meta: { count: result.rowCount || 0, country: country || "global", generatedAt: new Date().toISOString() },
   };

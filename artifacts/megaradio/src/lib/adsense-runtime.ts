@@ -46,6 +46,9 @@ export const getAdvertisementLabel = (language: string): string => advertisement
  * page. A real load error permits just one shared reconnect recovery, never
  * ad/no-fill refreshes. Google's CMP remains responsible for visitor consent. */
 export function ensureAdSenseScript(retryAfterReconnect = false): Promise<boolean> {
+  // Google's supported page-level opt-out for ad-intent links, chips and anchors.
+  // Keep manual ad placements and the consent-managed SDK unchanged.
+  document.body.classList.add('google-anno-skip');
   if (!isAdSensePage(window.location.pathname + window.location.search)) return Promise.resolve(false);
   if (retryAfterReconnect && navigator.onLine !== false && failedOwnedScript && !reconnectRetried) {
     reconnectRetried = true;

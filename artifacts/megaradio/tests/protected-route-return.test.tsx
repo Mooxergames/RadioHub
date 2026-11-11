@@ -15,6 +15,16 @@ it.each(ACTIVE_SITEMAP_LANGUAGES)('preserves %s and the protected destination', 
   render(<ProtectedRoute><span>private content</span></ProtectedRoute>);
   expect(state.navigate).toHaveBeenCalledWith(`/${language}/login?returnTo=${encodeURIComponent(path)}`);
 });
+it.each(['rs', 'sr', 'nl'])('retired %s private content still requires login and preserves returnTo', language => {
+  const path = `/${language}/profile/settings?tab=privacy#form`;
+  window.history.replaceState({}, '', path);
+  const page = render(<ProtectedRoute><span>private content</span></ProtectedRoute>);
+  expect(page.queryByText('private content')).toBeNull();
+  expect(state.navigate).toHaveBeenCalledWith(`/en/login?returnTo=${encodeURIComponent(path)}`);
+  state.authenticated = true;
+  page.rerender(<ProtectedRoute><span>private content</span></ProtectedRoute>);
+  expect(page.getByText('private content')).toBeInTheDocument();
+});
 it('keeps an auth outage distinct from an anonymous user', () => {
   state.error = new Error('503: unavailable');
   const page = render(<ProtectedRoute><span>private content</span></ProtectedRoute>);

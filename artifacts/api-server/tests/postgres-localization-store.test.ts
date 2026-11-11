@@ -3,6 +3,25 @@ import { describe, it } from 'node:test';
 import { PostgresLocalizationStore } from '../src/data/postgres-localization-store';
 
 describe('PostgreSQL localization write safety', () => {
+  it('rejects malformed source batches before opening a database connection', async () => {
+    let connections = 0;
+    const store = new PostgresLocalizationStore({ connect: async () => { connections++; throw new Error('must not connect'); } } as any);
+    for (const input of [undefined, [], [null], [{ keyId: 'a', defaultValue: ' ' }],
+      [{ keyId: 'a', defaultValue: 'A' }, { keyId: 'a', defaultValue: 'B' }]]) {
+      await assert.rejects(store.bulkUpdateKeyDefaults(input), (error: any) => error.status === 400);
+    }
+    assert.equal(connections, 0);
+  });
+
+  it('does not update any source values when a batch references a missing key', async () => {
+    const statements: string[] = [];
+    const client = { query: async (sql: string) => { statements.push(sql); return { rows: sql.startsWith('SELECT') ? [{ id: 'a' }] : [] }; }, release() {} };
+    const store = new PostgresLocalizationStore({ connect: async () => client } as any);
+    await assert.rejects(store.bulkUpdateKeyDefaults([{ keyId: 'a', defaultValue: 'A' }, { keyId: 'missing', defaultValue: 'B' }]),
+      (error: any) => error.status === 409);
+    assert.equal(statements.some(sql => sql.startsWith('UPDATE')), false);
+    assert.equal(statements.at(-1), 'ROLLBACK');
+  });
   it('validates a complete URL batch before acquiring a connection or changing rows', async () => {
     let connections = 0;
     const store = new PostgresLocalizationStore({

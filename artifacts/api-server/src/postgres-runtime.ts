@@ -76,7 +76,7 @@ export async function initializePostgres(): Promise<void> {
     "seo_qualified_languages_lkg","admin_settings","admin_setting_history","catalog_sync_runs","station_blacklist",
     "api_keys","api_developer_users","api_demo_usage","api_developer_sessions","auth_event_logs",
     "tv_device_codes","user_devices","cast_sessions","cast_commands","cast_now_playing","cast_events","cast_connections","push_tokens",
-    "tv_version_config","tv_telemetry","tv_telemetry_daily","stripe_subscription_plans",
+    "tv_version_config","tv_telemetry","tv_telemetry_daily","tv_diagnostic_daily","stripe_subscription_plans",
     "visitor_sessions","runtime_app_state","bulk_description_jobs",
     "recommendation_profiles","user_music_profiles","station_similarities","recommendation_events","listening_sessions",
     "genre_counts","genre_whitelist_overrides","genre_station_counts_runs","genre_whitelist_push_logs",

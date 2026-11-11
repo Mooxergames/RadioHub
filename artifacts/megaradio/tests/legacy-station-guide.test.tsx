@@ -1,0 +1,261 @@
+import React from 'react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { LEGACY_STATION_GUIDES, buildLegacyStationGuideSeo, buildLegacyStationGuideSchema, renderLegacyStationGuideHtml, isLegacyStationArticle } from '@workspace/seo-shared/legacy-station-guides';
+import { LEGACY_STATION_GUIDE_ROUTES, getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
+const headGuard = vi.hoisted(() => ({ initial: true }));
+
+vi.mock('@/lib/initial-home-components', () => ({ InitialStation: () => <h1>Real catalogue station</h1> }));
+vi.mock('@/pages/not-found', () => ({ default: () => <h1>Not found</h1> }));
+vi.mock('@/pages/genres/genre-landing', () => ({ default: () => <h1>Real genre catalogue</h1> }));
+vi.mock('@/components/audio-channel-test', () => ({ default: () => <button type="button">Play test</button> }));
+vi.mock('@/utils/ssr-seo-head', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/utils/ssr-seo-head')>(),
+  preserveInitialSsrHead: () => headGuard.initial,
+}));
+vi.mock('@/lib/translation-navigation-prefetch', () => ({ prefetchNavigationTranslations: vi.fn() }));
+import LegacyStationGuidePage from '../src/pages/legacy-station-guide';
+import { SeoPageWrapper } from '../src/components/SeoPageWrapper';
+import { syncDocumentLocale } from '../src/lib/document-locale';
+
+let client: QueryClient;
+beforeEach(() => {
+  headGuard.initial = true;
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0, refetchOnMount: false } } });
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+});
+afterEach(() => { cleanup(); client.clear(); document.querySelectorAll('meta[name="megaradio-legacy-guide"],script[data-managed="seo-structured-data"]').forEach(node => node.remove()); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+function mount(path: string) {
+  window.history.replaceState({}, '', path);
+  return render(<QueryClientProvider client={client}><audio data-testid="existing-player" /><SeoPageWrapper><LegacyStationGuidePage /></SeoPageWrapper></QueryClientProvider>);
+}
+function payload(id = LEGACY_STATION_GUIDES[0].id) {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === id)!;
+  return { legacyGuideId: guide.id, seoTags: buildLegacyStationGuideSeo(guide), structuredData: { global: [], page: buildLegacyStationGuideSchema(guide) } };
+}
+
+it.each(LEGACY_STATION_GUIDES)('verifies ownership despite an existing SSR head before rendering $id', async guide => {
+  const fetcher = vi.fn(async () => new Response(JSON.stringify(payload(guide.id))));
+  vi.stubGlobal('fetch', fetcher);
+  const view = mount(guide.path);
+  await view.findByRole('heading', { level: 1, name: guide.title });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(String(fetcher.mock.calls[0][0])).toContain('/api/seo/page-data?url=');
+  expect(view.container.querySelector('main')).toHaveAttribute('lang', guide.language);
+  expect(document.documentElement.lang).toBe(guide.language);
+  expect(view.container.querySelector('main')).toHaveAttribute('dir', guide.language === 'ar' ? 'rtl' : 'ltr');
+  expect(view.container.querySelectorAll('audio')).toHaveLength(1);
+  expect(view.container.querySelector('button[aria-label*="Play"]')).toBeNull();
+  expect(view.container.querySelectorAll('a[target="_blank"]')).toHaveLength(isLegacyStationArticle(guide) ? guide.sources.length : guide.choices.reduce((n, c) => n + 1 + c.sources.length, 0));
+  if (isLegacyStationArticle(guide)) {
+    for (const section of guide.sections) for (const paragraph of section.paragraphs) expect(view.getByText(paragraph)).toBeVisible();
+  } else {
+    for (const choice of guide.choices) expect(view.getByText(choice.copy)).toBeVisible();
+  }
+  const player = view.getByTestId('existing-player');
+  fireEvent.click(view.container.querySelector(`a[href="/${guide.language}"]`)!);
+  await waitFor(() => expect(window.location.pathname).toBe(`/${guide.language}`));
+  expect(view.getByTestId('existing-player')).toBe(player);
+});
+
+it('a real catalogue owner is not replaced by a guide or selected broadcaster', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ seoTags: { title: 'Real station' } }))));
+  const view = mount(LEGACY_STATION_GUIDES[0].path);
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it('a cached guide payload is rechecked on navigation so it cannot hide a new catalogue owner', async () => {
+  headGuard.initial = false;
+  document.title = 'Prior page';
+  const guide = LEGACY_STATION_GUIDES[0];
+  client.setQueryData(['/api/seo/page-data', guide.path, guide.language], payload());
+  let resolve!: (value: Response) => void;
+  const fetcher = vi.fn(() => new Promise<Response>(done => { resolve = done; }));
+  vi.stubGlobal('fetch', fetcher);
+  const view = mount(guide.path);
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+  expect(view.container.querySelector('main')).toHaveAttribute('aria-busy', 'true');
+  expect(document.title).toBe('Prior page');
+  expect(document.querySelector('script[data-managed="seo-structured-data"][data-schema-scope="page"]')).toBeNull();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  resolve(new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'New station' } })));
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it('uses the resolved local station redirect rather than displaying the old alias as an owner', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'rock-fm-23')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo: '/ar/mahta/real-owner', seoTags: {} }))));
+  const view = mount(guide.path);
+  await waitFor(() => expect(window.location.pathname).toBe('/ar/mahta/real-owner'));
+  expect(view.queryByRole('heading', { name: 'Real catalogue station' })).toBeNull();
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it.each(['https://outside.invalid/station/fm', '//outside.invalid/station/fm', '/admin', '/ar/mahta/rock-fm-23'])('rejects unsafe or self redirect %s', async redirectTo => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'rock-fm-23')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo, seoTags: {} }))));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Not found' });
+  expect(window.location.pathname).toBe(guide.path);
+});
+
+it.each([404, 410])('a definite%s invalidates even verified initial SSR content, canonical and page entities', async status => {
+  const guide = LEGACY_STATION_GUIDES[0];
+  const marker = document.createElement('meta'); marker.name = 'megaradio-legacy-guide'; marker.content = guide.id; document.head.appendChild(marker);
+  const canonical = document.createElement('link'); canonical.rel = 'canonical'; canonical.href = buildLegacyStationGuideSeo(guide).canonical!; document.head.appendChild(canonical);
+  const schema = document.createElement('script'); schema.type = 'application/ld+json'; schema.dataset.managed = 'seo-structured-data'; schema.dataset.schemaScope = 'page'; schema.textContent = JSON.stringify(buildLegacyStationGuideSchema(guide)[1]); document.head.appendChild(schema);
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'Page unavailable', noIndex: true } }), { status })));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Not found' });
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+  expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+  expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
+  expect(document.querySelector('script[data-managed="seo-structured-data"][data-schema-scope="page"]')).toBeNull();
+});
+
+it('a fresh real owner replaces the initial guide title, canonical, robots and page schema together', async () => {
+  const guide = LEGACY_STATION_GUIDES[0];
+  const marker = document.createElement('meta'); marker.name = 'megaradio-legacy-guide'; marker.content = guide.id; document.head.appendChild(marker);
+  const canonical = document.createElement('link'); canonical.rel = 'canonical'; canonical.href = buildLegacyStationGuideSeo(guide).canonical!; document.head.appendChild(canonical);
+  const schema = document.createElement('script'); schema.type = 'application/ld+json'; schema.dataset.managed = 'seo-structured-data'; schema.dataset.schemaScope = 'page'; schema.textContent = JSON.stringify(buildLegacyStationGuideSchema(guide)[1]); document.head.appendChild(schema);
+  const stationCanonical = 'https://themegaradio.com/en/station/real-owner';
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null,
+    seoTags: { title: 'Real owner title', canonical: stationCanonical, robots: 'index, follow', hreflangs: [] },
+    structuredData: { global: [], page: [{ '@context': 'https://schema.org', '@type': 'RadioBroadcastService', name: 'Real owner' }] },
+  }))));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(document.title).toBe('Real owner title');
+  expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', stationCanonical);
+  expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'index, follow');
+  const schemas = [...document.querySelectorAll('script[data-managed="seo-structured-data"][data-schema-scope="page"]')].map(node => JSON.parse(node.textContent!));
+  expect(schemas.map(node => node['@type'])).toEqual(['RadioBroadcastService']);
+});
+
+it('keeps a route-verified complete SSR guide visible while the fresh ownership request is pending', async () => {
+  const guide = LEGACY_STATION_GUIDES[0];
+  const marker = document.createElement('meta');
+  marker.name = 'megaradio-legacy-guide'; marker.content = guide.id; document.head.appendChild(marker);
+  let resolve!: (value: Response) => void;
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(done => { resolve = done; })));
+  const view = mount(guide.path);
+  expect(view.getByRole('heading', { name: guide.title })).toBeVisible();
+  resolve(new Response(JSON.stringify({ seoTags: { title: 'New real station owner' } })));
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it('does not accept a different guide ID from a stale or incorrect page payload', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(payload('rock-fm-23')))));
+  const view = mount(LEGACY_STATION_GUIDES[0].path);
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it('transient metadata failure exposes retry rather than a false restoration', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response('{}', { status: 503 }))
+    .mockResolvedValue(new Response(JSON.stringify(payload())));
+  vi.stubGlobal('fetch', fetcher);
+  const view = mount(LEGACY_STATION_GUIDES[0].path);
+  const retry = await view.findByRole('button', { name: 'Try again' });
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+  fireEvent.click(retry);
+  await view.findByRole('heading', { name: LEGACY_STATION_GUIDES[0].title });
+});
+
+it('route-only manifest cannot drift from reviewed content and never matches neighbouring slugs', () => {
+  expect(LEGACY_STATION_GUIDE_ROUTES.map(({ id, path, sourcePaths, language }) => ({ id, path, sourcePaths, language })))
+    .toEqual(LEGACY_STATION_GUIDES.map(({ id, path, sourcePaths, language }) => ({ id, path, sourcePaths, language })));
+  for (const path of ['/en/station/radar-4', '/af/station/radar-40', '/af/station/radar-4/extra', '//example.org/af/station/radar-4', '/af/station/%72adar-4',
+    '/en/station/channel-v-international', '/am/station/channel-v-international-2', '/ar/mahta/quran-radio-30',
+    '/en/station/quran-radio-3', '/hu/radio/1-210', '/am/station/disco-20',
+    '/am/station/radio-dil-se-dil-tak-extra', '/en/station/dfm-radio-rwanda', '/it/stazione/wxb-loud-1023-fm-pampanga-extra']) {
+    expect(getLegacyStationGuideRoute(path)).toBeNull();
+  }
+});
+
+it('text and untrusted source URLs cannot inject editorial markup or active links', () => {
+  const guide = structuredClone(LEGACY_STATION_GUIDES[0]) as any;
+  guide.title = '<img src=x onerror=alert(1)>';
+  guide.choices[0].officialListen = { label: '<script>bad</script>', url: 'javascript:alert(1)' };
+  guide.choices[0].sources = [{ label: 'Invalid source', url: '//example.org' }];
+  const html = renderLegacyStationGuideHtml(guide);
+  expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  expect(html).not.toContain('<script>');
+  expect(html).not.toContain('href="javascript:');
+  expect(html).not.toContain('href="//example.org');
+  expect(JSON.stringify(buildLegacyStationGuideSchema(guide))).not.toContain('javascript:');
+});
+
+it('history pages use Article metadata and escaped sources, never a listening collection', () => {
+  const original = LEGACY_STATION_GUIDES.find(guide => guide.kind === 'history')!;
+  expect(original.kind).toBe('history');
+  const seo = buildLegacyStationGuideSeo(original);
+  expect(seo.ogType).toBe('article');
+  const schemas = buildLegacyStationGuideSchema(original) as any[];
+  expect(schemas[1]['@type']).toBe('Article');
+  expect(schemas[1].datePublished).toBe('2026-11-11');
+  expect(schemas[1].mainEntity).toBeUndefined();
+  expect(JSON.stringify(schemas)).not.toMatch(/ItemList|RadioStation|RadioBroadcastService|ListenAction|AudioObject/);
+  const guide = structuredClone(original) as any;
+  guide.sections[0].heading = '<script>bad</script>';
+  guide.sections[0].paragraphs = ['<img src=x onerror=alert(1)>'];
+  guide.sources = [{ label: '<img src=x>', url: 'javascript:alert(1)' }];
+  const html = renderLegacyStationGuideHtml(guide);
+  expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');
+  expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  expect(html).not.toContain('<script>');
+  expect(html).not.toContain('href="javascript:');
+  expect(JSON.stringify(buildLegacyStationGuideSchema(guide))).not.toContain('javascript:');
+});
+
+it('renders the audio tool only for the verified test article, not a new catalogue owner', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'color-bars-test')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(payload(guide.id)))));
+  const view = mount(guide.path);
+  await view.findByRole('button', { name: 'Play test' });
+  expect(view.getByAltText(/Locally generated illustrative RGB/)).toHaveAttribute('src', '/images/radio-test-color-bars.png');
+});
+
+it('the exact genre article yields to a real genre rather than a station', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'radio-labels')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'Category' } }))));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Real genre catalogue' });
+  expect(view.queryByRole('heading', { name: 'Real catalogue station' })).toBeNull();
+});
+
+it('genre ownership redirects accept a genre target, not an unrelated internal route', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'radio-labels')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo: '/ar/anwaa/pop', seoTags: {} }))));
+  const view = mount(guide.path);
+  await waitFor(() => expect(window.location.pathname).toBe('/ar/anwaa/pop'));
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it.each(['/admin', '//outside.invalid/genre', '/en/station/a-radio'])('genre ownership rejects unsafe or wrong-type redirect %s', async redirectTo => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'radio-labels')!;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo, seoTags: {} }))));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Not found' });
+  expect(window.location.pathname).toBe(guide.path);
+});
+
+it('WXB keeps an English document after the shell runs, then restores Italian for a newly verified real owner', async () => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'wxb-loud-1023-fm-pampanga')!;
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(payload(guide.id))))
+    .mockImplementation(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'Actual station', language: 'it' } })));
+  vi.stubGlobal('fetch', fetcher);
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: guide.title });
+  syncDocumentLocale('it', guide.path);
+  expect(document.documentElement.lang).toBe('en');
+  await client.invalidateQueries({ queryKey: ['/api/seo/page-data'] });
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(document.documentElement.lang).toBe('it');
+});

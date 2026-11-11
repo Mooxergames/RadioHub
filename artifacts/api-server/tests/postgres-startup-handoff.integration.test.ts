@@ -41,6 +41,14 @@ async function bounded<T>(promise: Promise<T>, milliseconds = 20_000): Promise<T
   }
 }
 
+async function cleanupSteps(steps: Array<() => Promise<unknown>>) {
+  const errors: unknown[] = [];
+  for (const step of steps) {
+    try { await step(); } catch (error) { errors.push(error); }
+  }
+  if (errors.length) throw new AggregateError(errors, "Startup handoff fixture cleanup failed");
+}
+
 function request(port: number, pathname: string, method = "GET") {
   return new Promise<{ status: number | undefined; body: string }>((resolve, reject) => {
     const connection = http.request({ host: "127.0.0.1", port, path: pathname, method, agent: false, timeout: 3_000 }, (response) => {
@@ -64,10 +72,16 @@ test("real PostgreSQL startup gate serves maintenance then automatically hands t
   const schema = `startup_handoff_test_${process.pid}_${randomBytes(6).toString("hex")}`;
   const schemaPattern = /^startup_handoff_test_\d+_[a-f0-9]{12}$/;
   assert.match(schema, schemaPattern);
-  const scopedUrl = new URL(pgUrl);
+  const database = `startup_handoff_db_test_${process.pid}_${randomBytes(6).toString("hex")}`;
+  const databasePattern = /^startup_handoff_db_test_\d+_[a-f0-9]{12}$/;
+  assert.match(database, databasePattern);
+  const databaseUrl = new URL(pgUrl);
+  databaseUrl.pathname = `/${database}`;
+  const scopedUrl = new URL(databaseUrl);
   scopedUrl.searchParams.set("options", `-c search_path=${schema},public`);
   const ssl = process.env.PG_TEST_SSL === "require" ? { rejectUnauthorized: true } : false;
-  const admin = new pg.Pool({ connectionString: pgUrl.toString(), ssl, max: 1, connectionTimeoutMillis: 5_000, statement_timeout: 10_000 });
+  const clusterAdmin = new pg.Pool({ connectionString: pgUrl.toString(), ssl, max: 1, connectionTimeoutMillis: 5_000, statement_timeout: 10_000 });
+  const admin = new pg.Pool({ connectionString: databaseUrl.toString(), ssl, max: 1, connectionTimeoutMillis: 5_000, statement_timeout: 10_000 });
   const destination = new pg.Pool({ connectionString: scopedUrl.toString(), ssl, max: 1, connectionTimeoutMillis: 5_000, statement_timeout: 10_000 });
   const environment = {
     DATABASE_URL: scopedUrl.toString(), POSTGRES_SSL: ssl ? "require" : "disable",
@@ -80,15 +94,23 @@ test("real PostgreSQL startup gate serves maintenance then automatically hands t
   const maintenanceStarted = deferred<number>();
   const allowNextPoll = deferred<void>();
   const logs: string[] = [];
+  let databaseCreated = false;
   let schemaCreated = false;
   let application: http.Server | undefined;
   let startup: Promise<unknown> | undefined;
   let maintenance: Awaited<ReturnType<typeof startPostgresStartupServer>> | undefined;
   let imported = false;
   try {
+    // Expression-index builds wait on old snapshots across schemas. Keep this
+    // real launcher/migration test isolated from parallel test transactions.
+    await clusterAdmin.query(`CREATE DATABASE "${database}" TEMPLATE template0`);
+    databaseCreated = true;
+    await admin.query("CREATE EXTENSION pg_trgm WITH SCHEMA public");
     await admin.query(`CREATE SCHEMA "${schema}"`);
     schemaCreated = true;
     assert.equal((await destination.query("SELECT current_schema() AS name")).rows[0].name, schema);
+    assert.equal((await destination.query("SELECT current_database() AS name")).rows[0].name, database);
+    assert.notEqual(database, decodeURIComponent(pgUrl.pathname.slice(1)));
     startup = startPostgresApplication("dist/index-web.mjs", {
       environment, cwd: repository, signal: controller.signal, signalTarget: signals,
       log: (message: string) => logs.push(message),
@@ -139,6 +161,8 @@ test("real PostgreSQL startup gate serves maintenance then automatically hands t
     assert.equal((await request(port, "/en")).status, 503);
     assert.equal(imported, false);
     assert.ok(Number((await destination.query("SELECT count(*) AS count FROM radiohub_schema_migrations")).rows[0].count) >= 24);
+    assert.deepEqual((await destination.query("SELECT indisvalid,indisready FROM pg_index WHERE indexrelid='stations_source_genre_trgm_idx'::regclass")).rows,
+      [{ indisvalid: true, indisready: true }]);
     assert.equal((await destination.query("SELECT count(*)::int AS count FROM migration_runs")).rows[0].count, 0);
 
     // This isolated fixture exercises the durable completion gate, not data conversion.
@@ -173,22 +197,34 @@ test("real PostgreSQL startup gate serves maintenance then automatically hands t
     try {
       if (startup) await bounded(startup.catch(() => undefined), 10_000);
     } finally {
-      await maintenance?.close();
-      if (application) {
-        const closing = new Promise<void>((resolve) => application!.close(() => resolve()));
-        application.closeAllConnections();
-        await bounded(closing, 5_000);
-      }
-      await destination.end();
-      try {
-        if (schemaCreated) {
-          // Only this generated schema in the validated disposable loopback database may be removed.
-          assert.match(schema, schemaPattern);
-          await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
-        }
-      } finally {
-        await admin.end();
-      }
+      await cleanupSteps([
+        async () => { await maintenance?.close(); },
+        async () => {
+          if (application) {
+            const closing = new Promise<void>((resolve) => application!.close(() => resolve()));
+            application.closeAllConnections();
+            await bounded(closing, 5_000);
+          }
+        },
+        () => destination.end(),
+        async () => {
+          if (schemaCreated) {
+            assert.match(schema, schemaPattern);
+            await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
+          }
+        },
+        () => admin.end(),
+        async () => {
+          if (databaseCreated) {
+            // Never remove the supplied shared test database or another fixture.
+            assert.match(database, databasePattern);
+            assert.notEqual(database, decodeURIComponent(pgUrl.pathname.slice(1)));
+            await clusterAdmin.query(`DROP DATABASE "${database}"`);
+            assert.equal((await clusterAdmin.query("SELECT count(*)::int AS count FROM pg_database WHERE datname=$1", [database])).rows[0].count, 0);
+          }
+        },
+        () => clusterAdmin.end(),
+      ]);
     }
   }
 });

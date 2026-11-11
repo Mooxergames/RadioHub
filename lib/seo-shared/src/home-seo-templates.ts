@@ -17,7 +17,7 @@
  * across every language).
  */
 export interface HomeSeoEntry {
-  /** ~50-60 char localized title (brand suffix appended by the renderer). */
+  /** Complete localized title phrase, without the brand suffix. */
   title: string;
   /** ~150-160 char localized meta description. */
   description: string;
@@ -27,85 +27,85 @@ export interface HomeSeoEntry {
 
 export const HOME_SEO_TEMPLATES: Record<string, HomeSeoEntry> = {
   en: {
-    title: 'Free Live Radio from 120+ Countries',
+    title: 'Free Live Radio Online',
     description:
       'Listen to 60,000+ free live radio stations from 120+ countries on Mega Radio. Stream music, news, sports and talk radio online from any device, anywhere.',
     hero: 'Free Live Radio from Around the World',
   },
   es: {
-    title: 'Radio en Vivo Gratis de 120+ Países',
+    title: 'Radio en vivo gratis online',
     description:
       'Escucha 60.000+ emisoras de radio en vivo gratis de 120+ países en Mega Radio. Música, noticias, deportes y radio hablada online desde cualquier dispositivo.',
     hero: 'Radio en Vivo Gratis de Todo el Mundo',
   },
   fr: {
-    title: 'Radio en Direct Gratuite de 120+ Pays',
+    title: 'Radio en direct gratuite',
     description:
       'Écoutez 60 000+ stations de radio en direct gratuites de 120+ pays sur Mega Radio. Musique, infos, sport et radios parlées en ligne sur tous vos appareils.',
     hero: 'Radio en Direct Gratuite du Monde Entier',
   },
   de: {
-    title: 'Kostenloses Live-Radio aus 120+ Ländern',
+    title: 'Kostenlos Radio online hören',
     description:
       'Höre 60.000+ kostenlose Live-Radiosender aus 120+ Ländern auf Mega Radio. Musik, Nachrichten, Sport und Talk-Radio online auf jedem Gerät, überall und jederzeit.',
     hero: 'Kostenloses Live-Radio aus aller Welt',
   },
   pt: {
-    title: 'Rádio ao Vivo Grátis de 120+ Países',
+    title: 'Rádio ao vivo grátis online',
     description:
       'Ouça 60.000+ estações de rádio ao vivo grátis de 120+ países no Mega Radio. Música, notícias, esportes e rádio falada online em qualquer dispositivo, em qualquer lugar.',
     hero: 'Rádio ao Vivo Grátis do Mundo Todo',
   },
   it: {
-    title: 'Radio in Diretta Gratis da 120+ Paesi',
+    title: 'Radio online gratis in diretta',
     description:
       'Ascolta 60.000+ stazioni radio in diretta gratis da 120+ paesi su Mega Radio. Musica, notizie, sport e radio parlata online su qualsiasi dispositivo, ovunque.',
     hero: 'Radio in Diretta Gratis da Tutto il Mondo',
   },
   ru: {
-    title: 'Бесплатное живое радио из 120+ стран',
+    title: 'Бесплатное радио онлайн',
     description:
       'Слушайте 60 000+ бесплатных радиостанций в прямом эфире из 120+ стран на Mega Radio. Музыка, новости, спорт и разговорное радио онлайн на любом устройстве.',
     hero: 'Бесплатное живое радио со всего мира',
   },
   ar: {
-    title: 'راديو مباشر مجاني من أكثر من 120 دولة',
+    title: 'راديو مباشر مجانًا عبر الإنترنت',
     description:
       'استمع إلى أكثر من 60,000 محطة راديو مباشرة مجانية من أكثر من 120 دولة على ميغا راديو. موسيقى وأخبار ورياضة وبرامج حوارية عبر الإنترنت على أي جهاز وفي أي مكان.',
     hero: 'راديو مباشر مجاني من حول العالم',
   },
   zh: {
-    title: '来自120多个国家的免费在线直播电台',
+    title: '免费在线收听直播电台',
     description:
       '在 Mega Radio 收听来自120多个国家的60,000多个免费在线直播电台。随时随地在任何设备上畅享音乐、新闻、体育和谈话广播。',
     hero: '来自世界各地的免费在线直播电台',
   },
   tr: {
-    title: '120+ Ülkeden Ücretsiz Canlı Radyo',
+    title: 'Ücretsiz Canlı Radyo Dinle',
     description:
       '120+ ülkeden 60.000+ ücretsiz canlı radyo istasyonunu Mega Radio ile dinleyin. Müzik, haber, spor ve sohbet radyosunu her cihazdan, her yerde online dinleyin.',
     hero: 'Dünyanın Her Yerinden Ücretsiz Canlı Radyo',
   },
   ja: {
-    title: '120カ国以上の無料ライブラジオ',
+    title: '無料で聴くインターネットラジオ',
     description:
       'Mega Radioで120カ国以上、60,000以上の無料ライブラジオ局を聴こう。音楽、ニュース、スポーツ、トーク番組をどこでもどんなデバイスでもオンラインで楽しめます。',
     hero: '世界中の無料ライブラジオ',
   },
   ko: {
-    title: '120개국 이상의 무료 실시간 라디오',
+    title: '무료 실시간 온라인 라디오',
     description:
       'Mega Radio에서 120개국 이상, 60,000개 이상의 무료 실시간 라디오 방송을 들어보세요. 음악, 뉴스, 스포츠, 토크 라디오를 어디서나 모든 기기에서 즐기세요.',
     hero: '전 세계 무료 실시간 라디오',
   },
   hi: {
-    title: '120+ देशों से मुफ्त लाइव रेडियो',
+    title: 'मुफ़्त ऑनलाइन लाइव रेडियो',
     description:
       'Mega Radio पर 120+ देशों से 60,000+ मुफ्त लाइव रेडियो स्टेशन सुनें। किसी भी डिवाइस पर, कहीं भी संगीत, समाचार, खेल और टॉक रेडियो ऑनलाइन का आनंद लें।',
     hero: 'दुनिया भर से मुफ्त लाइव रेडियो',
   },
   he: {
-    title: 'רדיו חי בחינם מ-120+ מדינות',
+    title: 'רדיו חי בחינם באינטרנט',
     description:
       'האזינו ל-60,000+ תחנות רדיו חי בחינם מ-120+ מדינות במגה רדיו. מוזיקה, חדשות, ספורט ותוכניות דיבור אונליין בכל מכשיר, בכל מקום ובכל זמן.',
     hero: 'רדיו חי בחינם מכל העולם',
@@ -116,11 +116,21 @@ export function getHomeSeoTemplate(language: string): HomeSeoEntry {
   return HOME_SEO_TEMPLATES[language] || HOME_SEO_TEMPLATES.en;
 }
 
+/** Brand homepage metadata once, without shortening meaningful custom copy. */
+export function buildHomeSeoTitle(language: string, rawTitle?: string): string {
+  let title = rawTitle?.trim() || '';
+  // Only recognize the exact Latin brand at separated edges, not in prose.
+  title = title.replace(/(?:\s*\|\s*Mega\s+Radio)+\s*$/i, '').trim();
+  const prefix = /^Mega\s+Radio\s*(?:[:\uFF1A|]|\s[-–—])\s*/i;
+  while (prefix.test(title)) title = title.replace(prefix, '').trim();
+  if (/^Mega\s+Radio$/i.test(title)) title = '';
+  return `${title || getHomeSeoTemplate(language).title} | Mega Radio`;
+}
+
 /**
  * DB keys take precedence (admin override) when present in the requested
  * language; else the per-language template; else the English template.
- * Returns `{ title, description, hero }` — the renderer appends the brand
- * suffix to `title` and uses `hero` for the <h1>.
+ * Returns `{ title, description, hero }` with a single brand suffix on `title`.
  */
 export function buildHomeSeo(
   language: string,
@@ -143,7 +153,7 @@ export function buildHomeSeo(
   }
 
   return {
-    title: dbTitle || tpl.title,
+    title: buildHomeSeoTitle(language, dbTitle),
     description,
     hero: dbHero || tpl.hero,
   };

@@ -1,3 +1,5 @@
+import { installTvDiagnosticsBoundary } from './lib/tv-diagnostics-boundary';
+import { applyPublicStreamCors } from "./lib/public-stream-cors";
 if (!process.env.FONTCONFIG_FILE || process.env.FONTCONFIG_FILE === '/dev/null') {
   process.env.FONTCONFIG_FILE = process.cwd() + '/fontconfig.conf';
 }
@@ -10,6 +12,9 @@ import { createServer } from "http";
 import { createServer as createHttpsServer } from "https";
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { forwardApiRequest } from './middleware/forward-api-request';
+import { webRequestTimeout, WEB_API_PROXY_TIMEOUTS, sendWebApiProxyError } from './middleware/web-request-timeout';
+import { publicImageProxyHeaders } from './middleware/public-image-headers';
+import { createStationLogoDelivery } from './middleware/station-logo-delivery';
 import { seedPostgresDefaultLanguages } from "./services/postgres-bootstrap";
 import { closePostgres, initializePostgres, getPostgresHealth, postgresAvailable } from "./postgres-runtime";
 import { performanceCache } from "./performance-cache";
@@ -20,34 +25,29 @@ import { urlRedirectMiddleware } from './url-redirect-middleware';
 import { stationCountryValidator } from './station-country-validator';
 import { serveStatic, log, HTML_CACHE_CONTROL } from "./serve-static";
 import { createAdminSpaHandler } from './admin-spa';
+import { createPaymentLinkShellHandler, paymentLinkPrivacy } from './payment-link-shell';
 import { SeoRenderer, getSeoRenderStats } from './seo-renderer';
 import { markSeoTemporarilyUnavailable } from './seo/temporary-unavailable';
+import { capturePublicStationDeadline } from './utils/public-station-deadline';
 import { parseSeoCatalogPage } from './seo/catalog-pagination';
 import { sendSeoNotFound } from './seo/send-seo-not-found';
+import { buildPublicSeoRouteMatchers, collectSeoTranslations, decodePublicSeoPath } from './seo/public-route-matchers';
 import { buildPublicRoutePreloads } from './seo/frontend-asset-preloads';
 import { renderStationBootstrap } from './seo/station-bootstrap';
 import { renderTranslationBootstrap } from './seo/translation-bootstrap';
 import { registerSeoSitemapRoutes } from './routes/seo-sitemap-routes';
-import { getBaseUrl } from './routes/shared-utils';
+import { registerLlmsTxtRoutes } from './seo/llms-txt-routes';
 import { startOperation, endOperation, getActiveOperations, getGcStats } from './utils/operation-tracker';
-import { COUNTRY_TO_LANGUAGE, SEO_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { requestGracefulRestart, requestedShutdownExitCode } from './utils/graceful-restart';
+import { createWebShutdown, WEB_SHUTDOWN_TIMEOUT_MS } from './utils/web-shutdown';
+import { getLanguageFromPath, getRetiredLocaleFromPath } from '@workspace/seo-shared/seo-config';
+import { getLegacyStationGuide } from '@workspace/seo-shared/legacy-station-guides';
 
 import { geoBlockMiddleware } from './middleware/geo-block';
+import { canonicalUrlMiddleware } from './middleware/canonical-url';
+import { countryPrefixRedirectMiddleware } from './middleware/country-prefix-redirect';
 import { createVisitorActivityMiddleware } from './middleware/visitor-activity';
 import { privateApiCachePolicy, setHealthCacheHeaders } from './middleware/cache-policy';
-
-// Country-prefix duplicate canonical fix (Bing DALGA A)
-// SEO_LANGUAGES'da OLMAYAN ama COUNTRY_TO_LANGUAGE'da bulunan 2-harf prefix'leri
-// (ör. /ph, /us, /au, /ca, /gb, /nz) /<mapped-lang> hedefine 301 redirect.
-// Aksi halde /ph içinde /en içeriği render olup self-canonical /ph kalıyor → Google
-// "Duplicate without user-selected canonical" cezası.
-const _seoLangCodes = new Set(SEO_LANGUAGES.filter(l => l.enabled).map(l => l.code));
-const COUNTRY_PREFIX_REDIRECTS = new Map<string, string>();
-for (const [country, lang] of Object.entries(COUNTRY_TO_LANGUAGE)) {
-  if (!_seoLangCodes.has(country) && _seoLangCodes.has(lang)) {
-    COUNTRY_PREFIX_REDIRECTS.set(country, lang);
-  }
-}
 
 // Auth path noindex regex (Bing DALGA B1)
 // Mevcut robots.txt Disallow varken Google "indexed though blocked" raporlayabiliyor.
@@ -64,6 +64,7 @@ app.disable('x-powered-by');
 
 // Geo-block FIRST — drop TCP connection from blocked countries (no response)
 app.use(geoBlockMiddleware);
+installTvDiagnosticsBoundary(app);
 // Web serves SSR directly; qualified browser navigation is explicitly reported
 // by the client. Only sampled known automation is observed here, never /api.
 app.use(createVisitorActivityMiddleware(undefined, { botsOnly: true }));
@@ -75,8 +76,8 @@ function scheduleFatalExit(label: string) {
   uncaughtExitScheduled = true;
   console.error(`🚨 ${label} — scheduling fail-fast exit in 1s for clean restart`);
   setTimeout(() => {
-    try { process.kill(process.pid, 'SIGTERM'); } catch { process.exit(1); }
-    setTimeout(() => process.exit(1), 10_000).unref();
+    requestGracefulRestart();
+    setTimeout(() => process.exit(1), WEB_SHUTDOWN_TIMEOUT_MS).unref();
   }, 1000).unref();
 }
 
@@ -106,45 +107,8 @@ app.get('/readyz', async (_req,res) => {
   res.status(ready ? 200 : 503).json({ ready,database:'postgresql',postgres:postgres.status });
 });
 
-// 2026-05-12 Semrush audit: `/llms.txt` was returning the SPA HTML shell
-// (Multiple-H1 notice) on production even though `routes/seo-sitemap-routes.ts`
-// registers the proper text/plain handler. The root cause was middleware
-// ordering — geo-block / language redirects / SSR catch-alls were running
-// before `registerSeoSitemapRoutes(app)` (line ~496) and one of them was
-// emitting an HTML response. Mounting the handler here, immediately after
-// `/healthz`, guarantees nothing else can shadow it. Body intentionally
-// kept identical to the canonical handler so the contract doesn't drift.
-app.get('/llms.txt', async (req, res) => {
-  // Use the same canonical baseUrl helper as the shadowed handler in
-  // routes/seo-sitemap-routes.ts so the body is byte-identical regardless
-  // of which route ultimately serves the request (avoids host-header
-  // driven divergence flagged in code review).
-  const baseUrl = getBaseUrl(req);
-  // 2026-05-13 architect P0 (GEO ingestion expansion): the body is now
-  // assembled by `buildLlmsTxtBody()` which adds an About paragraph,
-  // per-language entry points (qualified langs only), top-30 countries
-  // pulled from the active main sitemap manifest and top-20 genres
-  // computed from a 6h-cached aggregation. Both /llms.txt handlers
-  // (this one and the canonical one in routes/seo-sitemap-routes.ts)
-  // call the SAME helper. Cold reads return the core guide immediately;
-  // optional database-backed sections refresh in one background operation.
-  try {
-    const { buildLlmsTxtBody } = await import('./seo/llms-txt-builder');
-    const body = await buildLlmsTxtBody(baseUrl);
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.status(200).send(body);
-  } catch (err) {
-    // Defensive: if the builder throws unexpectedly emit the
-    // historical minimal body so /llms.txt never returns the SPA shell.
-    const fallback = `# MegaRadio\n\n${baseUrl}/\n\n## Sitemaps\n${baseUrl}/sitemap-index.xml\n${baseUrl}/robots.txt\n\n## Key sections\n${baseUrl}/en/radios\n${baseUrl}/en/genres\n${baseUrl}/en/regions\n${baseUrl}/en/about\n${baseUrl}/en/faq\n${baseUrl}/en/contact\n${baseUrl}/en/privacy-policy\n${baseUrl}/en/terms-and-conditions\n`;
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.status(200).send(fallback);
-  }
-});
+// Public text guides must precede language redirects, static delivery and SSR.
+registerLlmsTxtRoutes(app, { homeDiscovery: true });
 
 app.get('/health', async (_req, res) => {
   setHealthCacheHeaders(res);
@@ -238,20 +202,7 @@ app.get('/*path', (req, res, next) => {
 });
 
 // Country-prefix 301 redirect (Bing DALGA A) - run BEFORE everything else
-app.use((req, res, next) => {
-  const m = req.path.match(/^\/([a-z]{2})(\/.*)?$/i);
-  if (m) {
-    const prefix = m[1].toLowerCase();
-    const target = COUNTRY_PREFIX_REDIRECTS.get(prefix);
-    if (target) {
-      const rest = m[2] || '';
-      const qIdx = req.originalUrl.indexOf('?');
-      const queryString = qIdx >= 0 ? req.originalUrl.substring(qIdx) : '';
-      return void res.redirect(301, `/${target}${rest}${queryString}`);
-    }
-  }
-  next();
-});
+app.use(countryPrefixRedirectMiddleware);
 
 app.use((req, res, next) => {
   res.removeHeader('X-Robots-Tag');
@@ -270,7 +221,7 @@ app.use((req, res, next) => {
   const frameOptions = getFrameOptionsHeader();
   if (frameOptions) res.header('X-Frame-Options', frameOptions);
   res.header('X-XSS-Protection', '1; mode=block');
-  res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.header('Referrer-Policy', /^\/pay\/?$/.test(req.path) ? 'no-referrer' : 'strict-origin-when-cross-origin');
   res.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
 
   if (process.env.NODE_ENV === 'production' || req.secure || req.get('x-forwarded-proto') === 'https') {
@@ -309,6 +260,9 @@ app.use((req, res, next) => {
   // pure noise.
 
   if (req.method === 'OPTIONS') {
+    // This middleware terminates preflights before /api/stream forwarding.
+    // Reuse the exact anonymous-media policy; private paths remain unchanged.
+    applyPublicStreamCors(req, res);
     res.sendStatus(200);
     return;
   }
@@ -329,90 +283,9 @@ app.use((req, res, next) => {
 // is built once and compared to the original; if anything changed we
 // emit a single 301.
 // =================================================================
-app.use((req, res, next) => {
-  // Skip in dev/preview and on health endpoints
-  if (process.env.NODE_ENV === 'development' || req.hostname === 'localhost' || req.hostname === '127.0.0.1') {
-    return next();
-  }
-  if (req.path === '/health' || req.path === '/healthz') return next();
+app.use(paymentLinkPrivacy, canonicalUrlMiddleware);
 
-  const originalProtocol = req.secure || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-  const originalHost = (req.get('host') || req.hostname).toLowerCase();
-  const originalPath = req.path;
-
-  let targetProtocol = originalProtocol;
-  let targetHost = originalHost;
-  let targetPath = originalPath;
-
-  // 1. HTTPS (skip in dev/replit preview where x-forwarded-proto isn't set)
-  const isPreview = req.hostname.includes('replit.dev') || req.hostname === 'localhost';
-  if (!isPreview && originalProtocol === 'http') {
-    targetProtocol = 'https';
-  }
-
-  // 2. www → non-www
-  if (targetHost === 'www.themegaradio.com') {
-    targetHost = 'themegaradio.com';
-  }
-
-  // 3. Strip trailing slash (except root, except files)
-  if (targetPath.length > 1 && targetPath.endsWith('/')) {
-    const segs = targetPath.split('/');
-    const lastSeg = segs[segs.length - 2];
-    if (!lastSeg || !lastSeg.includes('.')) {
-      targetPath = targetPath.slice(0, -1);
-    }
-  }
-
-  // 4. Consolidate the legacy /pages/{privacy-policy,terms-and-conditions}
-  //    duplicates onto the canonical clean URL. Both path shapes render the
-  //    SAME component and each self-canonicals, so Google saw a duplicate-
-  //    content pair with split link equity. Redirect the /pages/ form → the
-  //    clean form (the one the sitemap advertises) so there is exactly one
-  //    indexable legal URL. Preserves an optional /{lang} prefix.
-  targetPath = targetPath.replace(
-    /^(\/[a-z]{2})?\/pages\/(privacy-policy|terms-and-conditions)$/,
-    (_m, lang, slug) => `${lang || ''}/${slug}`,
-  );
-
-  const protocolChanged = targetProtocol !== originalProtocol;
-  const hostChanged = targetHost !== originalHost;
-  const pathChanged = targetPath !== originalPath;
-
-  if (protocolChanged || hostChanged || pathChanged) {
-    // Extract raw query from originalUrl. CRITICAL: do NOT compute it as
-    // `req.url.slice(req.path.length)` — req.path is URL-decoded while
-    // req.url is raw, so their lengths diverge for any path containing
-    // percent-encoded characters. Using indexOf('?') on the raw originalUrl
-    // is encoding-safe and preserves the query verbatim.
-    const qIdx = req.originalUrl.indexOf('?');
-    const query = qIdx >= 0 ? req.originalUrl.substring(qIdx) : '';
-    // For protocol/host changes we must build absolute URL; otherwise
-    // a relative path keeps the redirect cheap.
-    const target = (protocolChanged || hostChanged)
-      ? `${targetProtocol}://${targetHost}${targetPath}${query}`
-      : `${targetPath}${query}`;
-    return void res.redirect(301, target);
-  }
-
-  next();
-});
-
-app.use((req, res, next) => {
-  if (/\.(js|css|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|map|json)$/i.test(req.path)) return next();
-  const requestStartedAt = Date.now();
-  req.setTimeout(30000, () => {
-    if (!res.headersSent) {
-      console.error(`⏰ Request timeout after ${Date.now() - requestStartedAt}ms (socket limit ${req.socket.timeout}ms): ${req.method} ${req.path}`);
-      // 503 + Retry-After: tells Googlebot to back off and retry rather than
-      // logging a 504 in GSC's "Server error (5xx)" bucket.
-      res.setHeader('Retry-After', '120');
-      res.setHeader('Cache-Control', 'no-store');
-      res.status(503).send('Service temporarily unavailable — retry shortly');
-    }
-  });
-  next();
-});
+app.use(webRequestTimeout);
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/ws') || req.path.startsWith('/healthz') || req.path.startsWith('/health') || /\.(js|css|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|map|json)$/i.test(req.path)) {
@@ -515,19 +388,13 @@ app.use('/station-images', express.static(imagesPath, { etag: true, lastModified
 
 const stationLogosPath = path.resolve(process.cwd(), "station-logos");
 app.use('/station-logos', express.static(stationLogosPath, { etag: true, lastModified: true, setHeaders: (res) => { res.set({ 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff', 'Vary': 'Accept-Encoding' }); } }));
-// S3 fallback (2026-07-03 logo outage): production containers do NOT ship a
-// local station-logos/ directory — the S3 bucket is the real store, and the
-// frontend's <img srcSet> uses same-origin /station-logos/<folder>/<file>
-// paths. When express.static missed, the request fell through to the SPA
-// catch-all and answered 200 text/html, silently breaking EVERY station
-// logo. Nobody noticed for months because Cloudflare kept serving the old
-// immutable-cached bytes from edge; the first full cache purge exposed it
-// site-wide. Redirect misses to the bucket instead — same folder layout —
-// so the edge re-fills from S3. 302 + 1-day cache keeps us free to move
-// the bucket later without chasing pinned 301s.
+// Containers may lack local logo files. Processed WebPs are delivered from
+// the public bucket at the same stable path; legacy originals retain their
+// existing redirect fallback and never fall through to an HTML SPA shell.
 const STATION_LOGOS_S3_BASE =
   process.env.STATION_LOGOS_BASE_URL ||
   'https://megaradio-station-logos.s3.eu-north-1.amazonaws.com/station-logos';
+app.use('/station-logos', createStationLogoDelivery({ baseUrl: STATION_LOGOS_S3_BASE }));
 app.use('/station-logos', (req, res) => {
   // Path shape gate: exactly folder/file with safe characters — no
   // traversal, nothing smuggled into the bucket URL. Anything else is a
@@ -544,18 +411,14 @@ const apiProxy = createProxyMiddleware({
   target: BACKEND_API_URL,
   changeOrigin: true,
   ws: false,
-  timeout: 60000,
-  proxyTimeout: 60000,
+  ...WEB_API_PROXY_TIMEOUTS,
   cookieDomainRewrite: {
     '*': ''
   },
   on: {
     error: (err, req, res) => {
       console.error(`❌ Proxy error for ${(req as any).url}:`, err.message);
-      if (res && 'writeHead' in res && !(res as any).headersSent) {
-        (res as any).writeHead(502, { 'Content-Type': 'application/json' });
-        (res as any).end(JSON.stringify({ error: 'Backend API unavailable' }));
-      }
+      sendWebApiProxyError(res);
     },
     proxyReq: (proxyReq, req) => {
       proxyReq.setHeader('X-Forwarded-For', (req as any).ip || (req as any).connection?.remoteAddress || '');
@@ -605,6 +468,7 @@ const streamServiceProxy = createProxyMiddleware({
   // The destination needs the full /api/image|stream path. The mount wrappers
   // below restore req.originalUrl after Express strips the mounted prefix.
   on: {
+    proxyRes: publicImageProxyHeaders,
     error: (err: any, _req: any, res: any) => {
       console.error('❌ Stream-service proxy error:', err?.message || err);
       try {
@@ -681,14 +545,14 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   // case the SSR template falls back to its original `/src/main.tsx` tag —
   // safe because dev only runs the SSR path against the Vite dev server
   // anyway (which DOES serve `/src/main.tsx`).
-  interface ProdAssetTags { scripts: string; styles: string; preloads: string; routePreloads?: Record<string, string>; }
+  interface ProdAssetTags { scripts: string; styles: string; preloads: string; recovery: string; routePreloads?: Record<string, string>; }
   let prodAssetTagsCache: ProdAssetTags | null = null;
   function getProdAssetTags(): ProdAssetTags {
     if (prodAssetTagsCache !== null) return prodAssetTagsCache;
     try {
       const indexPath = path.resolve(import.meta.dirname, 'public', 'index.html');
       if (!fs.existsSync(indexPath)) {
-        prodAssetTagsCache = { scripts: '', styles: '', preloads: '' };
+        prodAssetTagsCache = { scripts: '', styles: '', preloads: '', recovery: '' };
         logger.log(`📦 SSR template: prod index.html not found at ${indexPath} (dev mode — using /src/main.tsx fallback)`);
         return prodAssetTagsCache;
       }
@@ -696,7 +560,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       const scripts = Array.from(html.matchAll(/<script\b[^>]*\bsrc="\/assets\/[^"]+\.js"[^>]*><\/script>/g)).map(m => m[0]).join('\n    ');
       const styles = Array.from(html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="\/assets\/[^"]+\.css"[^>]*>/g)).map(m => m[0]).join('\n    ');
       const preloads = Array.from(html.matchAll(/<link\b[^>]*\brel="modulepreload"[^>]*>/g)).map(m => m[0]).join('\n    ');
-      prodAssetTagsCache = { scripts, styles, preloads };
+      const recovery = html.match(/<script\b[^>]*\bid="app-load-recovery"[^>]*>[\s\S]*?<\/script>/)?.[0] || '';
+      prodAssetTagsCache = { scripts, styles, preloads, recovery };
       // Optional across rolling upgrades/dev: missing manifest must not discard
       // the valid entry script/CSS tags or prevent rendering the site.
       try {
@@ -706,55 +571,21 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       logger.log(`📦 SSR template loaded: ${scripts.split('<script').length - 1} scripts, ${styles.split('<link').length - 1} styles, ${preloads.split('<link').length - 1} modulepreloads`);
     } catch (e: any) {
       logger.log(`⚠️ SSR template load failed: ${e?.message || e} — falling back to dev tag`);
-      prodAssetTagsCache = { scripts: '', styles: '', preloads: '' };
+      prodAssetTagsCache = { scripts: '', styles: '', preloads: '', recovery: '' };
     }
     return prodAssetTagsCache;
   }
   // Warm the cache at startup so the first SSR request doesn't pay the IO.
   getProdAssetTags();
+  app.get(['/pay', '/pay/'], createPaymentLinkShellHandler(getProdAssetTags));
 
-  const { URL_TRANSLATIONS: seoUrlTranslations } = await import('@workspace/seo-shared/url-translations');
-  function collectSeoTranslations(englishKey: string): string[] {
-    const vals = new Set<string>();
-    vals.add(englishKey);
-    for (const lang of Object.keys(seoUrlTranslations)) {
-      const val = (seoUrlTranslations as any)[lang]?.[englishKey];
-      if (val) vals.add(val);
-    }
-    return Array.from(vals).map(v => v.replace(/[.*+?${}()|[\]\\]/g, '\\$&'));
-  }
-
-  const seoStationPluralAlts = collectSeoTranslations('stations');
-  const seoStationSingularAlts = collectSeoTranslations('station');
-  const combinedSet = new Set<string>(seoStationPluralAlts.concat(seoStationSingularAlts));
-  const seoStationAllAlts = Array.from(combinedSet);
-  const seoGenreAlts = collectSeoTranslations('genres');
-  const seoAboutAlts = collectSeoTranslations('about');
-  const seoContactAlts = collectSeoTranslations('contact');
-  const seoPrivacyAlts = collectSeoTranslations('privacy-policy');
   const seoRegionAlts = collectSeoTranslations('regions');
-  // Bing SEO: include /search, /faq, /terms-and-conditions, /applications in
-  // SEO eligibility so SSR returns proper <h1> + 150+ char meta description
-  // for those previously-bare paths (Bing flagged terms specifically).
-  const seoSearchAlts = collectSeoTranslations('search');
-  const seoFaqAlts = collectSeoTranslations('faq');
-  const seoTermsAlts = collectSeoTranslations('terms-and-conditions');
-  const seoApplicationsAlts = collectSeoTranslations('applications');
+  const seoGenreAlts = collectSeoTranslations('genres');
+  const seoStationSingularAlts = collectSeoTranslations('station');
+  const seoStationPluralAlts = collectSeoTranslations('stations');
 
   const SEO_PRECOMPILED_REGEX = {
-    stationPage: new RegExp(`^\\/([a-z]{2}\\/)?(?:${seoStationAllAlts.join('|')})\\/`, 'u'),
-    homepage: /^\/([a-z]{2}\/?)?$/,
-    regionsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoRegionAlts.join('|')})(\\/.*)?$`, 'u'),
-    genresPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoGenreAlts.join('|')})\\/?(.*)$`, 'u'),
-    aboutPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoAboutAlts.join('|')})\\/?$`, 'u'),
-    contactPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoContactAlts.join('|')})\\/?$`, 'u'),
-    privacyPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoPrivacyAlts.join('|')})\\/?$`, 'u'),
-    countryPage: /^\/([a-z]{2}\/?)?country\/.+$/u,
-    stationsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoStationAllAlts.join('|')})\\/?$`, 'u'),
-    searchPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoSearchAlts.join('|')})\\/?(\\?.*)?$`, 'u'),
-    faqPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoFaqAlts.join('|')})\\/?$`, 'u'),
-    termsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoTermsAlts.join('|')})\\/?$`, 'u'),
-    applicationsPage: new RegExp(`^\\/([a-z]{2}\\/?)?(?:${seoApplicationsAlts.join('|')})\\/?$`, 'u'),
+    ...buildPublicSeoRouteMatchers(),
     botDetect: /\b(googlebot|google-inspectiontool|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegram|skype|pinterestbot|redditbot|crawler|spider|seobility|semrush|ahrefs|mozbot|majestic|screaming|frog|nutch|fastcrawler|genieo|demandbase|gptbot|chatgpt-user|ccbot|anthropic-ai|claude-web|bytespider|perplexitybot|applebot|cohere-ai)\b/i
   };
 
@@ -785,25 +616,18 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
     }
   }, 60_000);
 
-  // Pre-SSR language-ineligibility redirect: for non-universal language station
-  // URLs, do a single lean DB lookup to check eligibility and 301 to /en before
-  // the full SSR render runs. Saves 100–300ms per ineligible URL hit.
-  const { langIneligibilityRedirectMiddleware } = await import('./middleware/lang-ineligibility-redirect');
-  app.use(langIneligibilityRedirectMiddleware);
-
   app.use(async (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     const url = req.originalUrl;
     const userAgent = req.get('user-agent') || '';
 
-    // P0 fix: decodeURIComponent throws URIError on malformed escapes (e.g.
-    // %E0%A4%A) and would crash the entire SSR worker. Trap and fall back to
-    // raw URL — broken sequences just won't match SEO routes.
-    let cleanUrlForMatching: string;
-    try {
-      cleanUrlForMatching = decodeURIComponent(url.split('?')[0].split('#')[0]);
-    } catch {
-      cleanUrlForMatching = url.split('?')[0].split('#')[0];
+    const decodedPath = decodePublicSeoPath(url);
+    if (decodedPath === null) {
+      return sendSeoNotFound(res, '<!doctype html><title>Not found</title><h1>Not found</h1>');
     }
+    // Match the English route without rewriting the request/cache identity.
+    const cleanUrlForMatching = getRetiredLocaleFromPath(req.path)
+      ? `/en${getLanguageFromPath(req.path).cleanPath.replace(/^\/$/, '')}` : decodedPath;
 
     const isStationPage = SEO_PRECOMPILED_REGEX.stationPage.test(cleanUrlForMatching);
     const isHomepage = SEO_PRECOMPILED_REGEX.homepage.test(cleanUrlForMatching);
@@ -818,9 +642,11 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
     const isFaqPage = SEO_PRECOMPILED_REGEX.faqPage.test(cleanUrlForMatching);
     const isTermsPage = SEO_PRECOMPILED_REGEX.termsPage.test(cleanUrlForMatching);
     const isApplicationsPage = SEO_PRECOMPILED_REGEX.applicationsPage.test(cleanUrlForMatching);
-    const isBlogPage = /^\/(?:[a-z]{2}\/)?blog(?:\/|$)/.test(cleanUrlForMatching);
+    const isUsersPage = SEO_PRECOMPILED_REGEX.usersPage.test(cleanUrlForMatching);
+    const isBlogPage = SEO_PRECOMPILED_REGEX.blogPage.test(cleanUrlForMatching);
+    const isDiscoveryPage = SEO_PRECOMPILED_REGEX.discoveryPage.test(cleanUrlForMatching);
 
-    const isSeoEligiblePage = isBlogPage || isStationPage || isHomepage || isRegionsPage || isGenresPage || isAboutPage || isContactPage || isPrivacyPage || isCountryPage || isStationsPage || isSearchPage || isFaqPage || isTermsPage || isApplicationsPage;
+    const isSeoEligiblePage = isBlogPage || isStationPage || isHomepage || isRegionsPage || isGenresPage || isAboutPage || isContactPage || isPrivacyPage || isCountryPage || isStationsPage || isSearchPage || isFaqPage || isTermsPage || isApplicationsPage || isUsersPage || isDiscoveryPage;
     const isBot = SEO_PRECOMPILED_REGEX.botDetect.test(userAgent);
 
     // CLOAKING FIX (2026-05-12): SSR is now served to ALL visitors on SEO
@@ -876,7 +702,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
     const parsedPage = parseSeoCatalogPage(url);
     const pageNum = parsedPage.valid ? parsedPage.page : 1;
     const seoHtmlKey = pageNum > 1 ? `${cleanUrl}|page=${pageNum}` : cleanUrl;
-    const cachedHtml = parsedPage.valid ? performanceCache.getSeoHtml(seoHtmlKey) : undefined;
+    const legacyGuideCandidate = getLegacyStationGuide(cleanUrl);
+    const cachedHtml = parsedPage.valid && !legacyGuideCandidate ? performanceCache.getSeoHtml(seoHtmlKey) : undefined;
     if (cachedHtml) {
       // Cache-HIT junk guard: a station URL whose pageData cache reports
       // stationIsJunk must serve 410 even if a stale SSR HTML is still in
@@ -947,8 +774,6 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
 
     try {
       const productionDomain = 'https://themegaradio.com';
-      const actualHost = req.get('host') || 'themegaradio.com';
-      const ogImageDomain = actualHost.includes('replit') ? `https://${actualHost}` : productionDomain;
 
       // SEO-CACHE SAFETY (2026-07-02 audit P1): the preferredLanguage cookie
       // used to override the URL-derived render language here (a TR-cookied
@@ -961,11 +786,13 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       // truth for SSR language; a user's preferred UI language is applied
       // client-side after React mounts (the SPA replaces the SSR body anyway),
       // so users lose nothing.
-      const seoData = await seoRenderer.renderStaticPage(url, productionDomain);
+      const { value: seoData, expiresAt: sourceExpiresAt } = await capturePublicStationDeadline(
+        () => seoRenderer.renderStaticPage(url, productionDomain),
+      );
       // CRITICAL: seoData.seoTags is shared from a `useClones: false` cache and
       // is frozen on write — clone before overriding the domain so that this
       // request-specific value doesn't poison cached SEO data for others.
-      const seoTags = { ...seoData.seoTags, domain: ogImageDomain };
+      const seoTags = { ...seoData.seoTags, domain: productionDomain };
       const pageType = seoData.pageData?.pageType || 'unknown';
 
       // RTL FIX (2026-05-08): emit dir="rtl" for right-to-left languages
@@ -983,7 +810,11 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="yandex-verification" content="2af3c8203c89a3d9" />
+    <meta name="yandex-verification" content="57c83c6ab08ec3ba" />
+    ${prodTags.recovery}
     ${seoRenderer.generateHtmlHead(seoTags, seoData.language, seoData.translations || {}, seoData.cleanPath, seoData.pageData?.station, seoData.urlTranslations, seoData.pageData)}
+    <link rel="icon" type="image/vnd.microsoft.icon" sizes="64x64" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="manifest" href="/manifest.json">
@@ -1042,7 +873,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
          entities at the same @id-less URL. -->
 
   </head>
-  <body>
+  <body class="google-anno-skip">
     <div id="root">
       <div id="ssr-content">
         ${seoRenderer.generateHtmlBody({
@@ -1057,8 +888,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         })}
       </div>
     </div>
-    ${renderTranslationBootstrap(seoData.language, seoData.translations)}
-    ${pageType === 'station' && !seoData.pageData?.notFound && !seoData.pageData?.stationIsJunk ? renderStationBootstrap(seoData.pageData?.station, seoData.language) : ''}
+    ${renderTranslationBootstrap(seoData.language, seoData.translations, pageType)}
+    ${pageType === 'station' && !seoData.pageData?.notFound && !seoData.pageData?.stationIsJunk ? renderStationBootstrap(seoData.pageData?.station, seoData.language, getRetiredLocaleFromPath(cleanUrl) ? getLanguageFromPath(cleanUrl).cleanPath.split('/')[2] : undefined) : ''}
     ${prodTags.scripts || '<script type="module" src="/src/main.tsx"></script>'}
     ${(() => {
       const topGenres = seoData.pageData?.additionalData?.topGenres;
@@ -1094,7 +925,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
           // Short cache (5 min) so when an alias is removed from the DB,
           // CDN/browser stale 301s clear quickly instead of being cached
           // indefinitely as heuristic fresh.
-          res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+          res.setHeader('Cache-Control', legacyGuideCandidate ? 'no-store' : 'public, max-age=300, must-revalidate');
           res.redirect(301, redirectTo + queryString);
           return;
         }
@@ -1102,7 +933,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         // Handle transient data failures BEFORE the permanent quality gates.
         // Synthetic station placeholders have no stream URL; treating them as
         // junk used to turn a brief database read failure into a cached 410.
-        if (seoData.pageData?.stationDbError) {
+        // Publication may happen after the renderer's source data expires.
+        if (seoData.pageData?.stationDbError || sourceExpiresAt <= Date.now()) {
           markSeoTemporarilyUnavailable(res);
           next();
           return;
@@ -1113,8 +945,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         }
 
         const stationNotFound = !!seoData.pageData?.notFound;
-        // Architect P0: junk station URLs (test feeds, codec-suffix slugs,
-        // song-name slugs, frequency-prefix duplicates, or DB records with
+        // Architect P0: excluded station URLs (test feeds, verified duplicates, or DB records with
         // noIndex:true) must return 410 Gone — NOT 200/noindex and NOT 301.
         // This is the catalog's exclusion policy, not a guarantee that Google
         // will remove the URL immediately or stop recrawling it.
@@ -1142,12 +973,10 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
           return;
         }
 
-        // DB-error placeholder: station data is synthetic (transient DB
-        // failure). Do NOT cache; set noindex so Google doesn't index empty
-        // placeholder content — it will retry the URL later when DB is healthy.
+        // Only complete, current documents may enter the HTML cache.
         const stationDbError = !!seoData.pageData?.stationDbError;
-        if (!stationNotFound && !stationDbError) {
-          performanceCache.setSeoHtml(seoHtmlKey, htmlContent);
+        if (!legacyGuideCandidate && !stationNotFound && !stationDbError) {
+          performanceCache.setSeoHtml(seoHtmlKey, htmlContent, 'bot', sourceExpiresAt);
         }
         // Soft-404 guard (2026-05-15): when the SSR resolves to "not
         // found", we MUST emit noindex on BOTH the X-Robots-Tag header
@@ -1219,6 +1048,8 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
 
   serveStatic(app);
 
+  const webServers: Parameters<typeof createWebShutdown>[0]['servers'] = [server];
+
   // Optional HTTPS server for Cloudflare Origin SSL ("Full (strict)" mode).
   // Set SSL_CERT and SSL_KEY environment variables (raw PEM content) to enable.
   // The certificate must be a Cloudflare Origin Certificate for *.themegaradio.com.
@@ -1241,15 +1072,17 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       httpsServer.listen({ port: sslPort, host: '0.0.0.0' }, () => {
         logger.log(`🔒 FRONTEND-WEB: HTTPS listening on port ${sslPort} (Cloudflare Origin SSL)`);
       });
+      webServers.push(httpsServer);
     } catch (err: any) {
       logger.warn(`⚠️ HTTPS server failed to start (bad cert/key?): ${err?.message}`);
     }
   }
 
   let isShuttingDown = false;
+  let watchdogTimerRef: ReturnType<typeof setInterval> | undefined;
 
   const port = parseInt(process.env.PORT || '3000', 10);
-  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' }, () => {
+  server.listen({ port, host: "0.0.0.0", reusePort: process.platform !== 'win32' && process.platform !== 'darwin' }, () => {
     logger.log(`🚀 FRONTEND-WEB: Listening on port ${port}`);
     logger.log(`🔗 Backend API URL: ${BACKEND_API_URL}`);
 
@@ -1281,7 +1114,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
           console.error(`🐕 Watchdog: self-ping failed (${watchdogFailures}/${WATCHDOG_MAX_FAILURES})`);
           if (watchdogFailures >= WATCHDOG_MAX_FAILURES) {
             console.error(`🐕 Watchdog: forcing restart`);
-            process.kill(process.pid, 'SIGTERM');
+            requestGracefulRestart();
           }
         }
 
@@ -1291,7 +1124,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
           if (postgresDownSince === null) postgresDownSince = Date.now();
           if (Date.now()-postgresDownSince >= POSTGRES_DOWN_RESTART_MS) {
             console.error('PostgreSQL unavailable beyond watchdog deadline; restarting');
-            process.kill(process.pid,'SIGTERM');
+            requestGracefulRestart();
           }
         }
       } catch (err: any) {
@@ -1299,10 +1132,11 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
         console.error(`🐕 Watchdog error: ${err.message} (${watchdogFailures}/${WATCHDOG_MAX_FAILURES})`);
         if (watchdogFailures >= WATCHDOG_MAX_FAILURES) {
           console.error(`🐕 Watchdog: forcing restart after error`);
-          process.kill(process.pid, 'SIGTERM');
+          requestGracefulRestart();
         }
       }
     }, WATCHDOG_INTERVAL);
+    watchdogTimerRef = watchdogTimer;
 
     logger.log(`🐕 Watchdog: enabled (interval=${WATCHDOG_INTERVAL/1000}s, maxFailures=${WATCHDOG_MAX_FAILURES})`);
   });
@@ -1310,22 +1144,17 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
   server.timeout = 120000;
   server.keepAliveTimeout = 65000;
   server.headersTimeout = 70000;
-  const gracefulShutdown = async (signal: string) => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-    console.log(`\n🛑 ${signal} received — starting graceful shutdown...`);
-    const shutdownTimeout = setTimeout(() => { process.exit(1); }, 15000);
-    try {
-      await new Promise<void>((resolve) => { server.close(() => resolve()); setTimeout(resolve, 10000); });
+  const gracefulShutdown = createWebShutdown({
+    servers: webServers,
+    onStart: signal => {
+      isShuttingDown = true;
       startupReady = false;
-      await closePostgres();
-      clearTimeout(shutdownTimeout);
-      process.exit(0);
-    } catch (err: any) {
-      clearTimeout(shutdownTimeout);
-      process.exit(1);
-    }
-  };
+      clearInterval(watchdogTimerRef);
+      console.log(`\n🛑 ${signal} received — starting graceful shutdown...`);
+    },
+    closeResources: closePostgres,
+    exitCode: requestedShutdownExitCode,
+  });
 
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
@@ -1343,7 +1172,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
 
     if (rssMB > RSS_RESTART_MB) {
       logger.log(`🚨 MEMORY CRITICAL: RSS=${rssMB}MB > ${RSS_RESTART_MB}MB — triggering graceful restart`);
-      gracefulShutdown('MEMORY_LIMIT');
+      requestGracefulRestart();
       return;
     }
 
@@ -1374,10 +1203,6 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
       await loadDatabaseCountryLanguageMappings();
       await loadDatabaseUrlTranslations();
 
-      // Task #158: load slug-existence sets used by the slug-shape-404
-      // middleware so non-bot visitors get a real 404 for unknown
-      // genre/station slugs (not just shape-invalid ones). Done after
-      // Mongo is connected; periodic refresh keeps the set fresh.
       try {
         const { loadSlugExistence, startSlugExistenceRefresh } = await import('./seo/slug-existence');
         await loadSlugExistence();

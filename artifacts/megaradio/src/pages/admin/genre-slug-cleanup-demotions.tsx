@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 // Task #264: drill-down for a single GenreSlugCleanupRun. Lists the
 // Genre rows whose `cleanupDemotion.demotedAt` lands inside the run's
 // [startedAt, finishedAt] window so admins can answer "what got hit?"
-// without having to query Mongo.
+// without having to query the database manually.
 
 interface GenreCleanupDemotion {
   _id: string;

@@ -23,7 +23,8 @@ import {
 import { pgLocalization } from "../src/data/postgres-localization-store";
 import { TranslationSyncService } from "../src/services/translation-sync";
 
-import { SEO_LANGUAGES } from "@workspace/seo-shared/seo-config";
+import { ACTIVE_UI_LANGUAGES } from "@workspace/seo-shared/seo-config";
+const UI_LANGUAGES = ACTIVE_UI_LANGUAGES.map(code => ({ code }));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -34,7 +35,7 @@ const MEGARADIO_SRC = resolve(__dirname, "../../megaradio/src");
  * Pages / components whose runtime t("...") keys are checked against
  * the DB translation store. Add a new entry whenever a page/component
  * grows a new translation surface so missing rows for any
- * SEO_LANGUAGES code fail the build with a clear, page-scoped message.
+ * published UI language code fail the build with a clear, page-scoped message.
  *
  * Each entry is keyed by a short page label used purely for the
  * failure message (not for filtering keys), so two pages can legally
@@ -60,7 +61,9 @@ const TRACKED_PAGES: Array<{
   // same DB query batch.
   { page: "search", file: "pages/search.tsx" },
   { page: "radio-frontend", file: "pages/radio-frontend.tsx" },
-  { page: "users", file: "pages/users/index.tsx" },
+  // The directory now uses reviewed locale-copy helpers rather than literal
+  // t() calls. Keep scanning future literal keys and verify that delegation.
+  { page: "users", file: "pages/users/index.tsx", expectKeys: false },
   { page: "stations-filters", file: "components/stations/filters.tsx" },
   { page: "radio-header", file: "components/layout/radio-header.tsx" },
   // api-docs.tsx currently has no `t("...")` calls and doesn't import
@@ -118,6 +121,12 @@ describe("Per-language SPA-page DB translation coverage", () => {
     );
   });
 
+  it('users directory retains its current localized-copy sources', () => {
+    const source = readFileSync(resolve(MEGARADIO_SRC, 'pages/users/index.tsx'), 'utf8');
+    assert.match(source, /usersDirectoryCopy\(language\)/);
+    assert.match(source, /communityLabels\(language,\s*localeTranslations\)/);
+  });
+
   let fixture: NativePostgresFixture;
   // language -> (key -> value)
   const translationsByLanguage: Map<string, Map<string, string>> = new Map();
@@ -133,7 +142,7 @@ describe("Per-language SPA-page DB translation coverage", () => {
     translationsByLanguage.clear();
     const keyDocs = await pgLocalization().getKeys(allKeys);
     for (const doc of keyDocs) knownKeys.add(doc.key);
-    for (const { code } of SEO_LANGUAGES)
+    for (const { code } of UI_LANGUAGES)
       translationsByLanguage.set(code, new Map());
     const rows = await pgLocalization().listTranslations(
       undefined,
@@ -155,7 +164,7 @@ describe("Per-language SPA-page DB translation coverage", () => {
       await TranslationSyncService.scanFrontendForKeys()
     ).filter((definition) => wanted.has(definition.key));
     const values = Object.fromEntries(
-      SEO_LANGUAGES.map(({ code }) => [
+      UI_LANGUAGES.map(({ code }) => [
         code,
         Object.fromEntries(
           definitions.map(({ key }) => [key, "Fixture " + code + ": " + key]),
@@ -196,7 +205,7 @@ describe("Per-language SPA-page DB translation coverage", () => {
         }
       }
 
-      for (const { code } of SEO_LANGUAGES) {
+      for (const { code } of UI_LANGUAGES) {
         const langMap = translationsByLanguage.get(code);
         if (!langMap) {
           // Defensive: should never happen because before() seeds an
@@ -272,14 +281,14 @@ describe("Per-language SPA-page DB translation coverage", () => {
   }
 
   it(
-    "round-trips every source-discovered page key and SEO language through the native translation store",
+    "round-trips every source-discovered page key and published UI language through the native translation store",
     assertCompleteCoverage,
   );
 
   it("reports missing keys, missing translations and whitespace values from PostgreSQL", async () => {
     const [deletedKey, missingTranslationKey, blankTranslationKey] = allKeys;
     assert.ok(deletedKey && missingTranslationKey && blankTranslationKey);
-    const language = SEO_LANGUAGES[0].code;
+    const language = UI_LANGUAGES[0].code;
     await fixture.pool.query("DELETE FROM translation_keys WHERE key=$1", [
       deletedKey,
     ]);

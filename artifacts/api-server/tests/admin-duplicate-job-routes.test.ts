@@ -3,13 +3,14 @@ import { after, before, beforeEach, mock, test } from 'node:test';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-let enabled = true, previewCalls = 0, applyCalls: unknown[] = [], error: any;
+let enabled = true, previewCalls = 0, applyCalls: unknown[] = [], cancelCalls: unknown[] = [], error: any;
 let currentJob: any = { jobId: 'a'.repeat(24), status: 'running', dryRun: true };
 mock.module('../src/postgres-runtime', { namedExports: { getPostgresPool: () => ({}) } });
 mock.module('../src/services/scheduled-duplicate-merge', { namedExports: { duplicateMergeEnabled: () => enabled } });
 mock.module('../src/data/postgres-duplicate-jobs-store', { namedExports: { PostgresDuplicateJobsStore: class {
   async createPreview() { previewCalls++; if (error) throw error; return 'a'.repeat(24); }
   async createApply(id: unknown) { applyCalls.push(id); if (error) throw error; return 'b'.repeat(24); }
+  async cancelPreview(id: unknown) { cancelCalls.push(id); if (error) throw error; }
   async getJob() { if (error) throw error; return currentJob; }
   async getStatus() { return { nextRunAt: '2030-01-02T00:00:00Z', currentJob, latestPreview: currentJob, latestApply: null }; }
 } } });
@@ -22,12 +23,21 @@ before(async () => {
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
-beforeEach(() => { enabled = true; previewCalls = 0; applyCalls = []; error = undefined; currentJob = { jobId:'a'.repeat(24),status:'running',dryRun:true }; });
+beforeEach(() => { enabled = true; previewCalls = 0; applyCalls = []; cancelCalls = []; error = undefined; currentJob = { jobId:'a'.repeat(24),status:'running',dryRun:true }; });
 const post = (body: object) => fetch(base+'/api/admin/auto-merge-all', { method:'POST',headers:{'content-type':'application/json','x-test-admin':'yes'},body:JSON.stringify(body) });
 test('all job routes require admin authentication', async () => {
   for (const pathname of ['/api/admin/auto-merge-status','/api/admin/merge-jobs/id']) assert.equal((await fetch(base+pathname)).status,403);
   assert.equal((await fetch(base+'/api/admin/auto-merge-all',{method:'POST'})).status,403);
+  assert.equal((await fetch(base+'/api/admin/merge-jobs/id/cancel-preview',{method:'POST'})).status,403);
   assert.equal(previewCalls,0); assert.equal(applyCalls.length,0);
+});
+test('preview cancellation requires admin, is uncached, and preserves conflict/error status', async () => {
+  const cancel = () => fetch(base+'/api/admin/merge-jobs/id/cancel-preview',{method:'POST',headers:{'x-test-admin':'yes'}});
+  const response = await cancel(); assert.equal(response.status,200); assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.deepEqual(await response.json(),{success:true,jobId:'id'}); assert.deepEqual(cancelCalls,['id']);
+  error=Object.assign(new Error('Not an active preview'),{status:409}); assert.equal((await cancel()).status,409);
+  error=new Error('private connection details'); const failed = await cancel();
+  assert.equal(failed.status,503); assert.doesNotMatch(await failed.text(),/private connection/);
 });
 test('default submission is durable preview; application forwards only an explicit preview ID', async () => {
   const preview = await post({}); assert.equal(preview.status,200); assert.equal(preview.headers.get('cache-control'),'no-store');

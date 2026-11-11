@@ -28,7 +28,6 @@ export interface UserWriteInput {
 }
 
 export function newPublicUserId(): string {
-  // Retain the existing 24-hex public ID contract without depending on MongoDB.
   return crypto.randomBytes(12).toString("hex");
 }
 
@@ -117,12 +116,16 @@ export async function pgListAdminUsers(options: AdminUserListOptions): Promise<{
     const value = bind(options.search);
     conditions.push(`(u.email ILIKE '%' || ${value} || '%' OR u.full_name ILIKE '%' || ${value} || '%')`);
   }
+  const effectiveAccess = `(s.is_active=true AND (s.plan='premium_lifetime' OR
+    (s.plan='remove_ads' AND s.platform='paddle' AND s.provider_data->>'paddleBillingKind'='one_time'
+      AND s.expires_at IS NULL AND NULLIF(s.paddle_subscription_id,'') IS NULL) OR
+    (s.plan=ANY(ARRAY['remove_ads','premium_monthly','premium_yearly']) AND s.expires_at>CURRENT_TIMESTAMP)))`;
   if (options.plan === "none") {
-    conditions.push("(s.user_id IS NULL OR s.is_active=false OR s.plan='none')");
+    conditions.push(`NOT COALESCE(${effectiveAccess},false)`);
   } else if (options.plan === "any_premium") {
-    conditions.push("s.is_active=true AND s.plan=ANY(ARRAY['premium_monthly','premium_quarterly','premium_yearly','premium_lifetime'])");
+    conditions.push(`${effectiveAccess} AND s.plan=ANY(ARRAY['premium_monthly','premium_quarterly','premium_yearly','premium_lifetime'])`);
   } else if (options.plan && options.plan !== "all") {
-    conditions.push(`s.is_active=true AND s.plan=${bind(options.plan)}`);
+    conditions.push(`${effectiveAccess} AND s.plan=${bind(options.plan)}`);
   }
   const authExpression = `lower(COALESCE(NULLIF(u.source->>'authProvider',''),
     CASE WHEN u.google_id IS NOT NULL THEN 'google' WHEN u.facebook_id IS NOT NULL THEN 'facebook'

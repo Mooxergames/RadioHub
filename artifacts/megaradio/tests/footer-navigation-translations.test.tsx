@@ -1,15 +1,29 @@
 import React from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { getFaqHelpCopy } from '@workspace/seo-shared/faq-schema';
 import { render, screen, fireEvent } from '@testing-library/react';
-const state = vi.hoisted(() => ({ values: {} as Record<string, string>, changeLanguage: vi.fn() }));
-vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => ({ t: (key: string, fallback: string) => state.values[key] ?? fallback, isLoading: false }) }));
+const state = vi.hoisted(() => ({ language: 'de', values: {} as Record<string, string>, changeLanguage: vi.fn() }));
+vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => ({ t: (key: string, fallback: string) => state.values[key] ?? fallback, localeTranslations: state.values, isLoading: false }) }));
 vi.mock('@/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => ({ currentStation: null }) }));
-vi.mock('@/hooks/useSeoRouting', () => ({ useSeoRouting: () => ({ getLocalizedUrl: (path: string) => `/de${path}`, currentLanguage: 'de', changeLanguage: state.changeLanguage }) }));
+vi.mock('@/hooks/useSeoRouting', () => ({ useSeoRouting: () => ({ getLocalizedUrl: (path: string) => `/${state.language}${path}`, currentLanguage: state.language, changeLanguage: state.changeLanguage }) }));
 vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [] }) }));
 vi.mock('@/components/ads/DeferredAdSenseUnit', () => ({ default: () => null }));
 vi.mock('wouter', () => ({ Link: ({ children, to, href, ...props }: any) => <a {...props} href={to || href}>{children}</a>, useLocation: () => ['/de', vi.fn()], useSearch: () => '' }));
 import Footer from '../src/components/layout/footer';
-beforeEach(() => { state.values = { nav_for_you: 'Für Sie', users: 'Nutzer' }; state.changeLanguage.mockClear(); });
+beforeEach(() => { state.language = 'de'; state.values = { nav_for_you: 'Für Sie', users: 'Nutzer' }; state.changeLanguage.mockClear(); });
+
+it.each(['en','de','tr','es','fr','pt','it','ru','ar','zh','ja','ko','hi','he'])('links directly to the native %s FAQ from the footer', language => {
+  state.language = language;
+  render(<Footer />);
+  expect(screen.getByTestId('footer-faq')).toHaveTextContent(getFaqHelpCopy(language).label);
+  expect(screen.getByTestId('footer-faq')).toHaveAttribute('href', `/${language}/faq`);
+});
+
+it('keeps custom locale FAQ footer text', () => {
+  state.values.footer_faq = 'Unsere Antworten';
+  render(<Footer />);
+  expect(screen.getByTestId('footer-faq')).toHaveTextContent('Unsere Antworten');
+});
 
 it('brand link opens the localized home with one language-neutral accessible name', () => {
   render(<Footer />);

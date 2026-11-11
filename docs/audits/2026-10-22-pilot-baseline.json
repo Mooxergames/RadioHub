@@ -1,0 +1,580 @@
+{
+  "checkedAt": "2026-10-22T13:57:19.121Z",
+  "afterRelease": false,
+  "concurrency": 2,
+  "summary": {
+    "count": 20,
+    "passed": 20
+  },
+  "rows": [
+    {
+      "id": "68a8c478bd66579311ab1795",
+      "slug": "kronehit",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/kronehit",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/kronehit",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 200,
+        "url": "http://onair.krone.at/kronehit.mp3",
+        "contentType": "audio/mpeg",
+        "bytes": 13258,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c483bd66579311ab300e",
+      "slug": "orf-radio-wien",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/orf-radio-wien",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-radio-wien",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://orf-live.ors-shoutcast.at/wie-q1a",
+        "contentType": "audio/mpeg",
+        "bytes": 898,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c470bd66579311ab01ef",
+      "slug": "fm4-orf",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/fm4-orf",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/fm4-orf",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "https://orf-live.ors-shoutcast.at/fm4-q1a",
+        "contentType": "audio/mpeg",
+        "bytes": 3649,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c483bd66579311ab2ffe",
+      "slug": "orf-hitradio-o3-hq",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/orf-hitradio-o3-hq",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-hitradio-o3-hq",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "https://orf-live.ors-shoutcast.at/oe3-q2a",
+        "contentType": "audio/mpeg",
+        "bytes": 3649,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c482bd66579311ab2e38",
+      "slug": "o1-orf-hq",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/o1-orf-hq",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/o1-orf-hq",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://orf-live.ors-shoutcast.at/oe1-q2a",
+        "contentType": "audio/mpeg",
+        "bytes": 11737,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c483bd66579311ab3007",
+      "slug": "orf-radio-niederosterreich-hq",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/orf-radio-niederosterreich-hq",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-radio-niederosterreich-hq",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://orf-live.ors-shoutcast.at/noe-q2a",
+        "contentType": "audio/mpeg",
+        "bytes": 2246,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c493bd66579311ab59f1",
+      "slug": "radio-vorarlberg",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/radio-vorarlberg",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/radio-vorarlberg",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "https://orf-live.ors-shoutcast.at/vbg-q1a",
+        "contentType": "audio/mpeg",
+        "bytes": 3649,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c483bd66579311ab3015",
+      "slug": "orf-tirol-hq",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/orf-tirol-hq",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-tirol-hq",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://orf-live.ors-shoutcast.at/tir-q2a",
+        "contentType": "audio/mpeg",
+        "bytes": 2246,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c483bd66579311ab300c",
+      "slug": "orf-radio-steiermark-hq",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/orf-radio-steiermark-hq",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-radio-steiermark-hq",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://orf-live.ors-shoutcast.at/stm-q2a",
+        "contentType": "audio/mpeg",
+        "bytes": 11737,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c483bd66579311ab3004",
+      "slug": "orf-radio-karnten",
+      "countryCode": "AT",
+      "url": "https://themegaradio.com/en/station/orf-radio-karnten",
+      "countryHub": "https://themegaradio.com/en/regions/europe/austria",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/orf-radio-karnten",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://ors-sn02.ors-shoutcast.at/ktn-q1a",
+        "contentType": "audio/mpeg",
+        "bytes": 11737,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c478bd66579311ab175d",
+      "slug": "kral-fm",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/kral-fm",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/kral-fm",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "https://dygedge2.radyotvonline.net/kralfm/playlist.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "bytes": 284,
+        "child": {
+          "status": 206,
+          "url": "https://dygedge2.radyotvonline.net/kralfm/playlist.m3u8",
+          "contentType": "application/vnd.apple.mpegurl",
+          "bytes": 361,
+          "child": {
+            "status": 206,
+            "url": "https://dygmaster2c.radyotvonline.net/kralfm/15xU8ENdBaQ-179267736-9984.aac",
+            "contentType": "audio/aac",
+            "bytes": 15979,
+            "ok": true
+          },
+          "ok": true
+        },
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c4a1bd66579311ab7b7b",
+      "slug": "virgin-radio-turkiye",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/virgin-radio-turkiye",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/virgin-radio-turkiye",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://28933.live.streamtheworld.com/VIRGIN_RADIO_SC",
+        "contentType": "audio/mpeg",
+        "bytes": 385,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c47fbd66579311ab2576",
+      "slug": "metro-fm",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/metro-fm",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/metro-fm",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://29334.live.streamtheworld.com:3690/METRO_FMAAC_SC",
+        "contentType": "audio/aacp",
+        "bytes": 393,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c485bd66579311ab34bd",
+      "slug": "power-pop",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/power-pop",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/power-pop",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "https://listen.powerapp.com.tr/powerpop/128/chunks.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "bytes": 348,
+        "child": {
+          "status": 206,
+          "url": "https://listen.powerapp.com.tr/powerpop/128/l_9330568_16254042_2709.ts",
+          "contentType": "video/m2ts",
+          "bytes": 16384,
+          "ok": true
+        },
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "6a07919fbef34beb9148c9d7",
+      "slug": "ntv-radyo",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/ntv-radyo",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/ntv-radyo",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 200,
+        "url": "http://46.20.3.207/listen.pls",
+        "contentType": "audio/aacp",
+        "bytes": 385,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c45fbd66579311aad6ea",
+      "slug": "alem-fm",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/alem-fm",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/alem-fm",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "http://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "bytes": 105,
+        "child": {
+          "status": 206,
+          "url": "http://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/chunklist_w698138469.m3u8",
+          "contentType": "application/vnd.apple.mpegurl",
+          "bytes": 242,
+          "child": {
+            "status": 206,
+            "url": "http://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/media_w698138469_506432.aac",
+            "contentType": "audio/x-aac",
+            "bytes": 2534,
+            "ok": true
+          },
+          "ok": true
+        },
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c45ebd66579311aad2f2",
+      "slug": "a-haber",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/a-haber",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/a-haber",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "https://trkvz-radyolar.ercdn.net/ahaberradyo/playlist.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "bytes": 93,
+        "child": {
+          "status": 206,
+          "url": "https://trkvz-radyolar.ercdn.net/ahaberradyo/chunklist.m3u8",
+          "contentType": "application/vnd.apple.mpegurl",
+          "bytes": 250,
+          "child": {
+            "status": 206,
+            "url": "https://trkvz-radyolar.ercdn.net/ahaberradyo/media-uknphzy8p_1914304.aac",
+            "contentType": "audio/x-aac",
+            "bytes": 15829,
+            "ok": true
+          },
+          "ok": true
+        },
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c495bd66579311ab5da4",
+      "slug": "radyo-fenomen",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/radyo-fenomen",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/radyo-fenomen",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 200,
+        "url": "https://live.radyofenomen.com/fenomen/128/icecast.audio",
+        "contentType": "audio/aacp",
+        "bytes": 16384,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "6a0791c9bef34beb9148d375",
+      "slug": "radyo-seymen",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/radyo-seymen",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/radyo-seymen",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 200,
+        "url": "https://yayin.radyoseymen.com.tr:1070/stream",
+        "contentType": "audio/aacp",
+        "bytes": 313,
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "id": "68a8c477bd66579311ab11a4",
+      "slug": "joy-turk-turkey",
+      "countryCode": "TR",
+      "url": "https://themegaradio.com/en/station/joy-turk-turkey",
+      "countryHub": "https://themegaradio.com/en/regions/asia/turkey",
+      "linkedFromHub": true,
+      "page": {
+        "status": 200,
+        "canonical": "https://themegaradio.com/en/station/joy-turk-turkey",
+        "robots": "index, follow",
+        "editorialPresent": false,
+        "officialHomepagePresent": false
+      },
+      "identityMatches": true,
+      "indexable": true,
+      "apiEditorialPresent": false,
+      "stream": {
+        "status": 206,
+        "url": "https://22733.live.streamtheworld.com/JOY_TURK_SC",
+        "contentType": "audio/mpeg",
+        "bytes": 13166,
+        "ok": true
+      },
+      "ok": true
+    }
+  ]
+}

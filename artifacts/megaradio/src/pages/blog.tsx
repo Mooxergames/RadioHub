@@ -4,11 +4,13 @@ import { useEffect, type MouseEvent } from "react";
 import { loadBlogContent } from "@workspace/seo-shared/blog";
 import { parseBlogPath, BLOG_RETRY_LABELS } from "@workspace/seo-shared/blog-manifest";
 import { renderBlogHtml } from "@workspace/seo-shared/blog-html";
+import { getLanguageFromPath, getRetiredLocaleFromPath } from "@workspace/seo-shared/seo-config";
 import NotFound from "./not-found";
 
 export default function BlogPage() {
   const [location, navigate] = useLocation();
-  const route = parseBlogPath(location);
+  const route = parseBlogPath(getRetiredLocaleFromPath(location)
+    ? `/en${getLanguageFromPath(location).cleanPath}` : location);
   const locale = route?.locale;
   const {
     data: content,
@@ -72,6 +74,7 @@ export default function BlogPage() {
       </main>
     );
   const article = content.articles.find((item) => item.id === route.id);
+  if (route.id && !article) return <NotFound />;
   return (
     <div
       onClick={onClick}

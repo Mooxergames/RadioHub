@@ -26,14 +26,34 @@ const memoryCache = new NodeCache({
 // rebuilt the same list because set() silently skipped the only active cache.
 const largeValueCache = new BoundedValueCache();
 
+function setSmallMemoryValue<T>(key: string, value: T, ttl: number): void {
+  try {
+    memoryCache.set(key, value, ttl);
+  } catch (error) {
+    if ((error as { errorcode?: string })?.errorcode !== 'ECACHEFULL') return;
+    // Admit one new value without raising the memory bound or changing TTLs.
+    const candidate = memoryCache.keys()[0];
+    if (candidate === undefined) return;
+    memoryCache.del(candidate);
+    try { memoryCache.set(key, value, ttl); } catch {}
+  }
+}
+
 // Redis client for production (optional)
 let redisClient: any = null;
+let lastRedisErrorLogAt = -Infinity;
 
 // Initialize Redis if available
 async function initRedis() {
   try {
     if (process.env.REDIS_URL) {
-      redisClient = createClient({ url: process.env.REDIS_URL });
+      redisClient = createClient({ url: process.env.REDIS_URL, disableOfflineQueue: true });
+      redisClient.on('error', () => {
+        const now = Date.now();
+        if (now - lastRedisErrorLogAt < 60_000) return;
+        lastRedisErrorLogAt = now;
+        try { logger.warn('[cache] Redis unavailable; using process memory cache'); } catch {}
+      });
       await redisClient.connect();
       // console.log('✅ Connected to Redis cache');
     }
@@ -54,17 +74,23 @@ interface CacheOptions {
 
 export class CacheManager {
   // Get cached data with TTL info
-  static async get<T>(key: string): Promise<T | null> {
+  static async get<T>(key: string, accept?: (value: T) => boolean): Promise<T | null> {
     try {
       // Try memory cache first (fastest)
       const memoryResult = memoryCache.get<T>(key);
       if (memoryResult !== undefined) {
-        return memoryResult;
+        if (!accept || accept(memoryResult)) return memoryResult;
+        // A promoted envelope may expire before this tier's TTL. Evict only
+        // locally so a newer Redis value remains available to this request.
+        memoryCache.del(key);
       }
       const largeResult = largeValueCache.get<T>(key);
-      if (largeResult !== undefined) return largeResult;
+      if (largeResult !== undefined) {
+        if (!accept || accept(largeResult)) return largeResult;
+        largeValueCache.delete(key);
+      }
 
-      if (redisClient && redisClient.isOpen) {
+      if (redisClient && redisClient.isReady) {
         const redisResult = await redisClient.get(key);
         if (redisResult) {
           // Detect raw string payloads (set() may have stored a string without
@@ -88,8 +114,9 @@ export class CacheManager {
           } catch {
             parsed = redisResult as unknown as T;
           }
+          if (accept && !accept(parsed)) return null;
           if (redisResult.length < 256_000) {
-            try { memoryCache.set(key, parsed, 300); } catch {}
+            setSmallMemoryValue(key, parsed, 300);
           } else {
             largeValueCache.set(key, parsed, redisResult.length * 2, 300);
           }
@@ -153,20 +180,18 @@ export class CacheManager {
     // Memory write — independent failure path. NodeCache may throw ECACHEFULL
     // if maxKeys is exceeded; that must NOT prevent the Redis write.
     if (!isLargeValue) {
-      try {
-        const memTtl = Math.min(ttl, 3600);
-        memoryCache.set(key, value, memTtl);
-      } catch {}
+      const memTtl = Math.min(ttl, 3600);
+      setSmallMemoryValue(key, value, memTtl);
     } else {
       largeValueCache.set(key, value, payloadBytes, ttl);
     }
 
     // Redis write — independent failure path.
-    if (redisClient && redisClient.isOpen && serialized !== null) {
+    if (redisClient && redisClient.isReady && serialized !== null) {
       try {
         await redisClient.setEx(key, ttl, serialized);
       } catch {}
-    } else if (redisClient && redisClient.isOpen && typeof value === 'string') {
+    } else if (redisClient && redisClient.isReady && typeof value === 'string') {
       try {
         await redisClient.setEx(key, ttl, value as unknown as string);
       } catch {}
@@ -177,10 +202,6 @@ export class CacheManager {
   // one upstream call. Prevents cache stampedes during precompute warmup or
   // when a hot key TTLs out under traffic.
   private static inflight = new Map<string, Promise<any>>();
-  // INCIDENT 2026-05-15 v10.2 round 5 — count consecutive SWR
-  // background-refresh failures per envelope key so a silently-stuck
-  // stale value (broken loader, persistent Mongo timeout) becomes
-  // visible via warn-level logs instead of being silently swallowed.
   private static swrRefreshFailures = new Map<string, number>();
   // INCIDENT 2026-05-16 v12 — per-key waiter telemetry. When the M10
   // cluster gets slow, a single-flight loader can be stuck for tens of
@@ -249,19 +270,6 @@ export class CacheManager {
     return p;
   }
 
-  // Stale-while-revalidate helper. Stores `{v, exp}` envelope under
-  // `<key>:swr`. Two TTLs:
-  //   freshTtl — under this age, value is returned immediately, no refresh.
-  //   staleTtl — between freshTtl and staleTtl, value is returned
-  //              immediately AND a background refresh is kicked off (
-  //              coalesced via the same inflight Map as singleflight).
-  // Past staleTtl: behaves like singleflight — block the caller until
-  // a fresh value is computed.
-  // Designed for the precomputed-stations / precomputed-genres /
-  // precomputed-cities path: 24h freshTtl + 7d staleTtl means an
-  // organic visitor never waits on a Mongo aggregate during normal
-  // ops, AND a brief Atlas hiccup just serves last-known-good while
-  // the cluster recovers — no 500, no empty payload.
   static async getOrSetSWR<T>(
     key: string,
     loader: () => Promise<T>,
@@ -284,24 +292,9 @@ export class CacheManager {
         const refresh = (async () => {
           try {
             const fresh = await loader();
-            // INCIDENT 2026-05-15 v10.2 round 6 — capture exp at WRITE
-            // time, not before loader execution. A slow loader
-            // (multi-second Mongo aggregate) was previously eating
-            // into the fresh window from the moment we entered the
-            // refresh closure, so a 1h fresh TTL with a 10s loader
-            // effectively had ~3590s freshness and could even be
-            // already-stale on write under really pathological
-            // latency. Using Date.now() here gives the configured
-            // freshTtl from the moment the fresh value lands.
             await CacheManager.set(envKey, { v: fresh, exp: Date.now() + freshTtl * 1000 }, { ttl: staleTtl });
             CacheManager.swrRefreshFailures.delete(envKey);
           } catch (err: any) {
-            // Keep stale; next caller will retry. INCIDENT 2026-05-15
-            // v10.2 round 5 — count consecutive refresh failures per
-            // key and warn-log every 5th so a silently-stuck stale
-            // value (e.g. broken loader, persistent Mongo timeout) is
-            // visible in the Railway tail without spamming on every
-            // request.
             const prev = CacheManager.swrRefreshFailures.get(envKey) || 0;
             const next = prev + 1;
             CacheManager.swrRefreshFailures.set(envKey, next);
@@ -369,7 +362,7 @@ export class CacheManager {
     try {
       memoryCache.del(key);
       
-      if (redisClient && redisClient.isOpen) {
+      if (redisClient && redisClient.isReady) {
         await redisClient.del(key);
       }
     } catch (error) {
@@ -400,7 +393,7 @@ export class CacheManager {
       // non-blocking; it yields control back between batches.
       // Batched DEL (chunks of 500) avoids sending one giant DEL command
       // for very large pattern matches.
-      if (redisClient && redisClient.isOpen) {
+      if (redisClient && redisClient.isReady) {
         const matchPattern = `*${pattern}*`;
         const toDelete: string[] = [];
         // node-redis v4 exposes scanIterator; iterate in batches of 500.
@@ -434,8 +427,8 @@ export class CacheManager {
         largeValues: largeValueCache.stats(),
       },
       redis: {
-        connected: redisClient && redisClient.isOpen,
-        status: redisClient?.status || 'not available'
+        connected: Boolean(redisClient?.isReady),
+        status: redisClient?.status || (redisClient?.isReady ? 'ready' : redisClient?.isOpen ? 'connecting' : 'not available')
       }
     };
   }

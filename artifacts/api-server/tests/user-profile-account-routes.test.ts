@@ -9,6 +9,8 @@ const otherId = '507f1f77bcf86cd799439012';
 let users: Map<string, any>;
 const writes: Array<{ id: string; patch: any }> = [];
 const invalidations: string[] = [];
+const discoveryQueries: Record<string, any>[] = [];
+let discoveryUsers: Record<string, any>[] = [];
 let databaseFails = false;
 let revokeFails = false;
 let revokeFinished = false;
@@ -39,7 +41,11 @@ mock.module('../src/data/postgres-user-store', { namedExports: {
   pgFindUserByEmail: async (email: string) => [...users.values()].find(u => u.email.toLowerCase() === email.toLowerCase()) || null,
   pgFindUserByIdentity: async () => null, pgFindUserByResetToken: async () => resetAvailable ? source() : null,
   pgResetUserPassword: async () => { if (!resetAvailable) return false; resetAvailable = false; return true; },
-  pgListUsers: async () => [], pgRecentUserActivity: async () => [],
+  pgListUsers: async (options: Record<string, any>) => {
+    discoveryQueries.push(options);
+    if (databaseFails) throw new Error('private-db-detail');
+    return { users: discoveryUsers, total: discoveryUsers.length };
+  }, pgRecentUserActivity: async () => [],
   pgUserManagementDetail: async () => null, pgUserManagementStats: async () => ({}), pgUserSlugExists: async () => false,
   pgUserFollowState: async () => ({ following: [], followersCount: 0 }), pgUserSocialByEmail: async () => ({ followers: [{ email: 'private@example.test' }], following: [] }),
   pgDeleteUser: async (id: string) => { if (databaseFails) throw new Error('delete-db'); return users.delete(id); },
@@ -88,6 +94,7 @@ before(async () => {
 after(() => new Promise<void>((resolve, reject) => server.close(err => err ? reject(err) : resolve())));
 beforeEach(() => {
   users = new Map([[ownerId, source()], [otherId, source(otherId)]]); writes.length = 0; invalidations.length = 0;
+  discoveryQueries.length = 0; discoveryUsers = [];
   databaseFails = false; revokeFails = false; revokeFinished = false; deletedKeys = []; invalidImage = false; uploadFailure = false;
   resetAvailable = false;
   process.env.AWS_BUCKET_NAME = 'fixture-bucket'; process.env.AWS_REGION = 'eu-north-1';
@@ -95,6 +102,56 @@ beforeEach(() => {
 async function request(path: string, method = 'GET', body?: any, user: string | null = ownerId, extra = {}) {
   return fetch(`${base}${path}`, { method, headers: { ...(user ? { 'x-fixture-user': user } : {}), 'content-type': 'application/json', ...extra }, body: body === undefined ? undefined : JSON.stringify(body) });
 }
+
+for (const [path, sortBy] of [
+  ['/api/users/search', 'newest'],
+  ['/api/users/search?page=1&limit=20&sortBy=recent_favorites', 'recent_favorites'],
+]) {
+  test(`anonymous discovery stays public/active and exposes only the public DTO: ${path}`, async () => {
+    discoveryUsers = [{ ...source(), fullName: 'Public Listener', username: 'public-listener',
+      avatar: 'https://example.invalid/avatar.webp', profileImageUrl: 'https://example.invalid/legacy.webp',
+      location: 'Public location', bio: 'Public biography', slug: 'public-listener',
+      followersCount: 4, followingCount: 2, favoriteStationsCount: 7,
+      lastFavoritedAt: '2026-10-26T10:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z',
+      password: 'private-password', password_hash: 'private-hash', authToken: 'private-auth-token',
+      accessToken: 'private-access-token', refreshToken: 'private-refresh-token',
+      resetPasswordToken: 'private-reset-token', verificationToken: 'private-verification-token',
+      googleId: 'private-google-id', appleId: 'private-apple-id', facebookId: 'private-facebook-id',
+      tokens: { access: 'private-nested-token' }, source: { email: 'private-source@example.invalid', token: 'private-source-token' },
+    }];
+    const response = await request(path, 'GET', undefined, null);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') || '', /^application\/json/);
+    assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+    for (const header of ['cache-control', 'cdn-cache-control', 'cloudflare-cdn-cache-control']) {
+      assert.equal(response.headers.get(header), 'no-store', header);
+    }
+    assert.deepEqual(discoveryQueries, [{ query: '', status: 'active', publicOnly: true, sortBy, page: 1, limit: 20 }]);
+    const body = await response.json();
+    assert.deepEqual(body, { users: [{
+      _id: ownerId, name: 'Public Listener', fullName: 'Public Listener', displayName: 'Public Listener',
+      username: 'public-listener', avatar: 'https://example.invalid/avatar.webp', profileImageUrl: 'https://example.invalid/avatar.webp',
+      location: 'Public location', bio: 'Public biography', followersCount: 4, followingCount: 2,
+      favoriteStationsCount: 7, lastFavoritedAt: '2026-10-26T10:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z', slug: 'public-listener',
+    }], pagination: { page: 1, limit: 20, total: 1, pages: 1, hasMore: false } });
+    assert.doesNotMatch(JSON.stringify(body), /private-|@example\.test|stored-hash/);
+    assert.equal(writes.length, 0);
+    assert.equal(invalidations.length, 0);
+  });
+}
+
+test('anonymous discovery errors retain JSON noindex/nofollow without leaking driver details', async () => {
+  databaseFails = true;
+  const response = await request('/api/users/search?page=1&limit=20&sortBy=recent_favorites', 'GET', undefined, null);
+  assert.equal(response.status, 500);
+  assert.match(response.headers.get('content-type') || '', /^application\/json/);
+  assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.deepEqual(await response.json(), { error: 'Failed to search users' });
+  assert.deepEqual(discoveryQueries, [{ query: '', status: 'active', publicOnly: true, sortBy: 'recent_favorites', page: 1, limit: 20 }]);
+  assert.equal(writes.length, 0);
+});
+
 test('profile save writes only submitted safe fields and invalidates personal caches', async () => {
   const response = await request('/api/auth/profile', 'PUT', { fullName: ' Updated ', role: 'admin', subscription: { isActive: true } });
   assert.equal(response.status, 200); assert.deepEqual(writes[0], { id: ownerId, patch: { fullName: 'Updated' } });

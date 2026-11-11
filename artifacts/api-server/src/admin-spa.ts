@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const ASSET_DIRECTORIES = ['/assets/', '/fonts/', '/images/', '/icons/', '/radio/', '/lotties/', '/~partytown/'];
 const ROOT_ASSETS = new Set([
-  '/manifest.json', '/favicon.png', '/favicon.svg', '/apple-touch-icon.png',
+  '/manifest.json', '/favicon.ico', '/favicon.png', '/favicon.svg', '/apple-touch-icon.png',
   '/header-logo-80w.webp', '/logo-icon.webp', '/no-image.webp', '/opengraph.jpg', '/equalizer.svg',
 ]);
 
@@ -41,9 +41,6 @@ export function registerAdminAssets(app: Express, publicDirectory: string): void
       if (decoded.includes('\\') || /(?:^|\/)\.{1,2}(?:\/|$)/.test(decoded)) return void notFound();
     } catch { return void notFound(); }
     serve(req, res, notFound);
-  });
-  app.get('/favicon.ico', (_req, res) => {
-    res.set('Cache-Control', 'public, max-age=86400').redirect(301, '/favicon.png');
   });
 }
 

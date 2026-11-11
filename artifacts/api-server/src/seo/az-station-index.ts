@@ -1,22 +1,3 @@
-/**
- * A-Z station index pages (Task #11, radio.at parity, 2026-07-03).
- *
- * URL shape: /{lang}/{stations-localized}/{key} where key is a single
- * letter `a`–`z` or the literal bucket `0-9`. Examples:
- *   /en/stations/a   /tr/istasyonlar/m   /de/sender/0-9
- *
- * The letter key itself is NEVER translated — it occupies the same path
- * position as a station slug, and both `buildLocalizedUrl` and hreflang's
- * `generateLanguageUrls` already skip translation for the second segment
- * of /station|/stations paths. That makes canonical, hreflang and sitemap
- * agree on the letter URLs with zero changes to the URL builders.
- *
- * Kept side-effect-free (no Mongoose, no renderer import) so the
- * middleware, the SSR renderer, the sitemap builders and the test suite
- * can all share these definitions without booting anything heavy.
- */
-
-/** Every A-Z index key, in display order. `0-9` buckets digit-led slugs. */
 export const AZ_INDEX_KEYS: readonly string[] = [
   ...'abcdefghijklmnopqrstuvwxyz'.split(''),
   '0-9',

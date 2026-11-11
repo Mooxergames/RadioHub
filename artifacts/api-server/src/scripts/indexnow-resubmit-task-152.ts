@@ -1,36 +1,3 @@
-/**
- * Task #152 — one-shot IndexNow re-submission.
- *
- * After Task #128 expanded `/sitemap-main-{lang}.xml` to include the
- * previously-orphaned static pages (FAQ, Contact, Privacy, Terms,
- * Applications) and the top ~30 country region pages, we need to nudge the
- * IndexNow-aware engines (Bing/Yandex) to re-crawl the new URLs without
- * waiting for the next scheduled sitemap regeneration.
- *
- * The script:
- *   1. Pings `/sitemap-index.xml` (IndexNow sitemap notification).
- *   2. Submits the canonical /{lang}/{path} URL for every static main page
- *      across every active sitemap language.
- *   3. Submits the top ~30 country region URLs (/{lang}/regions/<region>/<country>)
- *      across every active sitemap language, computed from the same Mongo
- *      aggregation used by the live sitemap.
- *
- * Google Search Console does NOT consume IndexNow — the GSC "Resubmit
- * sitemap" action for `/sitemap-index.xml` is a manual step and must be
- * performed in the GSC UI for `themegaradio.com`. See the runbook entry
- * in `BACKFILL_RUNBOOK.md` (section "IndexNow re-submission (Task #152)").
- *
- * Idempotent — safe to re-run; submissions are batched per IndexNow's
- * 10k-URL-per-request cap.
- *
- * Usage (production):
- *   pnpm --filter @workspace/api-server run indexnow:task-152
- *
- * Dry-run (logs URLs without sending):
- *   DRY_RUN=1 pnpm --filter @workspace/api-server run indexnow:task-152
- *
- * Environment: requires `DATABASE_URL`.
- */
 
 import { initializePostgres, closePostgres } from "../postgres-runtime";
 import { pgCatalog } from "../data/postgres-catalog-store";

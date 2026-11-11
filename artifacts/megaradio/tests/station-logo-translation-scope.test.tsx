@@ -28,14 +28,36 @@ it('uses supplied localized alt without mounting translation subscriptions', () 
   expect(translationHook).not.toHaveBeenCalled();
 });
 
-it.each([undefined, ''])('keeps the existing localized default when alt is %s', (alt) => {
-  render(<StationLogo station={station} alt={alt} />);
+it('keeps the existing localized default when alt is undefined', () => {
+  render(<StationLogo station={station} />);
   expect(screen.getByRole('img')).toHaveAttribute('alt', 'Logo von Radio Eins');
   expect(translationHook).toHaveBeenCalled();
 });
 
+it('preserves explicit decorative empty alt without subscribing to translations, even after failure', () => {
+  const { container } = render(<StationLogo station={station} alt="" />);
+  const image = screen.getByAltText('');
+  expect(image).toHaveAttribute('alt', '');
+  expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  fireEvent.error(image);
+  fireEvent.error(image);
+  fireEvent.error(image);
+  expect(container.querySelector('img')).toBeNull();
+  expect(container.querySelector('[role="img"], [aria-label]')).toBeNull();
+  expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+  expect(translationHook).not.toHaveBeenCalled();
+});
+
+it('keeps an initially missing decorative logo unnamed', () => {
+  const { container } = render(<StationLogo station={{ name: 'Radio Eins' }} alt="" />);
+  expect(container.querySelector('[role="img"], [aria-label]')).toBeNull();
+  expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+  expect(translationHook).not.toHaveBeenCalled();
+});
+
 it('can switch alt ownership without resetting image recovery or violating hook order', () => {
   const { rerender } = render(<StationLogo station={station} alt="Supplied text" />);
+  expect(screen.getByRole('img')).toHaveAttribute('alt', 'Supplied text — Radio Eins');
   fireEvent.error(screen.getByRole('img'));
   const recoveredSource = screen.getByRole('img').getAttribute('src');
   expect(recoveredSource).toContain('smaller.webp');
@@ -44,8 +66,18 @@ it('can switch alt ownership without resetting image recovery or violating hook 
   expect(screen.getByRole('img')).toHaveAttribute('src', recoveredSource);
   translationHook.mockClear();
   rerender(<StationLogo station={station} alt="Supplied again" />);
+  expect(screen.getByRole('img')).toHaveAttribute('alt', 'Supplied again — Radio Eins');
   expect(screen.getByRole('img')).toHaveAttribute('src', recoveredSource);
   expect(translationHook).not.toHaveBeenCalled();
+});
+
+it('appends a missing name to translated text but does not duplicate an existing case-insensitive name', () => {
+  translationHook.mockImplementation(() => ({ t: () => 'Offizielles Logo' }));
+  const { rerender } = render(<StationLogo station={station} />);
+  expect(screen.getByRole('img')).toHaveAttribute('alt', 'Offizielles Logo — Radio Eins');
+  translationHook.mockImplementation(() => ({ t: () => 'RADIO EINS Logo' }));
+  rerender(<StationLogo station={station} />);
+  expect(screen.getByRole('img')).toHaveAttribute('alt', 'RADIO EINS Logo');
 });
 
 it('substitutes the imported underscore-separated station placeholder', () => {
@@ -58,7 +90,7 @@ it('substitutes the imported underscore-separated station placeholder', () => {
 });
 
 it.each([
-  ['KRAL FM logosu', 'KRAL FM logosu'],
+  ['KRAL FM logosu', 'KRAL FM logosu — Radio Eins'],
   [undefined, 'Radio Eins'],
 ])('a missing image preserves accessible text %s without translation subscriptions', (alt, expected) => {
   render(<StationLogo station={{ _id: 'missing-logo', name: 'Radio Eins' }} alt={alt} />);

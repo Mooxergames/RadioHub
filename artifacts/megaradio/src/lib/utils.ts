@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 
 const _API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const _STREAM_PROXY_BASE = import.meta.env.VITE_STREAM_PROXY_URL || _API_BASE || '';
@@ -24,7 +25,7 @@ export function getStreamProxyUrl(path: string): string {
  *     scheme combo, browser refuses (also ERR_EMPTY_RESPONSE in prod logs)
  *   - Upstream TLS cert expired / hostname mismatch → ERR_CERT_DATE_INVALID
  *     (the only signal we have for this AHEAD of a play attempt is the
- *     `sslError` flag we ingest from Radio-Browser into Mongo, which is
+ *     `sslError` flag we ingest from Radio-Browser into PostgreSQL, which is
  *     surfaced on the station object as `sslError: true`)
  *
  * Returns the URL the audio element / hls.js should actually load. When
@@ -99,6 +100,9 @@ export function normalizeFaviconUrl(favicon: string | undefined | null): string 
     return '/images/no-image.webp';
   }
 
+  const publicUrl = normalizePublicStationLogoUrl(favicon);
+  if (publicUrl !== favicon) return publicUrl;
+
   if (favicon.startsWith('data:')) {
     return favicon;
   }
@@ -120,8 +124,7 @@ export function normalizeFaviconUrl(favicon: string | undefined | null): string 
   // so the <img> failed for crawlers even though it renders fine in a browser.
   // The proxy re-fetches with a desktop-browser User-Agent and serves the bytes
   // from our own domain (CDN-cached 7d), so the image resolves 200 for crawlers
-  // too. NOTE: processed S3 logos never reach here — StationLogo resolves those
-  // via resolveLogoUrl; this normalizer only ever receives the external favicon.
+  // too. Known public S3 logos were resolved before this external-favicon path.
   if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
     const encodedUrl = safeBase64Encode(normalizedUrl);
     // Images use the web/API image service (resizing/cache/SSRF protection),
@@ -184,6 +187,9 @@ export function getImageUrl(url: string | null | undefined): string {
   if (!url || url.trim() === '' || url === 'null' || url === 'undefined') {
     return '/images/no-image.webp';
   }
+
+  const publicUrl = normalizePublicStationLogoUrl(url);
+  if (publicUrl !== url) return publicUrl;
 
   if (url.startsWith('https://') || url.startsWith('/') || url.startsWith('data:')) {
     return url;

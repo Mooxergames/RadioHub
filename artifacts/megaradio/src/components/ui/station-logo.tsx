@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, type SyntheticEvent, type ImgHTMLAttribut
 import { cn, normalizeFaviconUrl } from '@/lib/utils';
 import { useTranslation } from '@/hooks/useTranslation';
 import { hasRecentStationLogoFailure, rememberStationLogoFailure, clearStationLogoFailure } from '@/lib/station-logo-failure-cache';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
+import { ensureStationNameInImageAlt } from '@workspace/seo-shared/station-image-alt';
 
 interface LogoAssets {
   folder?: string;
@@ -49,7 +51,7 @@ const SIZES = {
 const FALLBACK_IMAGE = '/images/no-image.webp';
 
 // NoImage Fallback Component - #3E3E3E background with inline music-note icon
-function NoImageFallback({ className, label }: { className?: string; label: string }) {
+function NoImageFallback({ className, label }: { className?: string; label?: string }) {
   return (
     <div
       className={cn("flex items-center justify-center", className)}
@@ -58,7 +60,8 @@ function NoImageFallback({ className, label }: { className?: string; label: stri
         borderRadius: '9.95px',
       }}
       aria-label={label}
-      role="img"
+      role={label ? 'img' : undefined}
+      aria-hidden={label ? undefined : true}
     >
       <svg
         viewBox="0 0 24 24"
@@ -81,14 +84,15 @@ function NoImageFallback({ className, label }: { className?: string; label: stri
   );
 }
 
-// Resolve a logoAssets value to an absolute URL.
-// S3 data: value is already a full https:// URL → return as-is.
+// Known public S3 assets use the web host's stable binary-delivery path.
 // Local data: value is a filename → prefix with API base so the request goes
 // to the API container (which stores the files), not the web container.
 const _API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 function resolveLogoUrl(folder: string | undefined, value: string | undefined): string | undefined {
   const path = typeof value === 'string' ? value.trim() : '';
   if (!path) return undefined;
+  const publicUrl = normalizePublicStationLogoUrl(path);
+  if (publicUrl !== path) return publicUrl;
   if (/^https?:\/\//i.test(path)) return path;
   if (path.startsWith('//')) return `https:${path}`;
   if (path.startsWith('/station-logos/')) return `${_API_ORIGIN}${path}`;
@@ -102,7 +106,7 @@ function resolveLogoUrl(folder: string | undefined, value: string | undefined): 
 function resolveLegacyLogoUrl(value: string | undefined): string | undefined {
   const path = typeof value === 'string' ? value.trim() : '';
   if (!path) return undefined;
-  if (/^https?:\/\//i.test(path)) return path;
+  if (/^https?:\/\//i.test(path)) return normalizePublicStationLogoUrl(path);
   if (path.startsWith('//')) return `https:${path}`;
   if (path.startsWith('/')) return path;
   if (/^[a-z][a-z\d+.-]*:/i.test(path)) return undefined;
@@ -156,13 +160,15 @@ type StationLogoImageProps = ImgHTMLAttributes<HTMLImageElement> & { stationName
 function LocalizedStationLogoImage({ stationName, ...props }: StationLogoImageProps) {
   const { t } = useTranslation();
   // Imported dictionaries use both {stationName} and {STATION_NAME}.
-  return <img {...props} alt={t('station_logo_alt', `${stationName} logo`, { stationName, STATION_NAME: stationName })} />;
+  const translated = t('station_logo_alt', `${stationName} logo`, { stationName, STATION_NAME: stationName });
+  return <img {...props} alt={ensureStationNameInImageAlt(translated, stationName)} />;
 }
 
 // Cards already provide a localized alt. Keep their image path free of the
 // translation hook's query subscriptions; only the default needs translation.
 function StationLogoImage({ stationName, alt, ...props }: StationLogoImageProps) {
-  return alt ? <img {...props} alt={alt} /> : <LocalizedStationLogoImage {...props} stationName={stationName} />;
+  if (alt === undefined) return <LocalizedStationLogoImage {...props} stationName={stationName} />;
+  return <img {...props} alt={alt === '' ? '' : ensureStationNameInImageAlt(alt, stationName)} />;
 }
 
 export function StationLogo({ 
@@ -245,7 +251,7 @@ export function StationLogo({
   if (isShowingFallback) {
     return (
       <NoImageFallback 
-        label={alt?.trim() || stationName}
+        label={alt === '' ? undefined : ensureStationNameInImageAlt(alt?.trim() || stationName, stationName)}
         className={cn(
           useFillMode ? 'w-full h-full' : sizeConfig.className,
           className

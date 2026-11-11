@@ -48,6 +48,13 @@ export function getLastRefreshAt(): Date | null {
   return lastRefreshAt;
 }
 
+/** Required ownership reads must not decide from the static cold-start seed. */
+export async function ensureGenreWhitelistFresh(): Promise<void> {
+  if (!lastRefreshAt || Date.now() - lastRefreshAt.getTime() >= REFRESH_INTERVAL_MS) {
+    await refreshGenreWhitelistFromDb();
+  }
+}
+
 /**
  * Recompute the merged snapshot from the static seed plus all
  * GenreWhitelistOverride rows. Safe to call concurrently — overlapping

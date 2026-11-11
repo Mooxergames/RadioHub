@@ -2,18 +2,17 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 import type { ServerResponse } from 'node:http';
+import { isKnownSpaShellRoute } from './seo/spa-shell-route';
 
 // HTML contains the current deployment's hashed asset URLs. Caches may retain
 // it for conditional requests, but must validate before reuse after a deploy.
 // Immutable caching remains appropriate for the existing hashed assets only.
 export const HTML_CACHE_CONTROL = 'public, no-cache, max-age=0, must-revalidate';
 
-// These public brand images are referenced by the site's favicon/Organization
-// markup. The non-SEO SPA fallback's noindex must not leak onto their responses.
-// Keep this exact: unrelated assets, private routes and missing files retain
-// their existing indexing policy.
+// Public images must not inherit the non-SEO SPA shell's noindex. Unrelated
+// assets, private routes and missing files retain their existing policy.
 const PUBLIC_BRAND_IMAGES = new Set([
-  'favicon.png', 'apple-touch-icon.png', 'header-logo-80w.webp',
+  'favicon.ico', 'favicon.svg', 'favicon.png', 'apple-touch-icon.png', 'header-logo-80w.webp',
   'logo-icon.webp', 'images/logo-icon.webp',
 ]);
 
@@ -42,22 +41,31 @@ export function serveStatic(app: Express, distPath = path.resolve(import.meta.di
     );
   }
 
-  app.use(express.static(distPath, {
+  const staticFiles = express.static(distPath, {
     setHeaders(res, filePath) {
       if (filePath.endsWith('.html')) revalidateSuccessfulHtml(res);
-      if (PUBLIC_BRAND_IMAGES.has(path.relative(distPath, filePath).split(path.sep).join('/'))) {
+      const relative = path.relative(distPath, filePath).split(path.sep).join('/');
+      if (PUBLIC_BRAND_IMAGES.has(relative)
+        || /^(?:images\/|uploads\/genres\/).+\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(relative)) {
         res.removeHeader('X-Robots-Tag');
       }
+      if (['favicon.ico', 'favicon.png', 'favicon.svg', 'apple-touch-icon.png'].includes(relative)) {
+        res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+        res.removeHeader('Expires');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      }
     },
-  }));
-
-  // Browsers and older notification payloads still request the conventional
-  // ICO URL. Point it to the existing PNG instead of serving a 200 HTML shell.
-  app.get('/favicon.ico', (_req, res) => {
-    res.removeHeader('Expires');
-    res.removeHeader('X-Robots-Tag');
-    res.set('Cache-Control', 'public, max-age=86400');
-    res.redirect(301, '/favicon.png');
+  });
+  app.use((req, res, next) => {
+    const originalRobots = res.getHeader('X-Robots-Tag');
+    staticFiles(req, res, error => {
+      // setHeaders precedes conditional/range validation in express.static.
+      // A real image file can still become a 412/416 error, not an image.
+      if (error && !res.headersSent && originalRobots !== undefined) {
+        res.setHeader('X-Robots-Tag', originalRobots);
+      }
+      next(error);
+    });
   });
 
   // Missing build chunks and genre uploads are files, not SPA navigations.
@@ -80,7 +88,11 @@ export function serveStatic(app: Express, distPath = path.resolve(import.meta.di
     }).type('text/plain').send('Sitemap not found');
   });
 
-  app.use("/*splat", (_req, res) => {
+  app.use("/*splat", (req, res) => {
+    if (res.statusCode < 400 && !isKnownSpaShellRoute(req.originalUrl)) {
+      res.removeHeader('Expires');
+      res.status(404).set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, follow' });
+    }
     revalidateSuccessfulHtml(res);
     res.sendFile(path.resolve(distPath, "index.html"));
   });

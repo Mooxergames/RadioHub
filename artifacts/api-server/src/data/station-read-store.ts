@@ -42,7 +42,7 @@ function fromPostgres(row: Record<string, any> | undefined): any | null {
     ...stationVisibilityFields(row),
     geoLat: row.latitude, geoLong: row.longitude, hasLogo: row.has_logo,
     logoAssets: row.logo_assets, descriptions: row.descriptions || {},
-    manualEditFields: row.manual_edit_fields || {}, mediaGroupId: row.media_group_id,
+    manualEditFields: row.manual_edit_fields, mediaGroupId: row.media_group_id,
     isFeatured: row.is_featured, showInGlobalPopular: row.show_in_global_popular,
     noIndex: row.no_index, createdAt: row.created_at, updatedAt: row.updated_at,
   };
@@ -177,11 +177,11 @@ export async function getStationStatsFromPostgres(): Promise<{
   };
 }
 
-export async function getRelatedStationsFromPostgres(stationId: string, limit: number): Promise<any[] | null> {
+export async function getRelatedStationsFromPostgres(stationId: string, limit: number, compact = false): Promise<any[] | null> {
   const source = await postgresStation(stationId);
   if (!source) return null;
   const result = await getPostgresPool().query(
-    `SELECT * FROM stations WHERE id<>$1 AND (is_list_visible IS TRUE OR COALESCE(visibility_expires_at<=now(),false))
+    `SELECT ${compact ? CARD_SELECTION : '*'} FROM stations WHERE id<>$1 AND (is_list_visible IS TRUE OR COALESCE(visibility_expires_at<=now(),false))
        AND ($2='' OR country=$2)
        AND ($3='' OR tags_raw ILIKE '%' || $3 || '%')
      ORDER BY votes DESC LIMIT $4`,
@@ -204,9 +204,13 @@ export interface PostgresStationListOptions {
   minVotes?: number; createdAfter?: Date; page: number; limit: number;
   hasLogo?: boolean; codec?: string; minBitrate?: number;
   compact?: boolean;
+  /** Internal SSR fallback only; public browsing retains its existing order. */
+  seoQualitySample?: boolean;
 }
 
-export async function listStationsFromPostgres(options: PostgresStationListOptions): Promise<{
+export async function listStationsFromPostgres(options: PostgresStationListOptions,
+  query = (text: string, values: any[]) => getPostgresPool().query(text, values),
+): Promise<{
   stations: any[]; totalCount: number; count: number;
   pagination: { page: number; limit: number; total: number; pages: number };
 }> {
@@ -214,6 +218,7 @@ export async function listStationsFromPostgres(options: PostgresStationListOptio
   // This is a public catalog reader. excludeBroken=false is a legacy client
   // preference, not permission to bypass current native health visibility.
   const conditions: string[] = ['(is_list_visible IS TRUE OR COALESCE(visibility_expires_at<=now(),false))'];
+  if (options.seoQualitySample) conditions.push('no_index IS NOT TRUE', "slug IS NOT NULL AND slug<>''");
   let genreCandidates = '';
   const bind = (value: unknown): string => { values.push(value); return `$${values.length}`; };
   if (options.country) conditions.push(`lower(country)=lower(${bind(options.country)})`);
@@ -259,15 +264,15 @@ export async function listStationsFromPostgres(options: PostgresStationListOptio
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const sortMap: Record<string, string> = { az:'name ASC',za:'name DESC',newest:'created_at DESC',oldest:'created_at ASC',votes:'votes DESC,click_count DESC' };
   const numericNamesLast = ['az','za'].includes(options.sort || '') ? "(btrim(name) ~ '^[0-9]') ASC," : '';
-  // Requested ordering is authoritative; logo quality only breaks equal metrics.
-  const order = searchOrder + numericNamesLast + `${sortMap[options.sort || 'votes'] || sortMap.votes},(btrim(COALESCE(favicon,'')) ~* '^(https?://.+|data:image/.+)') DESC,id ASC`;
+  const order = options.seoQualitySample ? 'votes DESC,id ASC'
+    : searchOrder + numericNamesLast + `${sortMap[options.sort || 'votes'] || sortMap.votes},(btrim(COALESCE(favicon,'')) ~* '^(https?://.+|data:image/.+)') DESC,id ASC`;
   const page = boundedInteger(options.page, 1, 1_000_000);
   const limit = boundedInteger(options.limit, 25, 500);
   // Select the bounded ID page before loading wide station/source columns.
   // This permits a narrow top-N sort instead of sorting full catalog rows
   // for the window. Reapply the identical order only to the selected page.
   // One statement gives count and page the same MVCC snapshot, including empty pages.
-  const result = await getPostgresPool().query(
+  const result = await query(
     `WITH ${genreCandidates} page_ids AS MATERIALIZED (SELECT id FROM stations ${where}
        ORDER BY ${order} LIMIT ${bind(limit)} OFFSET ${bind((page-1)*limit)}),
      selected AS (SELECT ${options.compact ? CARD_SELECTION : '*'},row_number() OVER (ORDER BY ${order}) AS _position

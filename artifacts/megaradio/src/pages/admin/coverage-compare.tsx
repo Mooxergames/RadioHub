@@ -184,7 +184,7 @@ function sanitizePresetsPrefs(raw: unknown): ComparisonPresetsPrefs {
 
 // =====================================================================
 // Shared (team) presets — Task #306
-// Backed by the SharedComparisonPreset Mongo collection via
+// Backed by the PostgreSQL shared comparison presets via
 // /api/admin/shared-presets. Any admin can publish one; only the owner
 // (or a SUPER_ADMIN_USERNAMES-listed admin) can edit/delete it.
 // =====================================================================

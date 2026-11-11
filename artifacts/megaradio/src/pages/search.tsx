@@ -6,6 +6,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useSeoRouting } from "@/hooks/useSeoRouting";
 import { SeoHead } from "@/components/SeoHead";
 import { HighlightMatch } from "@/components/HighlightMatch";
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import {
   canonicalizeCountry,
   countrySlug,
@@ -664,7 +665,7 @@ export default function SearchPage() {
                           <div className="w-12 h-12 rounded-lg bg-white/10 flex-shrink-0 overflow-hidden flex items-center justify-center">
                             {station.favicon ? (
                               <img
-                                src={station.favicon}
+                                src={normalizePublicStationLogoUrl(station.favicon)}
                                 alt=""
                                 loading="lazy"
                                 className="w-full h-full object-cover"

@@ -3,6 +3,7 @@ import { useSeoRouting } from "@/hooks/useSeoRouting";
 import { useChromecast } from "@/hooks/useChromecast";
 import { useToast } from "@/hooks/use-toast";
 import { getStreamProxyUrl } from "@/lib/utils";
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import youtubeIcon from "@assets/youtube-logo.png";
 import spotifyIcon from "@assets/spotify-logo.png";
 import deezerIcon from "@assets/deezer.png";
@@ -80,10 +81,10 @@ export default function MetaActionsButtonGroup({ className, iconSize = 26, hideC
           ? `${window.location.origin}${proxyUrl}`
           : proxyUrl;
 
-        const imageUrl = currentStation.logoAssets?.webp256
+        const imageUrl = normalizePublicStationLogoUrl(currentStation.logoAssets?.webp256
           || currentStation.logoAssets?.webp96
           || currentStation.favicon 
-          || `${window.location.origin}/images/logo-icon.webp`;
+          || `${window.location.origin}/images/logo-icon.webp`);
 
         await loadMedia(absoluteUrl, {
           title: stationMeta?.title || currentStation.name,

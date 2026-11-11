@@ -92,10 +92,10 @@ describe('native reviewed stream-health CAS and preservation', { skip: !connecti
     assert.equal((await store.recoverStreamHealth(id, expected, evidence())).status, 'conflict');
     assert.deepEqual(await record(), current);
   });
-  it('freshly reviewed manual/redirect/codec records are rejected by repeated quality guard', async () => {
+  it('freshly reviewed manual/redirect/test-feed records are rejected by repeated quality guard', async () => {
     for (const query of ["UPDATE stations SET manual_edit_fields='{" + '"noIndex":true' + "}'",
       "UPDATE stations SET manual_edit_fields='{}',redirect_to_slug='other'",
-      "UPDATE stations SET redirect_to_slug=NULL,slug='nrj-aac'"]) {
+      "UPDATE stations SET redirect_to_slug=NULL,slug='nrj-test-stream'"]) {
       await pool.query(query); const current = await record();
       assert.equal((await store.recoverStreamHealth(id, getStreamRecoverySnapshot(catalogShape(current)), evidence())).status, 'rejected');
       assert.deepEqual(await record(), current);

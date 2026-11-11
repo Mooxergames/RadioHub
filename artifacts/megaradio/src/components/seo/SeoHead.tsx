@@ -1,13 +1,15 @@
 import { useEffect } from 'react';
 import { SeoMetaTags, truncateAtWordBoundary, normalizeSeoTitle } from '@workspace/seo-shared/seo-config';
 import { applyServerStructuredData, type ServerStructuredData } from '@/utils/server-structured-data';
+import { updateOgImageDimensions } from '@/utils/og-image-dimensions';
 
 interface SeoHeadProps {
   seoData: SeoMetaTags;
   structuredData?: ServerStructuredData;
+  clearCanonical?: boolean;
 }
 
-export function SeoHead({ seoData, structuredData }: SeoHeadProps) {
+export function SeoHead({ seoData, structuredData, clearCanonical = false }: SeoHeadProps) {
   useEffect(() => {
     // Update document title
     if (seoData.title) {
@@ -76,6 +78,7 @@ export function SeoHead({ seoData, structuredData }: SeoHeadProps) {
       ? ogImageRaw 
       : `${window.location.origin}${ogImageRaw.startsWith('/') ? '' : '/'}${ogImageRaw}`;
     updateMetaTag('', ogImage, 'og:image');
+    updateOgImageDimensions(ogImage, window.location.origin);
     
     // og:type - REQUIRED
     updateMetaTag('', seoData.ogType || 'website', 'og:type');
@@ -97,9 +100,22 @@ export function SeoHead({ seoData, structuredData }: SeoHeadProps) {
       ? twitterImage 
       : `${window.location.origin}${twitterImage.startsWith('/') ? '' : '/'}${twitterImage}`;
     updateMetaTag('twitter:image', absoluteTwitterImage);
+
+    for (const [property, content] of [
+      ['og:image:alt', seoData.ogImageAlt],
+      ['article:published_time', seoData.ogType === 'article' ? seoData.articlePublishedTime : undefined],
+      ['article:modified_time', seoData.ogType === 'article' ? seoData.articleModifiedTime : undefined],
+    ]) {
+      if (content) updateMetaTag('', content, property);
+      else document.querySelectorAll(`meta[property="${property}"]`).forEach(meta => meta.remove());
+    }
+    if (seoData.twitterImageAlt) updateMetaTag('twitter:image:alt', seoData.twitterImageAlt);
+    else document.querySelectorAll('meta[name="twitter:image:alt"]').forEach(meta => meta.remove());
     
     // Canonical URL
-    if (seoData.canonical) {
+    if (clearCanonical) {
+      document.querySelectorAll('link[rel="canonical"]').forEach(link => link.remove());
+    } else if (seoData.canonical) {
       updateLinkTag('canonical', seoData.canonical);
     }
     
@@ -116,7 +132,7 @@ export function SeoHead({ seoData, structuredData }: SeoHeadProps) {
     }
     
     if (structuredData) applyServerStructuredData(structuredData);
-  }, [seoData, structuredData]);
+  }, [seoData, structuredData, clearCanonical]);
 
   return null; // This component doesn't render anything visible
 }

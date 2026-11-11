@@ -12,11 +12,11 @@ import { StationStreamAvailability } from '@/components/StationStreamAvailabilit
 
 const state = vi.hoisted(() => ({ isPlaying: false, currentStation: null as any,
   playStation: vi.fn(), pauseStation: vi.fn(), resumeStation: vi.fn(), previousStation: vi.fn(), nextStation: vi.fn(),
-  apiRequest: vi.fn().mockResolvedValue({ ok: true }),
+  apiRequest: vi.fn().mockResolvedValue({ ok: true, json: async () => ({success:true,votes:1,hasVoted:false}) }),
 }));
 vi.mock('@/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => state }));
-vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => { throw new Error('Controls must reuse their parent translator'); } }));
-vi.mock('@/lib/queryClient', () => ({ apiRequest: state.apiRequest }));
+vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => ({language:'tr',t: (_key:string,fallback:string) => fallback}) }));
+vi.mock('@/lib/queryClient', () => ({ apiRequest: state.apiRequest, getQueryFn: () => async () => ({user:{_id:"fixture-user"}}) }));
 vi.mock('@/components/ui/favorite-button', () => ({ default: () => <button aria-label="fixture favorite" /> }));
 import StationControlButtonGroup from '../src/components/ui/station-control-button-group';
 
@@ -24,7 +24,8 @@ const station = { _id: 'fixture-radio', name: 'Radio $& <One>' };
 let client: QueryClient;
 beforeEach(() => {
   state.isPlaying = false; state.currentStation = null; vi.clearAllMocks();
-  client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  client = new QueryClient({ defaultOptions: { queries:{retry:false}, mutations: { retry: false } } });
+  client.setQueryData(['/api/auth/me'],{user:{_id:'fixture-user'}});
 });
 afterEach(() => { cleanup(); client.clear(); });
 const missing = (_key: string, fallback: string) => fallback;
@@ -112,7 +113,7 @@ it('station details wires localized share/play/alt values while all existing pla
   expect(source.match(/<span className="sr-only">\{controlLabels.play\}<\/span>/g)).toHaveLength(2);
   expect(source).toContain('getStationImageAlt(similarStation, language, t)');
   expect(source).toContain('getStationImageAlt(countryStation, language, t)');
-  expect(source).toContain('getStationImageAlt(linkedStation, language, t)');
+  expect(source).not.toContain('station_media_group_radios');
   expect(source).toContain('<StationStreamAvailability station={station} language={language} />');
   expect(/alt="Share"|aria-label="Share station"|alt=\{`Listen \$\{|>Play Radio</.test(source)).toBe(false);
   for (const filename of ['src/components/global-player.tsx', 'src/components/ui/bottom-player.tsx', 'src/pages/stations/[id].tsx']) {

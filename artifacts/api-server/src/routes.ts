@@ -1,3 +1,5 @@
+import { ACTIVE_UI_LANGUAGES, isActiveUiLanguage } from '@workspace/seo-shared/seo-config';
+import { registerTvDiagnosticRoutes } from './routes/tv-diagnostics-routes';
 import { registerListeningRoutes } from './routes/listening-routes';
 import type { Express } from "express";
 import { createServer, type Server } from "http";
@@ -63,6 +65,7 @@ import { registerTranslationKeyRoutes, seedSeoTranslationKeys, seedTurkishUiTran
 import { seedSearchPageTranslations } from './seo/search-page-translations-seed';
 import { seedPremiumTranslations } from './seo/premium-translations-seed';
 import { seedSubscriptionUiTranslations } from './seo/subscription-ui-translations-seed';
+import { seedUiCompletionTranslations } from './seo/ui-completion-translations-seed';
 import { seedAllLanguagesSeoTranslations } from './seo/all-languages-seo-seed';
 import { seedHomepageFaqTranslations } from './seo/homepage-faq-translations-seed';
 import { registerSeoSitemapRoutes } from './routes/seo-sitemap-routes';
@@ -127,7 +130,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   // probe used to verify the Atlas index audit (May 14, hid 17 stations
   // indexes) has been REMOVED. If you ever need it again, re-add a
   // local one-off behind requireAdmin and remove it after the audit.
-  // The hint discipline rule (replit.md) keeps us safe without a
+  // The verified-index hint discipline keeps us safe without a
   // permanent admin surface.
 
   // === HEALTH CHECK ===
@@ -248,7 +251,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
     try {
       logger.log('🔥 Starting cache warmup - ALL translations FIRST for fast page load...');
       const enabledLanguages = (await pgLocalization().getTranslationLanguages(true));
-      const languageCodes = enabledLanguages.map((l: any) => l.code);
+      const languageCodes = enabledLanguages.map((l: any) => l.code).filter(isActiveUiLanguage);
       const criticalOrder = ['en', 'de', 'es', 'fr', 'it', 'tr', 'pt', 'nl', 'ru', 'pl'];
       const orderedLanguages = [
         ...criticalOrder.filter(code => languageCodes.includes(code)),
@@ -291,18 +294,6 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
         logger.log('✅ Cached discoverable genres');
       } catch {}
 
-      // 2026-05-15 INCIDENT: PrecomputedCitiesService.warmupCache() runs a
-      // heavy $facet/$switch aggregation per country sequentially for 19
-      // countries. At boot, when Atlas is already stressed by HTTP self-
-      // warmup + popular/community refresh, this hammer pushed the
-      // connection pool to exhaustion — every country errored with
-      // MongoNetworkTimeoutError or MaxTimeMSExpired (16+ failures in a
-      // row in the 2026-05-15 prod log), tripped the circuit breaker, and
-      // forced a container restart loop. The cities cache has a 7-day
-      // TTL and `getCitiesForCountry()` lazily computes on cache miss, so
-      // the first organic request to each country page populates it just
-      // fine. Skipping the boot warmup costs the very first visitor of
-      // each country one slower page load and protects the cluster.
       logger.log('⚡ SKIPPED: PrecomputedCities boot warmup — will populate on-demand per country (7-day TTL)');
 
       logger.log('🔥 Web cache warmup completed - translations, popular stations, community favorites, genres & cities cached!');
@@ -324,7 +315,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
       const tvGenres = await pgDiscoverableGenres(undefined,13);
       await CacheManager.set('tv:genres:discoverable:slim', tvGenres.map(tvSlimGenre), { ttl: 86400 });
 
-      const tvLangs = ['en', 'tr', 'de', 'es', 'fr', 'it', 'pt', 'nl', 'ru', 'ar', 'ja', 'ko', 'zh'];
+      const tvLangs = ACTIVE_UI_LANGUAGES;
       for (const lang of tvLangs) {
         try {
           const translations = await fetchTranslationsForLanguage(lang);
@@ -360,18 +351,6 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
     }
   }
 
-  // === HTTP SELF-WARMUP (INCIDENT 2026-05-14) ===
-  // The previous warmup wrote cache keys with the OLD shape
-  // (e.g. `popular_stations:Germany:all:20`) while the routes now read the
-  // v2 shape (`popular_stations:Germany:all:12:false:web:v2`). That key
-  // drift made every first user hit a Cache MISS and incurred 8-30s
-  // Mongo aggregates against the live cluster.
-  //
-  // Rather than chase every key shape from the warmup helpers, this
-  // self-warmup hits the *real* HTTP endpoints the browser hits, so the
-  // cache keys are guaranteed to match by construction. It runs after
-  // server startup and re-runs every 50 minutes (just under the 1h TTL)
-  // so users never face a cold cache.
   async function warmupViaHttp() {
     const PORT = process.env.PORT || '8080';
     const base = `http://127.0.0.1:${PORT}`;
@@ -503,8 +482,6 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   // visitor via CacheManager.getOrSetSingleFlight (single-flight
   // coalescing prevents stampedes). Off-peak cron refreshes still run.
   if (process.env.NODE_ENV !== 'development') {
-    // Lightweight Mongo health probe ONLY — one cheap indexed read so
-    // we know the cluster is reachable. No warmup work.
     setTimeout(async () => {
       try {
         const t0 = Date.now();
@@ -575,8 +552,8 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   // country aggregates back-to-back, each holding a connection slot for
   // up to socketTimeoutMS(45s). On a fresh boot with empty genre_counts
   // it saturated the M10 pool within ~5 minutes and cascaded into
-  // /api/stations + /api/regions + /api/genres timeouts. Per replit.md
-  // "Lazy cache fill — NO eager boot warmup" rule, leave the table
+  // /api/stations + /api/regions + /api/genres timeouts. Preserve lazy
+  // cache filling without eager boot warmups; leave the table
   // empty; the 3:30 AM cron will populate it. Cold misses on
   // /api/genres/precomputed are protected by their own SWR + single-
   // flight wrapper, so the first organic request per country pays the
@@ -670,8 +647,9 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   });
 
   app.get("/api/translations/:lang/critical", async (req, res) => {
-    const lang = req.params.lang;
-    if (!lang || lang.length > 10) {
+    const requested = req.params.lang;
+    const lang = isActiveUiLanguage(requested) ? requested : 'en';
+    if (!requested || requested.length > 10) {
       return void res.status(400).json({ error: 'Invalid language code' });
     }
 
@@ -713,8 +691,9 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   });
 
   app.get("/api/translations/:lang", async (req, res) => {
-    const lang = req.params.lang;
-    if (!lang || lang.length > 10) {
+    const requested = req.params.lang;
+    const lang = isActiveUiLanguage(requested) ? requested : 'en';
+    if (!requested || requested.length > 10) {
       return void res.status(400).json({ error: 'Invalid language code' });
     }
 
@@ -753,6 +732,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
     // advertises readiness; rejected database writes fail startup visibly.
     await seedCoreTranslations();
     await Promise.all([seedSearchPageTranslations(), seedPremiumTranslations(), seedSubscriptionUiTranslations()]);
+    await seedUiCompletionTranslations();
   }
   app.use('/api', apiKeyMiddleware);
   app.use('/api/admin/url-translations', urlTranslationsRouter);
@@ -782,6 +762,7 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   registerMobileTvRoutes(app, deps);
   registerTvVersionRoutes(app, deps);
   registerTvTelemetryRoutes(app, deps);
+  registerTvDiagnosticRoutes(app, requireAdmin);
   await registerTranslationKeyRoutes(app, deps);
   await registerSeoSitemapRoutes(app, deps, { apiOnly: isApiOnly });
   if (process.env.ENABLE_EMBEDDED_PROXY === 'true' || process.env.NODE_ENV !== 'production') {
@@ -803,8 +784,6 @@ export async function registerRoutes(app: Express, options?: RegisterRoutesOptio
   registerAdminCoverageDropSettingsRoutes(app, deps);
   registerAdminMappingAuditDigestSettingsRoutes(app, deps);
   registerAdminGenreWhitelistRoutes(app, deps);
-  // Task #114: prime the merged whitelist snapshot from Mongo and refresh
-  // it periodically so admin overrides made on other replicas propagate.
   await refreshGenreWhitelistFromDb();
   startGenreWhitelistRefreshLoop();
   registerSilentPushRoutes(app, deps);

@@ -79,14 +79,15 @@ describe("PostgreSQL user, engagement and migration safety integration", { skip:
     const first = (await pool.query("SELECT average_rating,total_ratings,votes FROM stations WHERE id='concurrent-station'")).rows[0];
     assert.equal(Number(first.average_rating), 3);
     assert.equal(first.total_ratings, 30);
-    assert.equal(Number(first.votes), 30);
+    // Anonymous star ratings never inflate the authenticated one-vote count.
+    assert.equal(Number(first.votes), 0);
     await Promise.all(Array.from({ length: 30 }, (_, index) => engagement.pgRateStationIdentity(
       { sessionId: `session-${index}` }, "concurrent-station", 5, "updated",
     )));
     const second = (await pool.query("SELECT average_rating,total_ratings,votes FROM stations WHERE id='concurrent-station'")).rows[0];
     assert.equal(Number(second.average_rating), 5);
     assert.equal(second.total_ratings, 30);
-    assert.equal(Number(second.votes), 30);
+    assert.equal(Number(second.votes), 0);
     await assert.rejects(engagement.pgRateStationIdentity({ sessionId: "x" }, "missing-station", 5, ""), /Station not found/);
   });
 
@@ -95,7 +96,7 @@ describe("PostgreSQL user, engagement and migration safety integration", { skip:
     await engagement.pgSetFavorite("concurrent-user", "concurrent-station", true);
     const result = await engagement.pgFavoriteStationsForUser("concurrent-user", "newest", 1, 20);
     assert.equal(result.stations[0].name, "Station");
-    assert.equal(Number(result.stations[0].votes), 30);
+    assert.equal(Number(result.stations[0].votes), 0);
     assert.equal(result.stations[0].totalRatings, 30);
     assert.equal(result.stations[0].homepage, "https://example.invalid/home");
   });
@@ -135,8 +136,8 @@ describe("PostgreSQL user, engagement and migration safety integration", { skip:
     assert.deepEqual(statsB.stats,
       { averageRating: 2, totalRatings: 3, ratingBreakdown: { stars1: 0, stars2: 3, stars3: 0, stars4: 0, stars5: 0 } });
     const nativeA = (await pool.query("SELECT average_rating,total_ratings,votes FROM stations WHERE id='rating-scope-a'")).rows[0];
-    assert.equal(Number(nativeA.average_rating), 1); assert.equal(nativeA.total_ratings, 3); assert.equal(Number(nativeA.votes), 3);
-    assert.equal(Number(nativeB.average_rating), 2); assert.equal(nativeB.total_ratings, 3); assert.equal(Number(nativeB.votes), 3);
+    assert.equal(Number(nativeA.average_rating), 1); assert.equal(nativeA.total_ratings, 3); assert.equal(Number(nativeA.votes), 1);
+    assert.equal(Number(nativeB.average_rating), 2); assert.equal(nativeB.total_ratings, 3); assert.equal(Number(nativeB.votes), 1);
   });
 
   it("persists cutover authority, blocks snapshot replay and rejects implicit rollback", async () => {

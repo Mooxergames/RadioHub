@@ -32,7 +32,18 @@
         {
           "heading": "Choose a useful starting point",
           "paragraphs": [
-            "If you know the station name, search for it first and check its country or region before pressing play. Similar names can belong to different broadcasters. If you only know the music you want, browse by genre instead. A region filter is helpful for local voices, languages and programmes, but it does not describe a station's musical style. Combine these clues when the first result feels wrong."
+            "If you know the station name, search for it first and check its country or region before pressing play. Similar names can belong to different broadcasters. If you only know the music you want, browse by genre instead. A region filter is helpful for local voices, languages and programmes, but it does not describe a station's musical style. Combine these clues when the first result feels wrong.",
+            "Try opening BBC Radio 2 or BBC World Service as a concrete starting point. Check the station identity before pressing Play, then confirm your audio output. If one stream will not start, compare the other on the same connection to help separate a station-specific problem from your device setup."
+          ],
+          "links": [
+            {
+              "route": "station:bbc-radio-2-128k",
+              "label": "Open BBC Radio 2 on MegaRadio"
+            },
+            {
+              "route": "station:bbc-world-service",
+              "label": "Open BBC World Service on MegaRadio"
+            }
           ]
         },
         {
@@ -45,6 +56,12 @@
           "heading": "Understand what free listening means",
           "paragraphs": [
             "A freely accessible stream can still use paid mobile data. The broadcaster may also include advertising within its programme. These are separate questions: whether access requires payment, whether your connection costs money, and what the station broadcasts. Check your own network allowance before a long session away from Wi-Fi. If you find a subscription or registration request, read that service's terms rather than assuming every station works alike."
+          ],
+          "links": [
+            {
+              "route": "blog:internet-radio-explained",
+              "label": "Internet radio explained: streams, FM and podcasts"
+            }
           ]
         },
         {
@@ -114,7 +131,18 @@
         {
           "heading": "Availability depends on the stream",
           "paragraphs": [
-            "A station listed in a directory may temporarily stop streaming or restrict listening in certain territories. Your physical location and the broadcaster's distribution choices can therefore affect access. An unavailable stream is not proof that all internet radio is broken. Compare another station on the same connection and look for the broadcaster's access information. Avoid assuming that a listing guarantees every show or event can be heard everywhere."
+            "A station listed in a directory may temporarily stop streaming or restrict listening in certain territories. Your physical location and the broadcaster's distribution choices can therefore affect access. An unavailable stream is not proof that all internet radio is broken. Compare another station on the same connection and look for the broadcaster's access information. Avoid assuming that a listing guarantees every show or event can be heard everywhere.",
+            "BBC World Service provides a concrete directory entry to compare with broadcast reception. Its web stream uses your internet connection, so it does not test whether an FM or DAB signal reaches your location. Check the programme and connection separately; directory availability does not establish reception or regional listening rights."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-data-usage",
+              "label": "How much data does internet radio use?"
+            },
+            {
+              "route": "station:bbc-world-service",
+              "label": "BBC World Service internet stream"
+            }
           ]
         },
         {
@@ -178,13 +206,26 @@
         {
           "heading": "Test what happens when the screen locks",
           "paragraphs": [
-            "Start a stream, confirm that you can hear it, then lock the screen briefly. If playback stops, reopen the browser or app and note whether the stream resumes. Background behaviour can depend on the software and device settings. Check relevant battery or background-activity settings without changing unrelated controls. A short test at home gives you more useful information than discovering the limitation halfway through a walk."
+            "Start a stream, confirm that you can hear it, then lock the screen briefly. If playback stops, reopen the browser or app and note whether the stream resumes. Background behaviour can depend on the software and device settings. Check relevant battery or background-activity settings without changing unrelated controls. A short test at home gives you more useful information than discovering the limitation halfway through a walk.",
+            "Use a fixed station page, such as BBC Radio 2, for a short phone test. Keep the same stream while testing screen lock and Bluetooth output separately. Record the device, browser and point of interruption. A successful test describes that session; another stream or operating-system setting can behave differently."
+          ],
+          "links": [
+            {
+              "route": "station:bbc-radio-2-128k",
+              "label": "Test BBC Radio 2 on your phone"
+            }
           ]
         },
         {
           "heading": "Follow the sound through Bluetooth",
           "paragraphs": [
             "If the player appears active but you hear nothing, check where the phone is sending audio. A paired speaker, headphones or another connected device may be the selected output. Check volume on both the phone and the listening device. Disconnect Bluetooth briefly to test the phone's own speaker, then reconnect the intended accessory. This helps separate an audio-routing problem from a stream that is not loading."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-data-usage",
+              "label": "How much data does internet radio use?"
+            }
           ]
         },
         {
@@ -254,7 +295,18 @@
         {
           "heading": "Make the estimate useful for your allowance",
           "paragraphs": [
-            "First decide the likely listening duration, then multiply the hourly estimate by that number of hours. Leave room for overhead and other phone activity. If the station does not state a bitrate, avoid presenting a guessed value as fact. A short session checked against your device's usage information can provide practical context, although other traffic during the same period can make that comparison less precise."
+            "First decide the likely listening duration, then multiply the hourly estimate by that number of hours. Leave room for overhead and other phone activity. If the station does not state a bitrate, avoid presenting a guessed value as fact. A short session checked against your device's usage information can provide practical context, although other traffic during the same period can make that comparison less precise.",
+            "Choose one station page, such as BBC World Service, and record the session length when checking your device counter. Pause unrelated downloads before comparing the start and end readings. Do not infer bitrate from the station name: the calculation examples above are not measured usage figures for that station."
+          ],
+          "links": [
+            {
+              "route": "blog:radio-app-iphone-android",
+              "label": "Listening to radio on iPhone and Android"
+            },
+            {
+              "route": "station:bbc-world-service",
+              "label": "Start a BBC World Service listening session"
+            }
           ]
         },
         {
@@ -313,6 +365,16 @@
           "heading": "Start with the part of rock you like",
           "paragraphs": [
             "Classic rock can be a useful route toward older familiar guitar music, while alternative and harder rock labels point toward different selections. These terms are guides, not fixed promises about every track. Write down two or three artists or song qualities you want to hear, such as prominent riffs, quieter arrangements or less familiar releases. That gives you a practical reference when station descriptions sound similar."
+          ],
+          "links": [
+            {
+              "route": "station:radio-x-london",
+              "label": "Compare Radio X London programming"
+            },
+            {
+              "route": "station:absolute-radio",
+              "label": "Compare Absolute Radio programming"
+            }
           ]
         },
         {
@@ -325,6 +387,12 @@
           "heading": "Compare schedule, region and language",
           "paragraphs": [
             "A rock station may sound different during a specialist evening show than during daytime programming. Region also affects the artists and musical references you encounter, while presenter language can change how much context you receive. Try the same station at another time before dismissing it. If discovering bands matters more than recognising every song, include a station from a different region in your comparison."
+          ],
+          "links": [
+            {
+              "route": "blog:blues-radio-guide",
+              "label": "Choose blues radio: acoustic, electric and crossover"
+            }
           ]
         },
         {
@@ -395,6 +463,12 @@
           "heading": "Turn unfamiliar music into a useful clue",
           "paragraphs": [
             "When something catches your ear, note the artist or recording information if it is available. If no track details appear, the broadcaster's programme page may offer more context, but coverage varies. You do not need to identify every performance to refine your taste. Describing what you heard—voice, brass, piano, small group or larger ensemble—can still guide your next station search and make exploration feel less random."
+          ],
+          "links": [
+            {
+              "route": "blog:blues-radio-guide",
+              "label": "Choose blues radio: acoustic, electric and crossover"
+            }
           ]
         },
         {
@@ -465,6 +539,12 @@
           "heading": "Check the show as well as the station",
           "paragraphs": [
             "A genre tag summarises a whole service, but individual presenters may organise their shows around an artist, period or musical connection. Listen at different times and read programme information when available. A station that seems too broad during one session may offer a focused blues show later. Keep the show name and listening time together so you can find the same kind of programme again."
+          ],
+          "links": [
+            {
+              "route": "blog:jazz-radio-guide",
+              "label": "Explore jazz radio: acoustic, vocal and smooth"
+            }
           ]
         },
         {
@@ -535,6 +615,12 @@
           "heading": "Use Americana as an exploration route",
           "paragraphs": [
             "Americana can lead toward programming that overlaps with country and related roots styles. It is a broad description, and stations may interpret it differently. If a country station feels too polished or too narrowly focused for your taste, listen for more varied arrangements and adjacent genres. The aim is to find a useful musical connection, not to settle a strict definition before you are allowed to enjoy the programme."
+          ],
+          "links": [
+            {
+              "route": "blog:rock-radio-guide",
+              "label": "Find rock radio that matches your taste"
+            }
           ]
         },
         {
@@ -605,18 +691,35 @@
           "heading": "Follow important claims to their sources",
           "paragraphs": [
             "When a report matters to a decision, look for the original statement, document or attributable source where practical. Compare coverage from another outlet and notice where facts agree and interpretation differs. A phone-in contribution may reveal a person's view, but it does not establish how widely that view is held. Keep uncertainty attached to an unconfirmed claim instead of turning confident delivery into proof."
+          ],
+          "links": [
+            {
+              "route": "blog:internet-radio-explained",
+              "label": "Internet radio explained: streams, FM and podcasts"
+            }
           ]
         },
         {
           "heading": "Choose a station for the task",
           "paragraphs": [
-            "Local coverage, extended interviews and broad conversation are different listening needs. Sample the programme before relying on its label. Sports availability and emergency information also depend on the broadcaster and distribution arrangements; a directory listing alone does not guarantee either."
+            "Local coverage, extended interviews and broad conversation are different listening needs. Sample the programme before relying on its label. Sports availability and emergency information also depend on the broadcaster and distribution arrangements; a directory listing alone does not guarantee either.",
+            "Compare BBC Radio 4 with the NPR 24 Hour Program Stream as two specific starting points. Check each programme schedule and time zone before interpreting what you hear. The NPR stream is not a substitute for every local member-station feed; local programmes and the running order can differ."
           ],
           "items": [
             "Check the programme type and the identity or role of its speakers.",
             "Note the relevant date, local time and whether the segment is repeated.",
             "Compare consequential claims with another source or the original material.",
             "Use official local information channels when you need urgent practical guidance."
+          ],
+          "links": [
+            {
+              "route": "station:bbc-radio-4-128k",
+              "label": "BBC Radio 4 listening page"
+            },
+            {
+              "route": "station:npr-24-hour-program-stream",
+              "label": "NPR 24 Hour Program Stream listening page"
+            }
           ]
         }
       ],
@@ -674,7 +777,18 @@
         {
           "heading": "Listen past the first familiar hit",
           "paragraphs": [
-            "Recognising the first song can create a strong impression, but a longer sample reveals the station's choices. Notice whether it repeats a narrow set of hits, explores less obvious tracks or mixes in adjacent decades. Presenter speech and specialist shows can also shape the experience. Return at another time if your first session begins during a themed programme that may not represent the everyday schedule."
+            "Recognising the first song can create a strong impression, but a longer sample reveals the station's choices. Notice whether it repeats a narrow set of hits, explores less obvious tracks or mixes in adjacent decades. Presenter speech and specialist shows can also shape the experience. Return at another time if your first session begins during a themed programme that may not represent the everyday schedule.",
+            "Use Greatest Hits Radio as one concrete comparison point, then check its current schedule and the tracks actually playing. A familiar station name does not promise a fixed decade-only playlist. Sample another programme time before deciding whether its selection matches the 80s or 90s sound you want."
+          ],
+          "links": [
+            {
+              "route": "blog:rock-radio-guide",
+              "label": "Find rock radio that matches your taste"
+            },
+            {
+              "route": "station:greatest-hits-radio",
+              "label": "Compare the current Greatest Hits Radio selection"
+            }
           ]
         },
         {

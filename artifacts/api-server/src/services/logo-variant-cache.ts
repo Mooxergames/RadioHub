@@ -2,21 +2,22 @@ import CacheManager from '../cache';
 import { performanceCache } from '../performance-cache';
 import { resolveToDbName } from '../utils/normalize-country';
 import type { LogoVariantStation } from '../data/postgres-logo-variant-store';
+import { invalidatePublicStationDetails, stationDetailIdentifiers } from './station-detail-cache';
 
 /** Invalidate only this station and its card pools; no site-wide cache reset.
  * CacheManager also reaches Redis when configured. Other processes' private
  * in-memory caches still follow their existing TTL; this is not a CDN purge.
  */
 export async function invalidateLogoVariantCaches(station: LogoVariantStation): Promise<void> {
-  const identifiers = [...new Set([station.id, station.slug, ...(station.slugAliases || [])].filter((value): value is string => !!value))];
+  const identifiers = stationDetailIdentifiers(station);
   const countries = [...new Set([station.country, station.countryCode && resolveToDbName(station.countryCode)]
     .filter((value): value is string => !!value))];
   const operations: Array<() => Promise<unknown>> = [];
   for (const identifier of identifiers) {
     operations.push(async () => { performanceCache.invalidateStationCache(identifier); });
-    operations.push(() => CacheManager.del(`station:detail:${identifier}`));
     operations.push(() => CacheManager.del(`station:${identifier}`));
   }
+  operations.push(() => invalidatePublicStationDetails(identifiers));
   // Batch-detail/similar/linked cache keys include the exact station ID.
   operations.push(() => CacheManager.clearByPattern(station.id));
   const pools = new Set(['precomputed_stations:global', ...[12, 24, 50].map(limit => `precomputed_popular:v1:global:limit:${limit}`)]);

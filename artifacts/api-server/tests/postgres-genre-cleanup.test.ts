@@ -144,6 +144,27 @@ describe('PostgreSQL genre cleanup and maintenance',{skip:!process.env.PG_TEST_D
     try{await request('/api/admin/maintenance/descriptions/strip-suffix','POST');const job=await waitJob('/api/admin/maintenance/descriptions/strip-suffix/status');assert.match(job.lastError,/injected_failure/);assert.equal(job.modified,0);}
     finally{await pool.query('ALTER TABLE stations DROP CONSTRAINT injected_failure');}
   });
+  it('English templates fill only missing fields, preserve exclusions and are idempotent',async()=>{
+    await catalog.insertMany([
+      station('full-only',{descriptions:{en:{full:'Curated full article.'},tr:{full:'Keep Turkish.'}},noIndex:true}),
+      station('meta-only',{descriptions:{en:{full:' \n\u00a0\ufeff\u2003',meta:'Curated metadata.'}}}),
+      station('manual',{manualEditFields:{descriptions:true}}),
+      station('legacy',{descriptions:{en:'Legacy article.'}}),
+      station('malformed',{descriptions:{en:{full:42,meta:false,extra:'keep'}}}),
+    ]);
+    await request('/api/admin/maintenance/descriptions/fill-templates','POST');
+    const job=await waitJob('/api/admin/maintenance/descriptions/fill-templates/status');
+    assert.equal(job.lastError,null);assert.equal(job.filled,3);
+    const full=await catalog.findById('full-only'),meta=await catalog.findById('meta-only');
+    assert.equal(full?.descriptions.en.full,'Curated full article.');
+    assert.equal(full?.noIndex,true);assert.equal(full?.descriptions.tr.full,'Keep Turkish.');
+    assert.equal(meta?.descriptions.en.meta,'Curated metadata.');assert.match(meta?.descriptions.en.full,/Germany/);
+    assert.equal((await catalog.findById('malformed'))?.descriptions.en.extra,'keep');
+    assert.equal((await catalog.findById('manual'))?.descriptions.en,undefined);
+    assert.equal((await catalog.findById('legacy'))?.descriptions.en,'Legacy article.');
+    await request('/api/admin/maintenance/descriptions/fill-templates','POST');
+    assert.equal((await waitJob('/api/admin/maintenance/descriptions/fill-templates/status')).filled,0);
+  });
   it('boot audit requires a successful write and remains retryable after failure',async()=>{
     const {maybeRunDuplicateGenreSlugCleanupOnBoot}=await import('../src/services/duplicate-genre-slug-cleanup-on-boot');
     await pool.query("ALTER TABLE genre_slug_cleanup_runs ADD CONSTRAINT injected_failure CHECK(trigger<>'boot:deploy')");

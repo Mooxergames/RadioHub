@@ -45,6 +45,7 @@ describe('PostgreSQL localization runtime state and settings', { skip: !process.
     } } });
     mock.module('@workspace/seo-shared/seo-config', { namedExports: {
       ACTIVE_SITEMAP_LANGUAGES: ['en', 'de', 'fr'],
+      isActiveUiLanguage: (code: string) => ['en', 'de', 'fr'].includes(code),
       SITEMAP_PRIORITY_LANGUAGES: { universal14: ['en'] },
       hasCompleteSeoTranslations: (map: Record<string, string>) => !!map.seo_title,
     } });
@@ -181,13 +182,40 @@ describe('PostgreSQL localization runtime state and settings', { skip: !process.
     const key = await localization.createKey({ key: 'seo_title', defaultValue: 'Title' });
     await localization.upsertTranslation({ keyId: key._id, language: 'de', value: 'Titel' });
     const state = await qualified.getQualifiedLanguagesState();
-    assert.deepEqual([...state.languages].sort(), ['de', 'en']);
+    assert.deepEqual(state.languages, ['en', 'de']);
     const lkg = await localization.getQualifiedLanguagesLkg('qualified_languages');
     assert.equal(lkg.hash, state.hash);
     await qualified.invalidateQualifiedLanguages(); cache.clear();
     const boot = await qualified.initializeQualifiedLanguages();
     assert.equal(boot.source, 'lkg');
-    assert.deepEqual([...boot.languages].sort(), ['de', 'en']);
+    assert.deepEqual(boot.languages, ['en', 'de']);
+  });
+  it('normalizes a persisted legacy language order without rewriting its metadata', async () => {
+    const { createHash } = await import('node:crypto');
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 60_000);
+    const legacyLanguages = ['fr', 'am', 'de', 'de', 'af'];
+    const expected = ['en', 'de', 'fr'];
+    const expectedHash = createHash('sha256').update([...expected].sort().join(',')).digest('hex').slice(0, 16);
+    await localization.saveQualifiedLanguagesLkg({ key: 'qualified_languages', languages: legacyLanguages,
+      hash: 'stored-language-set', source: 'computed', computedAt: now, expiresAt });
+    const original = await localization.getQualifiedLanguagesLkg('qualified_languages');
+    const save = mock.method(localization, 'saveQualifiedLanguagesLkg');
+    try {
+      const state = await qualified.initializeQualifiedLanguages();
+      assert.equal(state.source, 'lkg');
+      assert.deepEqual(state.languages, expected);
+      assert.equal(state.hash, expectedHash);
+      assert.equal(state.computedAt.getTime(), now.getTime());
+      assert.equal(state.expiresAt?.getTime(), expiresAt.getTime());
+      assert.equal(save.mock.callCount(), 0, 'read normalization never persists a replacement LKG');
+      const stored = await localization.getQualifiedLanguagesLkg('qualified_languages');
+      assert.deepEqual(stored, original, 'the complete PostgreSQL record, including identity and timestamps, is unchanged');
+      assert.deepEqual(stored.languages, legacyLanguages);
+      assert.equal(stored.hash, 'stored-language-set');
+      assert.equal(stored.computedAt.getTime(), now.getTime());
+      assert.equal(stored.expiresAt.getTime(), expiresAt.getTime());
+    } finally { save.mock.restore(); }
   });
   it('rejects expired LKGs, retains identity on refresh, and fails closed when SQL is unavailable', async () => {
     const now = new Date();

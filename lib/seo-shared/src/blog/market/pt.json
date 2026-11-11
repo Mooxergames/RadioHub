@@ -1,0 +1,187 @@
+[
+  {
+    "id": "nacional-amazonia-ondas-curtas-online",
+    "title": "Rádio Nacional da Amazônia: ondas curtas ou escuta online?",
+    "seoTitle": "Nacional da Amazônia: ondas curtas e online | Mega Radio",
+    "description": "Encontre a Nacional da Amazônia sem confundir ondas curtas com FM. Veja como escolher o acesso oficial e preparar um relato de recepção.",
+    "primaryKeyword": "Rádio Nacional da Amazônia ondas curtas online",
+    "secondaryKeywords": ["ouvir Nacional da Amazônia", "ondas curtas e FM", "relato de recepção QSL"],
+    "imageAlt": "Ilustração de um globo com símbolo de conexão sem fio",
+    "intro": "Quem procura a Rádio Nacional da Amazônia pode querer duas coisas diferentes: acompanhar a programação ou experimentar a recepção pelo ar. O caminho muda conforme o objetivo. Uma transmissão pela internet não exige sintonia em ondas curtas, e um aparelho que recebe somente FM não ganha essa capacidade ao trocar de frequência.",
+    "sections": [
+      {
+        "heading": "Identifique a emissora, não apenas a marca Nacional",
+        "paragraphs": [
+          "A apresentação oficial da rede distingue a Nacional da Amazônia, que transmite em ondas curtas desde 1977, da Nacional FM de Brasília e das outras emissoras Nacional. Portanto, encontrar o mesmo nome de família não basta. Procure a palavra Amazônia na identificação do canal antes de concluir que abriu o sinal desejado.",
+          "Se alguém compartilhou uma indicação, pergunte se era um endereço online ou uma frequência recebida por antena. Guarde o nome completo junto da referência: isso evita confundir emissoras quando voltar a ouvir em outro aparelho."
+        ]
+      },
+      {
+        "heading": "Confira se o aparelho recebe ondas curtas",
+        "paragraphs": [
+          "Para tentar a recepção pelo ar, consulte o manual e procure a faixa de ondas curtas, também indicada como OC ou SW. Ter antena telescópica ou aparência de rádio antigo não comprova compatibilidade. Um receptor limitado a FM não pode sintonizar ondas curtas apenas com uma configuração de aplicativo.",
+          "Confira as frequências divulgadas pela emissora e as unidades usadas no visor. Não improvise antenas perto da rede elétrica. Anote local e horário quando comparar tentativas; ouvir bem uma vez não garante a mesma recepção em outro dia ou ambiente."
+        ]
+      },
+      {
+        "heading": "Use a rota digital quando a prioridade for o programa",
+        "paragraphs": [
+          "No site oficial da Rádio Nacional, a página sobre a rede separa as emissoras e apresenta a opção de ouvir a Amazônia. Use essa identificação como referência para abrir o canal correto. No celular, o áudio online chega pela conexão de dados, não pela recepção de ondas curtas do aparelho.",
+          "Se o som não começar, verifique conexão e saída de áudio antes de mudar a seleção. Um fluxo ao vivo acompanha o ponto atual da programação: não equivale a escolher um episódio antigo. Para reencontrar uma entrevista, anote o programa e a data, e procure uma publicação específica da emissora."
+        ],
+        "items": [
+          "Confirme que o canal selecionado diz Amazônia.",
+          "Separe teste de recepção por antena de teste da conexão online.",
+          "Registre programa e data quando quiser procurar uma gravação."
+        ]
+      },
+      {
+        "heading": "Transforme a escuta em um relato útil",
+        "paragraphs": [
+          "O episódio oficial de 90 Anos em 90 Histórias sobre ondas curtas recorda os cartões QSL e relatos de ouvintes distantes. Para registrar sua própria tentativa, descreva o que realmente ouviu: identificação da emissora, trecho do programa, frequência, data, horário com fuso, cidade e equipamento utilizado.",
+          "Diga expressamente se ouviu pelo ar ou pela internet. Um relato digital não demonstra alcance do transmissor de ondas curtas. Consulte o atendimento oficial antes de enviar informações ou esperar uma confirmação; o episódio histórico não constitui promessa de cartão QSL nem de cobertura no seu endereço."
+        ]
+      }
+    ],
+    "faq": [
+      {"question": "Um rádio comum de FM recebe a Nacional da Amazônia em ondas curtas?", "answer": "Somente se também tiver uma faixa de ondas curtas compatível. A recepção FM e a escuta pela internet são caminhos diferentes; confirme as especificações do aparelho."},
+      {"question": "A Nacional FM de Brasília é a mesma emissora?", "answer": "Não. A página oficial da rede apresenta Nacional FM Brasília e Nacional da Amazônia separadamente. Confira o nome completo, mesmo quando as duas usam a marca Nacional."},
+      {"question": "Um relato de recepção distante garante sinal na minha cidade?", "answer": "Não. Ele registra uma escuta em determinadas condições. Use-o como referência histórica, não como garantia de recepção atual ou de resposta QSL."}
+    ],
+    "links": [
+      {"route": "blog:internet-radio-explained", "label": "Distinguir rádio pela internet de recepção por antena"},
+      {"route": "blog:listen-to-radio-online", "label": "Conferir os primeiros passos para ouvir online"},
+      {"route": "blog:radio-data-usage", "label": "Planejar o consumo de dados da escuta digital"},
+      {"route": "search", "label": "Pesquisar uma emissora pelo nome completo"}
+    ],
+    "sources": [
+      {"name": "Rádio Nacional: apresentação e identificação das emissoras", "url": "https://radionacional.ebc.com.br/sobre"},
+      {"name": "90 Anos em 90 Histórias: ondas curtas e cartões QSL", "url": "https://radionacional.ebc.com.br/programas/90-anos-em-90-historias/ondas-curtas-a-tecnologia-que-uniu-a-amazonia"}
+    ],
+    "relatedIds": ["internet-radio-explained", "listen-to-radio-online", "radio-data-usage"]
+  },
+  {
+    "id": "a-voz-do-brasil-horario-replay",
+    "title": "A Voz do Brasil: confira o horário e encontre a edição certa",
+    "seoTitle": "A Voz do Brasil: horário e edição gravada | Mega Radio",
+    "description": "Saiba diferenciar o programa A Voz do Brasil da emissora, conferir o fuso e procurar a edição gravada sem confundir blocos e matérias avulsas.",
+    "primaryKeyword": "A Voz do Brasil horário e replay",
+    "secondaryKeywords": ["A Voz do Brasil edição completa", "ouvir A Voz do Brasil gravada", "A Voz do Brasil fuso horário"],
+    "imageAlt": "Ilustração de um microfone com ondas sonoras",
+    "intro": "Abrir uma rádio às sete da noite e não encontrar A Voz do Brasil não significa que o programa desapareceu. É preciso separar o horário daquela emissora, o fuso usado no anúncio e a edição procurada. Para ouvir depois, a data e o tipo de gravação ajudam mais do que procurar apenas pelo nome do programa.",
+    "sections": [
+      {
+        "heading": "Procure um programa, não uma estação chamada Voz",
+        "paragraphs": [
+          "A Voz do Brasil é um programa retransmitido por emissoras. O nome não identifica, por si só, um canal contínuo exclusivo. Se você quer acompanhar uma edição ao vivo, confirme na programação da rádio escolhida quando ela será transmitida. Um resultado de busca com a palavra Voz pode ser outra atração ou uma matéria isolada.",
+          "Para ouvir novamente, comece pela página do programa na Rádio Gov. Ela apresenta edições anteriores com datas. Não confunda o botão de uma matéria sobre o programa com a gravação que você pretende escutar."
+        ]
+      },
+      {
+        "heading": "Leia o horário junto com o fuso e a emissora",
+        "paragraphs": [
+          "Em junho de 2026, a Agência Brasil descreveu a faixa de retransmissão entre 19h e 22h. Isso não fornece um único horário de início válido para toda rádio e situação. Para planejar a escuta, consulte o aviso da emissora do dia, inclusive quando houver programação especial.",
+          "Se o anúncio usar horário de Brasília, compare com a hora da sua cidade; se indicar horário local, não faça uma segunda conversão. No exterior, registre também a data, pois a diferença pode levar ao dia seguinte. Guarde o horário anunciado com sua referência de fuso, não apenas um número solto no lembrete."
+        ]
+      },
+      {
+        "heading": "Diferencie edição completa, bloco e reportagem",
+        "paragraphs": [
+          "A descrição da Agência Brasil apresenta uma edição de 60 minutos com espaços do Executivo, Judiciário, Senado e Câmara. O noticiário do Executivo é produzido pela EBC. Assim, um áudio de um único bloco pode estar correto e ainda não corresponder ao conjunto que você ouviu no rádio.",
+          "No portal, leia a categoria e a apresentação do arquivo antes de usar a duração como critério. A Rádio Gov distingue a versão completa de matérias e entrevistas da Voz. Uma reportagem sobre o tema lembrado ajuda a identificar o assunto, mas não substitui automaticamente a edição integral nem comprova o conteúdo dos outros blocos."
+        ]
+      },
+      {
+        "heading": "Encontre uma edição datada e confira a abertura",
+        "paragraphs": [
+          "Na página oficial, selecione a data desejada entre as edições anteriores e confirme a identificação na página de destino. Ouça a abertura para verificar se é o programa e o dia esperados. A data de publicação de uma matéria relacionada pode ser diferente da data da edição buscada.",
+          "Se não localizar o arquivo, tente a navegação do próprio programa e uma busca com a data completa. Não deduza endereços de áudio alterando números de outro link. Guarde o endereço da edição encontrada; a presença de alguns dias no catálogo não garante disponibilidade permanente de todos os anteriores."
+        ],
+        "items": [
+          "Anote a data da edição, além do assunto lembrado.",
+          "Confira se a página oferece programa completo, bloco ou matéria.",
+          "Compare a abertura do áudio com a identificação publicada."
+        ]
+      }
+    ],
+    "faq": [
+      {"question": "A Voz do Brasil começa às 19h em qualquer rádio?", "answer": "Não use esse horário como regra universal de escuta. Confira o anúncio da emissora e o fuso indicado. A faixa geral descrita pela Agência Brasil não substitui a programação específica do dia."},
+      {"question": "Um áudio do Executivo contém o programa inteiro?", "answer": "Não necessariamente. O Executivo é um dos espaços da edição. Leia a categoria e procure a identificação de versão completa quando quiser acompanhar todos os blocos."},
+      {"question": "Onde começar a busca por uma edição antiga?", "answer": "Pela página A Voz do Brasil da Rádio Gov, que apresenta edições datadas. Abra a data procurada e confira o áudio; não presuma que qualquer notícia sobre o tema seja a gravação correspondente."}
+    ],
+    "links": [
+      {"route": "blog:news-talk-radio-guide", "label": "Ouvir notícias com atenção à data e ao contexto"},
+      {"route": "blog:internet-radio-explained", "label": "Comparar transmissão ao vivo e conteúdo sob demanda"},
+      {"route": "blog:radio-app-iphone-android", "label": "Preparar a reprodução de áudio no celular"},
+      {"route": "search", "label": "Encontrar uma rádio para acompanhar a programação"}
+    ],
+    "sources": [
+      {"name": "Rádio Gov: A Voz do Brasil e edições anteriores", "url": "https://radiogov.ebc.com.br/programas/a-voz-do-brasil"},
+      {"name": "Rádio Gov: exemplo de edição datada, 22/10/2026", "url": "https://radiogov.ebc.com.br/programas/a-voz-do-brasil-download/22-10-2026"},
+      {"name": "Agência Brasil: composição e faixa de retransmissão do programa, junho de 2026", "url": "https://agenciabrasil.ebc.com.br/direitos-humanos/noticia/2026-06/voz-do-brasil-divulgara-rede-de-apoio-mulheres-vitimas-de-violencia"}
+    ],
+    "relatedIds": ["news-talk-radio-guide", "internet-radio-explained", "radio-app-iphone-android"]
+  },
+  {
+    "id": "roda-de-choro-radio-mec-albuns",
+    "title": "Roda de Choro: um guia para escutar álbuns na Rádio MEC",
+    "seoTitle": "Roda de Choro: álbuns e escuta na Rádio MEC | Mega Radio",
+    "description": "Escolha um episódio do Roda de Choro por álbum ou conjunto. Separe repertório, entrevista e concerto para reconhecer melhor o que está ouvindo.",
+    "primaryKeyword": "Roda de Choro Rádio MEC álbuns",
+    "secondaryKeywords": ["Vibrações Jacob do Bandolim rádio", "Roda de Choro episódios", "ouvir choro instrumental"],
+    "imageAlt": "Ilustração de um saxofone acompanhado por notas musicais",
+    "intro": "Um episódio dedicado a um disco pode ser uma boa porta de entrada para o choro: você acompanha intérpretes, obras e comentários em vez de tentar reconhecer tudo na primeira audição. No Roda de Choro, da Rádio MEC, escolher pelo álbum ou pela formação ajuda a transformar uma sequência de músicas em uma escuta com referências.",
+    "sections": [
+      {
+        "heading": "Escolha um disco como ponto de partida",
+        "paragraphs": [
+          "A EBC anunciou em setembro de 2026 uma temporada dedicada a álbuns, começando por Vibrações, de Jacob do Bandolim e seu Conjunto Época de Ouro. Há uma página oficial desse episódio na Rádio MEC. Ela oferece um ponto de busca mais preciso do que uma pesquisa genérica por chorinho.",
+          "Antes de ouvir, anote separadamente programa, título do disco e intérprete. Um nome pode designar tanto o álbum quanto uma composição. Ao encontrar outra gravação com o mesmo título, compare o conjunto e a descrição para não trocar de versão sem perceber."
+        ]
+      },
+      {
+        "heading": "Ouça bandolim, flauta e conjunto sem adivinhar a formação",
+        "paragraphs": [
+          "Comece observando quem conduz a melodia e como os demais instrumentos respondem. Em outra passagem, concentre-se no acompanhamento. Não é necessário nomear cada acorde: anotações como melodia em destaque ou resposta do conjunto já ajudam a lembrar o que chamou sua atenção.",
+          "Use os créditos para confirmar bandolim, flauta ou outro instrumento, em vez de transformar uma impressão em certeza. Ao comparar episódios, observe o espaço que cada músico ocupa. Uma mesma melodia pode ganhar outro caráter quando muda o instrumento principal; isso oferece uma pergunta concreta para a próxima escuta."
+        ]
+      },
+      {
+        "heading": "Separe a experiência musical da entrevista",
+        "paragraphs": [
+          "Segundo o anúncio da EBC, a edição sobre Vibrações inclui uma entrevista de Jacob ao Museu da Imagem e do Som. Isso permite escutar o disco junto de um depoimento, mas não transforma toda fala do episódio em áudio original do álbum. Preste atenção às transições e à apresentação da origem de cada trecho.",
+          "Faça duas colunas de notas: uma para músicas e outra para explicações ou lembranças do entrevistado. Se quiser reencontrar uma obra, registre o título anunciado e o ponto aproximado do áudio, quando o player permitir consultar a posição. Uma fala sobre a gravação pode orientar a escuta sem substituir os créditos da obra."
+        ],
+        "items": [
+          "Registre título do álbum e nome do intérprete em campos separados.",
+          "Confirme instrumentos e autoria na apresentação ou nos créditos.",
+          "Diferencie música, depoimento de arquivo e comentário do programa."
+        ]
+      },
+      {
+        "heading": "Reconheça quando o episódio apresenta um concerto",
+        "paragraphs": [
+          "O anúncio de outubro de 2026 sobre o Grupo Tamoio descreve um concerto dedicado a Ernesto Nazareth, gravado na Sala Cecília Meireles. É um exemplo de formato diferente de uma escuta centrada em disco de estúdio. A descrição da edição, e não apenas o nome do compositor, esclarece o que será apresentado.",
+          "Ao comparar uma obra entre concerto e álbum, confira intérpretes e arranjo antes de atribuir diferenças à qualidade do áudio. Procure a página do episódio para ouvir depois, se a gravação estiver publicada. O acervo encontrado não autoriza presumir que todos os concertos ou todas as temporadas continuam disponíveis."
+        ]
+      }
+    ],
+    "faq": [
+      {"question": "Todo Roda de Choro é dedicado a um álbum?", "answer": "Não assuma isso. Os exemplos oficiais incluem uma edição sobre Vibrações e outra sobre um concerto do Grupo Tamoio. Leia a descrição para conhecer o formato específico."},
+      {"question": "O episódio sobre um disco é apenas a reprodução das faixas?", "answer": "Pode conter apresentação e entrevista. O anúncio da edição de Vibrações menciona um depoimento de Jacob do Bandolim; separe esses trechos do repertório musical nas suas notas."},
+      {"question": "Como procurar o programa sem conhecer o nome da música?", "answer": "Use o nome do álbum, do conjunto ou do compositor junto de Roda de Choro. Confira a página oficial e sua data, sem presumir que a primeira gravação encontrada seja a mesma versão."}
+    ],
+    "links": [
+      {"route": "blog:listen-to-radio-online", "label": "Começar a escutar uma emissora online"},
+      {"route": "blog:jazz-radio-guide", "label": "Ampliar a escuta instrumental com um guia de jazz"},
+      {"route": "blog:internet-radio-explained", "label": "Entender a diferença entre rádio ao vivo e episódio"},
+      {"route": "search", "label": "Pesquisar rádios pelo nome"}
+    ],
+    "sources": [
+      {"name": "EBC: temporada de álbuns e entrevista de Jacob do Bandolim", "url": "https://www.ebc.com.br/imprensa/2026/roda-de-choro-estreia-nova-temporada-com-homenagem-a-disco-de-jacob-do-bandolim"},
+      {"name": "Rádio MEC: episódio sobre Vibrações", "url": "https://radiomec.ebc.com.br/programas/roda-de-choro/vibracoes-album-de-jacob-do-bandolim-e-seu-conjunto-epoca-de-ouro-e-o-tema-do-roda-de-choro"},
+      {"name": "Agência Brasil: concerto do Grupo Tamoio no Roda de Choro", "url": "https://agenciabrasil.ebc.com.br/cultura/noticia/2026-10/roda-de-choro-apresenta-grupo-tamoio-em-homenagem-ernesto-nazareth"}
+    ],
+    "relatedIds": ["listen-to-radio-online", "jazz-radio-guide", "internet-radio-explained"]
+  }
+]

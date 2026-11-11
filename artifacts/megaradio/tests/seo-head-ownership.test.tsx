@@ -19,6 +19,9 @@ vi.mock('@/hooks/useSeoRouting', () => ({
 vi.mock('@/hooks/useTranslation', () => ({
   useTranslation: () => ({ language: state.language, t: (_key: string, fallback?: string) => fallback || _key }),
 }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ isAuthenticated: false }) }));
+vi.mock('@/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => ({ playStation: vi.fn() }) }));
+vi.mock('@/components/ui/station-card', () => ({ default: () => null }));
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (options: any) => {
     state.options.push(options);
@@ -32,9 +35,11 @@ vi.mock('@/utils/ssr-seo-head', async (importOriginal) => ({
 
 import { createInitialSsrHeadGuard } from '../src/utils/ssr-seo-head';
 import { SeoPageWrapper } from '../src/components/SeoPageWrapper';
+import TrendingStations from '../src/pages/TrendingStations';
 import { SeoHead as PageSeoHead } from '../src/components/SeoHead';
 import ListStructuredData from '../src/components/seo/ListStructuredData';
 import { generateSeoTags, SITEMAP_PRIORITY_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 
 function seedSsr() {
   document.head.innerHTML = `<title>Test Radyo — Canlı Dinle</title>
@@ -63,6 +68,43 @@ beforeEach(() => {
 });
 
 describe('one owner for the initial SSR head and subsequent navigation', () => {
+  it('direct trending routes replace private metadata in all14 locales and restore private noindex on navigation back', () => {
+    const view = render(<TrendingStations />);
+    for (const language of SITEMAP_PRIORITY_LANGUAGES.universal14) {
+      for (const kind of ['favorites', 'trending', 'recommendations', 'favorites']) {
+        const path = `/${language}/${URL_TRANSLATIONS[language]?.[kind] || kind}`;
+        const canonical = `https://themegaradio.com${path}`;
+        const robots = kind === 'favorites' ? 'noindex, follow' : 'index, follow';
+        const hreflangs = kind === 'favorites' ? [] : [{ hreflang: language, url: canonical }];
+        state.location = path; state.language = language;
+        state.data.set(`/api/seo/page-data|${path}|${language}`, { seoTags: {
+          title: `${language}: ${kind}`, canonical, robots, hreflangs,
+        } });
+        view.rerender(kind === 'trending' ? <TrendingStations /> : <SeoPageWrapper><div /></SeoPageWrapper>);
+        expect(document.title).toBe(`${language}: ${kind}`);
+        expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+        expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', canonical);
+        expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', robots);
+        expect(document.querySelectorAll('link[hreflang]')).toHaveLength(hreflangs.length);
+      }
+    }
+  });
+
+  it('trending preserves initial SSR metadata and does not add a second owner inside PlayerWrapper', () => {
+    state.location = '/en/trending'; state.language = 'en';
+    initialGuard = createInitialSsrHeadGuard(state.location);
+    document.title = 'Server trending title';
+    const view = render(<TrendingStations />);
+    const queries = () => state.options.filter(option => option.queryKey[0] === '/api/seo/page-data');
+    expect(queries()).toHaveLength(1);
+    expect(queries()[0].enabled).toBe(false);
+    expect(document.title).toBe('Server trending title');
+    state.options = [];
+    view.rerender(<SeoPageWrapper><TrendingStations /></SeoPageWrapper>);
+    expect(queries()).toHaveLength(1);
+    expect(document.title).toBe('Server trending title');
+  });
+
   it('keeps the shared localized-meta choice through station navigation in all 14 locales', async () => {
     const content = <PageSeoHead pageType="station" stationData={null} />;
     const view = render(<SeoPageWrapper>{content}</SeoPageWrapper>);
@@ -150,6 +192,72 @@ describe('one owner for the initial SSR head and subsequent navigation', () => {
     } });
     render(<SeoPageWrapper><span>Search</span></SeoPageWrapper>);
     expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
+  });
+
+  it('accepts only blog 404 metadata, clears the old head, and restores a valid article head', async () => {
+    const view = render(<SeoPageWrapper><audio data-testid="player" /></SeoPageWrapper>);
+    const player = view.getByTestId('player');
+    state.location = '/en/blog/kral-fm-canli-dinle-sorunlari'; state.language = 'en';
+    view.rerender(<SeoPageWrapper><audio data-testid="player" /></SeoPageWrapper>);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({
+      seoTags: { title: '404 | MegaRadio', robots: 'noindex, follow', noIndex: true, hreflangs: [] },
+    }) }));
+    const payload = await state.options.at(-1).queryFn({signal: new AbortController().signal});
+    state.data.set(`/api/seo/page-data|${state.location}|en`, payload);
+    view.rerender(<SeoPageWrapper><audio data-testid="player" /></SeoPageWrapper>);
+    expect(document.title).toBe('404 | MegaRadio');
+    expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+    expect(document.querySelectorAll('link[hreflang], script[data-schema-scope="page"]')).toHaveLength(0);
+    expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
+    state.location = '/tr/blog/kral-fm-canli-dinle-sorunlari'; state.language = 'tr';
+    state.data.set(`/api/seo/page-data|${state.location}|tr`, {
+      seoTags: { title: 'Valid guide', robots: 'index, follow', canonical: `https://themegaradio.com${state.location}`,
+        hreflangs: [{hreflang: 'tr', url: `https://themegaradio.com${state.location}`}] },
+      structuredData: {global: [], page: [{'@type': 'BlogPosting', headline: 'Valid guide'}]},
+    });
+    view.rerender(<SeoPageWrapper><audio data-testid="player" /></SeoPageWrapper>);
+    expect(document.title).toBe('Valid guide');
+    expect(document.querySelectorAll('link[rel="canonical"], link[hreflang]')).toHaveLength(2);
+    expect(document.querySelectorAll('script[data-schema-scope="page"]')).toHaveLength(1);
+    expect(view.getByTestId('player')).toBe(player);
+    expect(document.getElementById('global-website')).not.toBeNull();
+  });
+
+  it('does not reinterpret blog 503 or unrelated route 404 as blog absence', async () => {
+    initialGuard = createInitialSsrHeadGuard(null);
+    state.location = '/en/blog/radio-data-usage'; state.language = 'en';
+    const view = render(<SeoPageWrapper><span>Guide</span></SeoPageWrapper>);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: false, status: 503}));
+    await expect(state.options.at(-1).queryFn({signal: new AbortController().signal})).rejects.toThrow('503');
+    state.location = '/en/about';
+    view.rerender(<SeoPageWrapper><span>About</span></SeoPageWrapper>);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: false, status: 404}));
+    await expect(state.options.at(-1).queryFn({signal: new AbortController().signal})).rejects.toThrow('404');
+  });
+
+  it('replaces noindex/canonical/alternates with the current server contract in both navigation directions', () => {
+    const view = render(<SeoPageWrapper><PageSeoHead pageType="station" stationData={null} /></SeoPageWrapper>);
+    const targets = [
+      { path: '/de/sender/station-b', language: 'de', robots: 'noindex, follow', alternates: [] },
+      { path: '/en/station/station-c', language: 'en', robots: 'index, follow', alternates: [
+        { hreflang: 'en', url: 'https://themegaradio.com/en/station/station-c' },
+        { hreflang: 'x-default', url: 'https://themegaradio.com/en/station/station-c' },
+      ] },
+    ];
+    for (const target of targets) {
+      state.location = target.path; state.language = target.language;
+      state.data.set(`/api/seo/page-data|${target.path}|${target.language}`, { seoTags: {
+        title: 'Current station', canonical: `https://themegaradio.com${target.path}`,
+        robots: target.robots, hreflangs: target.alternates,
+      } });
+      view.rerender(<SeoPageWrapper><PageSeoHead pageType="station" stationData={null} /></SeoPageWrapper>);
+      expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+      expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `https://themegaradio.com${target.path}`);
+      expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', target.robots);
+      expect([...document.querySelectorAll('link[hreflang]')].map(link => ({
+        hreflang: link.getAttribute('hreflang'), url: link.getAttribute('href'),
+      }))).toEqual(target.alternates);
+    }
   });
 
   it('replaces station A with station B schema and then a listing, preserving global and third-party nodes', () => {

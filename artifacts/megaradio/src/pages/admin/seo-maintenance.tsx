@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { adminRunningPoll } from "@/lib/admin-content-state";
+import { rebuildAdminSitemap } from '@/lib/admin-sitemap-rebuild';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -683,18 +684,17 @@ export default function SeoMaintenancePage() {
   });
 
   const rebuildSitemap = useMutation({
-    mutationFn: async () => (await apiRequest("POST", "/api/admin/sitemap/rebuild", {})).json(),
+    mutationFn: rebuildAdminSitemap,
     onSuccess: (data: any) => {
-      const built = data?.built;
       const langs = Array.isArray(data?.qualifiedLanguages) ? data.qualifiedLanguages.length : 0;
       const activated = data?.activatedCount ?? 0;
       const retiredZombies = data?.retiredZombies ?? 0;
       const zombieMsg = retiredZombies > 0 ? ` ${retiredZombies} zombi manifest temizlendi.` : "";
       toast({
-        title: built ? "Sitemap yenilendi" : "Sitemap zaten taze",
-        description: built
-          ? `${langs} dil işlendi, ${activated} manifest yeni sürüme geçti.${zombieMsg} Cloudflare + IndexNow tetiklendi.`
-          : "Yenileme gerekmedi (manifest 6 saatten kısa süre önce güncellenmiş).",
+        title: activated > 0 ? 'Sitemap yayımlandı' : 'Sitemap kontrol edildi',
+        description: activated > 0
+          ? `${langs} dil işlendi, ${activated} manifest yeni sürüme geçti.${zombieMsg} Önbellek yenileme ve IndexNow bildirimi istendi.`
+          : `${langs} dil derlendi; URL kapsamı değişmedi.${zombieMsg}`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/sitemap/manifest-stats"] });
     },
@@ -832,7 +832,7 @@ export default function SeoMaintenancePage() {
           </Button>
           {rebuildSitemap.data && (
             <div className="text-xs text-slate-700 bg-emerald-50 border border-emerald-200 rounded p-2">
-              Son sonuç: {(rebuildSitemap.data as any)?.built ? "✅ yeniden derlendi" : "⏭️ zaten taze"}
+              Son sonuç: {(rebuildSitemap.data as any)?.activatedCount > 0 ? 'Yayımlandı' : 'Kontrol edildi; URL kapsamı değişmedi'}
               {typeof (rebuildSitemap.data as any)?.activatedCount === "number" && (
                 <> — activated={(rebuildSitemap.data as any).activatedCount}</>
               )}
@@ -2052,10 +2052,6 @@ export default function SeoMaintenancePage() {
               <CardTitle className="text-base">Template açıklama doldur (İngilizce eksik istasyonlar)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-slate-600">
-                İngilizce açıklaması olmayan istasyonlar için Radio-Browser verilerinden (votes, bitrate, codec, konum) sıfır maliyetli benzersiz açıklama üretir.
-                <strong className="text-amber-700"> votes ≥ 1000</strong> olan istasyonlar "AI Ready" olarak raporlanır — bunlar sonradan AI ile upgrade edilebilir.
-              </p>
               <Button
                 onClick={() => startFillTemplates.mutate()}
                 disabled={startFillTemplates.isPending || !fillTemplatesJobQuery.isSuccess || tmplJob?.isRunning || stripSuffixJobQuery.data?.job?.isRunning}

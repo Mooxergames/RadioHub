@@ -1,0 +1,126 @@
+help_outline
+Yardım
+manage_accounts
+Kullanıcı ayarları
+	
+notifications
+İletiler
+13
+arrow_back
+Tarama istatistikleri
+
+DIŞA AKTAR
+Son güncellenme tarihi: 20.10.2026
+
+Toplam tarama isteği
+70,8 B
+
+Toplam indirme boyutu (Bayt)
+1,04 Mr
+
+Ortalama yanıt süresi (ms.)
+218
+
+Tarama istekleri
+24.07.2026
+4.08.2026
+15.08.2026
+26.08.2026
+6.09.2026
+17.09.2026
+28.09.2026
+9.10.2026
+20.10.2026
+3 B
+2 B
+1 B
+0
+Ana makineler
+
+
+Ana Bilgisayar
+	
+Tarama istekleri	Trend	Durum
+
+themegaradio.com
+	70.830
+	
+	
+
+Geçmişte sorun oldu
+
+www.themegaradio.com	4		
+
+Hiç sorun olmadı
+Sayfa başına satır sayısı:
+5
+10
+25
+50
+100
+250
+500
+1-2 / 2
+
+Tarama istekleri dökümü
+Yanıta göre
+Tamam (200)	%87	
+Bulunamadı (404)	%8	
+Kalıcı olarak taşındı (301)	%4	
+Diğer istemci hatası (4XX)	%1	
+Sunucu hatası (5XX)	< %1	
+Sayfa başına satır sayısı:
+5
+10
+25
+50
+100
+250
+500
+1-5 / 7
+
+Amaca göre
+Yenile	%98	
+Bulunma	%2	
+Sayfa başına satır sayısı:
+5
+10
+25
+50
+100
+250
+500
+1-2 / 2
+
+Dosya türüne göre
+JSON	%46	
+JavaScript	%16	
+HTML	%14	
+Diğer dosya türü	%10	
+Görsel	%5	
+Sayfa başına satır sayısı:
+5
+10
+25
+50
+100
+250
+500
+1-5 / 7
+
+Googlebot türüne göre
+Masaüstü	%49	
+Sayfa kaynak yükü	%20	
+Görsel	%14	
+AdsBot	%11	
+Akıllı telefon	%6	
+Sayfa başına satır sayısı:
+5
+10
+25
+50
+100
+250
+500
+1-5 / 6
+

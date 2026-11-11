@@ -285,44 +285,114 @@
     {
       "idx": 40,
       "version": "7",
+      "when": 1791932400000,
+      "tag": "0041_verified_retained_station_redirects",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792018800000,
+      "tag": "0042_verified_ora_news_canonical_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792105200000,
+      "tag": "0043_verified_ora_news_native_content_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
       "when": 1794222000000,
       "tag": "0044_chat_message_deletion",
       "breakpoints": true
     },
     {
-      "idx": 41,
+      "idx": 44,
+      "version": "7",
+      "when": 1792716992000,
+      "tag": "0044_private_description_repair_journal",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
       "version": "7",
       "when": 1794222001000,
       "tag": "0045_chat_reply_pin",
       "breakpoints": true
     },
     {
-      "idx": 42,
+      "idx": 46,
+      "version": "7",
+      "when": 1793059200000,
+      "tag": "0045_station_az_slug_c_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
       "version": "7",
       "when": 1794222002000,
       "tag": "0046_chat_groups",
       "breakpoints": true
     },
     {
-      "idx": 43,
+      "idx": 48,
+      "version": "7",
+      "when": 1794052800000,
+      "tag": "0046_tv_diagnostic_daily",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
       "version": "7",
       "when": 1794222003000,
       "tag": "0047_chat_group_music_styles",
       "breakpoints": true
     },
     {
-      "idx": 44,
+      "idx": 50,
+      "version": "7",
+      "when": 1794096000000,
+      "tag": "0047_translation_language_archives",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
       "version": "7",
       "when": 1794268800000,
       "tag": "0048_chat_group_message_actions",
       "breakpoints": true
     },
     {
-      "idx": 45,
+      "idx": 52,
       "version": "7",
       "when": 1794322160150,
       "tag": "0049_chat_inbox_actions",
       "breakpoints": true
+    },
+    {
+      "version": "7",
+      "when": 1794322161053,
+      "breakpoints": true,
+      "idx": 53,
+      "tag": "0050_station_votes"
+    },
+    {
+      "version": "7",
+      "when": 1794322161054,
+      "breakpoints": true,
+      "idx": 54,
+      "tag": "0051_station_search_key"
+    },
+    {
+      "version": "7",
+      "when": 1794322161055,
+      "breakpoints": true,
+      "idx": 55,
+      "tag": "0052_station_search_key_index"
     }
   ]
 }

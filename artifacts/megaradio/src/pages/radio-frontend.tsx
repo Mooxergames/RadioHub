@@ -12,6 +12,8 @@ import CatalogStationItems from '@/components/ads/CatalogStationItems';
 import HomeHeroPicture from '@/components/HomeHeroPicture';
 import HomeSignupBanner from '@/components/HomeSignupBanner';
 import HomeHeroCopy from '@/components/HomeHeroCopy';
+import HomeFaq from '@/components/HomeFaq';
+import HomeStationGuide from '@/components/HomeStationGuide';
 import StationCardSkeleton from "@/components/ui/station-card-skeleton";
 import GenreCardSkeleton from "@/components/ui/genre-card-skeleton";
 import VirtualizedStationList from "@/components/ui/virtualized-station-list";
@@ -24,6 +26,7 @@ import { communityDisplayName, communityFavoriteCount, communityLabels, type Com
 import { PublicProfileAvatar } from '@/components/ui/public-profile-avatar';
 import { MapPin, ChevronLeft, ChevronRight, ThumbsUp, Heart } from "lucide-react";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import './home-search.css';
 
 import { formatSearchVoteCount as formatVoteCount } from '@/lib/search-presentation';
@@ -195,9 +198,9 @@ function PublicUsersSection({ inViewFromParent }: { inViewFromParent: boolean })
     return (
       <div ref={sectionRef} className="container">
         <div className="flex justify-between pb-4">
-          <h3 className="section-header pb-4">
+          <h2 className="section-header pb-4">
             {t('homepage_community_favorites')}
-          </h3>
+          </h2>
         </div>
         {/* 3x3 Grid skeleton - optimized height for mobile */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-[21px] gap-y-3 md:gap-y-[20px]">
@@ -226,9 +229,9 @@ function PublicUsersSection({ inViewFromParent }: { inViewFromParent: boolean })
   return (
     <div ref={sectionRef} className="container">
       <div className="flex justify-between pb-4">
-        <h4 className="section-header">
+        <h2 className="section-header">
           {t('homepage_community_favorites')}
-        </h4>
+        </h2>
         <Link className="see-all-link" href={getLocalizedUrl('/users')}>
           {t('homepage_see_all')}
         </Link>
@@ -1043,16 +1046,16 @@ export default function RadioFrontend({
                                 {/* Station Image - Apple style */}
                                 <div className="relative flex-shrink-0 size-[38px]">
                                   <OptimizedImage
-                                    src={
+                                    src={normalizePublicStationLogoUrl(
                                       // 1. Priority: Optimized logo assets
                                       station.logoAssets?.status === 'completed' && station.logoAssets?.folder && (station.logoAssets?.webp256 || station.logoAssets?.webp96 || station.logoAssets?.webp48)
-                                        ? ((() => { const v = (station.logoAssets.webp256 || station.logoAssets.webp96 || station.logoAssets.webp48)!; return v.startsWith('http') ? v : `/station-logos/${station.logoAssets.folder}/${v}`; })())
+                                        ? ((() => { const v = (station.logoAssets.webp256 || station.logoAssets.webp96 || station.logoAssets.webp48)!; return v.startsWith('http') || v.startsWith('/') ? v : `/station-logos/${station.logoAssets.folder}/${v}`; })())
                                         // 2. Local image path
                                         : station.localImagePath ? `/station-images/${station.localImagePath}` 
                                         // 3. External favicon
                                         : (station.favicon && station.favicon.trim() !== '' && station.favicon !== 'null' && station.favicon !== 'undefined') ? 
                                           decodeHtmlEntities(station.favicon) : ''
-                                    }
+                                    )}
                                     alt={`${station.name} favicon`}
                                     width={38}
                                     height={38}
@@ -1117,7 +1120,7 @@ export default function RadioFrontend({
             {/* 1. GENRES SECTION - EXACT from index.vue */}
             <div className="container">
               <div className="flex justify-between items-center pb-4">
-                <h3 className="section-header">{t('homepage_genres', 'Genres')}</h3>
+                <h2 className="section-header">{t('homepage_genres', 'Genres')}</h2>
                 {/* Hide "See all" and navigation arrows on mobile, show only on md+ */}
                 <div className="hidden md:flex items-center gap-3">
                   <Link className="see-all-link" href={getLocalizedUrl('/genres')}>
@@ -1193,9 +1196,9 @@ export default function RadioFrontend({
                           href={getLocalizedUrl(`/genres/${genre.slug || genre.name.toLowerCase()}`)} 
                           className="w-full h-full flex items-center justify-center rounded-[5px] md:rounded-[10px]"
                         >
-                          <h4 className="px-2 text-sm md:text-xl font-bold capitalize text-center text-white drop-shadow-lg">
+                          <h3 className="home-genre-title px-2 text-sm md:text-xl font-bold capitalize text-center text-white drop-shadow-lg">
                             {genre.name}
-                          </h4>
+                          </h3>
                         </Link>
                       </SwiperSlide>
                     ))}
@@ -1213,12 +1216,12 @@ export default function RadioFrontend({
             {/* 3. STATIONS NEAR YOU SECTION */}
             {shouldShowNearbyStations && (nearbyStationsData as any)?.stations?.length > 0 && (
               <div className="container mt-8">
-                <h3 className="section-header pb-4">
+                <h2 className="section-header pb-4">
                   {t('homepage_stations_near_you', 'Stations Near You')}
-                </h3>
+                </h2>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-x-[21px] gap-y-[20px]">
                   {(nearbyStationsData as any).stations.slice(0, 6).map((station: any, i: number) => (
-                    <StationCard key={`nearby-${station._id || i}`} station={station} onPlay={handlePlay} />
+                    <StationCard key={`nearby-${station._id || i}`} station={station} onPlay={handlePlay} headingLevel={3} />
                   ))}
                 </div>
               </div>
@@ -1228,12 +1231,12 @@ export default function RadioFrontend({
             {isAuthenticated && userFavoriteStations?.length > 0 && (
               <div className="container mt-8">
                 <div className="flex justify-between pb-4">
-                  <h3 className="section-header flex items-center space-x-2">
+                  <h2 className="section-header flex items-center space-x-2">
                     <svg className="w-6 h-6 text-[#FF4199]" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                     </svg>
                     <span>{t('homepage_your_favorites', 'Your Favorites')}</span>
-                  </h3>
+                  </h2>
                   <Link className="see-all-link" href={getLocalizedUrl('/favorites')}>
                     {t('homepage_see_all', 'See all')}
                   </Link>
@@ -1245,6 +1248,7 @@ export default function RadioFrontend({
                       station={station} 
                       onPlay={handlePlay}
                       showVotes={false}
+                      headingLevel={3}
                     />
                   ))}
                 </div>
@@ -1278,7 +1282,7 @@ export default function RadioFrontend({
               {(inView) => inView ? (
                 <div className="container">
                   <div className="my-8">
-                    <h3 className="section-header pb-4">{t('homepage_discover_genres', 'Discover Genres')}</h3>
+                    <h2 className="section-header pb-4">{t('homepage_discover_genres', 'Discover Genres')}</h2>
                     {discoverableGenresLoading ? (
                       <div className="flex gap-4 items-center overflow-hidden">
                         {Array(6).fill(0).map((_, index) => (
@@ -1293,7 +1297,7 @@ export default function RadioFrontend({
                           ))}
                         </div>
                       }>
-                        <DiscoverableGenreSlider genres={discoverableGenres} />
+                        <DiscoverableGenreSlider genres={discoverableGenres} headingLevel={3} />
                       </Suspense>
                     ) : (
                       <div className="text-center text-gray-400 py-8 w-full">
@@ -1305,7 +1309,7 @@ export default function RadioFrontend({
               ) : (
                 <div className="container">
                   <div className="my-8">
-                    <h3 className="section-header pb-4">{t('homepage_discover_genres', 'Discover Genres')}</h3>
+                    <h2 className="section-header pb-4">{t('homepage_discover_genres', 'Discover Genres')}</h2>
                     <div className="flex gap-4 items-center overflow-hidden">
                       {Array(6).fill(0).map((_, index) => (
                         <div key={index} className="animate-pulse h-[150px] md:h-[214px] min-w-56 md:min-w-80 lg:min-w-60 rounded-xl bg-[#404040]"></div>
@@ -1322,7 +1326,7 @@ export default function RadioFrontend({
                 <Suspense fallback={
                   <div className="container">
                     <div className="my-8">
-                      <h3 className="section-header pb-4">{t('homepage_community_favorites', 'Community Favorites')}</h3>
+                      <h2 className="section-header pb-4">{t('homepage_community_favorites', 'Community Favorites')}</h2>
                       <div className="flex gap-4 overflow-hidden">
                         {Array(4).fill(0).map((_, i) => (
                           <div key={i} className="animate-pulse h-32 w-64 bg-gray-600 rounded-lg"></div>
@@ -1336,7 +1340,7 @@ export default function RadioFrontend({
               ) : (
                 <div className="container">
                   <div className="my-8">
-                    <h3 className="section-header pb-4">{t('homepage_community_favorites', 'Community Favorites')}</h3>
+                    <h2 className="section-header pb-4">{t('homepage_community_favorites', 'Community Favorites')}</h2>
                     <div className="flex gap-4 overflow-hidden">
                       {Array(4).fill(0).map((_, i) => (
                         <div key={i} className="animate-pulse h-32 w-64 bg-gray-600 rounded-lg"></div>
@@ -1349,19 +1353,19 @@ export default function RadioFrontend({
 
             {/* 6. ALL STATIONS SECTION - EXACT from AllStations.vue */}
             <div className="container relative">
-              <h3 className="section-header pb-4 flex items-baseline gap-2">
+              <h2 className="section-header pb-4 flex items-baseline gap-2">
                 <span>{t('homepage_all_stations', 'All Stations')}</span>
                 {activeCountry !== 'all' && (
                   <span className="text-sm font-normal text-gray-400">
                     {t('from', 'from')} {getLocalizedCountryDisplayName(activeCountry, language)}
                   </span>
                 )}
-              </h3>
+              </h2>
 
               {/* All Stations Grid - Always use 3-column grid layout for consistent design */}
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-x-[21px] gap-y-[20px]">
                 <CatalogStationItems stations={availableLoadedStations} getKey={(station: any, i) => `all-stations-${station._id || i}`}>
-                  {(station: any) => <StationCard station={station} onPlay={handlePlay} />}
+                  {(station: any) => <StationCard station={station} onPlay={handlePlay} headingLevel={3} />}
                 </CatalogStationItems>
               </div>
               
@@ -1465,6 +1469,8 @@ export default function RadioFrontend({
             <div className="container pb-6">
               <HomeSignupBanner />
             </div>
+            <HomeStationGuide />
+            <HomeFaq />
 
           </div>
 

@@ -16,6 +16,7 @@ const expectedImages = [
   ['header-logo-80w.webp', 80, 74, 'webp'],
   ['logo-icon.webp', 322, 299, 'webp'],
   ['images/logo-icon.webp', 194, 180, 'webp'],
+  ['images/footer-bg.webp', 673, 275, 'webp'],
 ] as const;
 let server: Server;
 let baseUrl: string;
@@ -46,7 +47,8 @@ for (const [filename, width, height, format] of expectedImages) {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), `image/${format}`);
     assert.equal(response.headers.get('x-robots-tag'), null);
-    assert.equal(response.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+    assert.equal(response.headers.get('cache-control'), ['favicon.png', 'apple-touch-icon.png'].includes(filename)
+      ? 'public, max-age=86400, must-revalidate' : 'public, max-age=31536000, immutable');
     const bytes = Buffer.from(await response.arrayBuffer());
     assert.deepEqual(bytes, await readFile(path.join(publicDirectory, filename)), 'never rewrites brand pixels');
     const metadata = await sharp(bytes).metadata();
@@ -55,18 +57,86 @@ for (const [filename, width, height, format] of expectedImages) {
   });
 }
 
-test('conventional favicon URL redirects to the real PNG, including HEAD and old query strings', async () => {
+test('the deferred footer background is a decodable public asset with identical browser and crawler responses', async () => {
+  const footer = await readFile(path.resolve(import.meta.dirname, '../../megaradio/src/components/layout/footer.tsx'), 'utf8');
+  const pathname = '/images/footer-bg.webp';
+  assert.ok(footer.includes(`url(${pathname})`));
+  const bytes = await readFile(path.join(publicDirectory, pathname));
+  const { info } = await sharp(bytes).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(info.width, 673);
+  assert.equal(info.height, 275);
+  const policies: unknown[] = [];
+  for (const userAgent of ['Mozilla/5.0', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)']) {
+    const response = await fetch(baseUrl + pathname, { headers: { 'User-Agent': userAgent } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/webp');
+    assert.equal(response.headers.get('x-robots-tag'), null);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+    policies.push(['cache-control', 'etag', 'last-modified', 'content-length'].map(name => response.headers.get(name)));
+  }
+  assert.deepEqual(policies[0], policies[1]);
+});
+
+test('conventional favicon is a real ICO with unchanged PNG pixels, including HEAD and old query strings', async () => {
   for (const method of ['GET', 'HEAD']) {
     const response = await fetch(`${baseUrl}/favicon.ico?v=old`, { method, redirect: 'manual' });
-    assert.equal(response.status, 301);
-    assert.equal(response.headers.get('location'), '/favicon.png');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('location'), null);
+    assert.match(response.headers.get('content-type') || '', /^image\/(?:vnd\.microsoft\.icon|x-icon)/);
     assert.equal(response.headers.get('x-robots-tag'), null);
-    assert.equal(response.headers.get('cache-control'), 'public, max-age=86400');
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=86400, must-revalidate');
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     if (method === 'HEAD') assert.equal(await response.text(), '');
+    else {
+      const ico = Buffer.from(await response.arrayBuffer());
+      assert.equal(ico.readUInt16LE(0), 0);
+      assert.equal(ico.readUInt16LE(2), 1);
+      assert.equal(ico.readUInt16LE(4), 1);
+      assert.equal(ico[6], 64);
+      assert.equal(ico[7], 64);
+      const offset = ico.readUInt32LE(18);
+      const length = ico.readUInt32LE(14);
+      assert.equal(offset + length, ico.length);
+      assert.deepEqual(ico.subarray(offset), await readFile(path.join(publicDirectory, 'favicon.png')));
+    }
   }
-  const followed = await fetch(`${baseUrl}/favicon.ico`);
-  assert.equal(followed.status, 200);
-  assert.equal(followed.headers.get('content-type'), 'image/png');
+});
+
+test('search and touch icons use the brand tile without the oversized glow margin', async () => {
+  for (const filename of ['favicon.png', 'apple-touch-icon.png']) {
+    const { data, info } = await sharp(path.join(publicDirectory, filename))
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const alpha = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
+    const middle = Math.floor(info.width / 2);
+    assert.ok(alpha(middle, 1) > 240, `${filename}: no top padding`);
+    assert.ok(alpha(middle, info.height - 2) > 240, `${filename}: no bottom padding`);
+    assert.ok(alpha(1, middle) > 240, `${filename}: no left padding`);
+    assert.ok(alpha(info.width - 2, middle) > 240, `${filename}: no right padding`);
+    assert.equal(alpha(0, 0), 0, 'preserve transparent rounded corners');
+    const note: number[][] = [];
+    for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
+      const i = (y * info.width + x) * 4;
+      if (data[i] > 215 && data[i + 1] > 180 && data[i + 2] > 170 && data[i + 3] > 240) note.push([x, y]);
+    }
+    assert.ok(note.length > 0, 'the light musical note must remain visible');
+    const width = Math.max(...note.map(([x]) => x)) - Math.min(...note.map(([x]) => x));
+    const height = Math.max(...note.map(([, y]) => y)) - Math.min(...note.map(([, y]) => y));
+    assert.ok(width / info.width > 0.45, `${filename}: note uses enough of the icon width`);
+    assert.ok(height / info.height > 0.55, `${filename}: note uses enough of the icon height`);
+  }
+});
+
+test('legacy SVG contains the same brand rather than a placeholder or external image', async () => {
+  const response = await fetch(`${baseUrl}/favicon.svg`, { redirect: 'manual' });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') || '', /^image\/svg\+xml/);
+  assert.equal(response.headers.get('x-robots-tag'), null);
+  assert.equal(response.headers.get('cache-control'), 'public, max-age=86400, must-revalidate');
+  const svg = await response.text();
+  const embedded = svg.match(/href="data:image\/png;base64,([^"]+)"/)?.[1];
+  assert.ok(embedded);
+  assert.deepEqual(Buffer.from(embedded, 'base64'), await readFile(path.join(publicDirectory, 'favicon.png')));
+  assert.doesNotMatch(svg, /#FF3C00|<image[^>]+href="https?:/);
 });
 
 test('manifest and unrelated/missing static assets keep their existing robots policy', async () => {
@@ -77,18 +147,79 @@ test('manifest and unrelated/missing static assets keep their existing robots po
   }
 });
 
-test('both site HTML templates declare only the actual PNG dimensions', async () => {
+for (const pathname of [
+  '/images/hero-bg-430w.webp', '/images/about-frame.png',
+  '/images/footer-bg.webp',
+  '/uploads/genres/discoverable/genre-dfd155a5-8ea0-47f6-8c09-d3ba856c4853.png',
+]) {
+  test(`public static image is indexable without changing pixels, validators or errors: ${pathname}`, async () => {
+    const bytes = await readFile(path.join(publicDirectory, pathname));
+    const initial = await fetch(baseUrl + pathname);
+    const etag = initial.headers.get('etag');
+    assert.equal(initial.status, 200);
+    assert.equal(initial.headers.get('x-robots-tag'), null);
+    assert.match(initial.headers.get('content-type') || '', /^image\//);
+    assert.ok(etag);
+    assert.deepEqual(Buffer.from(await initial.arrayBuffer()), bytes);
+    for (const method of ['GET', 'HEAD']) {
+      const response = await fetch(baseUrl + pathname, { method });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('x-robots-tag'), null);
+      assert.equal(response.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+      assert.equal((await response.arrayBuffer()).byteLength, method === 'HEAD' ? 0 : bytes.length);
+      const conditional = await fetch(baseUrl + pathname, { method,
+        headers: { 'If-None-Match': etag, 'Cache-Control': 'max-age=0' } });
+      assert.equal(conditional.status, 304);
+      assert.equal(conditional.headers.get('x-robots-tag'), null);
+      assert.equal(conditional.headers.get('etag'), etag);
+    }
+    const partial = await fetch(baseUrl + pathname, { headers: { Range: 'bytes=0-7' } });
+    assert.equal(partial.status, 206);
+    assert.equal(partial.headers.get('x-robots-tag'), null);
+    assert.deepEqual(Buffer.from(await partial.arrayBuffer()), bytes.subarray(0, 8));
+    for (const [headers, expected] of [[{ 'If-Match': '"not-the-image"' }, 412],
+      [{ Range: `bytes=${bytes.length + 1}-` }, 416]] as const) {
+      const failure = await fetch(baseUrl + pathname, { headers });
+      assert.equal(failure.status, expected);
+      assert.equal(failure.headers.get('x-robots-tag'), 'noindex, follow');
+      await failure.arrayBuffer();
+    }
+  });
+}
+
+test('missing public images and private/account paths never gain the image exception', async () => {
+  for (const pathname of ['/images/missing.png', '/uploads/genres/missing.png',
+    '/uploads/private/missing.png', '/admin/missing.png']) {
+    const response = await fetch(baseUrl + pathname);
+    assert.equal(response.status, 404);
+    assert.equal(response.headers.get('x-robots-tag'), 'noindex, follow');
+    await response.arrayBuffer();
+  }
+});
+
+test('both site HTML templates declare the same real ICO and PNG with truthful dimensions', async () => {
   for (const filename of ['../../megaradio/index.html', '../src/index-web.ts']) {
     const source = await readFile(path.resolve(import.meta.dirname, filename), 'utf8');
     const icons = [...source.matchAll(/<link\b[^>]*rel="(icon|apple-touch-icon)"[^>]*>/g)];
-    assert.equal(icons.length, 2);
+    assert.equal(icons.length, 3);
+    assert.match(source, /<link rel="icon" type="image\/vnd\.microsoft\.icon" sizes="64x64" href="\/favicon\.ico">/);
     for (const [tag] of icons) {
       const src = tag.match(/href="([^"]+)"/)?.[1];
       assert.ok(src?.startsWith('/'));
-      const metadata = await sharp(path.join(publicDirectory, src!)).metadata();
+      const metadata = await sharp(path.join(publicDirectory, src === '/favicon.ico' ? 'favicon.png' : src!)).metadata();
       assert.equal(tag.match(/sizes="([^"]+)"/)?.[1], `${metadata.width}x${metadata.height}`);
     }
     assert.match(source, /<link rel="manifest" href="\/manifest\.json">/);
+  }
+});
+
+test('Yandex ownership verification is in both server-rendered and SPA heads, preserving the existing owner', async () => {
+  for (const filename of ['../../megaradio/index.html', '../src/index-web.ts']) {
+    const source = await readFile(path.resolve(import.meta.dirname, filename), 'utf8');
+    const head = source.match(/<head>([\s\S]*?)<\/head>/)?.[1];
+    assert.ok(head, filename);
+    const tokens = [...head.matchAll(/<meta name="yandex-verification" content="([^"]+)"\s*\/>/g)].map(match => match[1]);
+    assert.deepEqual(tokens, ['2af3c8203c89a3d9', '57c83c6ab08ec3ba'], filename);
   }
 });
 

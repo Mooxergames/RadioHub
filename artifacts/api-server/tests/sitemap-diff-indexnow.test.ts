@@ -8,6 +8,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { ACTIVE_SITEMAP_LANGUAGES } from '@workspace/seo-shared/seo-config';
+import { buildLocalizedUrl } from '../src/seo/url-helpers';
+import { getIndexableLanguagesForStation } from '../src/seo/junk-station-rules';
 const newId=()=>randomBytes(12).toString('hex');
 import {
   diffUrlSets,
@@ -257,6 +260,51 @@ test('computeStationsSitemapUrlsForChunk + diffUrlSets surfaces newly-whiteliste
   });
   const additions = diffUrlSets(previousUrls, currentUrls);
   assert.deepEqual(additions, ['https://example.com/de/sender/bravo-radio']);
+});
+
+test('station diff publication omits all reserved identities in 14 locales while preserving the normal URL union and shared eligibility', () => {
+  const languages = Object.freeze([...ACTIVE_SITEMAP_LANGUAGES]);
+  assert.equal(languages.length, 14);
+  const reservedSlugs = [...'abcdefghijklmnopqrstuvwxyz', '0-9', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+  const normalSlugs = ['ab', 'bbc', 'npr', 'k-1', '0-90', 'genres', 'profile'];
+  const makeRow = (id: string, slug: string, extra: Partial<StationSitemapDoc> & { redirectToSlug?: string } = {}) => Object.freeze({
+    _id: id, slug, name: 'Fixture Radio', url: 'https://stream.example.invalid/live',
+    countryCode: 'US', noIndex: false, completeDescriptionLanguages: languages, ...extra,
+  });
+  const reserved = reservedSlugs.map((slug, index) => makeRow(`reserved-${index}`, slug));
+  const normals = normalSlugs.map((slug, index) => makeRow(`normal-${index}`, slug));
+  const rows = Object.freeze([
+    ...reserved, ...normals,
+    makeRow('excluded-noindex', 'noindex-radio', { noIndex: true }),
+    makeRow('excluded-junk', 'junk-radio', { url: '' }),
+    makeRow('excluded-redirect', 'redirect-radio', { redirectToSlug: 'bbc' }),
+    makeRow('excluded-numeric', '1234'),
+    makeRow('excluded-no-slug', '', { slug: undefined }),
+  ]);
+  const before = structuredClone(rows);
+  const byId = new Map<string, StationSitemapDoc>(rows.map(row => [row._id, row]));
+  const stationIds = Object.freeze([...rows.map(row => row._id).reverse(), normals[0]._id, 'missing-id']);
+  const translations = new Map<string, string>();
+  const origin = 'https://example.com';
+  const union: string[] = [];
+  const expectedUnion: string[] = [];
+  for (const language of languages) {
+    const urls = computeStationsSitemapUrlsForChunk({ language, qualifiedLanguages: languages, stationIds, stationsById: byId, translations, baseUrl: origin });
+    const expected = normalSlugs.map(slug => origin + buildLocalizedUrl(`/station/${slug}`, language, undefined, translations)).sort();
+    assert.deepEqual(urls, expected, `${language}: diff must contain exactly the normal station set`);
+    union.push(...urls);
+    expectedUnion.push(...expected);
+  }
+  assert.equal(new Set(union).size, normalSlugs.length * 14);
+  assert.deepEqual(union.sort(), expectedUnion.sort());
+  for (const row of reserved) {
+    assert.deepEqual(new Set(getIndexableLanguagesForStation(row, languages, row.completeDescriptionLanguages)), new Set(languages),
+      'A-Z exclusion must stay in publication code, not change the shared indexability gate');
+  }
+  assert.ok(rows.every(Object.isFrozen));
+  assert.deepEqual(rows, before, 'diff computation must not edit IDs, slug, noIndex or description eligibility');
+  assert.equal(translations.size, 0);
+  assert.deepEqual(languages, ACTIVE_SITEMAP_LANGUAGES);
 });
 
 test('mapGenreIdsToSlugs piped through computeGenresSitemapUrls yields the live route URL set', () => {

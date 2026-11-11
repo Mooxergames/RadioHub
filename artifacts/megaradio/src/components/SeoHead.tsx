@@ -3,6 +3,7 @@ import { useLocation, useSearch } from 'wouter';
 import { preserveInitialSsrHead, ServerSeoHeadContext } from '@/utils/ssr-seo-head';
 import { useTranslation } from '@/hooks/useTranslation';
 import { generateSeoTags, getLanguageFromPath, truncateAtWordBoundary, normalizeSeoTitle } from '@workspace/seo-shared/seo-config';
+import { parseGenreDirectoryPage } from '@/hooks/useGenrePageState';
 // PageSpeed 2026-07-03: the four per-language template registries below
 // (genre/search/legal/static) are ~127 KB raw / ~40 KB gz of pure data that
 // used to load statically with this component — putting them in the HOME
@@ -10,6 +11,7 @@ import { generateSeoTags, getLanguageFromPath, truncateAtWordBoundary, normalize
 // They are now dynamic-imported inside the effect, per pageType branch, so
 // only the page family that actually needs its registry downloads it.
 import { useQuery } from '@tanstack/react-query';
+import { updateOgImageDimensions } from '@/utils/og-image-dimensions';
 
 interface SeoHeadProps {
   stationData?: {
@@ -23,6 +25,7 @@ interface SeoHeadProps {
     tags?: string;
     bitrate?: number;
     votes?: number;
+    stationPageMode?: string;
   } | null;
   pageType?: 'home' | 'station' | 'genres' | 'stations' | 'users' | 'about' | 'contact' | 'applications' | 'search' | 'faq' | 'terms' | 'privacy';
   /**
@@ -97,6 +100,12 @@ export function SeoHead({ stationData, pageType = 'home', genreName }: SeoHeadPr
       seoTags.ogDescription = genreSeo.description;
       seoTags.twitterTitle = genreSeo.title;
       seoTags.twitterDescription = genreSeo.description;
+      const { page } = parseGenreDirectoryPage(window.location.search);
+      if (page > 1 && seoTags.canonical) {
+        const canonical = new URL(seoTags.canonical);
+        canonical.searchParams.set('page', String(page));
+        seoTags.canonical = canonical.href;
+      }
     }
 
     // Search override: keeps client hydration aligned with server SSR for the
@@ -185,6 +194,7 @@ export function SeoHead({ stationData, pageType = 'home', genreName }: SeoHeadPr
     if (seoTags.ogImage) {
       updateMetaProperty('og:image', seoTags.ogImage);
     }
+    updateOgImageDimensions(seoTags.ogImage || '', currentDomain);
 
     // Update Twitter tags
     updateMetaTag('twitter:card', 'summary_large_image');

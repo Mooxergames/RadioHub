@@ -11,11 +11,14 @@ type Options = { ttl?: number; useRedis?: boolean; refreshThreshold?: number };
 type Envelope<T> = { value: T; expiresAt: number };
 const inflight = new Map<string, Promise<unknown>>();
 
+function isFresh<T>(entry: Envelope<T> | null): entry is Envelope<T> {
+  return !!entry && Number.isFinite(entry.expiresAt) && entry.expiresAt > Date.now();
+}
 async function get<T>(key: string): Promise<T | null> {
-  const entry = await CacheManager.get<Envelope<T>>(publicStationCacheKey(key));
+  const entry = await CacheManager.get<Envelope<T>>(publicStationCacheKey(key), isFresh);
   // Redis reads can be promoted to a longer-lived process-local cache. The
   // original absolute deadline must survive that promotion (and cache layers).
-  if (!entry || typeof entry.expiresAt !== 'number' || entry.expiresAt <= Date.now()) return null;
+  if (!isFresh(entry)) return null;
   const context = loaderDeadline.getStore();
   if (context) context.expiresAt = Math.min(context.expiresAt, entry.expiresAt);
   return entry.value;

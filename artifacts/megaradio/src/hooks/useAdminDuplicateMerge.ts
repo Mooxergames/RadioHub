@@ -164,13 +164,28 @@ export function useAdminDuplicateMerge(account: string | null) {
     } finally { if (scopeRef.current === scope) requestLock.current = false; }
   }, [scope, ready, canApply, preview?.jobId, remember, client]);
 
+  const cancelPreview = useCallback(async () => {
+    if (!scope || !job?.dryRun || job.status !== 'running' || requestLock.current) return;
+    requestLock.current = true; setRequest({ scope, pending: true, error: null });
+    try {
+      const response = await apiRequest('POST', `/api/admin/merge-jobs/${encodeURIComponent(job.jobId)}/cancel-preview`);
+      const data = await response.json();
+      if (data?.success !== true || data.jobId !== job.jobId) throw new Error('Preview cancellation was not confirmed');
+      if (scopeRef.current !== scope) return;
+      setRequest(null);
+      await refresh();
+    } catch (error) {
+      if (scopeRef.current === scope) setRequest({ scope, pending: false, error: `${error instanceof Error ? error.message : 'Request failed'}. Refresh status before retrying.` });
+    } finally { if (scopeRef.current === scope) requestLock.current = false; }
+  }, [scope, job, refresh]);
+
   useEffect(() => {
     if (job?.status === 'completed' || job?.status === 'failed') {
       void client.invalidateQueries({ queryKey: ['/api/admin/auto-merge-status', scope] });
     }
   }, [client, scope, job?.jobId, job?.status]);
 
-  return { job, jobId, preview, schedule: schedule.data, busy, ready, canApply, pending, start, refresh,
+  return { job, jobId, preview, schedule: schedule.data, busy, ready, canApply, pending, start, cancelPreview, refresh,
     isLoading: schedule.isLoading || Boolean(jobId && query.isLoading),
     error: error || (query.error as Error | null)?.message || (schedule.error as Error | null)?.message || null,
     expiredJobId: expired?.scope === scope ? expired.id : null,

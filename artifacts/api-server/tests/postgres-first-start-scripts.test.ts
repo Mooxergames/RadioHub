@@ -31,7 +31,7 @@ function fixture(overrides: Record<string, any> = {}) {
       if (sql.startsWith('CREATE INDEX CONCURRENTLY')) state.indexCreated = true;
       if (sql.startsWith('SELECT i.indisvalid')) return { rows: state.indexCreated ? [{ valid: true, ready: true,
         correct_table: true, method: 'gin', unique: false, keys: 1, no_predicate: true,
-        operator_class: 'gin_trgm_ops', expression: "lower((source ->> 'genre'::text))" }] : [] };
+        operator_class: 'gin_trgm_ops', expression: _values?.[0] === 'stations_name_fold_trgm_idx' ? 'station_search_key(name)' : "lower((source ->> 'genre'::text))" }] : [] };
       if (sql.includes("pg_try_advisory_xact_lock")) return { rows: [{ acquired: state.lockAvailable }] };
       if (sql.startsWith("SELECT name,checksum")) return { rows: state.applied };
       if (sql.startsWith("SELECT domain")) return { rows: state.authority ? [{ domain: "USER_STORE" }] : [] };
@@ -67,8 +67,8 @@ test("migration connection validates URLs, verifies TLS and bounds every timeout
 test("schema installer executes normal SQL transactionally and the reviewed index concurrently on its locked connection", async () => {
   const db = fixture();
   assert.deepEqual(await applyPostgresMigrations({ environment, migrationsDirectory, createPool: db.createPool, log() {} }), { applied: files.length, skipped: 0 });
-  assert.equal(db.calls.filter((sql) => sql === "BEGIN").length, files.length - 1);
-  assert.equal(db.calls.filter((sql) => sql === "COMMIT").length, files.length - 1);
+  assert.equal(db.calls.filter((sql) => sql === "BEGIN").length, files.length - 2);
+  assert.equal(db.calls.filter((sql) => sql === "COMMIT").length, files.length - 2);
   const indexPosition = db.calls.findIndex(sql => sql.startsWith('CREATE INDEX CONCURRENTLY'));
   // Later transactional migrations may follow the concurrent index. Verify
   // its own transaction boundary, not that it happens to be the last file.

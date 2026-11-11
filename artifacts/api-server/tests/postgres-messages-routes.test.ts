@@ -31,13 +31,6 @@ let requestedLimit: number;
 let follows = true;
 let hasHistory = false;
 
-const mongoMustNotRun = new Proxy({}, {
-  get(_target, key) { throw new Error(`MongoDB call in PostgreSQL chat mode: ${String(key)}`); },
-});
-mock.module("@workspace/legacy-migration/mongo-schemas", {
-  namedExports: { DirectMessage: mongoMustNotRun, User: mongoMustNotRun,
-    UserFollow: mongoMustNotRun, UserNotification: mongoMustNotRun },
-});
 mock.module(new URL('../src/data/station-read-store.ts',import.meta.url).href,{namedExports:{getPublicStationByIdentifier:async(id:string)=>id.endsWith('999')?null:{_id:id,name:'Canonical Radio',country:'Austria',favicon:'https://example.test/logo.png'}}});
 mock.module("express-rate-limit", {
   namedExports: { ipKeyGenerator, rateLimit: () => (_req: any, _res: any, next: () => void) => next() },
@@ -47,6 +40,7 @@ mock.module(new URL("../src/utils/logger.ts", import.meta.url).href, {
   namedExports: { logger: { log() {}, warn() {}, error() {} } },
 });
 mock.module(new URL('../src/cache.ts', import.meta.url).href, {
+  defaultExport: { get: async () => null, set: async () => {}, clearByPattern: async () => {} },
   namedExports: { CacheManager: { clearByPattern: async () => {} } },
 });
 mock.module(new URL("../src/data/postgres-user-store.ts", import.meta.url).href, {

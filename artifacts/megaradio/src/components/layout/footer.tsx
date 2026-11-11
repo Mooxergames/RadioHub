@@ -6,6 +6,7 @@ import { useSeoRouting } from "@/hooks/useSeoRouting";
 import { useQuery } from "@tanstack/react-query";
 import { SEO_LANGUAGES, ACTIVE_SITEMAP_LANGUAGES } from "@workspace/seo-shared/seo-config";
 import { BLOG_LABELS, isBlogLocale, blogPath } from '@workspace/seo-shared/blog-manifest';
+import { resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
 // 🚀 LAZY: modals only load on first open — keeps Radix Select/Input
 // out of the footer chunk until the user clicks the action.
 const AddYourStationModal = lazy(() => import("@/components/modals/AddYourStationModal"));
@@ -13,7 +14,8 @@ import "./footer-controls.css";
 import AdSenseUnit from "@/components/ads/DeferredAdSenseUnit";
 import { getAdSensePageType } from '@/lib/adsense-runtime';
 import { AD_SLOTS, usesInlineMobileCatalogAd } from '@/lib/advertising-placements';
-import PrivacySettingsButton from "@/components/ads/PrivacySettingsButton";
+import PrivacySettingsButton, { WebAnalyticsConsentNotice } from "@/components/ads/PrivacySettingsButton";
+import { isRenderableFooterSocialLink } from '@/lib/footer-social-links';
 
 interface FooterSocialLink {
   _id: string;
@@ -75,9 +77,11 @@ export default function Footer() {
   const adPageType = getAdSensePageType(window.location.pathname + window.location.search);
   const showCatalogAdvertisement = adPageType === 'home' || adPageType === 'catalog';
   const { currentStation } = useGlobalPlayer();
-  const isPlayerEnabled = currentStation !== null;
-  const { t, isLoading: translationsLoading } = useTranslation();
-  const { getLocalizedUrl, currentLanguage, changeLanguage } = useSeoRouting();
+  const { t, isLoading: translationsLoading, localeTranslations = {} } = useTranslation();
+  const { getLocalizedUrl, currentLanguage, changeLanguage, englishPath } = useSeoRouting();
+  // GlobalPlayer hides its mini-player on detail pages, which have their own controls.
+  const isStationDetailPage = englishPath?.startsWith('/station/') || englishPath?.startsWith('/stations/');
+  const isPlayerEnabled = currentStation !== null && !isStationDetailPage;
   
   // Language selector state
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
@@ -152,6 +156,7 @@ export default function Footer() {
     queryKey: ["/api/footer-social-media"],
     staleTime: 30 * 60 * 1000,
   });
+  const visibleSocialLinks = socialLinks.filter(isRenderableFooterSocialLink);
   
   // Modal states
   const [showAddStationModal, setShowAddStationModal] = useState(false);
@@ -206,6 +211,7 @@ export default function Footer() {
           pages already own their capped placements; private pages get none. */}
       {showCatalogAdvertisement && <AdSenseUnit adSlot={AD_SLOTS.catalogFooter} adFormat="horizontal"
         fullWidthResponsive={true} className={`${usesInlineMobileCatalogAd(window.location.pathname + window.location.search) ? 'hidden md:block ' : ''}w-full max-w-[1206px] mx-auto px-4 pt-8 mb-8`} />}
+      <WebAnalyticsConsentNotice language={currentLanguage} />
       <div className="container mx-auto">
         {/* Main footer grid - responsive from mobile to 4K */}
         <div className="relative flex flex-col gap-8 pb-6 pt-8 sm:pt-12 md:pt-16 lg:pt-20 xl:pt-24
@@ -282,6 +288,9 @@ export default function Footer() {
                       </Link>
                       <Link to={getLocalizedUrl("/contact")} className={footerLinkClass}>
                         {ft('footer_contact', 'Contact')}
+                      </Link>
+                      <Link to={getLocalizedUrl('/faq')} className={footerLinkClass} data-testid="footer-faq">
+                        {resolveFaqPageText(currentLanguage, localeTranslations).label}
                       </Link>
                       {/* Internal-link boost: Semrush flagged ~60+ localized
                           URLs (per the May 2026 audit) for /lang/recommendations
@@ -402,7 +411,7 @@ export default function Footer() {
           </div>
 
           {/* SOCIAL MEDIA LINKS - Responsive and bottom aligned with menu */}
-          <div className="flex min-w-0 justify-start border-t border-white/10 pt-6 md:border-0 md:pt-0 md:justify-end md:col-span-3 md:self-end md:mb-[47px]">
+          {visibleSocialLinks.length > 0 && <div className="flex min-w-0 justify-start border-t border-white/10 pt-6 md:border-0 md:pt-0 md:justify-end md:col-span-3 md:self-end md:mb-[47px]">
             <div className="flex min-w-0 flex-col items-start">
               <div className="mb-[14px] text-base font-medium leading-[19px] break-words">
                 {translationsLoading ? (
@@ -412,7 +421,7 @@ export default function Footer() {
                 )}
               </div>
               <div className="flex gap-6 flex-wrap justify-start">
-                {socialLinks.filter(link => link.isActive !== false).map((link) => (
+                {visibleSocialLinks.map((link) => (
                   <a
                     key={link._id}
                     href={link.url}
@@ -428,7 +437,7 @@ export default function Footer() {
                 ))}
               </div>
             </div>
-          </div>
+          </div>}
         </div>
         
         {/* COPYRIGHT & LANGUAGE SELECTOR - Below social media */}

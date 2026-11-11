@@ -269,7 +269,9 @@ Do not commit archives, credentials, or source documents.
   runtime ownership constraints remain strict; checksum tampering, overlap,
   owner revival and capture/prune replay fail closed. Explicit operator
   normalize-then-verify recovery without MongoDB is tested and documented in
-  `POSTGRES_AUTOMATIC_SETUP.md`; automatic all-phase replay remains prohibited.
+  the former automatic-setup runbook; automatic all-phase replay remained
+  prohibited. That offline recovery tool and runbook were retired on 2026-10-22;
+  see `POSTGRES_ARCHITECTURE.md` for the current runtime boundary.
 - A new diagnostic clone completed normalization of every native domain,
   including all 679,973 GSC inspection rows and the 26+2 device split. Full
   checksum/content verification and a subsequent pristine bundled-bootstrap

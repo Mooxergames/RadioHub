@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState, type SetStateAction } from 'react';
+import { getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 
-interface RelatedStation { _id: string; country?: string; tags?: string; [key: string]: any }
+interface RelatedStation { _id: string; country?: string; countryCode?: string; tags?: string; [key: string]: any }
 interface ListState { scope: string; stations: RelatedStation[]; loading: boolean; total: number }
 const emptyStations: RelatedStation[] = [];
 
 export function useStationRelatedStations(station: RelatedStation | undefined, targetCountry?: string, routeIdentity?: string) {
   const id = station?._id;
-  const country = station?.country;
+  const country = getStationCountryQuery(station || {});
+  const countryCode = station?.countryCode;
+  const selectedCountry = targetCountry === 'all' || targetCountry === 'global' ? 'global'
+    : getStationCountryQuery({ country: targetCountry });
   const tags = station?.tags;
-  const similarScope = JSON.stringify([routeIdentity, id, targetCountry, tags]);
-  const countryScope = JSON.stringify([routeIdentity, id, country]);
+  const similarScope = JSON.stringify([routeIdentity, id, selectedCountry, countryCode, tags]);
+  const countryScope = JSON.stringify([routeIdentity, id, country, countryCode]);
   const [similar, setSimilar] = useState<ListState>({ scope: '', stations: [], loading: false, total: 0 });
   const [countryList, setCountryList] = useState<ListState>({ scope: '', stations: [], loading: false, total: 0 });
 
@@ -28,8 +32,8 @@ export function useStationRelatedStations(station: RelatedStation | undefined, t
           return currentTags.some(tag => stationTags.includes(tag));
         });
         let stations: RelatedStation[] = [];
-        if (targetCountry) {
-          const params = new URLSearchParams({ countryName: targetCountry === 'all' ? 'global' : targetCountry, page: '1', limit: '30' });
+        if (selectedCountry) {
+          const params = new URLSearchParams({ countryName: selectedCountry, page: '1', limit: '30' });
           const response = await fetch(`/api/stations/precomputed?${params}&slim=1`, { signal: controller.signal });
           if (!active) return;
           if (response.ok) {
@@ -60,7 +64,7 @@ export function useStationRelatedStations(station: RelatedStation | undefined, t
     };
     void load();
     return () => { active = false; controller.abort(); };
-  }, [similarScope, id, targetCountry, tags]);
+  }, [similarScope, id, selectedCountry, tags]);
 
   useEffect(() => {
     const controller = new AbortController();

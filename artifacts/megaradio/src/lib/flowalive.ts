@@ -19,6 +19,7 @@ declare global {
 }
 
 function fa(fn: () => void) {
+  if (/^\/pay\/?$/.test(window.location.pathname)) return;
   try { fn(); } catch {}
 }
 

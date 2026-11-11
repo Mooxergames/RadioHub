@@ -9,7 +9,10 @@ import { Plus, RefreshCw, Users, Merge, Check, X, ChevronDown, ChevronUp, Trash2
 import StationTable from "@/components/stations/station-table";
 import AdminStationPagination from '@/components/stations/admin-station-pagination';
 import AdminDuplicateMergePanel from '@/components/stations/admin-duplicate-merge-panel';
+import ManualStationMergeDialog from '@/components/stations/manual-station-merge-dialog';
+import { confirmedManualMergeBody, parseManualMergePreview, requestManualMerge, type ManualMergePreview } from '@/lib/admin-station-merge';
 import AdminDescriptionRepair from '@/components/stations/admin-description-repair';
+import AdminSelectedDescriptionRepair from '@/components/stations/admin-selected-description-repair';
 import StationForm from "@/components/stations/station-form";
 import { saveAdminStationEdit } from '@/lib/admin-station-description';
 import Filters from "@/components/stations/filters";
@@ -79,7 +82,7 @@ function NeverCheckedTagsBadge({ onClick }: { onClick: () => void }) {
 }
 
 export default function Stations() {
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
   const { playStation, currentStation, isPlaying, isLoading: isPlayerLoading, pause } = useGlobalPlayer();
   const adminAuth = useAdminAuth();
   const { jobId: bulkAiJobId, setJobId: setBulkAiJobId, restoredJobId, expiredJobId,
@@ -233,36 +236,42 @@ export default function Stations() {
     },
   });
 
-  // Merge stations mutation
-  const mergeMutation = useMutation({
-    mutationFn: async ({ primaryStationId, duplicateStationIds, mergeData }: { primaryStationId: string, duplicateStationIds: string[], mergeData: any }) => {
-      const response = await apiFetch('/api/admin/stations/merge', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ primaryStationId, duplicateStationIds, mergeData }),
-      });
-      if (!response.ok) throw new Error('Failed to merge stations');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/stations/duplicates'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/stations'] });
+  const [manualMergeReview, setManualMergeReview] = useState<ManualMergePreview | null>(null);
+  const [manualMergeBusy, setManualMergeBusy] = useState(false);
+  const [manualMergeError, setManualMergeError] = useState<string | null>(null);
+  const [manualIdentityConfirmed, setManualIdentityConfirmed] = useState(false);
+  const manualMergeLock = useRef(false);
+  const manualMergeController = useRef<AbortController | null>(null);
+  useEffect(() => () => manualMergeController.current?.abort(), []);
+
+  const boundedManualMergeRequest = async (path: 'merge-preview' | 'merge', body: unknown) => {
+    const controller = new AbortController();
+    manualMergeController.current = controller;
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    try { return await requestManualMerge(path, body, controller.signal); }
+    finally {
+      clearTimeout(timer);
+      if (manualMergeController.current === controller) manualMergeController.current = null;
+    }
+  };
+
+  const applyManualMerge = async () => {
+    if (manualMergeLock.current || !manualMergeReview || manualMergeError ||
+      (manualMergeReview.requiresIdentityConfirmation && !manualIdentityConfirmed)) return;
+    manualMergeLock.current = true;
+    setManualMergeBusy(true);
+    try {
+      const result = await boundedManualMergeRequest('merge', confirmedManualMergeBody(manualMergeReview, manualIdentityConfirmed));
+      setManualMergeReview(null);
       setSelectedDuplicates({});
-      toast({
-        title: "Stations Merged",
-        description: "Selected duplicate stations have been merged successfully.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Merge Failed",
-        description: error.message || "Failed to merge stations.",
-        variant: "destructive",
-      });
-    },
-  });
+      void Promise.allSettled([
+        ['/api/admin/stations/duplicates'], ['/api/admin/stations'], ['/api/dashboard/stats'],
+      ].map(queryKey => Promise.resolve().then(() => queryClient.invalidateQueries({ queryKey }))));
+      toast({ title: 'Stations Merged', description: `${result.deletedCount} duplicate record(s) merged.${result.cacheInvalidated === false ? ' Some cached responses may remain briefly.' : ''}` });
+    } catch (error) {
+      setManualMergeError(`${error instanceof Error ? error.message : 'Request failed'}. Close and refresh the records before a new preview; do not retry this review.`);
+    } finally { manualMergeLock.current = false; setManualMergeBusy(false); }
+  };
 
   // Manual blacklist add form (Task #260)
   const [blacklistForm, setBlacklistForm] = useState({
@@ -1025,51 +1034,30 @@ export default function Stations() {
     });
   };
 
-  // Handle merge selected duplicates
-  const handleMergeDuplicates = (groupId: string, stations: any[]) => {
-    const selectedIds = (selectedDuplicates[groupId] || []).filter(id => stations.some(station => station._id === id));
+  const handleMergeDuplicates = async (groupId: string, stations: any[]) => {
+    if (manualMergeLock.current) return;
+    const selectedIds = [...new Set(selectedDuplicates[groupId] || [])].filter(id => stations.some(station => station._id === id));
     if (selectedIds.length < 2) {
-      toast({
-        title: "Selection Error",
-        description: "Please select at least 2 stations to merge.",
-        variant: "destructive",
-      });
+      toast({ title: 'Selection Error', description: 'Please select at least 2 stations to merge.', variant: 'destructive' });
       return;
     }
-
-    // Use the first selected station as primary
-    const primaryStationId = selectedIds[0];
-    const duplicateStationIds = selectedIds.slice(1);
-    
-    // Find the primary station to get merge data
-    const primaryStation = stations.find(s => s._id === primaryStationId);
-    
-    if (!primaryStation) {
-      toast({
-        title: "Error",
-        description: "Primary station not found.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const mergeData = {
-      name: primaryStation.name,
-      url: primaryStation.url,
-      homepage: primaryStation.homepage,
-      favicon: primaryStation.favicon,
-      country: primaryStation.country,
-      language: primaryStation.language,
-      genre: primaryStation.genre,
-    };
-
-    if (confirm(`Merge ${selectedIds.length} stations into "${primaryStation.name}"? The primary record is kept; the other selected records will be merged.`)) {
-      mergeMutation.mutate({ primaryStationId, duplicateStationIds, mergeData });
-    }
+    const selection = { primaryStationId: selectedIds[0], duplicateStationIds: selectedIds.slice(1) };
+    manualMergeLock.current = true;
+    setManualMergeBusy(true);
+    setManualMergeError(null);
+    setManualIdentityConfirmed(false);
+    dismiss?.();
+    try {
+      const data = await boundedManualMergeRequest('merge-preview', selection);
+      setManualMergeReview(parseManualMergePreview(data.preview, selection));
+    } catch (error) {
+      toast({ title: 'Merge Preview Failed', description: error instanceof Error ? error.message : 'Refresh candidates and try again.', variant: 'destructive' });
+    } finally { manualMergeLock.current = false; setManualMergeBusy(false); }
   };
 
   // Handle delete selected duplicates
   const handleDeleteSelectedDuplicates = async (groupId: string, groupStations: any[]) => {
+    if (manualMergeLock.current) return;
     const selectedIds = (selectedDuplicates[groupId] || []).filter(id => groupStations.some(station => station._id === id));
     if (selectedIds.length === 0) {
       toast({
@@ -1239,6 +1227,7 @@ export default function Stations() {
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Bulk AI repair checks the entire eligible catalogue in all 14 languages. Other bulk tools use their stated selection or country scope. AI generation may incur provider charges.</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <AdminDescriptionRepair busy={bulkAiMutation.isPending || aiJobStatus?.status === 'running'} onStarted={jobId => { setBulkAiJobId(jobId); setShowAiDialog(true); }} />
+              <AdminSelectedDescriptionRepair busy={bulkAiMutation.isPending || aiJobStatus?.status === 'running'} onStarted={jobId => { setBulkAiJobId(jobId); setShowAiDialog(true); }} />
               <NeverCheckedTagsBadge
                 onClick={() => {
                   setShowDuplicates(false);
@@ -1727,7 +1716,7 @@ export default function Stations() {
                     return (
                       <Card key={groupId} className="border border-orange-200">
                         <Collapsible 
-                          open={isExpanded} 
+                          open={!!isExpanded}
                           onOpenChange={() => toggleGroupExpansion(groupId)}
                         >
                           <CollapsibleTrigger asChild>
@@ -1770,6 +1759,8 @@ export default function Stations() {
                                   return (
                                     <div key={station._id} className={`flex items-start space-x-3 p-3 border rounded-lg ${isPrimary ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'}`}>
                                       <Checkbox
+                                        aria-label={`Select duplicate ${station.name} (${station._id})`}
+                                        disabled={manualMergeBusy}
                                         checked={isSelected}
                                         onCheckedChange={(checked) => 
                                           handleDuplicateSelection(groupId, station._id, !!checked)
@@ -1841,6 +1832,7 @@ export default function Stations() {
                                               }}
                                               className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                                               title="Remove this duplicate station"
+                                              disabled={manualMergeBusy}
                                             >
                                               <Trash2 className="w-4 h-4" />
                                             </Button>
@@ -1868,7 +1860,7 @@ export default function Stations() {
                                 <div className="flex gap-2">
                                   <Button
                                     onClick={() => handleDeleteSelectedDuplicates(groupId, group.stations)}
-                                    disabled={selectedCount === 0}
+                                    disabled={selectedCount === 0 || manualMergeBusy}
                                     size="sm"
                                     variant="destructive"
                                   >
@@ -1877,11 +1869,11 @@ export default function Stations() {
                                   </Button>
                                   <Button
                                     onClick={() => handleMergeDuplicates(groupId, group.stations)}
-                                    disabled={selectedCount < 2 || mergeMutation.isPending}
+                                    disabled={selectedCount < 2 || manualMergeBusy}
                                     size="sm"
                                   >
                                     <Merge className="w-4 h-4 mr-1" />
-                                    {mergeMutation.isPending ? 'Merging...' : `Merge ${selectedCount} stations`}
+                                    {manualMergeBusy ? 'Processing...' : `Merge ${selectedCount} stations`}
                                   </Button>
                                 </div>
                               </div>
@@ -2293,6 +2285,9 @@ export default function Stations() {
         </DialogContent>
       </Dialog>
 
+      <ManualStationMergeDialog review={manualMergeReview} isApplying={manualMergeBusy} error={manualMergeError}
+        identityConfirmed={manualIdentityConfirmed} onIdentityChange={setManualIdentityConfirmed}
+        onConfirm={() => void applyManualMerge()} onClose={() => setManualMergeReview(null)} />
     </div>
   );
 }

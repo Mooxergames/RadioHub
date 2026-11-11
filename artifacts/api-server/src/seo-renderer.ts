@@ -1,19 +1,37 @@
-import { generateSeoTags, getLanguageFromPath, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, SEO_LANGUAGES, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_LOGO_WORD, LOCALIZED_FLAG_WORD } from '@workspace/seo-shared/seo-config';
+import { generateSeoTags, getLanguageFromPath, getRetiredLocaleFromPath, isSafeStationDetailSlug, DEFAULT_LANGUAGE, generateLanguageUrls, COUNTRY_TO_LANGUAGE, CODE_TO_COUNTRY, SEO_LANGUAGES, MAX_GENRE_DIRECTORY_PAGE, generateLocalizedStationTitle, truncateAtWordBoundary, normalizeSeoTitle, LOCALIZED_FLAG_WORD, getStationCountryName, getStationCountryQuery } from '@workspace/seo-shared/seo-config';
 import { buildDirectoryIndexSeo } from '@workspace/seo-shared/directory-index-seo';
+import { isStationDirectoryPath, isStationDirectoryData, type StationDirectoryData } from '@workspace/seo-shared/station-directory';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
+import { canonicalizeCountry } from '@workspace/seo-shared/country-regions';
 import { getStationImageAlt } from '@workspace/seo-shared/station-image-alt';
+import { getKnownOgImageDimensions } from '@workspace/seo-shared/og-image-metadata';
+import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-logo-url';
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
-import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice } from '@workspace/seo-shared/station-page-copy';
+import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice, isStationInformationPage, getStationInformationCopy } from '@workspace/seo-shared/station-page-copy';
+import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
+import { getStationEditorial } from '@workspace/seo-shared/station-editorial';
+import { renderStationEditorialHtml } from '@workspace/seo-shared/station-editorial-html';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
+import { withSeoReadDeadline } from './utils/seo-read-deadline';
+import { resolveToDbName } from './utils/normalize-country';
 import { pgSeoCatalog } from './data/postgres-seo-read-store';
+import { boundedSeoReadQuery } from './data/postgres-seo-read-query';
+import { readAzStationPage } from './data/postgres-az-station-store';
 import { pgStoredGenreBySlug } from './data/postgres-taxonomy-store';
 import { pgSeoMetadata } from './data/postgres-content-store';
 import { pgLocalization } from './data/postgres-localization-store';
 import { getHomeGenreNavigation } from './services/home-genre-navigation';
-import { AZ_INDEX_KEYS, azDisplayLabel, azSlugBounds, matchAzIndexPath } from './seo/az-station-index';
+import { AZ_INDEX_KEYS, azDisplayLabel, matchAzIndexPath } from './seo/az-station-index';
 import { isMissingSeoCatalogPage, isSeoCatalogPath, parseSeoCatalogPage, seoCatalogPageLinks } from './seo/catalog-pagination';
-import { regionRouteExistence } from './seo/region-route-existence';
+import { regionRouteExistence, canonicalRegionPath } from './seo/region-route-existence';
+import { buildRegionStationScope } from './services/region-location-data';
 import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from './seo/verified-legacy-station-alias';
+import { withPilotEditorial } from './seo/indexing-pilot';
+import { collectStationLinkTargets, resolveStationLinkLanguages, buildStationLinkUrl } from './seo/station-link-locale';
+import { readSeoStationLinkMetadata } from './data/postgres-seo-station-link-store';
+import { loadPublicDiscoveryStations, trendingPageSeo } from './seo/public-discovery';
+import { resolveBareDiscoveryPath } from './seo/public-route-matchers';
+import { relatedStationCards } from './seo/related-station-cards';
 
 // The renderer only needs this small subset of the normalized catalog shape.
 interface LeanStationCard {
@@ -37,6 +55,34 @@ interface LeanStationCard {
   noIndex?: boolean;
 }
 
+const SSR_CARD_FIELDS = ['_id', 'name', 'slug', 'url', 'noIndex', 'isListVisible',
+  'favicon', 'logoAssets', 'country', 'countryCode', 'tags', 'votes', 'genre'];
+const SSR_METADATA_READER = { query: (text: string, values: any[]) => boundedSeoReadQuery(text, values, 'metadata') };
+const SSR_GENRE_READER = { query: (text: string, values: any[]) => boundedSeoReadQuery(text, values, 'genre') };
+
+function isReviewedColorBarSource(station: any): boolean {
+  const manual = station?.manualEditFields;
+  // This reviewed alias can host an independent tool without reviving the
+  // excluded source station or weakening the catalog's manual noindex policy.
+  return station?._id === '68a8c4a9bd66579311ab91d1'
+    && station.stationuuid === 'f557e499-a0d9-44c0-9eea-49c42364f78b'
+    && station.slug === 'cai-tiao-ce-shi-1' && station.name === '彩条测试1'
+    && Array.isArray(station.slugAliases) && station.slugAliases.includes('1-21')
+    && station.noIndex === true && station.redirectToSlug === null
+    && manual && !Array.isArray(manual) && Object.keys(manual).length === 1 && manual.noIndex === true
+    && station.automaticNoIndex == null && station.stationPageMode == null;
+}
+
+// These shells have no public list. Their SEO API metadata must agree with
+// the HTTP noindex policy even when robots allows crawlers to read the shell.
+const PRIVATE_PAGE_ROOTS = new Set([
+  'admin', 'admin-login', 'auth', 'login', 'signup', 'profile', 'favorites',
+  'settings', 'notifications', 'messages', 'analytics', 'import-export',
+  'dashboard', 'premium', 'premium-success', 'activate', 'activate-success',
+  'reset-password', 'forgot-password', 'change-password', 'tv-login',
+  'station-requests', 'station-submissions', 'request-station', 'status-monitoring', 'sync',
+]);
+
 type LeanSeoMetadataDoc = Record<string, any>;
 import { performanceCache } from './performance-cache';
 import { logger } from './utils/logger';
@@ -50,6 +96,8 @@ import { buildSearchSeo } from '@workspace/seo-shared/search-seo-templates';
 import { buildLegalSeo } from '@workspace/seo-shared/legal-seo-templates';
 import { buildStaticPageSeo } from '@workspace/seo-shared/static-page-seo-templates';
 import { renderStaticInformationBody } from './seo/static-information-body';
+import { renderHomeFaqBody } from './seo/home-faq-body';
+import { renderHomeStationGuideBody } from './seo/home-station-guide-body';
 import { buildHomeSeo } from '@workspace/seo-shared/home-seo-templates';
 import { getHomeHeroCopy } from '@workspace/seo-shared/home-hero-copy';
 import { buildCommunityPageSeo } from '@workspace/seo-shared/community-page-seo-templates';
@@ -58,10 +106,12 @@ import {
   getCanonicalGenreSlug,
   MIN_STATIONS_FOR_GENRE_INDEX,
 } from './seo/genre-whitelist';
-import { resolveFaqPageItems } from '@workspace/seo-shared/faq-schema';
+import { ensureGenreWhitelistFresh } from './seo/genre-whitelist-store';
+import { resolveFaqPageItems, resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
 import { loadBlogContent, buildBlogSeo, buildBlogSchema } from '@workspace/seo-shared/blog';
-import { isBlogPath, parseBlogPath } from '@workspace/seo-shared/blog-manifest';
+import { isBlogPath, parseBlogPath, BLOG_LABELS, isBlogLocale, blogPath } from '@workspace/seo-shared/blog-manifest';
 import { renderBlogHtml } from '@workspace/seo-shared/blog-html';
+import { getLegacyStationGuide, buildLegacyStationGuideSeo, buildLegacyStationGuideSchema, renderLegacyStationGuideHtml } from '@workspace/seo-shared/legacy-station-guides';
 
 // SEO audit fix (2026-05-12) — per-language fallback labels used by the
 // regions/country page <title>+<h1> when the corresponding DB translation
@@ -113,14 +163,6 @@ const LOCALIZED_LISTEN_LIVE: Record<string, string> = {
   hy: 'Ունկնդրեք ուղիղ առցանց', so: 'Ku dhageyso Toos ah Online', bs: 'Slušajte Uživo Online',
 };
 
-// Concurrency raised 5 → 15 → 50 → 200 → 1000 → 2500: paired with MongoDB
-// pool 100, heap 10 GB and RSS warning 7 GB on a 24 GB Railway replica to
-// absorb the largest Googlebot waves without ever returning
-// SEO_RENDER_OVERLOADED. The event-loop-lag guard below (800ms threshold)
-// is the real safety net — if the box is truly overloaded it rejects
-// automatically regardless of slot count, so a high slot ceiling is safe.
-// Timeout raised 5s → 10s: 57-language hreflang tables push borderline pages
-// over 5s during cold cache; a 10s budget keeps Googlebot from giving up.
 const SEO_RENDER_MAX_CONCURRENT = 2500;
 const SEO_RENDER_TIMEOUT_MS = 10_000;
 let seoRenderActive = 0;
@@ -234,7 +276,7 @@ export class SeoRenderer {
       const metadata = await withSignal<LeanSeoMetadataDoc | null>(
         pgSeoMetadata({
           pageType,routeKey: routeKey || '',language,status:'published',
-        }),
+        }, SSR_METADATA_READER),
         signal,
       );
       
@@ -286,6 +328,25 @@ export class SeoRenderer {
     
     return baseSeoTags;
   }
+
+  private finalizeSeoDirectives(seoTags: any, previousRobots = ''): any {
+    const directives = `${seoTags.robots || 'index, follow'},${previousRobots}`.split(',')
+      .map((directive: string) => directive.trim()).filter(Boolean);
+    const noIndex = seoTags.noIndex === true
+      || directives.some((directive: string) => /^(?:noindex|none)$/i.test(directive));
+    const noFollow = seoTags.noFollow === true
+      || directives.some((directive: string) => /^(?:nofollow|none)$/i.test(directive));
+
+    // Restrictive flags and tokens win; keep unrelated preview/archive limits.
+    return {
+      ...seoTags,
+      robots: [noIndex ? 'noindex' : 'index', noFollow ? 'nofollow' : 'follow',
+        ...new Set(directives.filter((directive: string) => !/^(?:index|noindex|follow|nofollow|all|none)$/i.test(directive))),
+      ].join(', '),
+      ...(noIndex ? { noIndex: true, hreflangs: [], ogLocaleAlternates: [] } : {}),
+      ...(noFollow ? { noFollow: true } : {}),
+    };
+  }
   
   async renderStaticPage(url: string, domain: string = '', preferredLanguage?: string): Promise<StaticPageData> {
     if (seoRenderActive >= SEO_RENDER_MAX_CONCURRENT || eventLoopLagMs > EVENT_LOOP_LAG_THRESHOLD_MS) {
@@ -301,7 +362,8 @@ export class SeoRenderer {
 
     try {
       const result = await Promise.race([
-        withPublicStationDeadline(() => this._doRenderStaticPage(url, domain, preferredLanguage, abortController.signal)),
+        withSeoReadDeadline({ expiresAt: Date.now() + SEO_RENDER_TIMEOUT_MS, signal: abortController.signal },
+          () => withPublicStationDeadline(() => this._doRenderStaticPage(url, domain, preferredLanguage, abortController.signal))),
         new Promise<never>((_, reject) => {
           timerId = setTimeout(() => {
             abortController.abort();
@@ -327,27 +389,32 @@ export class SeoRenderer {
     return trackOperation('seo-render', async () => {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const cleanUrl = url.split('?')[0].split('#')[0];
+    const retiredLocale = getRetiredLocaleFromPath(cleanUrl);
+    const legacyGuideCandidate = getLegacyStationGuide(cleanUrl);
 
     // Get language from URL path, but prefer user's stored preference if available
-    let { language, cleanPath } = getLanguageFromPath(cleanUrl);
+    let { language, cleanPath } = resolveBareDiscoveryPath(cleanUrl) || getLanguageFromPath(cleanUrl);
     // Editorial URLs own their locale. A preference cookie must not substitute
     // another language at a crawlable, self-canonical article URL. No DB reads
     // are needed to render these versioned articles.
     if (isBlogPath(cleanPath)) {
-      const route = parseBlogPath(cleanUrl);
-      if (!route) return { language, cleanPath, translations: {}, urlTranslations: new Map(),
+      const route = parseBlogPath(retiredLocale ? `/en${cleanPath}` : cleanUrl);
+      const missingBlog = (): StaticPageData => ({ language, cleanPath, translations: {}, urlTranslations: new Map(),
         seoTags: { title: '404 | MegaRadio', robots: 'noindex, follow', noIndex: true, hreflangs: [] },
-        pageData: { pageType: 'blog', httpNotFound: true, notFound: true } };
+        pageData: { pageType: 'blog', httpNotFound: true, notFound: true } });
+      if (!route) return missingBlog();
       const content = await loadBlogContent(route.locale);
       const blog = { locale: route.locale, content, article: content.articles.find(a => a.id === route.id) };
+      if (route.id && !blog.article) return missingBlog();
       const seoTags = buildBlogSeo(blog);
-      return { language: route.locale, cleanPath, translations: {}, urlTranslations: new Map(), seoTags,
+      return { language: seoTags.language || route.locale, cleanPath, translations: {}, urlTranslations: new Map(), seoTags,
         pageData: { pageType: 'blog', seoTags, blog, additionalData: { blog }, notFound: false } };
     }
     const pagination = parseSeoCatalogPage(url);
     // Validate before either pageData or HTML can alias an invalid request to
     // a cached valid slice. Non-paginated pages retain their query behaviour.
-    if (isSeoCatalogPath(cleanPath) && !pagination.valid) {
+    if (isSeoCatalogPath(cleanPath) && (!pagination.valid
+      || (cleanPath.startsWith('/genres/') && pagination.page > MAX_GENRE_DIRECTORY_PAGE))) {
       return { language, cleanPath, translations: {}, urlTranslations: new Map(),
         seoTags: { robots: 'noindex, follow', noIndex: true, hreflangs: [] },
         pageData: { pageType: 'stations', notFound: true, httpNotFound: true } };
@@ -356,7 +423,7 @@ export class SeoRenderer {
     // CRITICAL: Language/Country separation
     // If user has a stored language preference (from cookie), use that instead of country-derived language
     // This ensures a Turkish user viewing /de/ sees Turkish UI, not German
-    if (preferredLanguage && preferredLanguage.toLowerCase() !== language.toLowerCase()) {
+    if (!retiredLocale && !legacyGuideCandidate && preferredLanguage && preferredLanguage.toLowerCase() !== language.toLowerCase()) {
       // Validate the preferred language is enabled (case-insensitive comparison for hyphenated codes like pt-BR)
       const normalizedPref = preferredLanguage.toLowerCase();
       const matchedLang = SEO_LANGUAGES.find(l => l.code.toLowerCase() === normalizedPref && l.enabled);
@@ -379,6 +446,7 @@ export class SeoRenderer {
     let pageSuffix = '';
     if (
       cleanPath.startsWith('/stations') ||
+      cleanPath.startsWith('/genres/') ||
       cleanPath.startsWith('/regions') ||
       cleanPath.startsWith('/country')
     ) {
@@ -389,7 +457,8 @@ export class SeoRenderer {
       + (cleanPath === '/genres' ? `|genre-whitelist=${(await import('./seo/directory-hub-data')).genreDirectoryCacheRevision()}` : '');
     
     // Check cache for complete page data first
-    const cachedPageData = performanceCache.getPageData(cacheKey);
+    // A published guide must never mask a newly assigned native or alias owner.
+    const cachedPageData = legacyGuideCandidate ? undefined : performanceCache.getPageData(cacheKey);
     if (cachedPageData) {
       return cachedPageData;
     }
@@ -410,7 +479,7 @@ export class SeoRenderer {
     if (urlParts.length > 0) {
       const firstSegment = urlParts[0].toLowerCase();
       // Check if first segment is a country code
-      if (COUNTRY_TO_LANGUAGE[firstSegment]) {
+      if (!retiredLocale && COUNTRY_TO_LANGUAGE[firstSegment]) {
         countryCode = firstSegment;
         // DO NOT override actualLanguage here - language was already determined above
         // (either from path translation or preferredLanguage cookie)
@@ -422,16 +491,17 @@ export class SeoRenderer {
     // Detect BEFORE localizedPath so canonical/hreflang derive from the
     // normalized plural form even when the reverse translation produced the
     // singular (/station/a) — both middleware and sitemap emit the plural.
-    const azLetter = matchAzIndexPath(cleanPath);
+    const azLetter = retiredLocale && cleanPath.startsWith('/station/') ? null : matchAzIndexPath(cleanPath);
     if (azLetter) cleanPath = `/stations/${azLetter}`;
 
     // Build localized URL path for canonical URL
     // This translates English paths like /genres to language-specific paths like /zhanret (Albanian)
-    const localizedPath = buildLocalizedUrl(cleanPath, actualLanguage, countryCode, urlTranslations);
+    let localizedPath = buildLocalizedUrl(cleanPath, actualLanguage, countryCode, urlTranslations);
     
     // Determine page type from path and extract relevant data
     let pageType = 'home';
     let stationData: any = null;
+    let stationIdFallback: string | undefined;
     let additionalData: any = {};
     
     // Helper function to detect if path is a station path in ANY language
@@ -479,10 +549,14 @@ export class SeoRenderer {
           // When matched, signal a 301 redirect to the canonical URL so search
           // engines consolidate ranking on the new slug instead of indexing both.
           if (!stationData) {
-            let aliasMatch: any = await withSignal(
-              pgSeoCatalog().findMergedAlias(stationSlug).then(match => match ?? pgSeoCatalog().findOne({ slugAliases: stationSlug })),
-              signal,
-            );
+            const mergedAlias = await withSignal(pgSeoCatalog().findMergedAlias(stationSlug), signal);
+            let aliasMatch: any = mergedAlias ?? await withSignal(pgSeoCatalog().findOne({ slugAliases: stationSlug }), signal);
+            if (!mergedAlias && legacyGuideCandidate?.id === 'color-bars-test' && isReviewedColorBarSource(aliasMatch)) {
+              // An alias array is not globally unique. A second owner must keep
+              // the ordinary resolver authoritative, even for this exact source.
+              const owners = await withSignal(pgSeoCatalog().find({ slugAliases: stationSlug }, { limit: 2 }), signal);
+              if (owners.length === 1 && isReviewedColorBarSource(owners[0])) aliasMatch = null;
+            }
             // Only repair reviewed historical spellings after every exact
             // identity lookup missed. Keep the normal junk/canonical gates below.
             const repairedAlias = !aliasMatch && verifiedLegacyStationAlias(stationSlug);
@@ -498,11 +572,12 @@ export class SeoRenderer {
               }
             }
             if (aliasMatch && aliasMatch.slug && aliasMatch.slug !== stationSlug) {
-              const { isJunkStation, isNumericOnlySlug, canRenderLegacyOfflineInformation } = await import('./seo/junk-station-rules');
+              const { isJunkStation, isNumericOnlySlug, canRenderLegacyStationInformation, getIndexableLanguagesForStation } = await import('./seo/junk-station-rules');
               // A retained duplicate can own historical aliases and an explicit
               // redirect. Resolve that single hop before its noindex gate, but
               // never promote a missing/excluded target or follow redirect chains.
               let aliasRedirectRejected = false;
+              let aliasRedirectLanguage = actualLanguage;
               if (aliasMatch.redirectToSlug) {
                 const target = await withSignal(pgSeoCatalog().findOne({ slug: aliasMatch.redirectToSlug }), signal);
                 if (target && target.slug === aliasMatch.redirectToSlug
@@ -510,6 +585,7 @@ export class SeoRenderer {
                     && target.noIndex === false && !target.redirectToSlug
                     && !isNumericOnlySlug(target.slug) && !isJunkStation(target)) {
                   aliasMatch = target;
+                  aliasRedirectLanguage = getIndexableLanguagesForStation(target).includes(actualLanguage) ? actualLanguage : 'en';
                 } else {
                   aliasRedirectRejected = true;
                 }
@@ -525,7 +601,7 @@ export class SeoRenderer {
               const aliasTargetIsJunk =
                 aliasRedirectRejected || isJunkStation(aliasMatch)
                 || (!!repairedAlias && aliasMatch.noIndex === true)
-                || (aliasMatch.noIndex === true && !canRenderLegacyOfflineInformation(aliasMatch));
+                || (aliasMatch.noIndex === true && !canRenderLegacyStationInformation(aliasMatch));
               if (aliasTargetIsJunk) {
                 // CRITICAL: Do NOT set notFound:true — the HTTP-layer junk
                 // handler in both index.ts:1068 and index-web.ts:719 gates on
@@ -555,29 +631,29 @@ export class SeoRenderer {
               // Google Search Console. Now we rebuild the FULL localized canonical
               // (lang prefix + translated segment) so it's a single 301 hop to the
               // correct localized URL — preserving language signal and SEO equity.
-              const englishCanonical = cleanPath.replace(
-                `/${stationSlug}`,
-                `/${aliasMatch.slug}`,
-              );
+              const englishCanonical = `/station/${aliasMatch.slug}`;
               const canonicalPath = buildLocalizedUrl(
                 englishCanonical,
-                actualLanguage,
-                countryCode,
+                aliasRedirectLanguage,
+                aliasRedirectLanguage === actualLanguage ? countryCode : undefined,
                 urlTranslations,
               );
-              logger.log(`🔀 SEO ALIAS 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${aliasMatch.slug})`);
-              return {
-                language,
-                cleanPath,
-                seoTags: {},
-                translations: {},
-                pageData: { redirectTo: canonicalPath },
-              };
+              if (!retiredLocale) {
+                logger.log(`🔀 SEO ALIAS 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${aliasMatch.slug})`);
+                return {
+                  language,
+                  cleanPath,
+                  seoTags: {},
+                  translations: {},
+                  pageData: { redirectTo: canonicalPath },
+                };
+              }
             }
             stationData = aliasMatch;
           }
 
           if (!stationData && stationSlug.match(/^[0-9a-fA-F]{24}$/)) {
+            stationIdFallback = stationSlug;
             stationData = await withSignal(pgSeoCatalog().findById(stationSlug), signal);
           }
 
@@ -587,7 +663,7 @@ export class SeoRenderer {
           // reach the outer transient-error handler (uncached 503), not this 410.
           if (stationData && stationData.redirectToSlug) {
             const canonicalSlug = stationData.redirectToSlug;
-            const { isJunkStation, isNumericOnlySlug } = await import('./seo/junk-station-rules');
+            const { isJunkStation, isNumericOnlySlug, getIndexableLanguagesForStation } = await import('./seo/junk-station-rules');
             const target = typeof canonicalSlug === 'string'
               && canonicalSlug !== stationData.slug && canonicalSlug !== stationSlug
               ? await withSignal(pgSeoCatalog().findOne({ slug: canonicalSlug }), signal)
@@ -605,19 +681,40 @@ export class SeoRenderer {
             // Do not replace a substring: slugs such as "station" or "sta"
             // also occur in the route prefix and would produce the wrong URL.
             const englishCanonical = `/station/${canonicalSlug}`;
+            const redirectLanguage = getIndexableLanguagesForStation(target).includes(actualLanguage) ? actualLanguage : 'en';
             const canonicalPath = buildLocalizedUrl(
               englishCanonical,
-              actualLanguage,
-              countryCode,
+              redirectLanguage,
+              redirectLanguage === actualLanguage ? countryCode : undefined,
               urlTranslations,
             );
-            logger.log(`🔀 SEO FREQ-DUP 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${canonicalSlug})`);
+            if (retiredLocale) {
+              stationData = target;
+              if (stationIdFallback) stationIdFallback = String(target._id);
+            } else {
+              logger.log(`🔀 SEO FREQ-DUP 301: ${cleanPath} (${stationSlug}) → ${canonicalPath} (${canonicalSlug})`);
+              return {
+                language,
+                cleanPath,
+                seoTags: {},
+                translations: {},
+                pageData: { redirectTo: canonicalPath },
+              };
+            }
+          }
+
+          if (stationData) stationData = withPilotEditorial(stationData);
+
+          if (!stationData && legacyGuideCandidate) {
+            const guide = legacyGuideCandidate;
+            if (guide.id === 'color-bars-test' && cleanUrl !== guide.path) {
+              return { language: guide.language, cleanPath, translations, urlTranslations, seoTags: {},
+                pageData: { redirectTo: guide.path } };
+            }
+            const seoTags = buildLegacyStationGuideSeo(guide);
             return {
-              language,
-              cleanPath,
-              seoTags: {},
-              translations: {},
-              pageData: { redirectTo: canonicalPath },
+              language: guide.language, cleanPath, translations, urlTranslations, seoTags,
+              pageData: { pageType: 'legacy-guide', legacyGuide: guide, additionalData: { legacyGuide: guide }, notFound: false },
             };
           }
 
@@ -692,6 +789,28 @@ export class SeoRenderer {
         } catch {
           rawGenreSlug = pathParts[2];
         }
+        // This one imported label bundle has a reviewed explanatory article.
+        // A real genre/alias still wins; other malformed paths keep their gate.
+        if (legacyGuideCandidate?.id === 'radio-labels' && pathParts.length === 3 && pagination.page === 1) {
+          try {
+            await withSignal(ensureGenreWhitelistFresh(), signal);
+          } catch (error: any) {
+            if (error?.name === 'AbortError' || signal?.aborted) throw error;
+            return { language, cleanPath, translations, urlTranslations, seoTags: {},
+              pageData: { pageType: 'genres', stationDbError: true } };
+          }
+          const canonicalGenre = getCanonicalGenreSlug(rawGenreSlug);
+          if (!canonicalGenre) {
+            const guide = legacyGuideCandidate;
+            return { language: guide.language, cleanPath, translations, urlTranslations,
+              seoTags: buildLegacyStationGuideSeo(guide),
+              pageData: { pageType: 'legacy-guide', legacyGuide: guide, additionalData: { legacyGuide: guide }, notFound: false } };
+          }
+          if (canonicalGenre !== rawGenreSlug) {
+            return { language, cleanPath, translations, urlTranslations, seoTags: {},
+              pageData: { redirectTo: buildLocalizedUrl(`/genres/${canonicalGenre}`, actualLanguage, countryCode, urlTranslations) } };
+          }
+        }
         const SAFE_GENRE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
         if (pathParts.length !== 3 || !SAFE_GENRE_SLUG_RE.test(rawGenreSlug)) {
           stationNotFound = true;
@@ -747,7 +866,7 @@ export class SeoRenderer {
           // never disagree.
           try {
             const genreDoc = await withSignal<{ stationCount?: number } | null>(
-              pgStoredGenreBySlug(canonicalSlug),
+              pgStoredGenreBySlug(canonicalSlug, SSR_GENRE_READER),
               signal,
             );
             if (genreDoc && typeof genreDoc.stationCount === 'number') {
@@ -765,28 +884,28 @@ export class SeoRenderer {
             additionalData.genreCountFetchFailed = true;
           }
         }
-        // DALGA 2 W2.1: Fetch top 12 stations matching this genre for SSR <img> grid (image indexing)
+        // The public genre URL represents a native, deterministic 15-card page.
         try {
           const term = pathParts[2].replace(/-/g, ' ');
-          // Escape regex meta-chars (replit.md SSRF/NoSQL rule)
           const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const topStations = await withSignal<LeanStationCard[]>(
-            pgSeoCatalog().find({
-              tags: { $regex: escapedTerm },
-              isListVisible: true,
-              slug: { $exists: true, $ne: '' },
-              noIndex: { $ne: true },
-              votes: { $gt: 0 },
-            }, { sort: { votes: -1 }, limit: 24 }),
-            signal
-          );
-          // DALGA 2 W2.REVIEW P2: Apply junk-station gate per replit.md INDEXABILITY-GATE rule.
-          // Use isJunkStation + noIndex (not full isStationIndexableInLanguage which requires
-          // BOTH meta+full descriptions per language — too restrictive for our image-grid surface
-          // where the station's own SSR page already enforces full language gate).
-          additionalData.popularStations = topStations
-            .filter((s) => s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s))
-            .slice(0, 12);
+          const { readSeoGenrePage, readSeoGenreQualityPage } = await import('./data/postgres-seo-directory-store');
+          const explicitCountry = countryCode && !SEO_LANGUAGES.some(l => l.enabled && l.code.toLowerCase() === countryCode)
+            ? CODE_TO_COUNTRY[countryCode] : undefined;
+          const listed = await withSignal(readSeoGenrePage(canonicalSlug || requestedSlug, pagination.page, explicitCountry), signal);
+          additionalData.popularStations = listed.stations
+            .filter((s: any) => s.slug && s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s));
+          additionalData.catalogPage = pagination.page;
+          additionalData.catalogTotalPages = Math.max(1, listed.totalPages);
+          if (isMissingSeoCatalogPage(pagination.page, listed.totalPages, listed.stations)) additionalData.httpNotFound = true;
+          if (typeof additionalData.genreStationCount !== 'number' && !additionalData.genreCountFetchFailed && !additionalData.httpNotFound) {
+            try {
+              const quality = await withSignal(readSeoGenreQualityPage(canonicalSlug || requestedSlug), signal);
+              additionalData.genreQualitySampleCount = quality.stations.filter((s: any) => s.slug && s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s)).length;
+            } catch (error: any) {
+              if (error?.name === 'AbortError' || signal?.aborted) throw error;
+              additionalData.genreCountFetchFailed = true;
+            }
+          }
 
           // ---- Genre cross-link fetch (architect P1: B2) -----------------
           // "Top countries broadcasting <genre>" + "Related radio genres".
@@ -856,14 +975,9 @@ export class SeoRenderer {
           }
         } catch (error: any) {
           if (error?.name === 'AbortError' || signal?.aborted) throw error;
-          // The top-stations grid uses a live (unindexed) $regex on `tags` —
-          // the 2026-05-14 pile-up pattern. Under load it can hit its 4s
-          // maxTimeMS and throw here BEFORE `popularStations` is assigned.
-          // Record that the fetch FAILED (vs genuinely returning few stations)
-          // so the genre thin-gate below does not silently de-index a curated
-          // whitelisted genre on a transient Mongo slowdown.
           if (additionalData.popularStations === undefined) {
             additionalData.popularStationsFetchFailed = true;
+            additionalData.hubReadFailed = true;
           }
         }
         }
@@ -873,29 +987,18 @@ export class SeoRenderer {
       // EVERY indexable station whose slug starts with the letter — unlike
       // the hub below (top-2000 precomputed pool), this walks the whole
       // catalogue so the entire long tail gets a crawlable in-link. The
-      // filter is a pure string range on the unique {slug:1} index (see
-      // azSlugBounds) and the sort rides the same index — no regex, no
-      // in-memory sort (2026-05-14 incident rule). Results are health-aware,
+      // reader requires the matching C-collated slug/id index before reading
+      // the ASCII range. Results follow the shared visibility policy,
       // cached at most60s per (letter, page), with concurrent misses coalesced.
       pageType = 'stations';
       additionalData.azLetter = azLetter;
       try {
         const PAGE_SIZE = 60;
         const page = pagination.page;
-        const { gte, lt } = azSlugBounds(azLetter);
         const { publicStationCache } = await import('./public-station-cache');
         const azData = await publicStationCache.getOrSetSingleFlight(
           `az-index:${azLetter}:${page}`,
-          async () => {
-            // Count the indexed range before any OFFSET. A manufactured huge
-            // page must not force a full range scan, and real page51 must not
-            // silently reuse page50 just because of the old SSR clamp.
-            const total = await pgSeoCatalog().count({ slug: { $gte: gte, $lt: lt }, isListVisible: true, noIndex: { $ne: true } });
-            if (page > Math.max(1, Math.ceil(total / PAGE_SIZE))) return { docs: [], total };
-            const docs = await pgSeoCatalog().find(
-              { slug: { $gte: gte, $lt: lt }, isListVisible: true, noIndex: { $ne: true } }, { sort: { slug: 1 }, offset: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE });
-            return { docs, total };
-          },
+          () => readAzStationPage(azLetter, page, PAGE_SIZE),
           { ttl: 60 },
         );
         const catalog = ((azData?.docs as any[]) || [])
@@ -925,9 +1028,8 @@ export class SeoRenderer {
         const page = pagination.page;
         const { PrecomputedStationsService } = await import('./services/precomputed-stations');
         const result = await PrecomputedStationsService.getGlobalStations(page, PAGE_SIZE);
-        // Same light junk-gate the home/genre/region grids use so no link
-        // points at a 410/noindex station (full per-language gate is overkill
-        // here — Universal-14 stations are indexable in every one of the 14).
+        // Match the other grids' quality gate. Target locale qualification is
+        // resolved in one bounded metadata read after the directory is ready.
         const catalog = (result?.stations || [])
           .filter((s: any) => s && s.slug && s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s));
         additionalData.catalogStations = catalog;
@@ -944,10 +1046,13 @@ export class SeoRenderer {
         additionalData.hubReadFailed = true;
       }
     } else if (
+      PRIVATE_PAGE_ROOTS.has(cleanPath.split('/')[1]) ||
       cleanPath === '/feedback' || cleanPath.startsWith('/feedback/') ||
       cleanPath === '/llms' || cleanPath.startsWith('/llms/') ||
       cleanPath === '/notifications' || cleanPath.startsWith('/notifications/') ||
-      cleanPath === '/profile' || cleanPath.startsWith('/profile/')
+      cleanPath === '/profile' || cleanPath.startsWith('/profile/') ||
+      // Profile details have no privacy-aware SSR contract.
+      cleanPath.startsWith('/users/')
     ) {
       // 2026-05-12 SEO audit: utility/account pages have no unique
       // public SEO content. Without an explicit branch they fell
@@ -959,16 +1064,22 @@ export class SeoRenderer {
       // /users/ so the more general utility match wins for the
       // non-public surfaces.
       pageType = 'utility';
-    } else if (cleanPath === '/users' || cleanPath.startsWith('/users/') || cleanPath === '/users') {
+    } else if (cleanPath === '/users') {
       // 2026-05-12 SEO audit: previously /users had no pageType branch
       // and fell through to the home bucket, producing duplicate-title
       // audit errors (every locale's /users page reused meta_title).
       pageType = 'users';
-    } else if (cleanPath === '/recommendations' || cleanPath.startsWith('/recommendations/')) {
-      // 2026-05-12 SEO audit: same root cause as /users — TR
-      // /tr/tavsiyeler was inheriting the home meta_title, which
-      // Semrush flagged as a duplicate-title error.
-      pageType = 'recommendations';
+    } else if (cleanPath === '/recommendations' || cleanPath === '/trending') {
+      pageType = cleanPath.slice(1);
+      try {
+        additionalData.popularStations = await withSignal(
+          loadPublicDiscoveryStations(pageType as 'trending' | 'recommendations'), signal);
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || signal?.aborted) throw error;
+        additionalData.hubReadFailed = true;
+      }
+    } else if (cleanPath.startsWith('/recommendations/') || cleanPath.startsWith('/trending/')) {
+      pageType = 'utility';
     } else if (cleanPath.startsWith('/regions') || cleanPath.startsWith('/country')) {
       pageType = 'regions';
       if (cleanPath === '/regions') {
@@ -995,6 +1106,12 @@ export class SeoRenderer {
       const routeShape = validateRegionRouteShape(cleanPath);
       const existence = routeShape.ok && (routeShape.family === 'regions' ? pathParts.length > 3 : pathParts.length > 2)
         ? regionRouteExistence(cleanPath, await import('./seo/slug-existence')) : 'known';
+      const canonicalGeography = routeShape.ok && existence === 'known' ? canonicalRegionPath(cleanPath) : null;
+      if (canonicalGeography) {
+        return { language, cleanPath, seoTags: {}, translations: {}, pageData: {
+          redirectTo: buildLocalizedUrl(canonicalGeography, actualLanguage, countryCode, urlTranslations),
+        } };
+      }
 
       if (pathParts.length > 2) {
         additionalData.region = pathParts[2];
@@ -1020,12 +1137,11 @@ export class SeoRenderer {
           .split('-')
           .map(word => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ');
-        if (pathParts.length > 3) {
-          additionalData.country = pathParts[3];
-        }
-        if (pathParts.length > 4) {
-          additionalData.city = pathParts[4];
-        }
+        const countryIndex = routeShape.family === 'country' ? 2 : 3;
+        const countrySlug = pathParts[countryIndex];
+        const citySlug = pathParts[countryIndex + 1];
+        if (countrySlug) additionalData.country = countrySlug;
+        if (citySlug && !TERMINAL_LISTING_SEGMENTS.has(citySlug)) additionalData.city = citySlug;
 
         if (!routeShape.ok || existence !== 'known') {
           // Task #127: route-shape failure → real 404. index-web.ts catch-all
@@ -1045,10 +1161,41 @@ export class SeoRenderer {
             if (error?.name === 'AbortError' || signal?.aborted) throw error;
             additionalData.hubReadFailed = true;
           }
+        } else if (additionalData.city) {
+          const displayCountry = String(additionalData.country).replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          const countryName = canonicalizeCountry(resolveToDbName(displayCountry) || displayCountry);
+          const scope = buildRegionStationScope(countryName, additionalData.city);
+          if (!scope) {
+            additionalData.httpNotFound = true;
+            additionalData.popularStations = [];
+          } else {
+            additionalData.countryName = countryName;
+            additionalData.cityName = scope.cityName;
+            additionalData.regionName = scope.cityName === 'ALL' ? countryName : scope.cityName;
+            try {
+              const { readSeoCityPage } = await import('./data/postgres-seo-directory-store');
+              const listed = await withSignal(readSeoCityPage(countryName, additionalData.city, pagination.page), signal);
+              additionalData.catalogStations = listed.stations.filter((s: any) => s.slug && s.isListVisible !== false && s.noIndex !== true && !isJunkStation(s));
+              additionalData.popularStations = additionalData.catalogStations.slice(0, 12);
+              additionalData.catalogPage = pagination.page;
+              additionalData.catalogTotalPages = Math.max(1, listed.totalPages);
+              if (isMissingSeoCatalogPage(pagination.page, listed.totalPages, listed.stations)) additionalData.httpNotFound = true;
+              const cc = listed.stations[0]?.countryCode;
+              if (typeof cc === 'string' && /^[a-z]{2}$/i.test(cc)) additionalData.countryCode = cc.toLowerCase();
+            } catch (error: any) {
+              if (error?.name === 'AbortError' || signal?.aborted) throw error;
+              additionalData.hubReadFailed = true;
+            }
+          }
         } else {
           // DALGA 2 W2.2: Fetch top 12 stations from this country for SSR flag + <img> grid
           try {
-            const countryName = additionalData.regionName as string;
+            const displayName = additionalData.regionName as string;
+            const geographyPath = TERMINAL_LISTING_SEGMENTS.has(lastSegment.toLowerCase())
+              ? pathParts.slice(0, -1).join('/') : cleanPath;
+            // Display slugs and stored country names differ; city names must stay untouched.
+            const countryName = isExactCountryPagePath(geographyPath)
+              ? resolveToDbName(displayName) || displayName : displayName;
             const topStations = await withSignal<LeanStationCard[]>(
               pgSeoCatalog().find({
                 country: countryName,
@@ -1056,7 +1203,8 @@ export class SeoRenderer {
                 slug: { $exists: true, $ne: '' },
                 noIndex: { $ne: true },
                 votes: { $gt: 0 },
-              }, { sort: { votes: -1 }, limit: 24 }),
+              }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24,
+                sharedCardsKey: JSON.stringify(['country', countryName]) }),
               signal
             );
             // DALGA 2 W2.REVIEW P2: Junk gate via isJunkStation + noIndex (see W2.1 comment).
@@ -1112,11 +1260,6 @@ export class SeoRenderer {
               // a tags+country only projection, capped at maxTimeMS
               // 3500, no impact on the popularStations grid above.
               const countryName = additionalData.regionName as string;
-              // INCIDENT 2026-05-14: SSR region cross-link Station.find
-              // disabled — same pile-up root cause as the genres branch
-              // above. Falls back to the (already-loaded) indexable
-              // stations slice which keeps cross-links non-empty without
-              // a fresh Mongo round-trip.
               const genreSample: Array<{ tags?: any }> = countryName
                 ? (indexableStations as any[])
                 : [];
@@ -1191,6 +1334,7 @@ export class SeoRenderer {
             // diacritics and language-specific spellings.
           } catch (error: any) {
             if (error?.name === 'AbortError' || signal?.aborted) throw error;
+            additionalData.hubReadFailed = true;
           }
         }
       }
@@ -1221,7 +1365,8 @@ export class SeoRenderer {
             isListVisible: true,
             slug: { $exists: true, $ne: '' },
             noIndex: { $ne: true },
-          }, { sort: { votes: -1 }, limit: 24 }),
+          }, { fields: SSR_CARD_FIELDS, sort: { votes: -1 }, limit: 24,
+            sharedCardsKey: JSON.stringify(['home']) }),
           signal
         );
         // Apply the junk-station gate (same as genre/region SSR surfaces) so the
@@ -1231,6 +1376,7 @@ export class SeoRenderer {
           .slice(0, 10);
       } catch (error: any) {
         if (error?.name === 'AbortError' || signal?.aborted) throw error;
+        additionalData.hubReadFailed = true;
       }
       })(), (async () => {
       // Optional names/links refresh independently of first paint. The API and
@@ -1240,11 +1386,21 @@ export class SeoRenderer {
     }
     
     // Generate enhanced SEO tags with additional context
+    if (retiredLocale && stationData?._id && !stationNotFound) {
+      // ID routes keep their valid English ID counterpart until the existing
+      // shape, eligibility and exact-owner checks below verify a slug target.
+      if (!isSafeStationDetailSlug(stationData.slug)) stationIdFallback = String(stationData._id);
+      cleanPath = `/station/${stationIdFallback || stationData.slug}`;
+      localizedPath = buildLocalizedUrl(cleanPath, 'en', undefined, urlTranslations);
+    }
     // Pass localized path to use translated paths in canonical URL
     // Also pass urlTranslations map for hreflang tags with translated paths
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    let seoTags = await this.generateEnhancedSeoTags(pageType, language, translations, cleanPath, domain, stationData, additionalData, cleanUrl, localizedPath, urlTranslations);
+    const stationLinkQualification: { languages?: readonly string[] } = {};
+    let seoTags = await this.generateEnhancedSeoTags(pageType, language, translations, cleanPath, domain, stationData, additionalData, cleanUrl, localizedPath, urlTranslations,
+      pageType === 'stations' ? stationLinkQualification : undefined);
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const initialRobots = seoTags.robots;
 
     // ---- ContentQuality safeguard (task #17 + architect P0) ---------------
     // 1) If the resolved station is junk (test feed, codec suffix, song name,
@@ -1264,7 +1420,8 @@ export class SeoRenderer {
     // The HTTP layer uses this retryable-data flag for any failed required
     // SEO read, including reference directories. Never cache an empty 200
     // HTML directory after a temporary outage.
-    let stationDbErrorFlag = !!(stationData as any)?._dbError || additionalData.hubReadFailed === true;
+    let stationDbErrorFlag = !!(stationData as any)?._dbError || additionalData.hubReadFailed === true
+      || additionalData.stationQualificationFailed === true;
     if (pageType === 'station' && stationData && !stationNotFound && !stationDbErrorFlag) {
       try {
         const {
@@ -1272,7 +1429,7 @@ export class SeoRenderer {
           getIndexableLanguagesForStation,
           isStationIndexableInLanguage,
           isNumericOnlySlug,
-          canRenderLegacyOfflineInformation,
+          canRenderLegacyStationInformation,
         } = await import('./seo/junk-station-rules');
         const { getCachedQualifiedLanguages } = await import('./seo/qualified-languages');
 
@@ -1282,11 +1439,11 @@ export class SeoRenderer {
         // here — that bypasses the translation-qualification check and can
         // re-introduce "Crawled - currently not indexed" regressions.
         const qualifiedLangs = await getCachedQualifiedLanguages();
-        const legacyOfflineInformation = canRenderLegacyOfflineInformation(stationData);
-        const isJunk = isJunkStation(stationData) || (stationData.noIndex === true && !legacyOfflineInformation);
+        const legacyInformation = canRenderLegacyStationInformation(stationData);
+        const isJunk = isJunkStation(stationData) || (stationData.noIndex === true && !legacyInformation);
         const indexable = getIndexableLanguagesForStation(stationData, qualifiedLangs);
         const langIneligible =
-          !isJunk && !legacyOfflineInformation && !isStationIndexableInLanguage(stationData, language, qualifiedLangs);
+          !isJunk && !legacyInformation && !isStationIndexableInLanguage(stationData, language, qualifiedLangs);
         // Negative integer slugs (e.g. `-598`, `-2612`) are DB artifact IDs —
         // never valid station callsigns. Treat as junk → 410. Positive integer
         // slugs (e.g. `1234`) stay noindex-only in case they're callsign brands.
@@ -1295,7 +1452,7 @@ export class SeoRenderer {
         // legitimate numeric-callsign brands are not lost.
         const numericOnlySlug = !isJunk && !negativeNumericSlug && isNumericOnlySlug(stationData.slug);
 
-        if (legacyOfflineInformation) {
+        if (legacyInformation) {
           // Preserve the unknown historical noindex, not a gone response or
           // an invented reindexing approval. Real localized content remains.
           seoTags.robots = 'noindex, follow';
@@ -1337,7 +1494,7 @@ export class SeoRenderer {
           langRedirectUrl = `${domain}/en/${enSegment}/${stationData.slug}`;
         }
 
-        if (legacyOfflineInformation) {
+        if (legacyInformation) {
           seoTags.hreflangs = [];
         } else if (isJunk || negativeNumericSlug) {
           // Signal to the HTTP layer to return 410 Gone instead of SSR'ing
@@ -1365,10 +1522,41 @@ export class SeoRenderer {
             indexable,
           );
         }
+
+        // ID consolidation belongs after the shared quality/qualification gate,
+        // never in the lookup fallback. Verify the slug's exact owner as well:
+        // the destination must serve this same persisted station, not an alias.
+        if (stationIdFallback) {
+          langRedirectUrl = null;
+          const slug = stationData.slug;
+          const redirectLanguage = indexable.includes(actualLanguage) ? actualLanguage : 'en';
+          const safeSlug = isSafeStationDetailSlug(slug);
+          if (!legacyInformation && !isJunk && !numericOnlySlug && !negativeNumericSlug
+              && safeSlug && slug !== stationIdFallback
+              && String(stationData._id).toLowerCase() === stationIdFallback.toLowerCase()
+              && indexable.includes(redirectLanguage)) {
+            const target = await withSignal(pgSeoCatalog().findOne({ slug }), signal);
+            if (target?.slug === slug && String(target._id) === String(stationData._id)
+                && !target.redirectToSlug
+                && getIndexableLanguagesForStation(target, qualifiedLangs).includes(redirectLanguage)) {
+              const verifiedPath = buildLocalizedUrl(`/station/${slug}`, redirectLanguage,
+                redirectLanguage === actualLanguage ? countryCode : undefined, urlTranslations);
+              if (retiredLocale) {
+                cleanPath = `/station/${slug}`;
+                seoTags.canonical = new URL(verifiedPath, domain).href;
+                seoTags.hreflangs = generateLanguageUrls(cleanPath, domain, language, urlTranslations, seoTags.canonical, indexable);
+              } else {
+                langRedirectUrl = verifiedPath;
+              }
+            }
+          }
+        }
       } catch (e: any) {
         // Qualification can fail on a transient database/cache outage too.
         // Fail closed with an uncached 503, not a lasting noindex decision.
+        if (e?.name === 'AbortError' || signal?.aborted) throw e;
         stationDbErrorFlag = true;
+        langRedirectUrl = null;
         seoTags.hreflangs = [];
         try {
           const { logger } = await import('./utils/logger');
@@ -1393,24 +1581,16 @@ export class SeoRenderer {
     //      whole template on Google's low-quality list.
     if (pageType === 'genres' && additionalData?.genreSlug) {
       const popularStations = (additionalData?.popularStations as any[] | undefined) || [];
-      // If the top-stations fetch FAILED (transient Mongo timeout), an empty
-      // grid is not evidence the genre is thin — do not de-index a curated
-      // whitelisted genre over a blip. A not-whitelisted genre is still caught
-      // by `genreNotWhitelisted` below, so this only protects trusted genres.
       const fetchFailed = additionalData.popularStationsFetchFailed === true;
-      // Prefer the authoritative Genre.stationCount (the exact value the sitemap
-      // used to decide whether to publish this URL) so SSR and sitemap agree —
-      // no "Noindex page in sitemap". Only fall back to the live grid count (with
-      // transient-failure protection) when the authoritative count is unavailable.
-      // If the COUNT fetch itself failed transiently (genreCountFetchFailed), the
-      // grid heuristic is not trustworthy evidence either (its case-sensitive
-      // regex under-counts variant spellings) — don't de-index a whitelisted
-      // genre on missing evidence; the next uncached render re-evaluates.
+      // Prefer the manifest's stored count. A missing row uses the same global
+      // bounded quality sample on every page, never the short current slice.
+      // A failed count read is not evidence for excluding a healthy category.
       const authoritativeCount = additionalData.genreStationCount;
       const countFetchFailed = additionalData.genreCountFetchFailed === true;
       const tooThin = typeof authoritativeCount === 'number'
         ? authoritativeCount < MIN_STATIONS_FOR_GENRE_INDEX
-        : (!fetchFailed && !countFetchFailed && popularStations.length < MIN_STATIONS_FOR_GENRE_INDEX);
+        : (!fetchFailed && !countFetchFailed && typeof additionalData.genreQualitySampleCount === 'number'
+          && additionalData.genreQualitySampleCount < MIN_STATIONS_FOR_GENRE_INDEX);
       if (additionalData.genreNotWhitelisted || tooThin) {
         seoTags.robots = 'noindex, follow';
         seoTags.noIndex = true;
@@ -1429,22 +1609,6 @@ export class SeoRenderer {
         additionalData.notFound = true;
       }
     }
-    // -----------------------------------------------------------------------
-    // ---- Station cross-link fetch (architect P0, GEO + crawl) ------------
-    // Server-render up to three "Discover more" sections in the station body
-    // so AI bots / one-shot crawlers / Googlebot's first pass all see crawl
-    // edges to neighbouring entities WITHOUT needing the React app to
-    // hydrate. Sections:
-    //   • Similar in <country>   (8, sorted by votes)
-    //   • More <primary genre>   (8, sorted by votes)
-    //   • Stations in <state>    (6, only when stationData.state present)
-    // Skipped when the station itself is noindex/junk/not-found (avoids
-    // bleeding crawl budget into a page Google is already supposed to drop).
-    // Each list is junk/noIndex-filtered (mirrors the sitemap manifest's
-    // own filter at sitemap-manifest-builder.ts:553 — junk pages must NOT
-    // be advertised anywhere indexable). All three queries run in parallel
-    // with a hard 4s budget so SSR latency cannot regress when Mongo is
-    // slow; partial / empty results just hide the corresponding section.
     if (
       pageType === 'station' &&
       stationData &&
@@ -1453,7 +1617,7 @@ export class SeoRenderer {
     ) {
       try {
         const selfId = stationData._id;
-        const country = stationData.country;
+        const country = getStationCountryQuery(stationData);
         const primaryTag = (() => {
           const raw = Array.isArray(stationData.tags)
             ? stationData.tags
@@ -1468,64 +1632,16 @@ export class SeoRenderer {
         })();
         const stateName: string = (stationData.state || '').toString().trim();
 
-        const baseFilter: any = {
-          noIndex: { $ne: true },
-          isListVisible: true,
-          $and: [
-            { $or: [{ isJunk: { $exists: false } }, { isJunk: { $ne: true } }] },
-          ],
-        };
-        if (selfId) baseFilter._id = { $ne: selfId };
-        const projection = 'name slug favicon logoAssets country tags votes';
-
-        // INCIDENT 2026-05-14: all three station-page SSR cross-link queries
-        // were disabled because three CONCURRENT unindexed/regex Station.find
-        // calls per request stacked under load and pile-up timed out the SSR
-        // pipeline ("Sender wird geladen…" hang).
-        //
-        // RE-ENABLED 2026-06-20 — COUNTRY ONLY: the same-country query is now
-        // safe because (a) it runs ALONE (not concurrently with two siblings),
-        // (b) it is fully covered by the existing
-        // `{ country: 1, lastCheckOk: 1, votes: -1 }` index (mongo-schemas.ts),
-        // and (c) `withSignal` caps it at maxTimeMS so it can never hang the
-        // pipeline — a slow/aborted query just yields an empty section.
-        // Re-enabling this gives every station page 8 server-rendered internal
-        // links to neighbouring stations, fixing the "0 outbound links →
-        // thin/orphaned" signal that parked ~382K pages in GSC's
-        // "Crawled - currently not indexed" bucket.
-        //
-        // GENRE remains disabled ON PURPOSE: the genre query needs a
-        // contains-`$regex` over the comma-joined `tags` string (see line ~642),
-        // which a btree index cannot accelerate. It stays off until backed by
-        // a precomputed cache.
-        //
-        // CITY RE-ENABLED 2026-07-03: the original disable reason ("no state
-        // index") no longer holds — `StationSchema.index({ state: 1 },
-        // { sparse: true })` exists (mongo-schemas.ts ~4022, added for the
-        // US/CA state region pages). The query below is an exact-equality
-        // match on that indexed field (NO regex), withSignal-capped, and
-        // soft-fails to [] — none of the 2026-05-14 incident ingredients.
-        //
-        // PUBLISHER ADDED 2026-07-03 (radio.at parity, "Zugehörige Sender"):
-        // sister channels of the same brand (e.g. "kronehit", "kronehit
-        // dance"). Matched via a CASE-SENSITIVE ANCHORED PREFIX regex on the
-        // indexed `name` field — Mongo turns `^literal` case-sensitive
-        // regexes into a btree range scan on `{ name: 1 }` (docs: "prefix
-        // expressions"), so unlike the incident queries this IS
-        // index-covered. Case-insensitive or unanchored variants would NOT
-        // be; do not "improve" this into `$options: 'i'`. Generic first
-        // tokens ("Radio …", "FM …") are blacklisted so we never fan out a
-        // pseudo-family of thousands of unrelated "Radio X" stations.
         const sameCountryQ: Promise<any[]> = country
           ? withSignal<any[]>(
-              pgSeoCatalog().find({ ...baseFilter, country }, { sort: { votes: -1 }, limit: 8 }),
+              relatedStationCards('country', country, selfId, 8),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
         const sameGenreQ: Promise<any[]> = Promise.resolve([]);
         const sameCityQ: Promise<any[]> = stateName
           ? withSignal<any[]>(
-              pgSeoCatalog().find({ ...baseFilter, state: stateName }, { sort: { votes: -1 }, limit: 6 }),
+              relatedStationCards('state', stateName, selfId, 6),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
@@ -1547,10 +1663,7 @@ export class SeoRenderer {
         })();
         const samePublisherQ: Promise<any[]> = brandToken
           ? withSignal<any[]>(
-              pgSeoCatalog().find({
-                ...baseFilter,
-                name: { $regex: `^${brandToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
-              }, { sort: { votes: -1 }, limit: 7 }),
+              relatedStationCards('publisher', brandToken, selfId, 7),
               signal,
             ).catch(() => [])
           : Promise.resolve([]);
@@ -1563,7 +1676,7 @@ export class SeoRenderer {
         ]);
 
         // Deduplicate across the lists so the same station never shows up
-        // twice. Publisher wins (most specific — sister channels), then
+        // twice. Name-prefix matches take precedence, then
         // city, then genre, then country (broadest). Final caps: 6/6/8/8.
         const seen = new Set<string>();
         const dedupe = (arr: any[], cap: number) => {
@@ -1592,7 +1705,7 @@ export class SeoRenderer {
       } catch (e: any) {
         if (e?.name === 'AbortError' || signal?.aborted) throw e;
         // Non-fatal — render the page without cross-link sections rather
-        // than 500'ing on a Mongo glitch. The base nav still renders.
+        // than failing on a transient database error. The base nav still renders.
       }
     }
 
@@ -1639,10 +1752,20 @@ export class SeoRenderer {
       logger.log(`🎯 Using custom SEO metadata for ${dbPageType}/${routeKey}/${language}`);
       seoTags = this.applyCustomSeoMetadata(seoTags, customMetadata);
     }
+    // Legacy admin titles must not promise playback on explicit information pages.
+    if (pageType === 'station' && isStationInformationPage(stationData)) {
+      const { title, description } = getStationInformationCopy(language, stationData.name);
+      seoTags = { ...seoTags, title, description, ogTitle: title, ogDescription: description,
+        twitterTitle: title, twitterDescription: description };
+    }
     if (additionalData.httpNotFound) {
       stationNotFound = true;
       seoTags = { ...seoTags, noIndex: true, robots: 'noindex, follow', hreflangs: [] };
     }
+    // Resolve after all quality guards and admin overrides, before caching or
+    // returning the same metadata to SSR and SPA navigation.
+    seoTags = this.finalizeSeoDirectives(seoTags, initialRobots);
+    if (stationIdFallback && seoTags.noIndex) langRedirectUrl = null;
 
     // Hydration must receive the same descriptions the HTML head emits.
     // Keep admin metadata precedence and all stored/full body text intact;
@@ -1657,13 +1780,39 @@ export class SeoRenderer {
     // into a single page-1 entry. We also append ?page=N to every hreflang
     // alternate so the per-language pagination cluster is consistent.
     const catalogPage = (additionalData?.catalogPage as number) || 1;
-    if ((pageType === 'stations' || pageType === 'regions') && catalogPage > 1 && seoTags.canonical) {
-      seoTags.canonical = `${seoTags.canonical}?page=${catalogPage}`;
+    if ((pageType === 'stations' || pageType === 'regions' || pageType === 'genres') && catalogPage > 1 && seoTags.canonical) {
+      const pageUrl = (value: string) => {
+        const parsed = new URL(value, domain || 'https://themegaradio.com');
+        parsed.searchParams.set('page', String(catalogPage));
+        parsed.hash = '';
+        return parsed.href;
+      };
+      seoTags.canonical = pageUrl(seoTags.canonical);
       if (Array.isArray(seoTags.hreflangs)) {
         seoTags.hreflangs = seoTags.hreflangs.map((h: { hreflang: string; url: string }) => ({
           ...h,
-          url: `${h.url}?page=${catalogPage}`,
+          url: pageUrl(h.url),
         }));
+      }
+    }
+
+    // Only directory links propagate the same href into the React DTO. Other
+    // grids retain their existing locale until they have an equivalent contract.
+    const stationLinkTargets = pageType === 'stations' && isStationDirectoryPath(cleanPath)
+      ? collectStationLinkTargets(additionalData) : [];
+    const qualifiedStationLinkLanguages = stationLinkQualification.languages;
+    if (language !== 'en' && qualifiedStationLinkLanguages?.length && stationLinkTargets.length
+      && !stationDbErrorFlag && !additionalData.httpNotFound && !langRedirectUrl) {
+      try {
+        // Reuse the successful initial qualification, never a second lookup or
+        // the minimal hreflang fallback from a failed qualification read.
+        const metadata = await readSeoStationLinkMetadata(stationLinkTargets.map(target => String(target._id)));
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        additionalData.stationLinkLanguages = resolveStationLinkLanguages(stationLinkTargets, metadata, language, qualifiedStationLinkLanguages);
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || signal?.aborted) throw error;
+        // Optional enrichment: unknown eligibility preserves the requested
+        // locale instead of inventing an English fallback or an empty page.
       }
     }
 
@@ -1689,7 +1838,7 @@ export class SeoRenderer {
         stationIsJunk: stationIsJunkFlag,
         // Language-ineligible station variant: HTTP layer issues 301 → /en.
         // Avoids burning crawl budget on millions of noindex variants.
-        ...(langRedirectUrl ? { redirectTo: langRedirectUrl } : {}),
+        ...(!stationDbErrorFlag && langRedirectUrl ? { redirectTo: langRedirectUrl } : {}),
         // Transient DB error: placeholder data, must not be indexed.
         ...(stationDbErrorFlag ? { stationDbError: true } : {}),
       }
@@ -1697,7 +1846,7 @@ export class SeoRenderer {
     
     // A failed lookup must be retried on the very next request. Caching its
     // synthetic data kept healthy station URLs unavailable after PG recovered.
-    if (!stationDbErrorFlag && !additionalData.hubReadFailed && !additionalData.httpNotFound) performanceCache.setPageData(cacheKey, pageData);
+    if (!legacyGuideCandidate && !stationDbErrorFlag && !additionalData.hubReadFailed && !additionalData.httpNotFound) performanceCache.setPageData(cacheKey, pageData);
     
     return pageData;
     }, url);
@@ -1713,7 +1862,8 @@ export class SeoRenderer {
     additionalData?: any,
     originalPath?: string,  // Original URL path to preserve country codes
     translatedPath?: string,  // Translated path from database for canonical URL
-    urlTranslations?: Map<string, string>  // URL translations map for all languages
+    urlTranslations?: Map<string, string>,  // URL translations map for all languages
+    qualifiedLanguagesResult?: { languages?: readonly string[] },
   ): Promise<any> {
     // Use the existing generateSeoTags function as base
     // Pass translated path to use localized paths in canonical URL (e.g., /sq/zhanret instead of /sq/genres)
@@ -1758,7 +1908,9 @@ export class SeoRenderer {
       // the duplicates into one EN canonical and dropping the rest.
       if (additionalData.country) {
         const countryName = additionalData.country.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-        const seo = buildCountrySeo(countryName, language, translations);
+        const place = additionalData.cityName && additionalData.cityName !== 'ALL'
+          ? `${additionalData.cityName}, ${getLocalizedCountryName(additionalData.countryName || countryName, language)}` : countryName;
+        const seo = buildCountrySeo(place, language, translations);
         baseSeoTags.title = seo.title;
         baseSeoTags.description = seo.description;
         baseSeoTags.keywords = seo.keywords;
@@ -1806,16 +1958,11 @@ export class SeoRenderer {
       // page. buildHomeSeo applies dbTitle || per-lang template BEFORE the
       // English FINAL_TITLE_FALLBACK at the foot of generateHtmlHead.
       const homeSeo = buildHomeSeo(language, translations);
-      // Preserve the existing " | Mega Radio" branding rule (seo-config.ts home
-      // case) so <title> stays distinct from the bare-hero <h1>.
-      const branded = /\|\s*Mega\s*Radio\s*$/i.test(homeSeo.title)
-        ? homeSeo.title
-        : `${homeSeo.title} | Mega Radio`;
-      baseSeoTags.title = branded;
+      baseSeoTags.title = homeSeo.title;
       baseSeoTags.description = homeSeo.description;
-      baseSeoTags.ogTitle = branded;
+      baseSeoTags.ogTitle = homeSeo.title;
       baseSeoTags.ogDescription = homeSeo.description;
-      baseSeoTags.twitterTitle = branded;
+      baseSeoTags.twitterTitle = homeSeo.title;
       baseSeoTags.twitterDescription = homeSeo.description;
     }
 
@@ -1859,6 +2006,23 @@ export class SeoRenderer {
           ? `${t.slice(0, brandIdx)} — ${disp}${t.slice(brandIdx)}`
           : `${t} — ${disp}`;
         baseSeoTags.description = `${String(baseSeoTags.description || '').replace(/\.?\s*$/, '')} — ${disp}.`;
+      }
+    }
+
+    if (pageType === 'trending') {
+      const copy = trendingPageSeo(language, translations);
+      baseSeoTags.title = copy.title;
+      baseSeoTags.description = copy.description;
+      baseSeoTags.ogType = 'website';
+    }
+    if (pageType === 'trending' || pageType === 'recommendations') {
+      baseSeoTags.ogTitle = baseSeoTags.twitterTitle = baseSeoTags.title;
+      baseSeoTags.ogDescription = baseSeoTags.twitterDescription = baseSeoTags.description;
+      // Genuine empty lists have no public catalog content to index. Failures
+      // remain retryable 503s via hubReadFailed, never permanent noindex gates.
+      if (!additionalData?.hubReadFailed && !additionalData?.popularStations?.length) {
+        baseSeoTags.noIndex = true;
+        baseSeoTags.robots = 'noindex, follow';
       }
     }
 
@@ -1921,8 +2085,13 @@ export class SeoRenderer {
     }
 
     if (pageType === 'faq') {
-      baseSeoTags.title = getTranslation('faq_page_title');
-      baseSeoTags.description = getTranslation('faq_page_description');
+      const faq = resolveFaqPageText(language, translations);
+      baseSeoTags.title = faq.title;
+      baseSeoTags.description = faq.description;
+      baseSeoTags.ogTitle = faq.title;
+      baseSeoTags.ogDescription = faq.description;
+      baseSeoTags.twitterTitle = faq.title;
+      baseSeoTags.twitterDescription = faq.description;
       baseSeoTags.ogType = 'website';
     }
 
@@ -1941,9 +2110,11 @@ export class SeoRenderer {
     // pages override this below in renderStaticPage with the per-station
     // indexable set (eligible ∩ qualified).
     let allowedLanguages: string[] | undefined;
+    if (qualifiedLanguagesResult) delete qualifiedLanguagesResult.languages;
     try {
       const { getCachedQualifiedLanguages } = await import('./seo/qualified-languages');
       allowedLanguages = await getCachedQualifiedLanguages();
+      if (qualifiedLanguagesResult) qualifiedLanguagesResult.languages = [...allowedLanguages];
     } catch (e: any) {
       // FAIL-CLOSED (Webmaster #1 HIGH-2 fix, 2026-04-30): if the cache is
       // unavailable mid-request we MUST NOT fall back to all 57 enabled
@@ -1953,6 +2124,7 @@ export class SeoRenderer {
       // (a) self-referential hreflang is always present, (b) we never expose
       // a language not also present in some sitemap, (c) sitemap-routes will
       // independently 503/410 anyway via getQualifiedLanguagesState().
+      if (pageType === 'station') additionalData.stationQualificationFailed = true;
       const minimalSet = Array.from(new Set([language, 'en'])).filter(Boolean);
       allowedLanguages = minimalSet;
       try {
@@ -2005,7 +2177,7 @@ export class SeoRenderer {
       }
     }
 
-    return baseSeoTags;
+    return this.finalizeSeoDirectives(baseSeoTags);
   }
   
   private escapeHtml(input: string): string {
@@ -2024,13 +2196,15 @@ export class SeoRenderer {
    * home popular-stations grid and station detail page (DALGA 1).
    */
   private pickLogoUrl(station: any): string | null {
-    // 1) Prefer the processed logos — these live on our own S3 bucket, so they
-    //    always resolve 200 and need no proxy.
+    // Prefer processed logos; owned S3 objects use the stable same-origin path.
     const s3Candidates = [station?.logoAssets?.webp256, station?.logoAssets?.webp96];
     for (const c of s3Candidates) {
       if (typeof c === 'string') {
         const trimmed = c.trim();
-        if (trimmed && /^https?:\/\//i.test(trimmed)) return trimmed;
+        if (trimmed && /^https?:\/\//i.test(trimmed)) {
+          const owned = normalizePublicStationLogoUrl(c);
+          return owned === c ? trimmed : owned;
+        }
       }
     }
     // 2) Fallback: the station's RAW external favicon. Emitting it directly is
@@ -2045,6 +2219,8 @@ export class SeoRenderer {
     if (typeof fav === 'string') {
       const trimmed = fav.trim();
       if (trimmed && /^https?:\/\//i.test(trimmed)) {
+        const owned = normalizePublicStationLogoUrl(fav);
+        if (owned !== fav) return owned;
         const encoded = Buffer.from(trimmed, 'utf8')
           .toString('base64')
           .replace(/\+/g, '-')
@@ -2104,7 +2280,9 @@ export class SeoRenderer {
         items.push({ name, path: `/${language}${currentPath}` });
       } else if (segment !== 'stations' && segment !== 'station') {
         const translationKey = `nav_${segment}`;
-        const displayName = getLocalizedText(translationKey, segment.replace(/-/g, ' ').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
+        const displayName = segment === 'faq'
+          ? resolveFaqPageText(language, { nav_faq: getLocalizedText('nav_faq', '') }).navLabel
+          : getLocalizedText(translationKey, segment.replace(/-/g, ' ').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
         // Match the client: profile links always target the single settings screen.
         const profileSegment = urlTranslations?.get(`${language}:profile`) || URL_TRANSLATIONS[language]?.profile || 'profile';
         const settingsSegment = urlTranslations?.get(`${language}:settings`) || URL_TRANSLATIONS[language]?.settings || 'settings';
@@ -2234,7 +2412,8 @@ export class SeoRenderer {
           // hand-curated copy) when the DB key is missing instead of dumping
           // English into a non-English page.
           const isContinent = !additionalData.country && VALID_CONTINENT_SLUGS.has(String(additionalData.region || '').toLowerCase());
-          const localizedRegion = isContinent
+          const localizedRegion = additionalData.cityName && additionalData.cityName !== 'ALL'
+            ? `${additionalData.cityName}, ${getLocalizedCountryName(additionalData.countryName, language)}` : isContinent
             ? getLocalizedRegionName(additionalData.regionName, language)
             : getLocalizedCountryName(additionalData.regionName, language);
           const radioStationsText = translations['seo_radio_stations']?.trim()
@@ -2246,8 +2425,13 @@ export class SeoRenderer {
         }
         return buildDirectoryIndexSeo('regions', language, translations).h1;
       
+      case 'users':
       case 'stations':
-        return deriveH1FromTitle(buildCommunityPageSeo('stations', language, translations).title);
+      case 'recommendations':
+        return deriveH1FromTitle(buildCommunityPageSeo(pageType, language, translations).title);
+
+      case 'trending':
+        return trendingPageSeo(language, translations).h1;
       
       case 'about':
         return deriveH1FromTitle(buildStaticPageSeo('about', language, translations).title);
@@ -2268,16 +2452,58 @@ export class SeoRenderer {
         return buildSearchSeo(language, translations).h1;
 
       case 'faq':
-        return getLocalizedText('faq_page_h1');
+        return resolveFaqPageText(language, translations).h1;
 
       default:
         return getLocalizedText('hero_worlds_best_radio') || FALLBACK_TEXTS.hero_worlds_best_radio;
     }
   }
 
+  buildStationDirectoryData(source: {
+    language: string; cleanPath: string; translations?: Record<string, string>;
+    seoTags?: any; urlTranslations?: Map<string, string>; pageData?: Record<string, any>;
+  }): StationDirectoryData | undefined {
+    const data = source.pageData;
+    if (!isStationDirectoryPath(source.cleanPath) || data?.pageType !== 'stations'
+      || data.httpNotFound || data.stationDbError || data.hubReadFailed
+      || !Array.isArray(data.catalogStations) || data.catalogStations.length > 60) return undefined;
+    const translations = source.translations || {};
+    const localizedText = (key: string, fallback: string) => translations[key]?.trim() || fallback;
+    const localUrl = (path: string) => buildLocalizedUrl(path, source.language, undefined, source.urlTranslations);
+    const letter = matchAzIndexPath(source.cleanPath);
+    const base = localUrl(letter ? `/stations/${letter}` : '/stations');
+    const currentPage = data.catalogPage;
+    const totalPages = data.catalogTotalPages;
+    if (!Number.isSafeInteger(currentPage) || currentPage < 1
+      || !Number.isSafeInteger(totalPages) || totalPages < currentPage) return undefined;
+    const h1 = this.getH1Text('stations', source.language, translations, source.seoTags, undefined, data.additionalData);
+    const result: StationDirectoryData = {
+      h1: letter ? `${h1 || 'Radio Stations'} — ${azDisplayLabel(letter)}` : (h1 || 'Radio Stations'),
+      letter, currentPage, totalPages,
+      navLabel: localizedText('stations_az_nav', 'Radio stations A to Z'),
+      paginationLabel: localizedText('pagination', 'Pagination'),
+      stations: data.catalogStations.map((station: LeanStationCard) => ({
+        href: buildStationLinkUrl(station, source.language, data.stationLinkLanguages, source.urlTranslations),
+        name: station.name || 'Radio Station',
+        logoUrl: this.pickLogoUrl(station),
+        alt: getStationImageAlt(station, source.language, localizedText),
+      })),
+      letters: AZ_INDEX_KEYS.map(key => ({
+        label: azDisplayLabel(key), href: localUrl(`/stations/${key}`), current: key === letter,
+      })),
+      pages: seoCatalogPageLinks(currentPage, totalPages).map(page => ({
+        page, href: page === 1 ? base : `${base}?page=${page}`, current: page === currentPage,
+        ...(page === currentPage - 1 ? { rel: 'prev' as const }
+          : page === currentPage + 1 ? { rel: 'next' as const } : {}),
+      })),
+    };
+    return isStationDirectoryData(result) ? result : undefined;
+  }
+
   generateHtmlBody(pageData: { pageType: string; language: string; translations: Record<string, string>; seoTags?: any; stationData?: any; additionalData?: any; urlTranslations?: Map<string, string>; cleanPath?: string }): string {
     const { pageType, language, translations, seoTags, stationData, additionalData, urlTranslations, cleanPath } = pageData;
     if (pageType === 'blog' && additionalData?.blog) return renderBlogHtml(additionalData.blog);
+    if (pageType === 'legacy-guide' && additionalData?.legacyGuide) return renderLegacyStationGuideHtml(additionalData.legacyGuide);
     const h1Text = this.getH1Text(pageType, language, translations, seoTags, stationData, additionalData);
 
     // Visible breadcrumb trail — Task #280. Rendered above <main> on every
@@ -2317,8 +2543,8 @@ export class SeoRenderer {
       case 'home': {
         const heroCopy = getHomeHeroCopy(language);
         // LCP fix (PageSpeed 2026-07-03): the SSR body is what paints first
-        // (React later repaints over it — see replit.md, body is replaced not
-        // hydrated). Without the hero image here, the page's largest paint
+        // (React later replaces rather than hydrates it). Without the hero
+        // image here, the page's largest paint
         // was the REACT-rendered hero at ~8s on mobile (after the JS + API
         // waterfall), which is exactly what Lighthouse reported as LCP 8.4s.
         // Rendering the SAME <picture> markup the SPA hero uses (identical
@@ -2373,9 +2599,7 @@ export class SeoRenderer {
                   const stationUrl = `/${language}/${stationSegment}/${slug}`;
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   return `
                     <li>
                       <a href="${stationUrl}">
@@ -2439,29 +2663,13 @@ export class SeoRenderer {
               })()}
             </section>
             
-            <!-- About Mega Radio — restored long-form platform description -->
-            <section class="about-section">
-              <h2>${this.escapeHtml(getLocalizedText('faq_about_megaradio', 'About Mega Radio'))}</h2>
-              <p>${this.escapeHtml(getLocalizedText('faq_seo_intro', 'Mega Radio is your ultimate destination for discovering and streaming live radio stations from around the world. With over 60,000 free radio stations spanning 120+ countries, we deliver unlimited access to music, news, sports, and entertainment across every language and genre.'))}</p>
-              <p>${this.escapeHtml(getLocalizedText('faq_about_megaradio_text', 'Mega Radio stands as your ultimate destination for discovering and streaming live radio stations from every corner of the world, representing the cutting edge of internet radio streaming technology. As a leading online radio platform, we provide completely free, unlimited access to over 60,000 live radio stations spanning 120+ countries, delivering an unparalleled variety of music, news, sports commentary, talk shows, podcasts, and entertainment in virtually every language and genre imaginable. Our advanced web radio streaming infrastructure ensures crystal-clear audio quality and reliable connectivity, whether you\'re listening to pop radio from New York, classical broadcasts from Vienna, jazz stations from New Orleans, or electronic music from Berlin.'))}</p>
-              <p>${this.escapeHtml(getLocalizedText('faq_about_megaradio_features', 'Whether you\'re passionate about pop radio hits, rock stations, classical music, smooth jazz, electronic dance music, hip-hop, country, world music, news radio, or sports commentary, Mega Radio makes discovering your perfect live radio station absolutely effortless. Best of all, Mega Radio operates on a completely free model with zero registration requirements, no subscription fees, and no paywalls. Simply visit the website from any device, search for any station or genre, and start streaming live radio instantly.'))}</p>
-            </section>
-
-            <!-- FAQ Section -->
-            <section class="faq-section">
-              <h2>${this.escapeHtml(getLocalizedText('faq_section_title', 'Frequently Asked Questions'))}</h2>
-              <dl>
-                <dt>${this.escapeHtml(getLocalizedText('faq_q_what_is', 'What is Mega Radio?'))}</dt>
-                <dd>${this.escapeHtml(getLocalizedText('faq_a_what_is', 'Mega Radio is a free online radio platform that lets you stream live radio stations from around the world. You can listen to music, news, sports, talk shows, and more in dozens of languages — no subscription or account required.'))}</dd>
-                <dt>${this.escapeHtml(getLocalizedText('faq_q_how_many', 'How many radio stations are available?'))}</dt>
-                <dd>${this.escapeHtml(getLocalizedText('faq_a_how_many', 'Mega Radio provides access to over 60,000 live radio stations from more than 120 countries. Stations are continuously updated so you always have access to the latest broadcasts.'))}</dd>
-                <dt>${this.escapeHtml(getLocalizedText('faq_q_devices', 'What devices can I use to listen?'))}</dt>
-                <dd>${this.escapeHtml(getLocalizedText('faq_a_devices', 'You can listen on any web browser, as well as through dedicated apps for Android, iOS, Windows, and Smart TV platforms including Samsung and LG. All your favourite stations sync across devices automatically.'))}</dd>
-              </dl>
-            </section>
+            ${renderHomeStationGuideBody(language)}
+            ${renderHomeFaqBody(language, translations, buildLocalizedUrl('/faq', language, undefined, urlTranslations))}
 
             <nav class="footer-links">
               <ul>
+                <li><a href="/${language}/faq">${this.escapeHtml(resolveFaqPageText(language, translations).label)}</a></li>
+                ${isBlogLocale(language) ? `<li><a href="${blogPath(language)}">${this.escapeHtml(BLOG_LABELS[language])}</a></li>` : ''}
                 <li><a href="/${language}/${urlTranslations?.get(`${language}:about`) || 'about'}">${this.escapeHtml(getLocalizedText('nav_about', 'About Us'))}</a></li>
                 <li><a href="/${language}/${urlTranslations?.get(`${language}:contact`) || 'contact'}">${this.escapeHtml(getLocalizedText('nav_contact', 'Contact'))}</a></li>
                 <li><a href="/${language}/${urlTranslations?.get(`${language}:privacy-policy`) || 'privacy-policy'}">${this.escapeHtml(getLocalizedText('nav_privacy', 'Privacy Policy'))}</a></li>
@@ -2478,7 +2686,7 @@ export class SeoRenderer {
         content = `
           <main>
             <h1>${this.escapeHtml(h1Text)}</h1>
-            ${stationData?.isListVisible === false ? `<p id="station-stream-unavailable" role="status">${this.escapeHtml(getStationStreamUnavailableNotice(language))}</p>` : ''}
+            ${stationData?.isListVisible === false || isStationInformationPage(stationData) ? `<p id="station-stream-unavailable" role="status">${this.escapeHtml(getStationStreamUnavailableNotice(language, stationData))}</p>` : ''}
             ${stationData ? `
               <div class="station-info">
                 ${(() => {
@@ -2488,9 +2696,9 @@ export class SeoRenderer {
                   const logo = this.pickLogoUrl(stationData);
                   if (!logo) return '';
                   const name = this.escapeHtml(stationData.name || 'Radio Station');
-                  const countryName = stationData.country ? getLocalizedCountryName(stationData.country, language) : '';
+                  const countryName = getStationCountryName(stationData, language);
                   const country = this.escapeHtml(countryName);
-                  const altText = getStationImageAlt({ ...stationData, country: countryName }, language, getLocalizedText);
+                  const altText = getStationImageAlt(stationData, language, getLocalizedText);
                   const caption = country ? `${name} — ${country}` : name;
                   return `
                 <figure class="station-logo">
@@ -2502,36 +2710,22 @@ export class SeoRenderer {
                 <h2>${this.escapeHtml(getStationPageCopy(language, translations).about)}</h2>
                 <!-- DALGA 4: H1-keyword echo intro (single sentence, station-specific interpolation: name + country) -->
                 ${(() => {
-                  const introTemplate = getStationPageCopy(language, translations).intro;
+                  if (getStationEditorial(stationData, language) && !isStationInformationPage(stationData)) return '';
+                  const introTemplate = getStationPageCopy(language, translations, stationData).intro;
                   const stationName = stationData.name || 'Radio Station';
-                  const country = stationData.country
-                    ? getLocalizedCountryName(stationData.country, language)
-                    : 'around the world';
+                  const country = getStationCountryName(stationData, language);
                   const introText = introTemplate
-                    .replace(/\{STATION(?:_NAME)?\}/gi, stationName)
-                    .replace(/\{COUNTRY\}/g, country);
+                    .replace(/\{STATION(?:_NAME)?\}/gi, () => stationName)
+                    .replace(/\{COUNTRY\}/g, () => country);
                   return `<p class="station-intro">${this.escapeHtml(introText)}</p>`;
                 })()}
-                ${stationData.descriptions && stationData.descriptions[language] ? (() => {
-                  const desc = stationData.descriptions[language];
-                  let fullText = '';
-                  if (typeof desc === 'object' && desc.full) {
-                    fullText = desc.full;
-                  } else if (typeof desc === 'string') {
-                    fullText = desc;
-                  }
-                  fullText = fullText
-                    .replace(/^\s*\[TRANSLATED\s+FULL\s+DESCRIPTION\]\s*/i, '')
-                    .replace(/^\s*\[TRANSLATED\s+META[^\]]*\]\s*/i, '')
-                    .replace(/^\s*\[FULL\s+DESCRIPTION[^\]]*\]\s*/i, '')
-                    .replace(/^\s*\[[^\]]*DESCRIPTION[^\]]*\]\s*/i, '')
-                    .replace(/^\s*\[[^\]]*\]\s*/g, '')
-                    .replace(/\{STATION_NAME\}/g, stationData.name)
-                    .trim();
+                ${(() => {
+                  const fullText = getStationEditorial(stationData, language)?.summary
+                    ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
                   if (fullText && fullText.length > 300) {
-                    // Preserve leading punctuation and a final fragment without
-                    // ASCII sentence punctuation (including mixed CJK text).
-                    const sentences = fullText.match(/[^.!?]*[.!?]+|[^.!?]+$/g) || [fullText];
+                    // Require whitespace after sentence punctuation so URL tokens
+                    // stay intact; preserve punctuation and any final fragment.
+                    const sentences = fullText.split(/(?<=[.!?])(?=\s)/);
                     const paragraphs = [];
                     let currentParagraph = '';
                     for (const sentence of sentences) {
@@ -2549,14 +2743,13 @@ export class SeoRenderer {
                     return '<p>' + this.escapeHtml(fullText) + '</p>';
                   }
                   return '';
-                })() : (stationData.description ? `<p>${this.escapeHtml(stationData.description)}</p>` : '')}
+                })()}
                 <!-- DALGA 4: Station-specific outro (25-35 words, interpolation: name + country + tags — NOT scaled boilerplate) -->
                 ${(() => {
+                  if (getStationEditorial(stationData, language) || isStationInformationPage(stationData)) return '';
                   const outroTemplate = getStationPageCopy(language, translations).outro;
                   const stationName = stationData.name || 'Radio Station';
-                  const country = stationData.country
-                    ? getLocalizedCountryName(stationData.country, language)
-                    : 'around the world';
+                  const country = getStationCountryName(stationData, language);
                   const tagList = (stationData.tags || '')
                     .split(/[,;]/)
                     .map((t: string) => t.trim())
@@ -2565,9 +2758,9 @@ export class SeoRenderer {
                     .join(', ');
                   const genres = tagList || getLocalizedText('seo_live_radio', 'live radio');
                   const outroText = outroTemplate
-                    .replace(/\{STATION\}/g, stationName)
-                    .replace(/\{COUNTRY\}/g, country)
-                    .replace(/\{GENRES\}/g, genres);
+                    .replace(/\{STATION\}/g, () => stationName)
+                    .replace(/\{COUNTRY\}/g, () => country)
+                    .replace(/\{GENRES\}/g, () => genres);
                   return `<p class="station-outro">${this.escapeHtml(outroText)}</p>`;
                 })()}
                 
@@ -2590,22 +2783,20 @@ export class SeoRenderer {
                     return `
                   <p class="station-rating"><strong>${label}:</strong> ★ ${rounded} / 5 · ${rc}</p>`;
                   })()}
-                  ${stationData.country ? `
-                  <p><strong>${this.escapeHtml(getLocalizedText('country', 'Country'))}:</strong> ${this.escapeHtml(getLocalizedCountryName(stationData.country, language))}</p>
+                  ${getStationCountryName(stationData, language) ? `
+                  <p><strong>${this.escapeHtml(getLocalizedText('country', 'Country'))}:</strong> ${this.escapeHtml(getStationCountryName(stationData, language))}</p>
                   ` : ''}
                   ${stationData.tags ? `
                   <p><strong>${this.escapeHtml(getLocalizedText('genres', 'Genres'))}:</strong> ${stationData.tags.split(',').slice(0, 6).map((tag: string) => this.escapeHtml(tag.trim())).join(', ')}</p>
                   ` : ''}
-                  ${stationData.url ? (() => {
-                    // 2026-05-12 Semrush audit: this `<a>` rendered the
-                    // raw stream URL (e.g. `https://icecast.walmradio.com:8443/otr`)
-                    // as both the href AND the visible text, which Semrush
-                    // (and Google) classify as "naked URL = no anchor
-                    // text" — 114 hits across all language × station
-                    // permutations. The fix uses a descriptive label
-                    // ("Official Website of <station name>") that tells
-                    // crawlers what the linked page is about while still
-                    // exposing the URL for transparency.
+                  ${(() => {
+                    let homepage: URL;
+                    try {
+                      homepage = new URL(stationData.homepage);
+                      if (!['http:', 'https:'].includes(homepage.protocol) || homepage.username || homepage.password) return '';
+                    } catch { return ''; }
+                    // A stream is not the station's official website. Missing
+                    // homepages must not silently fall back to the audio URL.
                     const websiteLabel = this.escapeHtml(
                       getStationPageCopy(language, translations).website,
                     );
@@ -2614,8 +2805,8 @@ export class SeoRenderer {
                       ? `${websiteLabel} — ${stationName}`
                       : websiteLabel;
                     return `
-                  <p><strong>${websiteLabel}:</strong> <a href="${this.escapeHtml(stationData.url)}" target="_blank" rel="noopener noreferrer nofollow">${anchorText}</a></p>`;
-                  })() : ''}
+                  <p><strong>${websiteLabel}:</strong> <a href="${this.escapeHtml(homepage.href)}" target="_blank" rel="noopener noreferrer nofollow">${anchorText}</a></p>`;
+                  })()}
                 </section>
                 
                 ${(() => {
@@ -2641,25 +2832,16 @@ export class SeoRenderer {
                   };
                   const sections: string[] = [];
                   if (xl.samePublisher?.length) {
-                    // radio.at parity ("Zugehörige Sender"): sister channels
-                    // of the same brand family, matched by name prefix in
-                    // renderStaticPage. Rendered FIRST — most specific rail.
-                    const brand = xl.publisherBrand
-                      ? this.escapeHtml(String(xl.publisherBrand))
-                      : '';
-                    const heading = brand
-                      ? `${this.escapeHtml(getLocalizedText('same_publisher_stations', 'More channels from'))} ${brand}`
-                      : this.escapeHtml(getLocalizedText('related_stations', 'Related stations'));
+                    // Name-prefix matches do not establish common ownership.
+                    const heading = this.escapeHtml(getStationRelatedHeading(language, 'country', '', translations));
                     sections.push(`
                 <section class="related-stations related-stations--publisher">
                   <h2>${heading}</h2>
                   <ul>${xl.samePublisher.map(renderItem).join('')}</ul>
                 </section>`);
                   }
-                  if (xl.sameCountry?.length) {
-                    const localizedCountry = xl.countryName
-                      ? getLocalizedCountryName(xl.countryName, language)
-                      : '';
+                  if (xl.sameCountry?.length && getStationCountryName(stationData, language)) {
+                    const localizedCountry = getStationCountryName(stationData, language);
                     const heading = this.escapeHtml(getStationRelatedHeading(language, 'country', localizedCountry, translations));
                     sections.push(`
                 <section class="related-stations related-stations--country">
@@ -2694,12 +2876,13 @@ export class SeoRenderer {
                   return sections.join('\n');
                 })()}
 
+                ${renderStationEditorialHtml(stationData, language)}
                 <!-- Navigation -->
                 <nav class="explore-nav">
                   <ul>
-                    <li><a href="/${language}/genres">${this.escapeHtml(getLocalizedText('nav_genres', 'Browse All Radio Genres'))}</a></li>
-                    <li><a href="/${language}/regions">${this.escapeHtml(getLocalizedText('nav_regions', 'Radio Stations by Country'))}</a></li>
-                    <li><a href="/${language}/stations">${this.escapeHtml(getLocalizedText('nav_stations', 'Explore All Stations'))}</a></li>
+                    <li><a href="${this.escapeHtml(buildLocalizedUrl('/genres', language, undefined, urlTranslations))}">${this.escapeHtml(getLocalizedText('nav_genres', 'Browse All Radio Genres'))}</a></li>
+                    <li><a href="${this.escapeHtml(buildLocalizedUrl('/regions', language, undefined, urlTranslations))}">${this.escapeHtml(getLocalizedText('nav_regions', 'Radio Stations by Country'))}</a></li>
+                    <li><a href="${this.escapeHtml(buildLocalizedUrl('/stations', language, undefined, urlTranslations))}">${this.escapeHtml(getLocalizedText('nav_stations', 'Explore All Stations'))}</a></li>
                     <li><a href="/${language}">${this.escapeHtml(getLocalizedText('nav_home', 'Home'))}</a></li>
                   </ul>
                 </nav>
@@ -2746,13 +2929,10 @@ export class SeoRenderer {
               <ul class="popular-stations-list">
                 ${additionalData.popularStations.map((station: any) => {
                   const slug = station.slug || station._id;
-                  const stationSegment = urlTranslations?.get(`${language}:station`) || 'station';
-                  const stationUrl = `/${language}/${stationSegment}/${slug}`;
+                  const stationUrl = buildLocalizedUrl(`/station/${slug}`, language, undefined, urlTranslations);
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   return `
                     <li>
                       <a href="${stationUrl}">
@@ -2764,6 +2944,18 @@ export class SeoRenderer {
               </ul>
             </section>
             ` : ''}
+            ${(() => {
+              const current = additionalData?.catalogPage || 1;
+              const total = additionalData?.catalogTotalPages || 1;
+              if (total > 1) {
+                const base = (seoTags?.canonical || buildLocalizedUrl(cleanPath || '/genres', language, undefined, urlTranslations)).split('?')[0];
+                return `<nav class="pagination" aria-label="${this.escapeHtml(getLocalizedText('pagination', 'Pagination'))}"><ul>${seoCatalogPageLinks(current, total).map(page =>
+                  page === current ? `<li><span aria-current="page">${page}</span></li>`
+                    : `<li><a href="${this.escapeHtml(page === 1 ? base : `${base}?page=${page}`)}"${page === current - 1 ? ' rel="prev"' : page === current + 1 ? ' rel="next"' : ''}>${page}</a></li>`
+                ).join('')}</ul></nav>`;
+              }
+              return '';
+            })()}
             ${(() => {
               // ---- Cross-link sections (architect P1: B2) ----------------
               // "Top countries broadcasting <genre>" links to the country
@@ -2879,11 +3071,14 @@ export class SeoRenderer {
           }
           const cc = additionalData?.countryCode;
           const flagSrc = cc && /^[a-z]{2}$/i.test(cc) ? `https://flagcdn.com/w320/${cc.toLowerCase()}.png` : '';
+          const flagCountry = additionalData?.countryName ? getLocalizedCountryName(additionalData.countryName, language) : regionName;
           // Multilingual body intro/availability — see shared/region-seo-templates.ts.
           // Without this every language reused the same English fallback fragments.
+          const locationName = additionalData?.cityName && additionalData.cityName !== 'ALL'
+            ? `${additionalData.cityName}, ${getLocalizedCountryName(additionalData.countryName, language)}` : regionName;
           const regionSeo = regionName
             ? (additionalData?.country
-                ? buildCountrySeo(regionName, language, translations)
+                ? buildCountrySeo(locationName, language, translations)
                 : buildRegionSeo(regionName, language, translations))
             : null;
           content = `
@@ -2892,8 +3087,8 @@ export class SeoRenderer {
             ${flagSrc ? `
             <!-- DALGA 2 W2.2: Country flag — SEO image surface -->
             <figure class="country-flag">
-              <img src="${flagSrc}" alt="${this.escapeHtml(regionName)} ${this.escapeHtml(getLocalizedText('country_flag', LOCALIZED_FLAG_WORD[language] || 'flag'))}" width="320" height="213" loading="eager" decoding="async">
-              <figcaption>${this.escapeHtml(regionName)}</figcaption>
+              <img src="${flagSrc}" alt="${this.escapeHtml(flagCountry)} ${this.escapeHtml(getLocalizedText('country_flag', LOCALIZED_FLAG_WORD[language] || 'flag'))}" width="320" height="213" loading="eager" decoding="async">
+              <figcaption>${this.escapeHtml(flagCountry)}</figcaption>
             </figure>
             ` : ''}
             ${regionSeo ? `
@@ -2912,9 +3107,7 @@ export class SeoRenderer {
                   const stationUrl = `/${language}/${stationSegment}/${slug}`;
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   // Orphan-link fix (2026-07-01): previously `if (!logo) return ''`
                   // silently dropped every logo-less station from the country
                   // page — so those stations got ZERO internal in-links ("no
@@ -2951,7 +3144,6 @@ export class SeoRenderer {
                 ? seoTags.canonical
                 : buildLocalizedUrl(cleanPath || '/regions', language, undefined, urlTranslations)
               ).split('?')[0];
-              const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
               return `
             <section class="all-stations">
               <h2>${this.escapeHtml(getLocalizedText('all_stations', LOCALIZED_RADIO_STATIONS[language] || 'Radio Stations'))}</h2>
@@ -2961,8 +3153,7 @@ export class SeoRenderer {
                   const stationUrl = buildLocalizedUrl(`/station/${slug}`, language, undefined, urlTranslations);
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   return `
                     <li>
                       <a href="${stationUrl}">
@@ -3095,11 +3286,13 @@ export class SeoRenderer {
       case 'faq':
         {
           const langPrefix = `/${language}`;
+          const copy = resolveFaqPageText(language, translations);
+          const localizedPath = (segment: string) => `${langPrefix}/${urlTranslations?.get(`${language}:${segment}`) || URL_TRANSLATIONS[language]?.[segment] || segment}`;
           // Task #129: render every FAQ Q&A server-side as <h2>+<p> so
           // Googlebot sees the exact text referenced by the FAQPage JSON-LD
           // on first fetch (no schema/visible-content mismatch).
           const faqBlocks = resolveFaqPageItems(language, getLocalizedText).map((item) => `
-              <section>
+              <section id="${item.id}">
                 <h2>${this.escapeHtml(item.question)}</h2>
                 <p>${this.escapeHtml(item.answer)}</p>
               </section>`).join('');
@@ -3107,14 +3300,22 @@ export class SeoRenderer {
           <main>
             <h1>${this.escapeHtml(h1Text)}</h1>
             <section>
-              <p>${this.escapeHtml(getLocalizedText('faq_page_intro', 'Answers to common questions about Mega Radio: how online radio streaming works, supported devices, free access, mobile apps, station coverage across 120+ countries, and account help.'))}</p>
+              <p>${this.escapeHtml(copy.intro)}</p>
             </section>${faqBlocks}
+            <section>
+              <h2>${this.escapeHtml(copy.helpTitle)}</h2>
+              <p>${this.escapeHtml(copy.helpText)}</p>
+            </section>
             <nav>
               <ul>
                 <li><a href="${langPrefix}">${this.escapeHtml(getLocalizedText('nav_home', 'Home'))}</a></li>
-                <li><a href="${langPrefix}/about">${this.escapeHtml(getLocalizedText('nav_about', 'About Mega Radio'))}</a></li>
-                <li><a href="${langPrefix}/contact">${this.escapeHtml(getLocalizedText('nav_contact', 'Contact Us'))}</a></li>
-                <li><a href="${langPrefix}/stations">${this.escapeHtml(getLocalizedText('nav_stations', 'Browse Stations'))}</a></li>
+                <li><a href="${localizedPath('about')}">${this.escapeHtml(getLocalizedText('nav_about', copy.about))}</a></li>
+                <li><a href="${localizedPath('contact')}">${this.escapeHtml(getLocalizedText('nav_contact', copy.contact))}</a></li>
+                <li><a href="${localizedPath('search')}">${this.escapeHtml(getLocalizedText('nav_search', copy.search))}</a></li>
+                <li><a href="${localizedPath('stations')}">${this.escapeHtml(copy.stations)}</a></li>
+                <li><a href="${localizedPath('genres')}">${this.escapeHtml(copy.genres)}</a></li>
+                <li><a href="${localizedPath('regions')}">${this.escapeHtml(copy.regions)}</a></li>
+                <li><a href="${localizedPath('applications')}">${this.escapeHtml(copy.applications)}</a></li>
               </ul>
             </nav>
           </main>
@@ -3151,6 +3352,21 @@ export class SeoRenderer {
         }
         break;
 
+      case 'trending':
+      case 'recommendations':
+        content = `
+          <main>
+            <h1>${this.escapeHtml(h1Text)}</h1>
+            <p>${this.escapeHtml(seoTags?.description || '')}</p>
+            <ul class="popular-stations-list">
+              ${(additionalData?.popularStations || []).map((station: any) => {
+                const href = buildStationLinkUrl(station, language, undefined, urlTranslations);
+                return `<li><a href="${this.escapeHtml(href)}">${this.escapeHtml(station.name || '')}</a></li>`;
+              }).join('')}
+            </ul>
+          </main>`;
+        break;
+
       case 'stations':
         {
           // Crawlable catalog hub (Component (a)). All localized URLs go through
@@ -3161,7 +3377,6 @@ export class SeoRenderer {
           const totalPages = (additionalData?.catalogTotalPages as number) || 1;
           const stationsBase = buildLocalizedUrl('/stations', language, undefined, urlTranslations);
           const genresHref = buildLocalizedUrl('/genres', language, undefined, urlTranslations);
-          const logoWord = getLocalizedText('seo_logo_word', LOCALIZED_LOGO_WORD[language] || 'logo');
           // A-Z index (Task #11): letter pages get a letter-suffixed H1 and
           // paginate under their own base URL; the hub and every letter page
           // render the same 27-link A-Z rail so crawlers reach the full
@@ -3193,12 +3408,10 @@ export class SeoRenderer {
               <h2>${this.escapeHtml(getLocalizedText('all_stations', LOCALIZED_RADIO_STATIONS[language] || 'Radio Stations'))}</h2>
               <ul class="popular-stations-list">
                 ${cats.map((station: any) => {
-                  const slug = station.slug || station._id;
-                  const stationUrl = buildLocalizedUrl(`/station/${slug}`, language, undefined, urlTranslations);
+                  const stationUrl = buildStationLinkUrl(station, language, additionalData?.stationLinkLanguages, urlTranslations);
                   const logo = this.pickLogoUrl(station);
                   const stationName = this.escapeHtml(station.name || 'Radio Station');
-                  const country = station.country ? this.escapeHtml(station.country) : '';
-                  const altText = country ? `${stationName} — ${country} ${logoWord}` : `${stationName} ${logoWord}`;
+                  const altText = this.escapeHtml(getStationImageAlt(station, language, getLocalizedText));
                   return `
                     <li>
                       <a href="${stationUrl}">
@@ -3265,9 +3478,15 @@ export class SeoRenderer {
     // One locale-aware builder avoids SSR/client discrepancies and English
     // fallback prose. Identity and schema vocabulary stay stable across locales.
     const schemaDomain = new URL(baseDomain).host;
-    const websiteSchema = generateWebSiteSchema(schemaDomain, language, translations);
-    const organizationSchema = generateOrganizationSchema(schemaDomain, language, translations);
-    const visionGoOrgSchema = generateDeveloperOrganizationSchema(language);
+    // An article's BCP47 tag need not be a routable site locale (zh-Hant-HK).
+    const schemaLanguage = additionalData?.blog?.locale || language;
+    const websiteSchema = generateWebSiteSchema(schemaDomain, schemaLanguage, translations);
+    const organizationSchema = generateOrganizationSchema(schemaDomain, schemaLanguage, translations);
+    const visionGoOrgSchema = generateDeveloperOrganizationSchema(schemaLanguage);
+    if (additionalData?.legacyGuide) return {
+      global: [websiteSchema, organizationSchema, visionGoOrgSchema],
+      page: buildLegacyStationGuideSchema(additionalData.legacyGuide),
+    };
     if (additionalData?.blog) return {
       global: [websiteSchema, organizationSchema, visionGoOrgSchema],
       page: buildBlogSchema(additionalData.blog),
@@ -3306,11 +3525,17 @@ export class SeoRenderer {
     // FAQs in persistent JSON-LD would misrepresent the rendered page.
     let faqPageSchema: any = null;
     if (additionalData?.pageType === 'faq') {
+      const faqUrl = seoTags.canonical || `${baseDomain}/${language}/faq`;
       faqPageSchema = {
         "@context": "https://schema.org",
         "@type": "FAQPage",
+        "@id": `${faqUrl}#faq`,
+        "url": faqUrl,
+        "inLanguage": language,
         "mainEntity": resolveFaqPageItems(language, getLocalizedText).map((item) => ({
           "@type": "Question",
+          "@id": `${faqUrl}#${item.id}`,
+          "url": `${faqUrl}#${item.id}`,
           "name": item.question,
           "acceptedAnswer": {
             "@type": "Answer",
@@ -3326,43 +3551,23 @@ export class SeoRenderer {
     if (additionalData?.popularStations && additionalData.popularStations.length > 0) {
       const stationSegmentForJsonLd = urlTranslations?.get(`${language}:station`) || 'station';
       const stationItems = additionalData.popularStations.map((station: any, index: number) => {
-        const stationUrl = `${baseDomain}/${language}/${stationSegmentForJsonLd}/${station.slug || station._id}`;
+        const stationUrl = additionalData.pageType === 'stations' && isStationDirectoryPath(cleanPath)
+          ? `${baseDomain}${buildStationLinkUrl(station, language, additionalData?.stationLinkLanguages, urlTranslations)}`
+          : `${baseDomain}/${language}/${stationSegmentForJsonLd}/${station.slug || station._id}`;
         // SEO audit 2026-06, Finding C1: only emit a verified absolute image;
         // omit `image` rather than ship the shared `default-station.png`
         // placeholder (or a relative local-disk filename) to Google.
         const stationLogoRaw =
           station.logoAssets?.webp256 || station.logoAssets?.webp96 || station.favicon || '';
-        const stationLogo = /^https?:\/\//i.test(stationLogoRaw) ? stationLogoRaw : null;
-        // 2026-05-12 SEO audit: every nested item in this ItemList was
-        // emitting a full RadioStation entity, and Google evaluates each
-        // one against LocalBusiness's required-field list (RadioStation
-        // inherits from LocalBusiness > Organization). Missing `address`
-        // and (when station.tags was empty) `genre` produced the "2 fields:
-        // address, genre" error reported on every list page (12 stations
-        // × ~15 list pages = ~180 hits per crawl, repeating for ~10 list
-        // pages × all languages). We now:
-        //   1. Emit a PostalAddress with the country (or country code) so
-        //      the LocalBusiness `address` requirement is satisfied.
-        //   2. Drop the `genre` key entirely when there are no tags
-        //      instead of emitting an empty array (Google treats `[]` as
-        //      "empty required field" rather than "absent optional field").
-        // Tags can arrive as `string[]` (Mongoose lean projection sometimes
-        // pre-splits) OR as a comma-separated `string` (canonical schema —
-        // see lib/db-shared/src/mongo-schemas.ts → IStation.tags). Earlier
-        // revision only handled the array case, so any station with a
-        // string tags field would still trip Semrush's "missing genre"
-        // check. Normalise both shapes here.
+        const ownedLogo = normalizePublicStationLogoUrl(stationLogoRaw);
+        const stationLogo = /^https?:\/\//i.test(stationLogoRaw)
+          ? (ownedLogo.startsWith('/station-logos/') ? `${baseDomain}${ownedLogo}` : stationLogoRaw) : null;
         const rawTags: any = station.tags;
         const stationGenres: string[] = (Array.isArray(rawTags)
           ? rawTags
           : (typeof rawTags === 'string' ? rawTags.split(',') : [])
         ).map((t: any) => String(t).trim()).filter(Boolean).slice(0, 3);
-        // Address only requires SOME country signal — emit when either
-        // `countryCode` (preferred, ISO-3166 alpha-2) OR `country` (full
-        // name) is present. `areaServed` still needs the full country
-        // name so we keep it gated on `country`.
         const schemaCountry = getSchemaCountry(station, language);
-        const stationCountryForAddress = schemaCountry?.code || schemaCountry?.name;
         // 2026-05-12 SEO audit: each ItemList child also flipped from
         // RadioStation → RadioBroadcastService for the same reason as the
         // top-level station schema. `address` removed (not on Service);
@@ -3378,16 +3583,10 @@ export class SeoRenderer {
             "name": station.name,
             "url": stationUrl,
             ...(stationLogo && { "image": stationLogo }),
-            ...(stationCountryForAddress && {
-              "broadcaster": {
-                "@type": "Organization",
-                "name": station.name,
-                "address": {
-                  "@type": "PostalAddress",
-                  "addressCountry": stationCountryForAddress,
-                },
-              },
-            }),
+            "broadcaster": {
+              "@type": "Organization",
+              "name": station.name,
+            },
             ...(schemaCountry && {
               "areaServed": schemaCountry.name,
             }),
@@ -3403,6 +3602,20 @@ export class SeoRenderer {
         "description": getLocalizedText('faq_seo_intro', 'Discover the most popular radio stations on Mega Radio'),
         "numberOfItems": stationItems.length,
         "itemListElement": stationItems
+      };
+    }
+
+    if (cleanPath === '/genres' && additionalData?.directoryGenres?.length > 0 && seoTags?.noIndex !== true) {
+      const genresPath = buildLocalizedUrl('/genres', language, undefined, urlTranslations || new Map());
+      popularStationsSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        name: buildDirectoryIndexSeo('genres', language, translations).h1,
+        numberOfItems: additionalData.directoryGenres.length,
+        itemListElement: additionalData.directoryGenres.map((genre: { slug: string; name: string }, index: number) => ({
+          '@type': 'ListItem', position: index + 1, name: genre.name,
+          url: `${baseDomain}${genresPath}/${encodeURIComponent(genre.slug)}`,
+        })),
       };
     }
 
@@ -3454,23 +3667,16 @@ export class SeoRenderer {
     // RadioStation Schema for individual station pages
     // Prefix-all canonical + localized station segment for ALL languages (DALGA 2 W2.3 fix)
     let radioStationSchema: any = null;
-    // Rich-result companions (2026-07-03, radio.at parity):
-    //  • localRadioStationSchema — compact RadioStation (LocalBusiness subtype)
-    //    carrying the REAL AggregateRating. Google's review-snippet rich result
-    //    only supports LocalBusiness-family types, NOT BroadcastService, so the
-    //    stars can never come from radioStationSchema alone. Emitted ONLY when
-    //    ≥3 genuine ratings exist (collected via our own star widget) — never
-    //    fabricated from Radio-Browser `votes` (one-way likes, not stars; the
-    //    fabricated-rating cleanup of 2026-05 must not regress).
-    //  • stationWebPageSchema — WebPage with SpeakableSpecification pointing at
+    // stationWebPageSchema — WebPage with SpeakableSpecification pointing at
     //    the SSR body's <h1> and .station-intro (voice-assistant / AI-answer
     //    surface). speakable is only valid on Article/WebPage, hence the
     //    separate entity.
-    let localRadioStationSchema: any = null;
     let stationWebPageSchema: any = null;
     if (stationData) {
       const stationSegmentForRadioJsonLd = urlTranslations?.get(`${language}:station`) || 'station';
-      const stationUrl = `${baseDomain}/${language}/${stationSegmentForRadioJsonLd}/${stationData.slug || stationData._id}`;
+      const stationUrl = cleanPath === `/station/${stationData._id}` && seoTags.canonical
+        ? seoTags.canonical
+        : `${baseDomain}/${language}/${stationSegmentForRadioJsonLd}/${stationData.slug || stationData._id}`;
       // SEO audit 2026-06, Finding C1: only treat an absolute (http) asset as a
       // real station image. Previously this fell back to a shared
       // `default-station.png` placeholder for the ~53.5% of stations with no
@@ -3485,67 +3691,22 @@ export class SeoRenderer {
         stationData.logoAssets?.webp96 ||
         stationData.favicon ||
         '';
-      const stationLogo = /^https?:\/\//i.test(stationLogoRaw) ? stationLogoRaw : null;
+      const ownedLogo = normalizePublicStationLogoUrl(stationLogoRaw);
+      const stationLogo = /^https?:\/\//i.test(stationLogoRaw)
+        ? (ownedLogo.startsWith('/station-logos/') ? `${baseDomain}${ownedLogo}` : stationLogoRaw) : null;
       
-      // broadcastDisplayName identifies the station. broadcastFrequency is emitted as a
-      // structured BroadcastFrequencySpecification when we can parse a real
-      // frequency from station tags (e.g. "FM 102.5"); otherwise we fall
-      // back to the simple "FM"/"AM" string. Listing a station in the
-      // directory does not establish affiliation with a MegaRadio network.
-      let parsedBroadcastFrequency: any = undefined;
-      const tagsForFreq = Array.isArray(stationData.tags) ? stationData.tags.join(',') : (stationData.tags || '');
-      if (tagsForFreq) {
-        const m = String(tagsForFreq).match(/(FM|AM)\s*([0-9]{2,4}(?:[.,][0-9]+)?)/i);
-        if (m) {
-          const band = m[1].toUpperCase();
-          const value = parseFloat(m[2].replace(',', '.'));
-          if (Number.isFinite(value)) {
-            parsedBroadcastFrequency = {
-              "@type": "BroadcastFrequencySpecification",
-              "broadcastFrequencyValue": {
-                "@type": "QuantitativeValue", "value": value,
-                "unitText": band === 'FM' ? 'MHz' : 'kHz',
-              },
-              "broadcastSignalModulation": band,
-            };
-          } else {
-            parsedBroadcastFrequency = band;
-          }
-        } else if (/\bFM\b/i.test(tagsForFreq) || /\bAM\b/i.test(tagsForFreq)) {
-          parsedBroadcastFrequency = /\bFM\b/i.test(tagsForFreq) ? 'FM' : 'AM';
-        }
-      }
+      // Free-form tags cannot verify a broadcast frequency, even with numbers.
 
       // Task #372: source the schema description from the SAME copy the
-      // visible station body renders (descriptions[language].full > description)
+      // visible station body renders (including legacy and English fallbacks)
       // so AI-rewritten / per-language strings can't drift into the JSON-LD
       // and trigger Google's "deceptive markup" warning. `aiDescription` is
       // intentionally NOT used here because the visible body never renders
       // it — see generateHtmlBody case 'station' (~line 1461).
-      const schemaDescriptionSource = (() => {
-        const langDesc = stationData.descriptions?.[language];
-        let candidate = '';
-        if (langDesc) {
-          if (typeof langDesc === 'object' && langDesc.full) candidate = langDesc.full;
-          else if (typeof langDesc === 'string') candidate = langDesc;
-        }
-        if (!candidate && stationData.description) candidate = stationData.description;
-        candidate = String(candidate)
-          .replace(/^\s*\[TRANSLATED\s+FULL\s+DESCRIPTION\]\s*/i, '')
-          .replace(/^\s*\[TRANSLATED\s+META[^\]]*\]\s*/i, '')
-          .replace(/^\s*\[FULL\s+DESCRIPTION[^\]]*\]\s*/i, '')
-          .replace(/^\s*\[[^\]]*DESCRIPTION[^\]]*\]\s*/i, '')
-          .replace(/^\s*\[[^\]]*\]\s*/g, '')
-          .replace(/\{STATION_NAME\}/g, stationData.name || '')
-          .trim();
-        // Item 3 (re-audit 2026-06-20): localize the synthetic fallback per PAGE
-        // language so a station without a per-language/base description doesn't
-        // ship English copy into the JSON-LD of a non-English page. Reuses the
-        // existing LOCALIZED_LISTEN_LIVE map (14 langs + English default).
-        if (candidate) return candidate;
-        const listenLive = LOCALIZED_LISTEN_LIVE[language] || LOCALIZED_LISTEN_LIVE.en;
-        return `${stationData.name} — ${listenLive} · Mega Radio`;
-      })();
+      const schemaDescriptionSource = isStationInformationPage(stationData)
+        ? getStationInformationCopy(language, stationData.name).description
+        : getStationEditorial(stationData, language)?.summary
+          ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
 
       // 2026-05-12 SEO audit (138 invalid items): switched primary type
       // from RadioStation → RadioBroadcastService. RadioStation extends
@@ -3556,8 +3717,7 @@ export class SeoRenderer {
       // broadcastLanguage (NOT in schema.org), genre (NOT on Service).
       // Tags use Service.category; keywords is not defined on Service. Keep
       // ["Music"] default so we never ship empty/missing taxonomy.
-      // Physical address moved off Service onto broadcaster Organization
-      // (Service has no `address` property — only `area`).
+      // Catalog geography is service coverage, not a physical address.
       const stationTagsForKeywords: string[] = (() => {
         const raw = Array.isArray(stationData.tags)
           ? stationData.tags
@@ -3577,19 +3737,12 @@ export class SeoRenderer {
         ...(stationData.homepage && { "url": stationData.homepage }),
       };
       const schemaCountry = getSchemaCountry(stationData, language);
-      if (schemaCountry) {
-        stationBroadcaster.address = {
-          "@type": "PostalAddress",
-          "addressCountry":
-            schemaCountry.code || schemaCountry.name,
-          ...(stationData.state && { "addressLocality": stationData.state }),
-        };
-      }
 
       // Bitrate/codec remain in the visible station details. additionalProperty
       // is not defined on Service; do not invent an identifier or product for it.
 
-      // REAL listener ratings only (see localRadioStationSchema note above).
+      // Real listener ratings remain on the broadcast service. A catalogue
+      // country does not verify a physical LocalBusiness or its address.
       // Denormalized onto the Station doc by POST /api/stations/:id/rate
       // (translation-admin-routes.ts → calculateStationRatingStats).
       const realRatingCount = Number((stationData as any).totalRatings || 0);
@@ -3619,7 +3772,6 @@ export class SeoRenderer {
         ...(schemaCountry && {
           "areaServed": schemaCountry.name,
         }),
-        ...(parsedBroadcastFrequency && { "broadcastFrequency": parsedBroadcastFrequency }),
         "broadcaster": stationBroadcaster,
         "potentialAction": {
           "@type": "ListenAction",
@@ -3638,38 +3790,11 @@ export class SeoRenderer {
         // BroadcastService describes the actual stream. The translated page's
         // language belongs on WebPage below; unknown broadcast language is omitted.
         ...(broadcastLanguages && { "inLanguage": broadcastLanguages }),
-        // aggregateRating IS schema.org-valid on Service (RadioBroadcastService
-        // extends Service). The rich-result-eligible copy lives on the
-        // LocalBusiness entity below; this one keeps the primary entity
-        // self-consistent for validators/AI crawlers.
+        // Preserve genuine ratings without asserting rich-result eligibility.
         ...(aggregateRatingSchema && { "aggregateRating": aggregateRatingSchema }),
       };
 
-      // Compact LocalBusiness entity: the review-snippet (SERP stars) carrier.
-      // Mirrors radio.at's station markup 1:1 (name, image, url, address,
-      // aggregateRating). Distinct @id + distinct @type from the
-      // RadioBroadcastService entity, so this is NOT the duplicate-entity
-      // pattern cleaned up on 2026-07-01 (that was two IDENTICAL types at the
-      // same @id). Requires a country for the LocalBusiness `address`
-      // recommendation — stations without one skip the entity.
-      if (aggregateRatingSchema && schemaCountry && !stationData.notFound) {
-        localRadioStationSchema = {
-          "@context": "https://schema.org",
-          "@type": "RadioStation",
-          "@id": `${stationUrl}#localbusiness`,
-          "name": stationData.name,
-          "description": schemaDescriptionSource,
-          "url": stationUrl,
-          ...(stationLogo && { "image": stationLogo }),
-          "address": {
-            "@type": "PostalAddress",
-            "addressCountry": schemaCountry.code || schemaCountry.name,
-            ...(stationData.state && { "addressLocality": stationData.state }),
-          },
-          "aggregateRating": aggregateRatingSchema,
-          ...(stationData.homepage && { "sameAs": stationData.homepage }),
-        };
-      }
+      if (isStationInformationPage(stationData)) delete radioStationSchema.potentialAction;
 
       // Speakable WebPage (voice assistants / AI answers — radio.at parity).
       // cssSelector targets exist in the SSR body: the <h1> and the
@@ -3697,7 +3822,7 @@ export class SeoRenderer {
       page: [
         breadcrumbSchema,
         faqPageSchema,
-        ...(seoTags?.noIndex !== true ? [radioStationSchema, localRadioStationSchema, stationWebPageSchema, popularStationsSchema] : []),
+        ...(seoTags?.noIndex !== true ? [radioStationSchema, stationWebPageSchema, popularStationsSchema] : []),
         collectionPageSchema,
       ].filter(Boolean),
     };
@@ -3720,6 +3845,7 @@ export class SeoRenderer {
     if (seoTags.domain) ogDomain = seoTags.domain.replace(/^https?:\/\//, '');
     let ogImage = seoTags.ogImage || `https://${ogDomain}/api/og-image`;
     if (stationData?.slug) ogImage = `https://${ogDomain}/api/og-image/${stationData.slug}`;
+    const ogImageDimensions = getKnownOgImageDimensions(ogImage, `https://${ogDomain}`);
     const twitterImage = seoTags.twitterImage || ogImage;
 
     // SAFETY NET: cap descriptions at the same 160-character word boundary
@@ -3772,7 +3898,8 @@ export class SeoRenderer {
 
     return `
     <title>${safeTitle}</title>
-    ${additionalData?.blog ? '<link rel="stylesheet" href="/blog.css?v=20260925">' : ''}
+    ${additionalData?.legacyGuide ? `<meta name="megaradio-legacy-guide" content="${esc(additionalData.legacyGuide.id)}">` : ''}
+    ${additionalData?.blog || additionalData?.legacyGuide ? '<link rel="stylesheet" href="/blog.css?v=20261111">' : ''}
     <meta name="description" content="${safeDescription}">
     <meta name="author" content="MegaRadio">
     
@@ -3782,8 +3909,10 @@ export class SeoRenderer {
     <meta property="og:type" content="${safeOgType}">
     <meta property="og:url" content="${safeCanonical}">
     <meta property="og:image" content="${safeOgImage}">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    ${seoTags.ogImageAlt ? `<meta property="og:image:alt" content="${esc(seoTags.ogImageAlt)}">` : ''}
+    ${seoTags.ogType === 'article' && seoTags.articlePublishedTime ? `<meta property="article:published_time" content="${esc(seoTags.articlePublishedTime)}">` : ''}
+    ${seoTags.ogType === 'article' && seoTags.articleModifiedTime ? `<meta property="article:modified_time" content="${esc(seoTags.articleModifiedTime)}">` : ''}
+    ${ogImageDimensions ? `<meta property="og:image:width" content="${ogImageDimensions.width}">\n    <meta property="og:image:height" content="${ogImageDimensions.height}">` : ''}
     <meta property="og:site_name" content="MegaRadio">
     <meta property="og:locale" content="${safeOgLocale}">
     ${(seoTags.ogLocaleAlternates || []).map((locale: string) => `<meta property="og:locale:alternate" content="${esc(locale)}">`).join('\n    ')}
@@ -3793,6 +3922,7 @@ export class SeoRenderer {
     <meta name="twitter:title" content="${safeTwitterTitle}">
     <meta name="twitter:description" content="${safeTwitterDescription}">
     <meta name="twitter:image" content="${safeTwitterImage}">
+    ${seoTags.twitterImageAlt ? `<meta name="twitter:image:alt" content="${esc(seoTags.twitterImageAlt)}">` : ''}
     <meta name="twitter:site" content="@MegaRadio">
     <meta name="twitter:creator" content="@MegaRadio">
     

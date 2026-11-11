@@ -1,34 +1,31 @@
-import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-vi.mock('../src/lib/flowalive',()=>({faTrackEvent:vi.fn(),faTrackPageView:vi.fn()}));
-let idle:(()=>void)[],scripts:any[],signals:any[];
+import {afterEach,beforeEach,describe,expect,it} from 'vitest';
+import {createGoogleTagManager,MEGARADIO_GTM_ID} from '../src/lib/google-tag-manager';
+import {createWebAnalyticsConsentStore} from '../src/lib/web-analytics-consent';
+let runtime:ReturnType<typeof createGoogleTagManager>;
+let consent:ReturnType<typeof createWebAnalyticsConsentStore>;
+const host=window as any;
 beforeEach(()=>{
- vi.resetModules();idle=[];scripts=[];signals=[];
- vi.stubGlobal('window',{location:{hostname:'themegaradio.com',origin:'https://themegaradio.com',pathname:'/tr/home'},requestIdleCallback:(fn:()=>void)=>{idle.push(fn);},dispatchEvent:(e:any)=>signals.push(e.type)});
- vi.stubGlobal('navigator',{doNotTrack:'0'});
- vi.stubGlobal('document',{querySelector:()=>scripts.length?scripts[0]:null,createElement:()=>({dataset:{}}),head:{appendChild:(s:any)=>scripts.push(s)}});
- vi.stubGlobal('CustomEvent',class {constructor(public type:string){}});
+ localStorage.clear(); window.history.replaceState({},'', '/tr/faq');
+ consent=createWebAnalyticsConsentStore({host:window});
+ runtime=createGoogleTagManager({host:window,document,enabled:true,consent,containerId:MEGARADIO_GTM_ID,measurementId:'G-TEST12345'});
 });
-afterEach(()=>vi.unstubAllGlobals());
+afterEach(()=>{runtime.dispose();for(const k of ['dataLayer','gtag','googlefc','__MEGARADIO_GOOGLE_ALLOWED__','__MEGARADIO_GOOGLE_ALLOWED_VALUE__','ga-disable-G-TEST12345'])delete host[k];document.querySelectorAll('script[src*="googletagmanager"]').forEach(n=>n.remove());localStorage.clear();});
 describe('GA4 production collection boundary',()=>{
- it('queues first SPA view before the deferred script and boots Partytown once',async()=>{
-  const a=await import('../src/lib/analytics');a.trackPageView('/tr/home?token=private');a.initGA();
-  const queue=window.dataLayer.map(x=>Array.from(x));
-  expect(queue.filter(x=>x[0]==='config')).toHaveLength(1);
-  expect(queue.find(x=>x[0]==='config')?.[2]).toMatchObject({send_page_view:false});
-  expect(queue.filter(x=>x[0]==='event'&&x[1]==='page_view')).toHaveLength(1);
-  expect(JSON.stringify(queue)).not.toContain('token=');expect(scripts).toHaveLength(0);
-  idle.forEach(fn=>fn());expect(scripts).toHaveLength(1);expect(scripts[0].type).toBe('text/partytown');expect(signals).toEqual(['ptupdate']);
+ it('drops private search payloads and all diagnostics before explicit consent',()=>{
+  runtime.initialize();runtime.structuredEvent('station_play',{station_id:'a',search_query:'private@example.com'} as any);
+  expect(document.querySelectorAll('script[src*="googletagmanager"]')).toHaveLength(0);
+  expect((host.dataLayer||[]).filter((x:any)=>x.event==='megaradio_event')).toHaveLength(0);
+  consent.set('granted');runtime.structuredEvent('station_play',{station_id:'a',search_query:'private@example.com'} as any);
+  const events=host.dataLayer.filter((x:any)=>x.event==='megaradio_event');
+  expect(events).toEqual([{event:'megaradio_event',event_name:'station_play',station_id:'a'}]);
+  expect(JSON.stringify(host.dataLayer)).not.toContain('private@example.com');
  });
- it('clears signed-in identity and never sends private search queries',async()=>{
-  const a=await import('../src/lib/analytics');a.setAnalyticsUser('opaque-account');a.setAnalyticsUser(null);a.trackSearch('private@example.com',12);
-  const queue=window.dataLayer.map(x=>Array.from(x));expect(queue.filter(x=>x[0]==='config').at(-1)?.[2]).toMatchObject({user_id:null});
-  expect(JSON.stringify(queue)).not.toContain('private@example.com');
- });
- it.each(['localhost','127.0.0.1'])('does not send QA traffic from %s',async hostname=>{
-  window.location.hostname=hostname;const a=await import('../src/lib/analytics');a.trackPageView('/player');expect(window.dataLayer).toBeUndefined();expect(scripts).toHaveLength(0);
- });
- it('excludes admin pages and user opt-outs',async()=>{
-  window.location.pathname='/admin/error-logs';const a=await import('../src/lib/analytics');a.initGA();expect(window.dataLayer).toBeUndefined();
-  window.location.pathname='/tr/home';(navigator as any).doNotTrack='1';a.trackEvent('station_play');expect(window.dataLayer).toBeUndefined();
+ it('starts one shared container and strips private URL fields',()=>{
+  runtime.initialize();consent.set('granted');runtime.initialize();runtime.pageView();
+  window.history.replaceState({},'', '/tr/blog?token=private#secret');runtime.pageView();
+  expect(document.querySelectorAll('script[src*="googletagmanager"]')).toHaveLength(1);
+  expect(JSON.stringify(host.dataLayer)).not.toContain('token=');
+  consent.set('denied');runtime.structuredEvent('station_play',{station_id:'blocked'});
+  expect(JSON.stringify(host.dataLayer)).not.toContain('blocked');
  });
 });

@@ -24,7 +24,7 @@ export function usePremiumStatus(): PremiumStatus {
   const sub = (user as any)?.subscription;
   const plan: string = sub?.plan ?? "none";
   const isActive = isAdFreeSubscription(sub);
-  const isPremium = isActive;
+  const isPremium = isActive && plan !== 'remove_ads';
   const isLifetime = isActive && plan === "premium_lifetime";
 
   useEffect(() => {

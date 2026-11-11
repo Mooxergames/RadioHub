@@ -1,6 +1,11 @@
 // SEO Configuration for multilingual support
-import { reverseTranslateUrl, URL_TRANSLATIONS } from './url-translations';
+import { buildTemplateDescription } from './station-description-template';
+import { getStationInformationCopy, isStationInformationPage } from './station-page-copy';
+import { reverseTranslateUrl, resolveRetiredLocalePath, URL_TRANSLATIONS } from './url-translations';
 import { buildDirectoryIndexSeo } from './directory-index-seo';
+import { normalizePublicStationLogoUrl } from './station-logo-url';
+import { resolveFaqPageText } from './faq-schema';
+import { buildHomeSeo } from './home-seo-templates';
 
 /**
  * Word-boundary safe truncation for meta descriptions.
@@ -214,6 +219,32 @@ export const SITEMAP_PRIORITY_LANGUAGES = {
 
 // Active sitemap language cohort (change this to roll out more languages)
 export const ACTIVE_SITEMAP_LANGUAGES = SITEMAP_PRIORITY_LANGUAGES.universal14;
+
+// UI publication follows the current 14-language cohort. Keep SEO_LANGUAGES
+// intact for historical URL recognition and station broadcast metadata.
+export const ACTIVE_UI_LANGUAGES: readonly string[] = ACTIVE_SITEMAP_LANGUAGES;
+export const isActiveUiLanguage = (code: string): boolean => ACTIVE_UI_LANGUAGES.includes(code);
+
+/** Historical locale addresses remain readable, but are not new UI editions. */
+export function getRetiredLocaleFromPath(pathname: string): string | undefined {
+  const code = /^\/([a-z]{2})(?:\/|[?#]|$)/i.exec(pathname)?.[1].toLowerCase();
+  if (!code) return undefined;
+  // Historical country aliases are bounded by the existing explicit map,
+  // never inferred from an arbitrary two-letter prefix (e.g. rs -> sr).
+  const locale = SEO_LANGUAGES.some(lang => lang.enabled && lang.code === code) ? code : COUNTRY_TO_LANGUAGE[code];
+  return locale && !isActiveUiLanguage(locale) && URL_TRANSLATIONS[locale]
+    && SEO_LANGUAGES.some(lang => lang.enabled && lang.code === locale) ? locale : undefined;
+}
+
+/** English detail destinations must not become A-Z directories or new paths. */
+export function isSafeStationDetailSlug(slug: unknown): slug is string {
+  return typeof slug === 'string' && slug.length > 0 && slug === slug.trim()
+    && !/[\\/?#%\s\u0000-\u001f\u007f-\u009f]/u.test(slug)
+    && slug !== '.' && slug !== '..' && !/^(?:[a-z]|0-9)$/.test(slug);
+}
+
+export const GENRE_STATIONS_PAGE_SIZE = 15;
+export const MAX_GENRE_DIRECTORY_PAGE = 1_000_000;
 
 // Sitemap generation configuration
 export const SITEMAP_CONFIG = {
@@ -701,27 +732,90 @@ export const NATIVE_COUNTRY_NAMES: Record<string, Record<string, string>> = {
 
 const localizedCountryDisplayNames = new Map<string, Intl.DisplayNames>();
 
+// Assigned ISO 3166-1 alpha-2 codes. Intl also names pseudo/retired regions,
+// so it may localize an accepted identity but must never validate one.
+// https://www.iso.org/iso-3166-country-codes.html
+export const ISO_3166_ALPHA2_CODES: readonly string[] = Object.freeze((
+  'AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ ' +
+  'BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ ' +
+  'CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ ' +
+  'DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR ' +
+  'GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY ' +
+  'HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP ' +
+  'KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY ' +
+  'MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ ' +
+  'NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY ' +
+  'QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ ' +
+  'TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ ' +
+  'VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW'
+).split(' '));
+const assignedCountryCodes = new Set(ISO_3166_ALPHA2_CODES);
+// Existing catalogue compatibility only; XK is not an assigned ISO code.
+const catalogueCountryCodeExceptions = new Set(['XK']);
+
+function getCountryDisplayName(code: string, language: string): string | undefined {
+  if (!/^[a-z]{2}$/i.test(code) || /^(xx|zz)$/i.test(code)) return undefined;
+  try {
+    let names = localizedCountryDisplayNames.get(language);
+    if (!names) {
+      names = new Intl.DisplayNames([language], { type: 'region', fallback: 'none' });
+      localizedCountryDisplayNames.set(language, names);
+    }
+    const name = names.of(code.toUpperCase());
+    return name && name !== code.toUpperCase() ? name : undefined;
+  } catch { return undefined; }
+}
+
+function getKnownCountryCode(value: unknown): string | undefined {
+  const code = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return assignedCountryCodes.has(code.toUpperCase()) || catalogueCountryCodeExceptions.has(code.toUpperCase())
+    ? code : undefined;
+}
+
 // The provider's verbose country names do not always match our translation
 // keys. Prefer its validated ISO identity for generated localized display;
 // English source wording and name-only callers retain their existing fallback.
 export function getNativeCountryName(englishCountryName: string, language: string, countryCode?: unknown): string {
   const code = typeof countryCode === 'string' ? countryCode.trim().toLowerCase() : '';
-  if (language !== 'en' && /^[a-z]{2}$/.test(code) && Object.hasOwn(CODE_TO_COUNTRY, code) &&
+  if (language !== 'en' && getKnownCountryCode(code) &&
       SEO_LANGUAGES.some(locale => locale.code === language)) {
-    try {
-      let names = localizedCountryDisplayNames.get(language);
-      if (!names) {
-        names = new Intl.DisplayNames([language], { type: 'region', fallback: 'none' });
-        localizedCountryDisplayNames.set(language, names);
-      }
-      const localized = names.of(code.toUpperCase());
-      if (localized && localized !== code.toUpperCase()) return localized;
-    } catch { /* Preserve the existing name fallback when Intl is unavailable. */ }
+    const localized = getCountryDisplayName(code, language);
+    if (localized) return localized;
   }
   if (!NATIVE_COUNTRY_NAMES[language]) {
     return englishCountryName; // Fallback to English if language not in mapping
   }
   return NATIVE_COUNTRY_NAMES[language][englishCountryName] || englishCountryName;
+}
+
+/** Shared country acceptance policy for queries, visible copy and schema. */
+export function getStationCountryIdentity(station: { country?: unknown; countryCode?: unknown }): { name: string; code?: string } | undefined {
+  const country = typeof station.country === 'string' ? station.country.trim() : '';
+  // Worldwide is a deliberate catalogue scope, not a missing country to infer.
+  if (/^(all|global|worldwide)$/i.test(country)) return undefined;
+  const rawName = /^(unknown|undefined|null|none|n\/a|xx|zz|--)$/i.test(country) ? '' : country;
+  const namedCode = Object.entries(COUNTRY_TO_CODE).find(([name]) => name.toLowerCase() === rawName.toLowerCase())?.[1]
+    || Object.entries(CODE_TO_COUNTRY).find(([, name]) => name.toLowerCase() === rawName.toLowerCase())?.[0];
+  const code = getKnownCountryCode(station.countryCode) || getKnownCountryCode(rawName) || getKnownCountryCode(namedCode);
+  const canonical = code ? CODE_TO_COUNTRY[code]
+    || Object.entries(COUNTRY_TO_CODE).find(([, candidate]) => candidate === code)?.[0]
+    || getCountryDisplayName(code, 'en') : undefined;
+  // Keep compatible provider/English aliases as stable API identities.
+  const compatibleName = rawName && !/^[a-z]{2}$/i.test(rawName)
+    && (!code || namedCode === code || rawName.toLowerCase() === getCountryDisplayName(code, 'en')?.toLowerCase());
+  const name = compatibleName ? rawName : canonical;
+  return name ? { name, ...(code ? { code: code.toUpperCase() } : {}) } : undefined;
+}
+
+/** Stable API identity, never a localized display label. */
+export function getStationCountryQuery(station: { country?: unknown; countryCode?: unknown }): string {
+  return getStationCountryIdentity(station)?.name || '';
+}
+
+/** Country text for public presentation; missing/sentinel countries stay absent. */
+export function getStationCountryName(station: { country?: unknown; countryCode?: unknown }, language: string): string {
+  const country = getStationCountryIdentity(station);
+  return country ? getNativeCountryName(country.name, language, country.code) : '';
 }
 
 // Reverse mapping: Country name to country code for automatic redirection
@@ -964,6 +1058,10 @@ export function getLanguageFromPath(pathname: string): { language: string; clean
   
   // CRITICAL: Normalize to lowercase for consistent lookup
   const normalizedFirstSegment = firstSegment?.toLowerCase();
+  const retiredLocale = getRetiredLocaleFromPath(pathname);
+  if (retiredLocale) {
+    return { language: 'en', cleanPath: resolveRetiredLocalePath('/' + pathSegments.slice(1).join('/'), retiredLocale) };
+  }
   
   // CRITICAL FIX: Check LANGUAGE codes FIRST (priority over country codes)
   // This ensures /ar → Arabic, /de → German, /tr → Turkish work correctly
@@ -975,7 +1073,7 @@ export function getLanguageFromPath(pathname: string): { language: string; clean
     if (isValidLanguage) {
       // It's a language code! Handle it as language, not country
       const pathWithoutLang = '/' + pathSegments.slice(1).join('/');
-      const englishPath = normalizedFirstSegment !== 'en' 
+      const englishPath = normalizedFirstSegment !== 'en'
         ? reverseTranslateUrl(pathWithoutLang, normalizedFirstSegment)
         : decodeEnglishPath(pathWithoutLang);
       
@@ -1387,10 +1485,11 @@ export function generateLanguageUrls(
         const translatedSegments = pathSegments.map((segment, index) => {
           // Check if this is a station/station ID segment
           const isStationPath = cleanPath.includes('/station/') || cleanPath.includes('/stations/');
-          const isStationSlug = isStationPath && index === 1; // Second segment is the slug
+          const isGenrePath = pathSegments.length === 2 && pathSegments[0] === 'genres';
+          const isIdentitySlug = (isStationPath || isGenrePath) && index === 1;
           
-          // Never translate station slugs - they're unique identifiers
-          if (isStationSlug) {
+          // Station and genre slugs are identities, not translated route labels.
+          if (isIdentitySlug) {
             return segment;
           }
           
@@ -1479,6 +1578,9 @@ export interface SeoMetaTags {
   ogTitle?: string;
   ogDescription?: string;
   ogImage?: string;
+  ogImageAlt?: string;
+  articlePublishedTime?: string;
+  articleModifiedTime?: string;
   ogUrl?: string;
   ogType?: string;
   ogSiteName?: string;
@@ -1494,6 +1596,7 @@ export interface SeoMetaTags {
   twitterTitle?: string;
   twitterDescription?: string;
   twitterImage?: string;
+  twitterImageAlt?: string;
   canonical?: string;
   robots?: string;
   language?: string;
@@ -1503,42 +1606,17 @@ export interface SeoMetaTags {
 
 // Helper function to generate localized station title with unique formatting per language
 export function generateLocalizedStationTitle(station: any, language: string, translations: Record<string, string>): string {
+  if (isStationInformationPage(station)) return getStationInformationCopy(language, station.name).title;
   const stationName = station.name;
   
   // Use native country name based on language
-  const nativeCountry = getNativeCountryName(station.country || '', language, station.countryCode) || null;
+  const nativeCountry = getStationCountryName(station, language) || null;
   
-  // Use DB translation key 'seo_from' first, then hardcoded fallbacks per language
-  const fromFallbacks: Record<string, string> = {
-    'tr': 'den',
-    'de': 'aus',
-    'fr': 'de',
-    'es': 'de',
-    'it': 'da',
-    'pt': 'de',
-    'nl': 'uit',
-    'ru': 'из',
-    'pl': 'z',
-    'ar': 'من',
-    'ja': 'から',
-    'zh': '来自',
-    'ko': '에서',
-    'hi': 'से',
-  };
-  
-  let countryPart = '';
-  if (nativeCountry) {
-    const fromWord = translations['seo_from'] || fromFallbacks[language] || 'from';
-    if (language === 'tr') {
-      countryPart = ` ${nativeCountry}'${fromWord}`;
-    } else {
-      countryPart = ` ${fromWord} ${nativeCountry}`;
-    }
-  }
+  // Catalogue country is a qualifier, not a claim about broadcast origin.
+  const countryPart = nativeCountry ? ` — ${nativeCountry}` : '';
   
   // Use DB key 'seo_listen_live_online' for "Listen Live" text, with a
-  // per-language hardcoded fallback (mirrors the `fromFallbacks` pattern
-  // above). The DB keys are not guaranteed-seeded, so without this map the
+  // per-language hardcoded fallback. The DB keys are not guaranteed-seeded, so without this map the
   // CTA stayed the literal English 'Listen Live' in all 14 universal langs.
   // See SEO re-audit 2026-06-20, Finding C.
   const listenLiveFallbacks: Record<string, string> = {
@@ -1579,34 +1657,33 @@ export function getLocalizedStationDescription(station: any, language: string, t
   if (station.descriptions && station.descriptions[language]) {
     const desc = station.descriptions[language];
     // Handle new object format {full, meta}
-    if (typeof desc === 'object' && desc.full) {
+    if (typeof desc === 'object' && typeof desc.full === 'string' && desc.full.trim()) {
       // Strip placeholder text if present
       let fullDesc = desc.full.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').trim();
       return fullDesc;
     }
     // Handle old string format
-    if (typeof desc === 'string') {
+    if (typeof desc === 'string' && desc.trim()) {
       // Strip placeholder text if present
       let strDesc = desc.replace(/^\[FULL DESCRIPTION - 200-300 words\]\s*/i, '').replace(/^\[SEO META - 155-160 characters\]\s*/i, '').trim();
       return strDesc;
     }
   }
   
+  if (isStationInformationPage(station)) return getStationInformationCopy(language, station.name).description;
+  if (language === 'en') return buildTemplateDescription({ ...station, country: getStationCountryName(station, language) }).full;
+
   // FALLBACK: Generate template-based description
   const parts: string[] = [];
   
   // Sentence 1: Hook - Station + Location + Primary Action
   const listenLive = translations['listen_live'] || 'Listen live';
-  const broadcastingFrom = translations['broadcasting_from'] || 'broadcasting from';
   const freeStream = translations['free_stream'] || 'free online';
   
   let sentence1 = `${listenLive} ${station.name}`;
   
-  if (station.country || station.countryCode) {
-    // Use native country name based on language instead of English country name
-    const nativeCountry = getNativeCountryName(station.country || '', language, station.countryCode);
-    if (nativeCountry) sentence1 += ` ${broadcastingFrom} ${nativeCountry}`;
-  }
+  const nativeCountry = getStationCountryName(station, language);
+  if (nativeCountry) sentence1 += ` — ${nativeCountry}`;
   
   // Add language if available
   if (station.language && station.language !== 'unknown') {
@@ -1676,6 +1753,7 @@ function isStationIdentityOnly(value: string, stationName: unknown): boolean {
 // Returns 155-160 character meta description from AI-generated content
 // PRIORITY: AI description > database translation (trending_no_stations_message) > generic fallback
 export function getStationMetaDescription(station: any, language: string, translations: Record<string, string>): string {
+  if (isStationInformationPage(station)) return getStationInformationCopy(language, station.name).description;
   // PRIORITY 1: Use AI-generated meta description if available
   if (station.descriptions && station.descriptions[language]) {
     const desc = station.descriptions[language];
@@ -1710,6 +1788,8 @@ export function getStationMetaDescription(station: any, language: string, transl
     }
   }
   
+  if (language === 'en') return buildTemplateDescription({ ...station, country: getStationCountryName(station, language) }).meta;
+
   // PRIORITY 2: Use database translation (default_station_about) with station name
   // This key contains the localized "currently listening to" template for each language
   // Falls back to trending_no_stations_message if default_station_about not found
@@ -1728,9 +1808,8 @@ export function getStationMetaDescription(station: any, language: string, transl
   // Adds genre tags + free streaming + multi-device language so even AI-less stations
   // produce a Bing-acceptable description length.
   const stationName = station.name;
-  const nativeCountry = getNativeCountryName(station.country || '', language, station.countryCode) || null;
+  const nativeCountry = getStationCountryName(station, language) || null;
   const listenLive = translations['listen_live'] || 'Listen live';
-  const fromWord = translations['from'] || 'from';
   const onlineWord = translations['online'] || 'online';
   const freeStreaming = translations['free_streaming'] || 'Free live streaming';
   const onMegaRadio = translations['on_mega_radio'] || 'on Mega Radio';
@@ -1747,7 +1826,7 @@ export function getStationMetaDescription(station: any, language: string, transl
 
   let metaDesc = `${listenLive} ${stationName}${genreFragment}`;
   if (nativeCountry) {
-    metaDesc += ` ${fromWord} ${nativeCountry}`;
+    metaDesc += ` — ${nativeCountry}`;
   }
   metaDesc += ` ${onlineWord}. ${freeStreaming} ${onMegaRadio} — ${desktopMobile}.`;
 
@@ -1913,7 +1992,6 @@ export function generateSeoTags(
       'more_information': 'Daha Fazla Bilgi',
       // External links translations
       'external_resources': 'Dış Kaynaklar',
-      'flixapp_tv': 'FlixApp TV - Eğlence Platformu',
       'radio_browser': 'Radio Browser - Açık Radyo Veritabanı',
       'musicbrainz': 'MusicBrainz - Müzik Metadata'
     },
@@ -1969,7 +2047,6 @@ export function generateSeoTags(
       'more_information': 'Weitere Informationen',
       // External links translations
       'external_resources': 'Externe Ressourcen',
-      'flixapp_tv': 'FlixApp TV - Entertainment-Plattform',
       'radio_browser': 'Radio Browser - Offene Radio-Datenbank',
       'musicbrainz': 'MusicBrainz - Musik-Metadaten'
     },
@@ -2025,7 +2102,6 @@ export function generateSeoTags(
       'more_information': 'Plus d\'Informations',
       // External links translations
       'external_resources': 'Ressources Externes',
-      'flixapp_tv': 'FlixApp TV - Plateforme de Divertissement',
       'radio_browser': 'Radio Browser - Base de Données Radio Ouverte',
       'musicbrainz': 'MusicBrainz - Métadonnées Musicales'
     },
@@ -2081,7 +2157,6 @@ export function generateSeoTags(
       'more_information': 'Más Información',
       // External links translations
       'external_resources': 'Recursos Externos',
-      'flixapp_tv': 'FlixApp TV - Plataforma de Entretenimiento',
       'radio_browser': 'Radio Browser - Base de Datos Radio Abierta',
       'musicbrainz': 'MusicBrainz - Metadatos Musicales'
     },
@@ -2129,7 +2204,6 @@ export function generateSeoTags(
       'more_information': 'More Information',
       // External links translations
       'external_resources': 'External Resources',
-      'flixapp_tv': 'FlixApp TV - Entertainment Platform',
       'radio_browser': 'Radio Browser - Open Radio Database',
       'musicbrainz': 'MusicBrainz - Music Metadata'
     }
@@ -2155,22 +2229,8 @@ export function generateSeoTags(
     return val ? val : (SEO_FALLBACKS[key] || '');
   };
 
-  // Semrush 2026-05-13 audit: home <title> and <h1> were identical (the
-  // localized hero phrase like "Die beste radio in die wêreld") because
-  // both pulled from `hero_worlds_best_radio`. Append " | Mega Radio"
-  // to <title> unless that exact suffix is ALREADY present at the end of
-  // the title — we deliberately do NOT skip when "Mega Radio" appears
-  // mid-sentence (e.g. EN fallback "Mega Radio: Listen to Free Live
-  // Radio & Music" or AR "ميغا راديو: ..."), because in those cases
-  // skipping would leave <title> === <h1> and the Semrush warning would
-  // persist for the EN home and any language whose hero phrase opens
-  // with the brand. Brand mentioned twice in those titles is acceptable
-  // — Google does not penalize this and the H1/title divergence is
-  // guaranteed unconditionally.
-  const homeRawTitle = getTranslation('meta_title') || getTranslation('hero_worlds_best_radio');
-  const homeBrandedTitle = /\|\s*Mega\s*Radio\s*$/i.test(homeRawTitle)
-    ? homeRawTitle
-    : `${homeRawTitle} | Mega Radio`;
+  // Share homepage branding, DB precedence and localized title fallbacks with SSR.
+  const homeBrandedTitle = buildHomeSeo(language, translations).title;
 
   const genreIndexSeo = buildDirectoryIndexSeo('genres', language, translations);
   const regionIndexSeo = buildDirectoryIndexSeo('regions', language, translations);
@@ -2226,12 +2286,12 @@ export function generateSeoTags(
       robots: 'noindex, follow'
     },
     faq: {
-      title: getTranslation('faq_page_title'),
-      description: getTranslation('faq_page_description'),
+      title: resolveFaqPageText(language, translations).title,
+      description: resolveFaqPageText(language, translations).description,
       keywords: 'mega radio faq, online radio help, internet radio questions, free radio streaming faq',
       ogType: 'website',
-      twitterTitle: getTranslation('faq_page_title'),
-      twitterDescription: getTranslation('faq_page_description')
+      twitterTitle: resolveFaqPageText(language, translations).title,
+      twitterDescription: resolveFaqPageText(language, translations).description
     },
     station: {
       // Dynamic station page SEO with language-specific content for uniqueness
@@ -2247,7 +2307,7 @@ export function generateSeoTags(
       ogTitle: stationData ? 
         generateLocalizedStationTitle(stationData, language, translations) :
         'Listen Live Radio Station - Mega Radio',
-      ogDescription: stationData ? 
+      ogDescription: isStationInformationPage(stationData) ? getStationInformationCopy(language, stationData.name).description : stationData ?
         getLocalizedStationDescription(stationData, language, translations) :
         'Listen to live radio stations online with Mega Radio.',
       ogImage: stationData?.logoAssets?.webp512 || stationData?.logoAssets?.webp256 || stationData?.favicon || undefined,
@@ -2281,6 +2341,12 @@ export function generateSeoTags(
   //   - https://themegaradio.com/ 302-redirects back to /en (circular)
   // Fix: prefix-all strategy is enforced — /en is self-canonical.
   let canonicalPath = translatedPath || originalPath || `/${language}${cleanPath}`;
+  if (originalPath && getRetiredLocaleFromPath(originalPath)) {
+    const idPath = /^\/stations?\/[0-9a-f]{24}$/i.test(cleanPath);
+    const path = page === 'station' && isSafeStationDetailSlug(stationData?.slug) && !idPath
+      ? `/station/${encodeURIComponent(stationData.slug)}` : cleanPath;
+    canonicalPath = translatedPath || `/en${path === '/' ? '' : path}`;
+  }
 
   // Defensive: if canonicalPath ended up as bare "/" (e.g. caller passed cleanPath="/"
   // and translatedPath/originalPath were empty), force the language prefix.
@@ -2338,6 +2404,7 @@ export function generateSeoTags(
   // Ensure images have absolute URLs for social sharing
   const makeAbsoluteUrl = (url?: string): string | undefined => {
     if (!url) return undefined;
+    url = normalizePublicStationLogoUrl(url);
     if (url.startsWith('http')) return url;
     return `${currentDomain}${url.startsWith('/') ? '' : '/'}${url}`;
   };

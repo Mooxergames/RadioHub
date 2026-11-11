@@ -1,10 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { getLanguageFromPath } from '@workspace/seo-shared/seo-config';
+import { getLanguageFromPath, getRetiredLocaleFromPath } from '@workspace/seo-shared/seo-config';
 import { URL_TRANSLATIONS } from '@workspace/seo-shared/url-translations';
 import { buildRegionBreadcrumbItems } from '@workspace/seo-shared/region-breadcrumbs';
 import { useTranslation } from '@/hooks/useTranslation';
 import { PROFILE_CONTENT_INSET } from '@/lib/profile-layout';
+import { resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
+import { StationDirectoryContext } from '@/hooks/useStationDirectory';
+import { preserveInitialSsrHead } from '@/utils/ssr-seo-head';
+import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
 
 /**
  * Visible breadcrumb trail rendered on every non-home page in the React app —
@@ -84,6 +88,19 @@ interface BreadcrumbItem {
   path: string;
 }
 
+function retiredStationCanonicalPath(canonical: string | undefined): string | undefined {
+  if (!canonical) return;
+  try {
+    const url = new URL(canonical);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash) return;
+    if (url.origin !== 'https://themegaradio.com' && url.origin !== window.location.origin) return;
+    if (!/^\/en\/station\/[^/]+$/.test(url.pathname)) return;
+    return url.pathname + url.search;
+  } catch {
+    return;
+  }
+}
+
 const accountBreadcrumbLabels: Record<string, readonly [string, string, string]> = {
   en: ['Listeners', 'Profile', 'Settings'], de: ['Hörer', 'Profil', 'Einstellungen'],
   tr: ['Dinleyiciler', 'Profil', 'Ayarlar'], es: ['Oyentes', 'Perfil', 'Configuración'],
@@ -150,7 +167,7 @@ function computeItems(params: {
       const accountLabelIndex = ['users', 'profile', 'settings'].indexOf(segment);
       // Account routes need a local fallback before the global translator's
       // English dictionary. Other breadcrumb labels keep their existing policy.
-      const baseName = accountLabelIndex >= 0
+      const baseName = segment === 'faq' ? resolveFaqPageText(lang, { ...localeTranslations }).navLabel : accountLabelIndex >= 0
         ? localeTranslations?.[translationKey]?.trim() || (accountBreadcrumbLabels[lang] || accountBreadcrumbLabels.en)[accountLabelIndex]
         : t(translationKey, fallback);
       const displayName = isLastSegment && lastItemName ? lastItemName : baseName;
@@ -185,23 +202,36 @@ export function RouteBreadcrumbs({ placement = 'page' }: { placement?: 'page' | 
   const [location] = useLocation();
   const { t, localeTranslations } = useTranslation();
   const { override } = useContext(BreadcrumbOverrideContext);
+  const seoPage = useContext(StationDirectoryContext);
 
   const { language, cleanPath } = getLanguageFromPath(location);
   const isProfilePage = cleanPath === '/profile' || cleanPath.startsWith('/profile/');
+  const retiredStation = getRetiredLocaleFromPath(location) && /^\/station\/[^/]+$/.test(cleanPath);
+  // The retired URL retains its alias, but the server has already resolved
+  // the actual station. Reuse that exact target, including safe ID canonicals.
+  const canonical = retiredStation
+    ? preserveInitialSsrHead(window.location.pathname + window.location.search)
+      ? document.querySelector<HTMLLinkElement>('link[rel="canonical"][data-managed="seo-head"]')?.href
+      : seoPage?.query.data?.seoTags?.canonical
+    : undefined;
+  const stationCanonicalPath = retiredStationCanonicalPath(canonical);
 
   const items = useMemo(
-    () =>
-      computeItems({
+    () => {
+      const result = computeItems({
         language: language || 'en',
         cleanPath,
         t,
         localeTranslations,
         lastItemName: override.lastItemName,
-      }),
-    [language, cleanPath, t, localeTranslations, override.lastItemName],
+      });
+      if (stationCanonicalPath && result.length) result[result.length - 1].path = stationCanonicalPath;
+      return result;
+    },
+    [language, cleanPath, t, localeTranslations, override.lastItemName, stationCanonicalPath],
   );
 
-  if (items.length === 0) return null;
+  if (items.length === 0 || (getLegacyStationGuideRoute(location) && seoPage?.query.data?.legacyGuideId)) return null;
 
   return (
     <nav

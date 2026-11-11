@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { isActiveUiLanguage } from '@workspace/seo-shared/seo-config';
 import type pg from 'pg';
 import { getPostgresPool } from '../postgres-runtime';
 
@@ -188,6 +189,31 @@ export class PostgresLocalizationStore {
     return result.rows[0] ? translationKey(result.rows[0]) : null;
   }
 
+  async bulkUpdateKeyDefaults(updates: unknown): Promise<number> {
+    if (!Array.isArray(updates) || updates.length === 0 || updates.length > 1000 || updates.some(row =>
+      !row || typeof row.keyId !== 'string' || !row.keyId.trim() || row.keyId.length > 256 ||
+      typeof row.defaultValue !== 'string' || !row.defaultValue.trim() || row.defaultValue.length > 20000) ||
+      new Set(updates.map(row => row.keyId)).size !== updates.length) {
+      throw Object.assign(new Error('Expected 1-1000 unique keys with non-empty source values'), { status: 400 });
+    }
+    return this.transaction(async client => {
+      const found = await client.query('SELECT id FROM translation_keys WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',
+        [updates.map(row => row.keyId)]);
+      if (found.rows.length !== updates.length) throw Object.assign(new Error('One or more translation keys no longer exist'), { status: 409 });
+      let changed = 0;
+      for (const row of updates) {
+        const result = await client.query('UPDATE translation_keys SET default_value=$2,updated_at=now() WHERE id=$1 AND default_value IS DISTINCT FROM $2',
+          [row.keyId, row.defaultValue]);
+        changed += result.rowCount ?? 0;
+      }
+      if (changed) await client.query(
+        `INSERT INTO translation_metadata(scope,languages_version,notes) VALUES ('global',2,'Updated translation source values')
+         ON CONFLICT(scope) DO UPDATE SET languages_version=translation_metadata.languages_version+1,
+           last_bumped_at=now(),updated_at=now(),notes=EXCLUDED.notes`);
+      return changed;
+    });
+  }
+
   async listTranslations(language?: string, keys?: readonly string[], populated = false): Promise<any[]> {
     const result = await this.pool.query(
       `SELECT t.*,k.key,k.default_value FROM translations t JOIN translation_keys k ON k.id=t.key_id
@@ -272,6 +298,7 @@ export class PostgresLocalizationStore {
       const ids = new Map(keys.rows.map((key) => [key.key, key.id]));
       let changed = 0;
       for (const [language, values] of Object.entries(translations).sort(([a], [b]) => a.localeCompare(b))) {
+        if (!isActiveUiLanguage(language)) continue;
         for (const definition of ordered) {
           const value = values[definition.key];
           if (typeof value !== 'string' || !value.trim()) continue;

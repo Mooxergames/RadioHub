@@ -130,16 +130,10 @@ test("operational script guard rejects Mongo imports and direct/aliased shell ex
     assert.ok(violations(source).length, source);
 });
 
-test("operational script guard permits verifier literals and explicit offline migration wrappers", () => {
+test("operational script guard permits verifier literals and PostgreSQL operations", () => {
   assert.deepEqual(
     violations(
       `const forbidden=['mongoose','mongodb','mongosh']; assert.equal(forbidden.length,3);`,
-    ),
-    [],
-  );
-  assert.deepEqual(
-    violations(
-      `spawn('pnpm',['--filter','@workspace/legacy-migration','verify']);`,
     ),
     [],
   );
@@ -169,27 +163,15 @@ test("active API operator scripts contain no Mongo import or mongosh invocation"
   const manifest = JSON.parse(
     readFileSync(path.join(apiRoot, "package.json"), "utf8"),
   );
-  const offlineWrappers = new Map([
-    [
-      "db:migrate:postgres",
-      "pnpm --filter @workspace/legacy-migration migrate",
-    ],
-    ["db:verify:postgres", "pnpm --filter @workspace/legacy-migration verify"],
-  ]);
   for (const [name, command] of Object.entries(manifest.scripts) as Array<
     [string, string]
   >) {
     assert.doesNotMatch(command, /\bmongosh(?:\.exe)?\b/i, name);
-    if (command.includes("@workspace/legacy-migration"))
-      assert.equal(
-        command,
-        offlineWrappers.get(name),
-        "Only reviewed offline wrappers may use legacy migration tooling",
-      );
+    assert.doesNotMatch(command, /@workspace\/legacy-migration/, name);
   }
 });
 
-test("historical entitlement cleanup scripts exist only in the isolated migration archive", () => {
+test("retired entitlement cleanup scripts cannot be run from the repository", () => {
   for (const name of [
     "cleanup-test-user-2026.js",
     "cleanup-test-user-2026.mjs",
@@ -197,7 +179,7 @@ test("historical entitlement cleanup scripts exist only in the isolated migratio
     assert.equal(existsSync(path.join(apiRoot, "scripts", name)), false);
     assert.equal(
       existsSync(path.join(repository, "lib/legacy-migration/archive", name)),
-      true,
+      false,
     );
   }
 });

@@ -7,13 +7,13 @@ export function iapAuditProvider(platform: string): "apple" | "google" {
   return platform === "android" ? "google" : "apple";
 }
 
-export function iapAuditEventId(mongoId: string): string {
-  return `audit:${mongoId}`;
+export function iapAuditEventId(auditId: string): string {
+  return `audit:${auditId}`;
 }
 
 export function createIapAuditIdentity(platform: string): {
-  mongoId: string; provider: "apple" | "google"; providerEventId: string;
+  auditId: string; provider: "apple" | "google"; providerEventId: string;
 } {
-  const mongoId = randomBytes(12).toString("hex");
-  return { mongoId, provider: iapAuditProvider(platform), providerEventId: iapAuditEventId(mongoId) };
+  const auditId = randomBytes(12).toString("hex");
+  return { auditId, provider: iapAuditProvider(platform), providerEventId: iapAuditEventId(auditId) };
 }

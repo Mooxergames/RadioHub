@@ -254,11 +254,6 @@ export async function discoverSitemapUrls(): Promise<UrlSpec[]> {
   return out;
 }
 
-/**
- * Replace the discovery snapshot in Mongo with the latest crawl. New URLs
- * are inserted as `pending`; existing URLs keep their previous inspection
- * state but get their `discoveredAt` bumped so we don't prune them.
- */
 async function syncDiscoveredUrls(specs: UrlSpec[]): Promise<{
   inserted: number;
   refreshed: number;
@@ -527,7 +522,6 @@ class GscInspectionService {
     }
     this.isInitialized = true;
 
-    // Discovery: every 12h. Cheap (Mongo-only).
     cron.schedule(
       '15 3,15 * * *',
       () => {
@@ -598,15 +592,12 @@ class GscInspectionService {
     // Cold-start: kick off a discovery shortly after boot so a freshly
     // deployed environment doesn't show an empty dashboard until the
     // next 03:15/15:15 cron tick. Delayed slightly so it doesn't fight
-    // the boot sequence for Mongo connections.
+    // the boot sequence for database connections.
     setTimeout(() => {
       this.runDiscoveryOnce('boot').catch((err) => {
-        // INCIDENT 2026-05-15 v10.1 — downgrade noisy boot timeout to warn.
-        // GSC discovery boot is non-critical (the 03:15/15:15 cron will
-        // retry); a cold-cluster MongoNetworkTimeoutError here is an
-        // expected condition during M10 cold-start, not a 5xx event.
+        // Discovery is non-critical: scheduled runs retry a boot timeout.
         const msg = err?.message || String(err);
-        const isNetTimeout = /MongoNetworkTimeoutError|timed out|MaxTimeMSExpired/i.test(msg);
+        const isNetTimeout = /timed? ?out|timeout/i.test(msg);
         if (isNetTimeout) {
           logger.warn(`⚠️ GSC discovery boot skipped (cluster cold): ${msg}`);
         } else {

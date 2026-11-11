@@ -76,7 +76,7 @@
     "position": 10,
     "filepath": "src/pages/slides/Performance.tsx",
     "title": "Performance & Reliability",
-    "description": "Multi-layer caching, MongoDB circuit breaker, OOM protection, SSR protection.",
+    "description": "Multi-layer caching, database circuit breaker, OOM protection, SSR protection.",
     "speakerNotes": ""
   },
   {
@@ -84,7 +84,7 @@
     "position": 11,
     "filepath": "src/pages/slides/Architecture.tsx",
     "title": "Architecture",
-    "description": "Cloudflare edge, Express + TypeScript app tier, MongoDB Atlas data tier.",
+    "description": "Cloudflare edge, Express + TypeScript app tier, PostgreSQL data tier.",
     "speakerNotes": ""
   },
   {

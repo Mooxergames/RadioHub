@@ -10,12 +10,12 @@ const AdSenseUnit = lazy(() => import('./AdSenseUnit'));
 export default function DeferredAdSenseUnit(props: AdSenseUnitProps) {
   const [location] = useLocation();
   const search = useSearch();
-  const { isPremium, isLoading, error } = usePremiumStatus();
+  const { isActive: isAdFree, isLoading, error } = usePremiumStatus();
   const containerRef = useRef<HTMLDivElement>(null);
   const [requested, setRequested] = useState(false);
   const routeAllowed = isAdSensePage(location + (search ? `?${search}` : ''))
     && isAdSensePage(window.location.pathname + window.location.search);
-  const allowed = !isPremium && !isLoading && !error && routeAllowed;
+  const allowed = !isAdFree && !isLoading && !error && routeAllowed;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -49,7 +49,7 @@ export default function DeferredAdSenseUnit(props: AdSenseUnitProps) {
     };
   }, [allowed, requested]);
 
-  if (isPremium || !routeAllowed) return null;
+  if (isAdFree || !routeAllowed) return null;
   // Match the unexposed unit's geometry and label without starting Google's SDK.
   const placeholder = <div ref={containerRef} className={`adsense-container ${props.className || ''}`}
     style={{ minHeight: '90px' }} data-ad-placement={props.adSlot || '3609188113'}>

@@ -71,6 +71,38 @@ test('Arabic station detail and unrelated routes are not collapsed into the cata
   }
 });
 
+for (const [language, slug] of [['zh', 'laikos-87-6'], ['ja', 'hasya-katta-official'], ['ko', 'real-fm']] as const) {
+  for (const depth of [2, 3]) {
+    test(`${language} ${depth}-encoded route reaches the real canonical in one hop without changing station identity`, async () => {
+      const route = URL_TRANSLATIONS[language].station;
+      const canonical = `/${language}/${encodeURIComponent(route)}/${slug}`;
+      let encoded = route;
+      for (let i = 0; i < depth; i++) encoded = encodeURIComponent(encoded);
+      const response = await fetch(`${baseUrl}/${language}/${encoded}/${slug}?keep=%252F&page=2`, { redirect: 'manual' });
+      assert.equal(response.status, 301);
+      assert.equal(response.headers.get('location'), `${canonical}?keep=%252F&page=2`);
+      assert.equal(response.headers.get('cache-control'), 'public, max-age=300, must-revalidate');
+      const final = await fetch(baseUrl + response.headers.get('location'), { redirect: 'manual' });
+      assert.equal(final.status, 200);
+      assert.equal(final.headers.get('location'), null);
+    });
+  }
+}
+
+test('route encoding recovery never decodes a slug, unknown segment, separator or protected namespace', async () => {
+  for (const path of ['/zh/%252F/laikos-87-6', '/zh/%252e%252e/laikos-87-6', '/ja/%25E0%25A4%25A/real-fm', '/api/%25E7%2594%25B5%25E5%258F%25B0/real-fm']) {
+    const response = await fetch(baseUrl + path, { redirect: 'manual' });
+    const location = response.headers.get('location');
+    assert.ok(!location || !decodeURIComponent(location).includes('/station/'), `${path}: ${location}`);
+    if (location) assert.equal(location.split('/')[2].toLowerCase(), path.split('/')[2].toLowerCase());
+    await response.text();
+  }
+  const route = encodeURIComponent(URL_TRANSLATIONS.zh.station);
+  const response = await fetch(`${baseUrl}/zh/${route}/%2561lternate`, { redirect: 'manual' });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('location'), null);
+});
+
 for (const letter of ['a', 'z', '0-9']) {
   test(`Arabic ${letter} A-Z sitemap URL remains stable and every configured alias redirects once`, async () => {
     const canonical = buildLocalizedUrl(`/stations/${letter}`, 'ar', undefined, mappings);

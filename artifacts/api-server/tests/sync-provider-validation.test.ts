@@ -7,6 +7,7 @@ let providerPages: unknown[][], existing: any[], inserted: any[], updated: any[]
 let failure: 'find' | 'insert' | 'update' | null;
 let writeAttempts: number, queryAttempts: number, leaderReleased: boolean;
 let cancelRequested = false;
+let intakeEnabled = true;
 let afterProviderResponse: (() => void) | undefined;
 let leader: EventEmitter;
 const fixtureError = Object.assign(new Error('Fixture database unavailable'), { code: '08006' });
@@ -43,6 +44,9 @@ const catalog = {
 };
 
 before(async () => {
+  mock.module('../src/data/postgres-admin-settings-store', { namedExports: {
+    getAdminSetting: async () => ({ value: { allowNewStations: intakeEnabled } }),
+  } });
   mock.module('node:dns/promises', { namedExports: { Resolver: class {
     async resolveSrv() { return [{ name: 'de1.api.radio-browser.info', port: 443 }]; }
     cancel() {}
@@ -78,6 +82,7 @@ beforeEach(() => {
   providerPages = []; existing = []; inserted = []; updated = []; savedRuns = []; warnings = [];
   failure = null; writeAttempts = 0; queryAttempts = 0; leaderReleased = false;
   cancelRequested = false; afterProviderResponse = undefined;
+  intakeEnabled = true;
 });
 after(async () => {
   // Let queued, non-blocking sync follow-ups import their mocked dependency
@@ -95,6 +100,23 @@ function service() {
   instance.hydrateMissingTagsInBackground = async () => {};
   return instance;
 }
+
+test('paused intake updates existing streams without adding any new stations or changing local identity', async () => {
+  intakeEnabled = false;
+  existing = [{ _id: 'local', stationuuid: 'existing-radio', name: 'Local title', slug: 'stable-url',
+    url: 'https://old.invalid/live', noIndex: false }];
+  providerPages = [[provider(), provider({ stationuuid: 'existing-radio', url: 'https://updated.invalid/live',
+    url_resolved: 'https://resolved.invalid/live', lastcheckok: 1 })]];
+  const result = await service().startSync();
+  assert.equal(result.success, true);
+  assert.equal(inserted.length, 0);
+  assert.equal(updated.length, 1);
+  assert.equal(updated[0].patch.url, 'https://updated.invalid/live');
+  assert.equal(updated[0].patch.urlResolved, 'https://resolved.invalid/live');
+  assert.equal(Object.hasOwn(updated[0].patch, 'slug'), false);
+  assert.equal(savedRuns.at(-1).stationsAdded, 0);
+  assert.equal(savedRuns.at(-1).stationsSkipped, 1);
+});
 
 test('incomplete provider rows are skipped and audited while valid insert and update complete', async () => {
   existing = [{ _id: 'local', stationuuid: 'existing-radio', name: 'Local title', slug: 'local-radio',

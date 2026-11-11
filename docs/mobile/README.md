@@ -68,13 +68,13 @@ DB, AWS/S3, OpenAI, Apple private key, Google service-account JSON, Paddle secre
 
 ## 3. Yerel backend ve web referansını açma
 
-Native geliştirmek için bu backend'i mutlaka yerelde kurmanız gerekmez; ekipçe sağlanan staging API tercih edilebilir. Yerel kurulumda Dockerfile ile aynı **Node.js 24 / pnpm 11.19.0** kullanın. npm/yarn kullanmayın ve lockfile'ı yeniden üretmeyin.
+Native geliştirmek için bu backend'i mutlaka yerelde kurmanız gerekmez; ekipçe sağlanan staging API tercih edilebilir. Yerel kurulumda Dockerfile ile aynı **Node.js 24 / pnpm 11.28.1** kullanın. npm/yarn kullanmayın ve lockfile'ı yeniden üretmeyin.
 
 Depo kökünde:
 
 ```sh
 corepack enable
-corepack prepare pnpm@11.19.0 --activate
+corepack prepare pnpm@11.28.1 --activate
 pnpm install --frozen-lockfile
 ```
 

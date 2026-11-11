@@ -253,11 +253,46 @@ describe(
     it("admin counts missing response lines and empty content as failures", async () => {
       await service.syncNewKeys();
       answer = async () => textResponse("");
-      assert.equal((await adminTranslate()).body.stats.failed, 2);
+      const empty = await adminTranslate();
+      assert.equal(empty.status, 200);
+      assert.equal(empty.body.stats.failed, 2);
       answer = async () => textResponse("first_key: Bir");
       const result = await adminTranslate();
+      assert.equal(result.status, 200);
       assert.equal(result.body.stats.translated, 1);
       assert.equal(result.body.stats.failed, 1);
+    });
+
+    it("admin responds only after releasing database ownership, including completed no-op retries", async () => {
+      await service.syncNewKeys();
+      answer = async () => textResponse("first_key: Bir\nsecond_key: Iki");
+      const originalWithLeader = sync.withLeader.bind(sync);
+      const originalJson = express.response.json;
+      let ownershipReleased = false;
+      const responseOwnership: boolean[] = [];
+      const leaderMock = mock.method(sync, "withLeader", async <T>(operation: (writer: TranslationSyncWriter) => Promise<T>) => {
+        const result = await originalWithLeader(operation);
+        ownershipReleased = true;
+        return result;
+      });
+      const jsonMock = mock.method(express.response, "json", function (this: express.Response, body: any) {
+        responseOwnership.push(ownershipReleased);
+        return originalJson.call(this, body);
+      });
+      try {
+        const translated = await adminTranslate(true);
+        assert.equal(translated.status, 200);
+        assert.equal(translated.body.stats.translated, 2);
+        ownershipReleased = false;
+        const complete = await adminTranslate(true);
+        assert.equal(complete.status, 200);
+        assert.equal(complete.body.stats.translated, 0);
+        assert.equal(providerCalls, 1);
+        assert.deepEqual(responseOwnership, [true, true]);
+      } finally {
+        jsonMock.mock.restore();
+        leaderMock.mock.restore();
+      }
     });
 
     it("admin native SQL failure rolls the whole batch back and returns HTTP 500", async () => {
