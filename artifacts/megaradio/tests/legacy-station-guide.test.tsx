@@ -57,6 +57,17 @@ it('a real catalogue owner is not replaced by a guide or selected broadcaster', 
   expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
 });
 
+it('a cached guide payload is rechecked on navigation so it cannot hide a new catalogue owner', async () => {
+  const guide = LEGACY_STATION_GUIDES[0];
+  client.setQueryData(['/api/seo/page-data', guide.path, guide.language], payload());
+  const fetcher = vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'New station' } })));
+  vi.stubGlobal('fetch', fetcher);
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
 it('keeps a route-verified complete SSR guide visible while the fresh ownership request is pending', async () => {
   const guide = LEGACY_STATION_GUIDES[0];
   const marker = document.createElement('meta');

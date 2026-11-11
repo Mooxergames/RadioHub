@@ -473,6 +473,7 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
   app.get("/api/seo/page-data", async (req, res) => {
     try {
       const url = req.query.url as string || '/';
+      if (getLegacyStationGuideRoute(url)) res.set('Cache-Control', 'no-store');
       
       // CRITICAL SEO FIX: Always use themegaradio.com as the PRIMARY domain
       const getProductionDomain = (requestHost: string = ''): string => {

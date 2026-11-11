@@ -74,7 +74,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
       }
       return { ...payload, httpStatus: response.status === 404 ? 404 : 200 };
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: isLegacyGuideCandidate ? 0 : 5 * 60 * 1000,
     ...(isDirectory ? { retry: false } : {}),
   });
   const seoData = query.data;
