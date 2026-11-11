@@ -93,6 +93,7 @@ import {
   getCanonicalGenreSlug,
   MIN_STATIONS_FOR_GENRE_INDEX,
 } from './seo/genre-whitelist';
+import { ensureGenreWhitelistFresh } from './seo/genre-whitelist-store';
 import { resolveFaqPageItems, resolveFaqPageText } from '@workspace/seo-shared/faq-schema';
 import { loadBlogContent, buildBlogSeo, buildBlogSchema } from '@workspace/seo-shared/blog';
 import { isBlogPath, parseBlogPath, BLOG_LABELS, isBlogLocale, blogPath } from '@workspace/seo-shared/blog-manifest';
@@ -689,6 +690,10 @@ export class SeoRenderer {
 
           if (!stationData && legacyGuideCandidate) {
             const guide = legacyGuideCandidate;
+            if (guide.id === 'color-bars-test' && cleanUrl !== guide.path) {
+              return { language: guide.language, cleanPath, translations, urlTranslations, seoTags: {},
+                pageData: { redirectTo: guide.path } };
+            }
             const seoTags = buildLegacyStationGuideSeo(guide);
             return {
               language: guide.language, cleanPath, translations, urlTranslations, seoTags,
@@ -766,6 +771,28 @@ export class SeoRenderer {
           rawGenreSlug = decodeURIComponent(pathParts[2]);
         } catch {
           rawGenreSlug = pathParts[2];
+        }
+        // This one imported label bundle has a reviewed explanatory article.
+        // A real genre/alias still wins; other malformed paths keep their gate.
+        if (legacyGuideCandidate?.id === 'radio-labels' && pathParts.length === 3 && pagination.page === 1) {
+          try {
+            await withSignal(ensureGenreWhitelistFresh(), signal);
+          } catch (error: any) {
+            if (error?.name === 'AbortError' || signal?.aborted) throw error;
+            return { language, cleanPath, translations, urlTranslations, seoTags: {},
+              pageData: { pageType: 'genres', stationDbError: true } };
+          }
+          const canonicalGenre = getCanonicalGenreSlug(rawGenreSlug);
+          if (!canonicalGenre) {
+            const guide = legacyGuideCandidate;
+            return { language: guide.language, cleanPath, translations, urlTranslations,
+              seoTags: buildLegacyStationGuideSeo(guide),
+              pageData: { pageType: 'legacy-guide', legacyGuide: guide, additionalData: { legacyGuide: guide }, notFound: false } };
+          }
+          if (canonicalGenre !== rawGenreSlug) {
+            return { language, cleanPath, translations, urlTranslations, seoTags: {},
+              pageData: { redirectTo: buildLocalizedUrl(`/genres/${canonicalGenre}`, actualLanguage, countryCode, urlTranslations) } };
+          }
         }
         const SAFE_GENRE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
         if (pathParts.length !== 3 || !SAFE_GENRE_SLUG_RE.test(rawGenreSlug)) {

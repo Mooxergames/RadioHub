@@ -66,3 +66,20 @@ it.each([
   syncDocumentLocale(language, path);
   expect(document.documentElement.lang).toBe(language);
 });
+
+it('a rendered reviewed guide owns its language, and a real station restores the normal URL language', () => {
+  const path = '/it/stazione/wxb-loud-1023-fm-pampanga';
+  const article = document.createElement('main');
+  article.dataset.legacyGuideId = 'wxb-loud-1023-fm-pampanga'; article.lang = 'en';
+  document.body.appendChild(article);
+  try {
+    syncDocumentLocale('it', path);
+    expect(document.documentElement.lang).toBe('en');
+    expect(document.documentElement.dir).toBe('ltr');
+    syncDocumentLocale('it', '/it/stazione/some-other-station');
+    expect(document.documentElement.lang).toBe('it');
+    article.remove();
+    syncDocumentLocale('it', path);
+    expect(document.documentElement.lang).toBe('it');
+  } finally { article.remove(); }
+});

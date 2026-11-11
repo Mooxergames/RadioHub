@@ -925,7 +925,7 @@ app.use('/api/stream', forwardApiRequest(streamServiceProxy));
           // Short cache (5 min) so when an alias is removed from the DB,
           // CDN/browser stale 301s clear quickly instead of being cached
           // indefinitely as heuristic fresh.
-          res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+          res.setHeader('Cache-Control', legacyGuideCandidate ? 'no-store' : 'public, max-age=300, must-revalidate');
           res.redirect(301, redirectTo + queryString);
           return;
         }

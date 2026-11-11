@@ -29,7 +29,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   const isLegacyGuideCandidate = !!getLegacyStationGuideRoute(location);
   // Wouter decodes paths/search. Catalog validation and cache identity must
   // retain their original encoding, parameter order and duplicate parameters.
-  const fullUrl = isDirectory && typeof window !== 'undefined'
+  const fullUrl = (isDirectory || isLegacyGuideCandidate) && typeof window !== 'undefined'
     ? window.location.pathname + window.location.search
     : `${location}${search ? `?${search}` : ''}`;
   const ssrHeadAlreadyCorrect = preserveInitialSsrHead(fullUrl);
@@ -55,13 +55,13 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
     placeholderData: undefined,
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/seo/page-data?url=${encodeURIComponent(fullUrl)}&slim=1`, { signal });
-      if (!response.ok && !(((isDirectory || isBlog) && response.status === 404) || (isLegacyGuideCandidate && response.status === 410))) {
+      if (!response.ok && !(((isDirectory || isBlog || isLegacyGuideCandidate) && response.status === 404) || (isLegacyGuideCandidate && response.status === 410))) {
         throw new Error(`SEO page data unavailable (${response.status})`);
       }
       const payload: SeoPagePayload = await response.json();
-      if (isLegacyGuideCandidate && response.status === 410) return {
-        ...payload, httpStatus: 410, legacyGuideId: null,
-        seoTags: { ...payload.seoTags, title: payload.seoTags?.title || '410 | MegaRadio', description: payload.seoTags?.description || '',
+      if (isLegacyGuideCandidate && (response.status === 410 || response.status === 404)) return {
+        ...payload, httpStatus: response.status, legacyGuideId: null,
+        seoTags: { ...payload.seoTags, title: payload.seoTags?.title || `${response.status} | MegaRadio`, description: payload.seoTags?.description || '',
           noIndex: true, robots: 'noindex, follow', canonical: undefined, hreflangs: [] },
         structuredData: { global: payload.structuredData?.global || [], page: [] },
       };
@@ -99,7 +99,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
             the previous route's tags while the current request is pending. */}
         {applyCurrentHead && seoData?.seoTags
           && <SeoHead key={fullUrl} seoData={seoData.seoTags} structuredData={structuredData}
-            clearCanonical={((isDirectory || isBlog) && seoData.httpStatus === 404) || (isLegacyGuideCandidate && seoData.httpStatus === 410)} />}
+            clearCanonical={((isDirectory || isBlog || isLegacyGuideCandidate) && seoData.httpStatus === 404) || (isLegacyGuideCandidate && seoData.httpStatus === 410)} />}
         {children}
       </StationDirectoryContext.Provider>
     </ServerSeoHeadContext.Provider>

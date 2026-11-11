@@ -490,7 +490,7 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
         return;
       }
       if (seoData.pageData?.httpNotFound) res.status(404).set('Cache-Control', 'no-store');
-      if (getLegacyStationGuideRoute(url) && (seoData.pageData?.notFound || seoData.pageData?.stationIsJunk)) {
+      if (getLegacyStationGuideRoute(url) && !seoData.pageData?.httpNotFound && (seoData.pageData?.notFound || seoData.pageData?.stationIsJunk)) {
         res.status(410).set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, follow' }).json({
           legacyGuideId: null,
           seoTags: { title: seoData.language === 'ar' ? 'الصفحة غير متوفرة | MegaRadio' : 'Page unavailable | MegaRadio', description: '',
