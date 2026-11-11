@@ -19,7 +19,7 @@ import {
 } from "@workspace/seo-shared/blog-manifest";
 import { buildBlogSitemap } from "../src/seo/blog-sitemap";
 import { getKnownOgImageDimensions } from "@workspace/seo-shared/og-image-metadata";
-import { getLegacyStationGuide, LEGACY_STATION_GUIDES, LEGACY_GUIDE_REVIEWED_AT } from '@workspace/seo-shared/legacy-station-guides';
+import { LEGACY_STATION_GUIDES } from '@workspace/seo-shared/legacy-station-guides';
 
 test("catalog retains the original 140 editions and adds exactly 48 sparse market editions", () => {
   assert.equal(BLOG_IDS.length, 10);
@@ -82,24 +82,18 @@ test("Hong Kong articles keep /zh URLs but use their genuine language tag; core 
   assert.equal(blogAlternates("radio-data-usage").length, 15);
 });
 
-test("202 blog sitemap URLs plus reviewed station guides retain stable dates and only real alternates", () => {
+test("202 blog sitemap URLs retain stable dates and only real alternates without ownership-dependent guides", () => {
   const entries = new XMLParser({ ignoreAttributes: false }).parse(
     buildBlogSitemap(),
   ).urlset.url;
-  assert.equal(entries.length, 202 + LEGACY_STATION_GUIDES.length);
+  assert.equal(entries.length, 202);
   const byUrl = new Map<string, any>(
     entries.map((entry: any) => [entry.loc, entry]),
   );
-  assert.equal(byUrl.size, 202 + LEGACY_STATION_GUIDES.length);
+  assert.equal(byUrl.size, 202);
+  for (const guide of LEGACY_STATION_GUIDES) assert.equal(byUrl.has(`https://themegaradio.com${guide.path}`), false);
   assert.equal(BLOG_SITEMAP_UPDATED, BLOG_REVIEWED);
   for (const entry of entries) {
-    const guide = getLegacyStationGuide(new URL(entry.loc).pathname);
-    if (guide) {
-      assert.equal(entry.loc, `https://themegaradio.com${guide.path}`);
-      assert.equal(entry.lastmod, LEGACY_GUIDE_REVIEWED_AT);
-      assert.equal(entry['xhtml:link'], undefined);
-      continue;
-    }
     const route = parseBlogPath(new URL(entry.loc).pathname)!;
     if (route.id) assert.equal(entry.lastmod, blogMetadata(route.id, route.locale).updatedAt);
     for (const alternate of [entry["xhtml:link"]].flat()) {

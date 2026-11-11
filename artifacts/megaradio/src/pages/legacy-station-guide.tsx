@@ -27,7 +27,9 @@ export default function LegacyStationGuidePage() {
     event.preventDefault(); navigate(href); window.scrollTo({ top: 0 });
   };
   if (!guide || !page) return <NotFound />;
+  if (page.query.data?.httpStatus === 410) return <NotFound />;
   if (page.query.isError && !initialGuide) return <main className="radio-journal"><button type="button" onClick={() => void page.query.refetch()}>{guide.language === 'ar' ? 'إعادة المحاولة' : 'Try again'}</button></main>;
+  if (page.query.isFetching && !initialGuide) return <main className="radio-journal" aria-busy="true"><div className="radio-journal-loading" /></main>;
   if (!page.query.data && !initialGuide) return <main className="radio-journal" aria-busy="true"><div className="radio-journal-loading" /></main>;
   // A real catalogue owner takes precedence; a URL match alone is not approval.
   if (page.query.data && page.query.data.legacyGuideId !== guide.id) return <InitialStation />;

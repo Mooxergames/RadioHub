@@ -3,8 +3,9 @@ import { registerLlmsTxtRoutes } from '../seo/llms-txt-routes';
 import { mobileAppLinkPaths } from '../seo/mobile-app-links';
 import { isStationDirectoryPath } from '@workspace/seo-shared/station-directory';
 import crypto from 'crypto';
-import { buildBlogSitemap, EDITORIAL_SITEMAP_UPDATED } from '../seo/blog-sitemap';
+import { buildBlogSitemap } from '../seo/blog-sitemap';
 import { getLegacyStationGuideRoute } from '@workspace/seo-shared/legacy-station-guide-routes';
+import { BLOG_SITEMAP_UPDATED } from '@workspace/seo-shared/blog-manifest';
 import { SITEMAP_STYLESHEET, withSitemapStylesheet } from '../seo/sitemap-presentation';
 import { INDEXING_PILOT, matchingPilotProfile, type IndexingPilotProfile } from '../seo/indexing-pilot';
 import { pgReportStationDebugLog, pgListStationDebugLogs } from '../data/postgres-station-debug-store';
@@ -489,6 +490,15 @@ export async function registerSeoSitemapRoutes(app: Express, deps: any, options?
         return;
       }
       if (seoData.pageData?.httpNotFound) res.status(404).set('Cache-Control', 'no-store');
+      if (getLegacyStationGuideRoute(url) && (seoData.pageData?.notFound || seoData.pageData?.stationIsJunk)) {
+        res.status(410).set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, follow' }).json({
+          legacyGuideId: null,
+          seoTags: { title: seoData.language === 'ar' ? 'الصفحة غير متوفرة | MegaRadio' : 'Page unavailable | MegaRadio', description: '',
+            noIndex: true, robots: 'noindex, follow', hreflangs: [] },
+          structuredData: { global: [], page: [] },
+        });
+        return;
+      }
       const retiredStation = getRetiredLocaleFromPath(url) && seoData.pageData?.pageType === 'station';
       if (retiredStation && (seoData.pageData?.notFound || seoData.pageData?.stationIsJunk)) {
         res.status(410).set('Cache-Control', 'no-store').json({ error: 'Station unavailable' });
@@ -961,7 +971,7 @@ Sitemap: ${baseUrl}/sitemap-blog.xml`;
   // Language-specific main sitemap route — manifest-driven (refactored 2026-04-30)
   const blogSitemap = cacheSitemapXml(buildBlogSitemap());
   app.get('/sitemap-blog.xml', (req, res) => {
-    sendSitemapXml(req, res, blogSitemap, 'public, max-age=600, s-maxage=600', new Date(EDITORIAL_SITEMAP_UPDATED));
+    sendSitemapXml(req, res, blogSitemap, 'public, max-age=600, s-maxage=600', new Date(BLOG_SITEMAP_UPDATED));
   });
 
   app.get("/sitemap-main-:lang.xml", async (req, res) => {
@@ -1454,7 +1464,7 @@ ${buildHreflangLinks(altLang, baseUrl + altPath).slice(1)}`);
   </sitemap>`);
       };
 
-      emitEntry(`${baseUrl}/sitemap-blog.xml`, EDITORIAL_SITEMAP_UPDATED);
+      emitEntry(`${baseUrl}/sitemap-blog.xml`, BLOG_SITEMAP_UPDATED);
       // Pilot station reads must not add a failure to the main index.
       if (qualifiedLanguages.includes('en')) {
         for (const country of ['at', 'tr']) emitEntry(`${baseUrl}/sitemap-pilot-en-${country}.xml`);

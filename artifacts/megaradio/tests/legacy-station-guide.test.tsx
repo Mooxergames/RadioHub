@@ -17,10 +17,10 @@ import { SeoPageWrapper } from '../src/components/SeoPageWrapper';
 
 let client: QueryClient;
 beforeEach(() => {
-  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0, refetchOnMount: false } } });
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
 });
-afterEach(() => { cleanup(); client.clear(); document.querySelectorAll('meta[name="megaradio-legacy-guide"]').forEach(node => node.remove()); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); client.clear(); document.querySelectorAll('meta[name="megaradio-legacy-guide"],script[data-managed="seo-structured-data"]').forEach(node => node.remove()); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 function mount(path: string) {
   window.history.replaceState({}, '', path);
@@ -60,12 +60,50 @@ it('a real catalogue owner is not replaced by a guide or selected broadcaster', 
 it('a cached guide payload is rechecked on navigation so it cannot hide a new catalogue owner', async () => {
   const guide = LEGACY_STATION_GUIDES[0];
   client.setQueryData(['/api/seo/page-data', guide.path, guide.language], payload());
-  const fetcher = vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'New station' } })));
+  let resolve!: (value: Response) => void;
+  const fetcher = vi.fn(() => new Promise<Response>(done => { resolve = done; }));
   vi.stubGlobal('fetch', fetcher);
   const view = mount(guide.path);
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+  expect(view.container.querySelector('main')).toHaveAttribute('aria-busy', 'true');
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  resolve(new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'New station' } })));
   await view.findByRole('heading', { name: 'Real catalogue station' });
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+});
+
+it('a definite410 invalidates even verified initial SSR content, canonical and page entities', async () => {
+  const guide = LEGACY_STATION_GUIDES[0];
+  const marker = document.createElement('meta'); marker.name = 'megaradio-legacy-guide'; marker.content = guide.id; document.head.appendChild(marker);
+  const canonical = document.createElement('link'); canonical.rel = 'canonical'; canonical.href = buildLegacyStationGuideSeo(guide).canonical!; document.head.appendChild(canonical);
+  const schema = document.createElement('script'); schema.type = 'application/ld+json'; schema.dataset.managed = 'seo-structured-data'; schema.dataset.schemaScope = 'page'; schema.textContent = JSON.stringify(buildLegacyStationGuideSchema(guide)[1]); document.head.appendChild(schema);
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, seoTags: { title: 'Page unavailable', noIndex: true } }), { status: 410 })));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Not found' });
+  expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
+  expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+  expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
+  expect(document.querySelector('script[data-managed="seo-structured-data"][data-schema-scope="page"]')).toBeNull();
+});
+
+it('a fresh real owner replaces the initial guide title, canonical, robots and page schema together', async () => {
+  const guide = LEGACY_STATION_GUIDES[0];
+  const marker = document.createElement('meta'); marker.name = 'megaradio-legacy-guide'; marker.content = guide.id; document.head.appendChild(marker);
+  const canonical = document.createElement('link'); canonical.rel = 'canonical'; canonical.href = buildLegacyStationGuideSeo(guide).canonical!; document.head.appendChild(canonical);
+  const schema = document.createElement('script'); schema.type = 'application/ld+json'; schema.dataset.managed = 'seo-structured-data'; schema.dataset.schemaScope = 'page'; schema.textContent = JSON.stringify(buildLegacyStationGuideSchema(guide)[1]); document.head.appendChild(schema);
+  const stationCanonical = 'https://themegaradio.com/en/station/real-owner';
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null,
+    seoTags: { title: 'Real owner title', canonical: stationCanonical, robots: 'index, follow', hreflangs: [] },
+    structuredData: { global: [], page: [{ '@context': 'https://schema.org', '@type': 'RadioBroadcastService', name: 'Real owner' }] },
+  }))));
+  const view = mount(guide.path);
+  await view.findByRole('heading', { name: 'Real catalogue station' });
+  expect(document.title).toBe('Real owner title');
+  expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', stationCanonical);
+  expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'index, follow');
+  const schemas = [...document.querySelectorAll('script[data-managed="seo-structured-data"][data-schema-scope="page"]')].map(node => JSON.parse(node.textContent!));
+  expect(schemas.map(node => node['@type'])).toEqual(['RadioBroadcastService']);
 });
 
 it('keeps a route-verified complete SSR guide visible while the fresh ownership request is pending', async () => {

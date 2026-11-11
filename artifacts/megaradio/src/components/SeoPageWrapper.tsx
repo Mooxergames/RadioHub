@@ -55,10 +55,16 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
     placeholderData: undefined,
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/seo/page-data?url=${encodeURIComponent(fullUrl)}&slim=1`, { signal });
-      if (!response.ok && !((isDirectory || isBlog) && response.status === 404)) {
+      if (!response.ok && !(((isDirectory || isBlog) && response.status === 404) || (isLegacyGuideCandidate && response.status === 410))) {
         throw new Error(`SEO page data unavailable (${response.status})`);
       }
       const payload: SeoPagePayload = await response.json();
+      if (isLegacyGuideCandidate && response.status === 410) return {
+        ...payload, httpStatus: 410, legacyGuideId: null,
+        seoTags: { ...payload.seoTags, title: payload.seoTags?.title || '410 | MegaRadio', description: payload.seoTags?.description || '',
+          noIndex: true, robots: 'noindex, follow', canonical: undefined, hreflangs: [] },
+        structuredData: { global: payload.structuredData?.global || [], page: [] },
+      };
       if (isDirectory && response.status !== 404 && !isStationDirectoryData(payload?.stationDirectory)) {
         throw new Error('Station directory data unavailable');
       }
@@ -75,6 +81,7 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
       return { ...payload, httpStatus: response.status === 404 ? 404 : 200 };
     },
     staleTime: isLegacyGuideCandidate ? 0 : 5 * 60 * 1000,
+    ...(isLegacyGuideCandidate ? { refetchOnMount: 'always' as const } : {}),
     ...(isDirectory ? { retry: false } : {}),
   });
   const seoData = query.data;
@@ -87,9 +94,9 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
       <StationDirectoryContext.Provider value={{ active: isDirectory, language: currentLanguage, query }}>
         {/* Never replace a complete SSR head with homepage translation keys or
             the previous route's tags while the current request is pending. */}
-        {(!ssrHeadAlreadyCorrect || ((isDirectory || isBlog) && seoData?.httpStatus === 404)) && seoData?.seoTags
+        {(!ssrHeadAlreadyCorrect || ((isDirectory || isBlog) && seoData?.httpStatus === 404) || (isLegacyGuideCandidate && query.isSuccess && !query.isFetching)) && seoData?.seoTags
           && <SeoHead key={fullUrl} seoData={seoData.seoTags} structuredData={structuredData}
-            clearCanonical={(isDirectory || isBlog) && seoData.httpStatus === 404} />}
+            clearCanonical={((isDirectory || isBlog) && seoData.httpStatus === 404) || (isLegacyGuideCandidate && seoData.httpStatus === 410)} />}
         {children}
       </StationDirectoryContext.Provider>
     </ServerSeoHeadContext.Provider>
