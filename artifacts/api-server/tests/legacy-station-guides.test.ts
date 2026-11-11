@@ -53,7 +53,10 @@ before(async () => {
     },
     findMergedAlias: async (k: string) => { read('merge', k); return mergeOwners.get(k) ?? null; },
     findById: async (k: string) => rows.find(r => r._id === k) ?? null,
-    find: async () => [], count: async () => 0, groupCount: async () => [],
+    find: async (q: Record<string, string> = {}) => {
+      if (Object.hasOwn(q, 'slugAliases')) { read('aliasOwners', q.slugAliases); return rows.filter(r => r.slugAliases.includes(q.slugAliases)).slice(0, 2); }
+      return [];
+    }, count: async () => 0, groupCount: async () => [],
   }) } });
   mock.module('../src/data/postgres-content-store', { namedExports: {
     ...await import('../src/data/postgres-content-store'), pgSeoMetadata: async () => null,
@@ -219,6 +222,70 @@ test('plural test path consolidates only after every ownership check misses', as
       assert.equal((await get(path)).status, 503);
       assert.equal((await slim(path)).status, 503);
     }
+  }
+});
+
+const colorBarSource = (patch: Record<string, unknown> = {}) => owner('cai-tiao-ce-shi-1', {
+  _id: '68a8c4a9bd66579311ab91d1', stationuuid: 'f557e499-a0d9-44c0-9eea-49c42364f78b',
+  name: '彩条测试1', slugAliases: ['1-21'], noIndex: true, redirectToSlug: null,
+  manualEditFields: { noIndex: true }, ...patch,
+});
+
+test('the reviewed excluded test alias hosts the tool without reviving its source', async () => {
+  rows = [colorBarSource()];
+  for (const method of ['GET', 'HEAD']) {
+    const old = await get('/hu/radios/1-21', method);
+    assert.equal(old.status, 301); assert.equal(old.location, '/hu/radio/1-21');
+    const current = await get('/hu/radio/1-21', method); assert.equal(current.status, 200);
+    if (method === 'GET') {
+      assert.ok(current.body.includes('data-audio-test-root'));
+      assert.ok(current.body.includes('href="' + origin + '/hu/radio/1-21"'));
+      assert.doesNotMatch(current.body, /RadioStation|RadioBroadcastService|station-bootstrap/);
+    }
+  }
+  const dto = await slim('/hu/radio/1-21'); assert.equal(dto.status, 200);
+  assert.equal(JSON.parse(dto.body).legacyGuideId, 'color-bars-test');
+  assert.equal(JSON.parse(dto.body).station, undefined);
+  assert.ok(lookups.includes('aliasOwners:1-21'));
+  assert.equal((await get('/en/station/cai-tiao-ce-shi-1')).status, 410);
+  assert.equal(rows[0].noIndex, true); assert.deepEqual(rows[0].manualEditFields, { noIndex: true });
+});
+
+for (const patch of [
+  { _id: 'other' }, { stationuuid: 'other' }, { name: 'Other' }, { slug: 'other' },
+  { noIndex: false }, { redirectToSlug: 'other' }, { redirectToSlug: undefined },
+  { manualEditFields: {} }, { manualEditFields: { noIndex: true, descriptions: true } },
+  { automaticNoIndex: {} }, { stationPageMode: 'information' },
+]) {
+  test('the reviewed source exception rejects policy or identity drift: ' + JSON.stringify(patch), async () => {
+    rows = [colorBarSource(patch)];
+    for (const path of ['/hu/radio/1-21', '/hu/radios/1-21']) {
+      const page = await render(path); assert.notEqual(page.pageData?.pageType, 'legacy-guide');
+      assert.equal((await get(path)).status, 410);
+      assert.ok(!JSON.parse((await slim(path)).body).legacyGuideId);
+    }
+  });
+}
+
+test('native, merged and competing alias owners outrank the reviewed test source', async () => {
+  for (const kind of ['native', 'merge', 'conflict']) {
+    rows = [colorBarSource()]; mergeOwners.clear();
+    const live = owner(kind === 'native' ? '1-21' : 'live', { _id: 'live',
+      ...(kind === 'conflict' ? { slugAliases: ['1-21'] } : {}),
+    });
+    rows.push(live);
+    if (kind === 'merge') mergeOwners.set('1-21', live);
+    assert.notEqual((await render('/hu/radio/1-21')).pageData?.pageType, 'legacy-guide');
+  }
+  rows = [colorBarSource()]; mergeOwners.set('1-21', rows[0]);
+  assert.equal((await get('/hu/radio/1-21')).status, 410);
+});
+
+test('a failed required alias-owner read cannot publish the reviewed tool', async () => {
+  rows = [colorBarSource()]; failAt = 'aliasOwners';
+  for (const path of ['/hu/radio/1-21', '/hu/radios/1-21']) {
+    assert.equal((await get(path)).status, 503);
+    assert.equal((await slim(path)).status, 503);
   }
 });
 

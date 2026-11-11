@@ -60,6 +60,19 @@ const SSR_CARD_FIELDS = ['_id', 'name', 'slug', 'url', 'noIndex', 'isListVisible
 const SSR_METADATA_READER = { query: (text: string, values: any[]) => boundedSeoReadQuery(text, values, 'metadata') };
 const SSR_GENRE_READER = { query: (text: string, values: any[]) => boundedSeoReadQuery(text, values, 'genre') };
 
+function isReviewedColorBarSource(station: any): boolean {
+  const manual = station?.manualEditFields;
+  // This reviewed alias can host an independent tool without reviving the
+  // excluded source station or weakening the catalog's manual noindex policy.
+  return station?._id === '68a8c4a9bd66579311ab91d1'
+    && station.stationuuid === 'f557e499-a0d9-44c0-9eea-49c42364f78b'
+    && station.slug === 'cai-tiao-ce-shi-1' && station.name === '彩条测试1'
+    && Array.isArray(station.slugAliases) && station.slugAliases.includes('1-21')
+    && station.noIndex === true && station.redirectToSlug === null
+    && manual && !Array.isArray(manual) && Object.keys(manual).length === 1 && manual.noIndex === true
+    && station.automaticNoIndex == null && station.stationPageMode == null;
+}
+
 // These shells have no public list. Their SEO API metadata must agree with
 // the HTTP noindex policy even when robots allows crawlers to read the shell.
 const PRIVATE_PAGE_ROOTS = new Set([
@@ -536,10 +549,14 @@ export class SeoRenderer {
           // When matched, signal a 301 redirect to the canonical URL so search
           // engines consolidate ranking on the new slug instead of indexing both.
           if (!stationData) {
-            let aliasMatch: any = await withSignal(
-              pgSeoCatalog().findMergedAlias(stationSlug).then(match => match ?? pgSeoCatalog().findOne({ slugAliases: stationSlug })),
-              signal,
-            );
+            const mergedAlias = await withSignal(pgSeoCatalog().findMergedAlias(stationSlug), signal);
+            let aliasMatch: any = mergedAlias ?? await withSignal(pgSeoCatalog().findOne({ slugAliases: stationSlug }), signal);
+            if (!mergedAlias && legacyGuideCandidate?.id === 'color-bars-test' && isReviewedColorBarSource(aliasMatch)) {
+              // An alias array is not globally unique. A second owner must keep
+              // the ordinary resolver authoritative, even for this exact source.
+              const owners = await withSignal(pgSeoCatalog().find({ slugAliases: stationSlug }, { limit: 2 }), signal);
+              if (owners.length === 1 && isReviewedColorBarSource(owners[0])) aliasMatch = null;
+            }
             // Only repair reviewed historical spellings after every exact
             // identity lookup missed. Keep the normal junk/canonical gates below.
             const repairedAlias = !aliasMatch && verifiedLegacyStationAlias(stationSlug);
