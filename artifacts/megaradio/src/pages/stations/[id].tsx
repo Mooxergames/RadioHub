@@ -251,7 +251,7 @@ export default function StationDetails() {
   const apiStatus = Number(error?.message.match(/^(\d{3}):/)?.[1]);
   const canUseBootstrap = !(apiStatus >= 400 && apiStatus < 500 && apiStatus !== 408 && apiStatus !== 429);
   const station = apiStation ?? (canUseBootstrap ? bootstrapStation : undefined);
-  const stationEditorial = getStationEditorial(station, language);
+  const stationEditorial = getStationEditorial(station, language, window.location.pathname);
   const stationRatings = useStationRatings(station?._id, user?._id);
 
   // Task #371: publish the station name into the layout breadcrumb so the

@@ -8,7 +8,8 @@ import { getQueryFn } from '../src/lib/queryClient';
 import { ServerSeoHeadContext } from '../src/utils/ssr-seo-head';
 import { buildTemplateDescription } from '@workspace/seo-shared/station-description-template';
 import { renderStationBootstrap } from '../../api-server/src/seo/station-bootstrap';
-import { getStationEditorial } from '@workspace/seo-shared/station-editorial';
+import { getStationEditorial, REVIEWED_STATION_EDITORIALS } from '@workspace/seo-shared/station-editorial';
+import { SeoPageWrapper } from '../src/components/SeoPageWrapper';
 
 const state = vi.hoisted(() => ({
   language: 'en', slug: 'fixture-radio', playStation: vi.fn(),
@@ -17,7 +18,7 @@ const state = vi.hoisted(() => ({
   similar: [] as Record<string, unknown>[], country: [] as Record<string, unknown>[],
 }));
 vi.mock('@/hooks/useSeoRouting', () => ({ useSeoRouting: () => ({
-  cleanPath: `/station/${state.slug}`, currentLanguage: state.language,
+  cleanPath: `/station/${state.slug}`, englishPath: `/station/${state.slug}`, currentLanguage: state.language,
   getLocalizedUrl: (path: string) => `/${state.language}${path}`, navigateWithLanguage: vi.fn(),
 }) }));
 vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => ({
@@ -88,6 +89,46 @@ function expectArticle() {
   expect(screen.getAllByText(article)).toHaveLength(1);
   expect(screen.queryByText('Station not found.')).not.toBeInTheDocument();
 }
+
+it.each(['canonical', 'percent-encoded'])(
+  'uses one raw path for reviewed station body and metadata during %s navigation', async variant => {
+    const content = REVIEWED_STATION_EDITORIALS.find(item => item.language === 'en')!;
+    expect(content).toBeDefined();
+    state.slug = content.slug;
+    const rawPath = variant === 'canonical' ? content.path
+      : content.path.slice(0, content.path.lastIndexOf('/') + 1)
+        + `%${content.slug.charCodeAt(0).toString(16)}` + content.slug.slice(1);
+    window.history.replaceState({}, '', rawPath);
+    const record = { ...seed, _id: content.stationId, slug: content.slug,
+      descriptions: { en: 'The broadcaster supplied this original overview.' } };
+    const requested: string[] = [];
+    vi.mocked(fetch).mockImplementation(async (url: any) => {
+      if (String(url).startsWith('/api/seo/page-data?')) {
+        const path = new URL(String(url), window.location.origin).searchParams.get('url')!;
+        requested.push(path);
+        const selected = getStationEditorial(record, 'en', path);
+        return Response.json({ seoTags: { title: selected ? 'Reviewed station title' : 'Original station title',
+          description: selected?.summary || record.descriptions.en, canonical: 'https://themegaradio.com' + content.path,
+          robots: 'index, follow' }, structuredData: { global: [], page: [] } });
+      }
+      return Response.json(String(url).startsWith('/api/station/') ? record : []);
+    });
+    bootstrap(record);
+    render(<QueryClientProvider client={client}><SeoPageWrapper><StationDetails /></SeoPageWrapper></QueryClientProvider>);
+    await waitFor(() => expect(requested).toEqual([rawPath]));
+    await waitFor(() => expect(document.title).toBe(variant === 'canonical' ? 'Reviewed station title' : 'Original station title'));
+    if (variant === 'canonical') {
+      expect(screen.getAllByText(content.summary)).toHaveLength(1);
+      expect(screen.getByTestId('station-editorial')).toBeInTheDocument();
+    } else {
+      expect(screen.queryByTestId('station-editorial')).not.toBeInTheDocument();
+      expect(screen.getAllByText(record.descriptions.en)).toHaveLength(1);
+    }
+    expect(window.location.pathname).toBe(rawPath);
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', 'https://themegaradio.com' + content.path);
+    expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'index, follow');
+  },
+);
 
 it.each(['old-fixture-radio', '68a8c482bd66579311ab2f5b'])(
   'retired locale keeps the historical %s address and real English article during enrichment', async identifier => {

@@ -23,13 +23,14 @@ export function SeoPageWrapper({ children, pageType = 'home' }: SeoPageWrapperPr
   const search = useSearch();
   
   const routePath = (englishPath || '').split(/[?#]/)[0];
+  const isStationDetail = /^\/station\/[^/]+$/.test(routePath);
   const isGenrePage = /^\/genres(?:\/|$)/.test(routePath);
   const isDirectory = isStationDirectoryPath(routePath, !getRetiredLocaleFromPath(location));
   const isBlog = /^\/[a-z]{2}\/blog(?:\/|$)/.test(location);
   const isLegacyGuideCandidate = !!getLegacyStationGuideRoute(location);
   // Wouter decodes paths/search. Catalog validation and cache identity must
   // retain their original encoding, parameter order and duplicate parameters.
-  const fullUrl = (isDirectory || isLegacyGuideCandidate) && typeof window !== 'undefined'
+  const fullUrl = (isDirectory || isLegacyGuideCandidate || isStationDetail) && typeof window !== 'undefined'
     ? window.location.pathname + window.location.search
     : `${location}${search ? `?${search}` : ''}`;
   const ssrHeadAlreadyCorrect = preserveInitialSsrHead(fullUrl);
