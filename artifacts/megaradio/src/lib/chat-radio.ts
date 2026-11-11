@@ -1,0 +1,4 @@
+export interface RadioGift { version:1; stationId:string; name:string; country:string; logo?:string; intent:'gift'|'together'|'custom'; caption?:string }
+export function parseRadioGift(content:string):RadioGift|null {
+ try{const value=JSON.parse(content);if(value?.version!==1||!/^([a-f0-9]{24})$/i.test(value.stationId)||typeof value.name!=='string'||!value.name.trim()||value.name.length>140||!['gift','together','custom'].includes(value.intent))return null;return {version:1,stationId:value.stationId,name:value.name,country:typeof value.country==='string'?value.country.slice(0,80):'',logo:typeof value.logo==='string'&&/^https?:\/\//i.test(value.logo)?value.logo.slice(0,600):undefined,intent:value.intent,caption:typeof value.caption==='string'?value.caption.slice(0,300):undefined};}catch{return null;}
+}

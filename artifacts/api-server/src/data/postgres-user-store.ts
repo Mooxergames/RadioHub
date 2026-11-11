@@ -123,7 +123,7 @@ export async function pgListAdminUsers(options: AdminUserListOptions): Promise<{
   if (options.plan === "none") {
     conditions.push(`NOT COALESCE(${effectiveAccess},false)`);
   } else if (options.plan === "any_premium") {
-    conditions.push(`${effectiveAccess} AND s.plan=ANY(ARRAY['premium_monthly','premium_yearly','premium_lifetime'])`);
+    conditions.push(`${effectiveAccess} AND s.plan=ANY(ARRAY['premium_monthly','premium_quarterly','premium_yearly','premium_lifetime'])`);
   } else if (options.plan && options.plan !== "all") {
     conditions.push(`${effectiveAccess} AND s.plan=${bind(options.plan)}`);
   }

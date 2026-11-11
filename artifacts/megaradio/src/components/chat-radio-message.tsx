@@ -1,0 +1,17 @@
+import {useEffect,useRef,useState} from 'react';
+import {Play,Pause,Radio} from 'lucide-react';
+import {useGlobalPlayer} from '@/hooks/useGlobalPlayer.shell';
+import {apiRequest,oauthBearerHeader} from '@/lib/queryClient';
+import {parseRadioGift} from '@/lib/chat-radio';
+export function ChatRadioMessage({content,messageId,language,peerExpiresAt}:{content:string;messageId:string;language:string;peerExpiresAt?:number}){
+ const gift=parseRadioGift(content),player=useGlobalPlayer(),[opened,setOpened]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(false),[now,setNow]=useState(Date.now());
+ const clientId=useRef(`web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`),revision=useRef(0);
+ const playing=opened&&player.isPlaying&&player.currentStation?._id===gift?.stationId;
+ useEffect(()=>{if(opened&&player.currentStation?._id!==gift?.stationId)setOpened(false);},[opened,player.currentStation?._id,gift?.stationId]);
+ const tr=language==='tr',de=language==='de';
+ useEffect(()=>{setNow(Date.now());if(!peerExpiresAt)return;const timer=setTimeout(()=>setNow(Date.now()),Math.max(0,peerExpiresAt-Date.now()+20));return()=>clearTimeout(timer);},[peerExpiresAt]);
+ useEffect(()=>{if(!opened)return;const report=(value:boolean)=>{void apiRequest('POST','/api/messages/listening',{headers:oauthBearerHeader(),body:{messageId,clientId:clientId.current,revision:++revision.current,listening:value}}).catch(()=>{});};const update=()=>report(playing&&document.visibilityState==='visible');update();if(!playing)return;const interval=setInterval(update,12000);document.addEventListener('visibilitychange',update);return()=>{clearInterval(interval);document.removeEventListener('visibilitychange',update);report(false);};},[opened,playing,messageId]);
+ if(!gift)return <p className="text-sm text-gray-400">{tr?'Radyo kullanılamıyor.':de?'Radio nicht verfügbar.':'Radio unavailable.'}</p>;
+ const play=async()=>{if(busy)return;setBusy(true);setError(false);try{if(playing){player.pause();return;}const response=await apiRequest('GET',`/api/station/${gift.stationId}`,{headers:oauthBearerHeader()});const station=await response.json();await player.playStation(station);setOpened(true);}catch{setError(true);}finally{setBusy(false);}};
+ return <div className="w-64 max-w-full rounded-2xl bg-white/5 p-4"><p className="flex items-center gap-2 text-xs text-pink-200 mb-3"><Radio size={16}/>{gift.intent==='custom'?gift.caption:gift.intent==='gift'?(tr?'Sana bir radyo':de?'Ein Radio für dich':'A radio for you'):(tr?'Birlikte dinleyelim':de?'Gemeinsam hören':'Let’s listen together')}</p><button type="button" disabled={busy} onClick={play} className="flex items-center gap-3 text-left w-full"><img src={gift.logo||'/logo.png'} alt="" className="size-12 rounded-xl object-cover" loading="lazy"/><span className="flex-1 min-w-0"><strong className="block text-sm">{gift.name}</strong><span className="text-xs text-gray-400">{gift.country}</span></span>{playing?<Pause size={18}/>:<Play size={18}/>}</button>{gift.intent!=='custom'&&gift.caption&&<p className="text-sm mt-3">{gift.caption}</p>}{(playing||!!peerExpiresAt&&peerExpiresAt>now)&&<p className="text-[11px] text-emerald-300 mt-3">● {playing?(tr?'Şu an dinliyorsun':de?'Du hörst gerade zu':'You’re listening now'):(tr?'Şu an dinliyor':de?'Hört gerade zu':'Listening now')}</p>}{error&&<p className="text-xs text-pink-200 mt-2">{tr?'Radyo açılamadı. Tekrar dene.':de?'Radio nicht verfügbar.':'Radio unavailable. Try again.'}</p>}</div>;
+}

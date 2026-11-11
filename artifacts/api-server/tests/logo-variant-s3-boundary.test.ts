@@ -39,3 +39,9 @@ it('publishes only small variants with conditional create and immutable cache he
 for (const key of [sourceKey, variantKey.replace('96.webp', '256.webp'), variantKey.replace('logo-96.webp', 'original.webp')]) {
   it(`forbids overwriting original or256 key ${key}`, async () => { await assert.rejects(uploadLogoVariant(key, Buffer.from('x'), signal())); assert.equal(calls.length, 0); });
 }
+
+it('reads descriptive station filenames inside the same restricted S3 boundary', async () => {
+  const key = 'station-logos/radio_12345678/ses-fm-logo-256.webp';
+  assert.equal((await readLogoVariantSource(key, signal())).toString(), 'webp');
+  assert.equal(calls[0].command.input.Key, key);
+});

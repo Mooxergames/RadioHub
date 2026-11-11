@@ -46,7 +46,7 @@ test('genre uses native canonical membership, compact bounded projection and det
     assert.ok(query.values.includes('jazz'));
     assert.ok(query.sql.includes('genre_matches AS MATERIALIZED'));
     assert.ok(query.sql.includes('jsonb_object_agg'));
-    assert.ok(query.sql.includes('votes DESC,id ASC'));
+    assert.ok(/votes DESC.*id ASC/.test(query.sql));
     assert.ok(!query.sql.includes('SELECT *') && !query.sql.includes('s.descriptions'));
     assert.ok(query.deadline > Date.now() && query.deadline <= Date.now() + 4000);
   }

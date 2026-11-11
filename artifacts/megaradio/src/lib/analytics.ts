@@ -1,5 +1,5 @@
 import { faTrackEvent, faTrackPageView } from './flowalive';
-import { initializeGoogleTagManager, googlePageView, googleEvent } from './google-tag-manager';
+import { initializeGoogleTagManager, googlePageView, googleEvent, googleStructuredEvent, googleUser, googleProperty } from './google-tag-manager';
 
 export const initGA = initializeGoogleTagManager;
 
@@ -18,6 +18,11 @@ export const trackEvent = (
   // allowlisted event name and a bounded numeric value.
   googleEvent(action, value);
 };
+
+// Detailed product events use the same public-route and explicit-consent gate.
+export const trackStructuredEvent=googleStructuredEvent;
+export const setAnalyticsUser=googleUser;
+export const setAnalyticsProperty=googleProperty;
 
 // Radio-specific analytics events
 export const trackStationPlay = (stationName: string, stationCountry: string, stationGenre?: string) => {
@@ -61,10 +66,7 @@ export const trackListeningTime = (stationName: string, durationMinutes: number)
   });
 };
 
-export const trackSearch = (searchTerm: string, resultsCount: number) => {
-  trackEvent('search', 'user_interaction', searchTerm, resultsCount);
-  faTrackEvent('search_performed', {
-    query: searchTerm,
-    results_count: resultsCount,
-  });
+export const trackSearch = (_searchTerm:string,resultsCount:number)=>{
+ trackStructuredEvent('search',{results_count:resultsCount});
+ faTrackEvent('search_performed',{results_count:resultsCount});
 };

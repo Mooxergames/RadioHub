@@ -237,6 +237,12 @@ export const userFavorites = pgTable(
   ],
 );
 
+export const stationVotes = pgTable('station_votes', {
+  stationId: text('station_id').notNull().references(() => stations.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt,
+}, table => [primaryKey({ columns: [table.stationId, table.userId] }), index('station_votes_user_idx').on(table.userId)]);
+
 export const stationRatings = pgTable(
   "station_ratings",
   {
@@ -313,7 +319,11 @@ export const directMessages = pgTable(
     content: text("content").notNull(),
     messageType: text("message_type").notNull().default("text"),
     imageUrl: text("image_url"),
+    replyToId: text("reply_to_id"),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     isRead: boolean("is_read").notNull().default(false),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    hiddenFor: text("hidden_for").array().notNull().default(sql`ARRAY[]::text[]`),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt,
     updatedAt,
@@ -737,3 +747,21 @@ export const stationDuplicateMergeControl = pgTable('station_duplicate_merge_con
   leaseUntil: timestamp('lease_until', { withTimezone: true }),
   summary: jsonb('summary').notNull().default({}),
 }, table => [check('station_duplicate_merge_control_id_check', sql`${table.id}=1`)]);
+
+export const chatGroups = pgTable('chat_groups', {
+ id:text('id').primaryKey(),name:text('name').notNull(),avatar:text('avatar'),genres:text('genres').array().notNull().default([]),
+ createdBy:text('created_by').notNull().references(()=>users.id),createdAt,
+});
+export const chatGroupMembers = pgTable('chat_group_members',{
+ groupId:text('group_id').notNull().references(()=>chatGroups.id,{onDelete:'cascade'}),
+ userId:text('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ role:text('role').notNull().default('member'),status:text('status').notNull().default('invited'),
+ joinedAt:timestamp('joined_at',{withTimezone:true}).notNull().defaultNow(),readAt:timestamp('read_at',{withTimezone:true}).notNull().defaultNow(),
+},table=>[primaryKey({columns:[table.groupId,table.userId]}),index('chat_group_members_user_idx').on(table.userId,table.status)]);
+export const chatGroupMessages = pgTable('chat_group_messages',{
+ id:text('id').primaryKey(),groupId:text('group_id').notNull().references(()=>chatGroups.id,{onDelete:'cascade'}),
+ fromUserId:text('from_user_id').notNull().references(()=>users.id),content:text('content').notNull(),
+ messageType:text('message_type').notNull().default('text'),imageUrl:text('image_url'),createdAt,
+ hiddenFor:text('hidden_for').array().notNull().default(sql`'{}'::text[]`),deletedAt:timestamp('deleted_at',{withTimezone:true}),
+ replyToId:text('reply_to_id'),pinnedAt:timestamp('pinned_at',{withTimezone:true}),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+},table=>[index('chat_group_messages_time_idx').on(table.groupId,table.createdAt,table.id)]);

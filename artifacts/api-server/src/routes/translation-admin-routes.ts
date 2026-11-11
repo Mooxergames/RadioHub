@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { registerStationVoteRoutes } from "./station-vote-routes";
 import { CODE_TO_COUNTRY, SEO_LANGUAGES, isActiveUiLanguage } from "@workspace/seo-shared/seo-config";
 import { registerAdminLanguageArchiveRoutes } from './admin-language-archive-routes';
 import { SAFE_GENRE_SLUG_RE, normalizeGenreSlug } from '../seo/genre-slug';
@@ -35,7 +36,7 @@ import { publicUserIdentity } from '../utils/public-user-identity';
 import { pgAddRecentlyPlayed, pgFavoriteStationsForUser, pgFindStationRating, pgIsFavorite, pgRateStationIdentity, pgRecentlyPlayedStations, pgStationRatingsDetailed, } from "../data/postgres-engagement-store";
 import { ensurePostgresUser } from "../data/auth-token-store";
 import { getStationByIdentifier } from "../data/station-read-store";
-import { incrementStationClick, incrementStationVote } from "../data/station-write-store";
+import { incrementStationClick } from "../data/station-write-store";
 import { pgCreateNotification, pgListNotifications, pgMarkAllNotificationsRead, pgMarkNotificationRead, notificationCategories, type NotificationCategory } from "../data/postgres-notification-store";
 import { pgFindUserByEmail, pgFindUserByIdOrSlug, pgUpdateUser, pgUserFavoriteCount, pgUserFollowCounts, pgUsersNeedingProfileFix, newPublicUserId } from "../data/postgres-user-store";
 // Module-scoped lock for the auto-translate route. The translation pipeline
@@ -1396,25 +1397,7 @@ ${keysText}`;
             res.status(500).json({ error: 'Failed to fetch ratings' });
         }
     });
-    // Vote for a station - increments vote count by 1
-    app.post("/api/stations/:id/vote", async (req, res) => {
-        try {
-            const { id: stationId } = req.params;
-            // Find station and increment votes
-            const votes = await incrementStationVote(stationId);
-            if (votes === null) {
-                return void res.status(404).json({ error: 'Station not found' });
-            }
-            res.json({
-                success: true,
-                votes
-            });
-        }
-        catch (error) {
-            console.error('Error voting for station:', error);
-            res.status(500).json({ error: 'Failed to vote for station' });
-        }
-    });
+    registerStationVoteRoutes(app, authenticatedUserId);
     // Get user's rating for a specific station
     app.get("/api/stations/:id/user-rating", async (req, res) => {
         try {

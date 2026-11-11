@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlayCircle, Vote, TrendingUp, Clock, Zap, Globe, Radio, Search, Heart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import VoteButton from '@/components/ui/vote-button';
 import { useGlobalPlayer } from '@/hooks/useGlobalPlayer';
 
 interface RadioBrowserStation {
@@ -110,32 +110,6 @@ export default function RadioBrowser() {
     }
   };
 
-  const handleStationVote = async (stationId: string, stationName: string) => {
-    try {
-      const response = await apiRequest('POST', `/api/stations/${encodeURIComponent(stationId)}/vote`);
-      const result = await response.json();
-      
-      if (result.success) {
-        toast({
-          title: "Vote submitted",
-          description: `Voted for ${stationName} - ${result.votes} total votes`
-        });
-      } else {
-        toast({
-          title: "Vote failed",
-          description: result.message || "You may have already voted recently",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Vote failed",
-        description: "Unable to submit vote",
-        variant: "destructive"
-      });
-    }
-  };
-
   const StationCard = ({ station, isApiStation = false }: { station: any, isApiStation?: boolean }) => (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-2 sm:pb-3">
@@ -202,16 +176,7 @@ export default function RadioBrowser() {
               <span className="hidden sm:inline">Play</span>
               <span className="sm:hidden">▶</span>
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleStationVote(station._id || station.stationuuid, station.name)}
-              className="flex-1 sm:flex-none"
-            >
-              <Vote className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-              <span className="hidden sm:inline">Vote</span>
-              <span className="sm:hidden">♥</span>
-            </Button>
+            <VoteButton stationId={station._id || station.stationuuid} className="h-9 w-11 border border-input" size="mobile" />
           </div>
         </div>
       </CardContent>

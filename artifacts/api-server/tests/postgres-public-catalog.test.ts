@@ -83,6 +83,19 @@ describe('Native PostgreSQL public catalog', { skip: !process.env.PG_TEST_DATABA
     const empty = await read.listStationsFromPostgres({ genre: 'rock', page: 3, limit: 1 });
     assert.equal(empty.totalCount, 1); assert.deepEqual(empty.stations, []); assert.equal(empty.pagination.pages, 1);
   });
+  it('ranks literal station brands above popular subchannels and preserves joined localized names', async () => {
+    await catalog.insertMany([
+      station('maximum-exact',{name:'MAXIMUM',votes:1}), station('maximum-target',{name:'Radyo Maximum',votes:0}),
+      ...Array.from({length:40},(_,i)=>station(`theme-${i}`,{name:`Radio Maximum - Theme ${i}`,votes:90000+i})),
+      station('viyana',{name:'ViyanaFM'}),station('vienna',{name:'Vienna FM',votes:90000}),
+      station('siran',{name:'Radyo ŞİRAN'}),station('unrelated',{name:'Radyo Seven',votes:999999}),
+    ]);
+    assert.deepEqual((await read.listStationsFromPostgres({search:'maximum',page:1,limit:2})).stations.map(s=>s._id),['maximum-exact','maximum-target']);
+    for(const search of ['viyana','viyana fm','VİYANA FM','viyana-fm'])
+      assert.equal((await read.listStationsFromPostgres({search,page:1,limit:10})).stations[0]._id,'viyana');
+    assert.equal((await read.listStationsFromPostgres({search:'siran',page:1,limit:10})).stations[0]._id,'siran');
+    assert.ok(!(await read.listStationsFromPostgres({search:'radyo maximum',page:1,limit:10})).stations.some(s=>s._id==='unrelated'));
+  });
   it('SSR genre native pages stay compact and match the public native membership/order', async () => {
     const archive = 'ARCHIVED_ARTICLE_NOT_A_CARD '.repeat(1000);
     await catalog.insertMany(Array.from({ length: 32 }, (_, i) => station(`genre-${String(i).padStart(2, '0')}`, {
@@ -181,7 +194,7 @@ describe('Native PostgreSQL public catalog', { skip: !process.env.PG_TEST_DATABA
       station('c', { name: '123 Radio', favicon: 'https://logo.invalid/c', votes: 20, tags: 'rock', descriptions: article, createdAt: '2022-01-01' }),
       station('d', { name: 'No logo', votes: 999, tags: 'jazz', descriptions: article, createdAt: '2023-01-01' }),
     ]);
-    const sorts: Record<string, string[]> = { votes: ['c', 'b', 'a', 'd'], az: ['a', 'b', 'd', 'c'], za: ['b', 'a', 'd', 'c'], newest: ['c', 'b', 'a', 'd'], oldest: ['a', 'b', 'c', 'd'] };
+    const sorts: Record<string, string[]> = { votes: ['d', 'c', 'b', 'a'], az: ['a', 'b', 'd', 'c'], za: ['d', 'b', 'a', 'c'], newest: ['d', 'c', 'b', 'a'], oldest: ['a', 'b', 'c', 'd'] };
     for (const [sort, expected] of Object.entries(sorts)) {
       for (const compact of [false, true]) {
         const ids: string[] = [];

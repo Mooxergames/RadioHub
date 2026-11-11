@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { recordStationVote } from "./station-vote-store";
 import { getPostgresPool } from "../postgres-runtime";
 import { stationVisibilityFields } from '../utils/station-visibility';
 import { lockStationIdentity, resolveStationId, resolveStationIds } from './station-identity-store';
@@ -225,13 +226,14 @@ export async function pgRateStationIdentity(
           [existing.rows[0].id, rating, comment || null],
         );
     await client.query(
-      `UPDATE stations s SET average_rating=x.average_rating,total_ratings=x.total_ratings,
-         votes=CASE WHEN $2 THEN s.votes+1 ELSE s.votes END
+      `UPDATE stations s SET average_rating=x.average_rating,total_ratings=x.total_ratings
        FROM (SELECT station_id,round(avg(rating)::numeric,1)::real average_rating,count(*)::int total_ratings
              FROM station_ratings WHERE station_id=$1 GROUP BY station_id) x
        WHERE s.id=x.station_id`,
-      [stationId, isNew],
+      [stationId],
     );
+    // Legacy signed-in ratings share the same one-vote identity as thumbs-up.
+    if (identity.userId) await recordStationVote(client, stationId, identity.userId);
     const stats = await pgStationRatingStats(stationId, client);
     const station = await client.query<{ votes: number }>("SELECT votes FROM stations WHERE id=$1", [stationId]);
     await client.query("COMMIT");

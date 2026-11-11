@@ -1,3 +1,4 @@
+import {googleIdentity} from './google-identity-policy';
 import { OAuth2Client } from 'google-auth-library';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
@@ -22,7 +23,9 @@ export async function verifyMobileGoogleToken(idToken: string) {
       '957628580421-664s6dft9n8kp91futrnpsugd4fcsonn.apps.googleusercontent.com',
     ]),
   });
-  return ticket.getPayload();
+  const payload = ticket.getPayload();
+  googleIdentity(payload || {});
+  return payload;
 }
 
 export async function verifyMobileAppleToken(identityToken: string) {

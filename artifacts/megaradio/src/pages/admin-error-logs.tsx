@@ -98,6 +98,7 @@ export function AdminErrorLogs() {
       'CONNECTION_TIMEOUT': 'bg-yellow-100 text-yellow-800',
       'STREAM_UNAVAILABLE': 'bg-purple-100 text-purple-800',
       'AUDIO_ERROR': 'bg-gray-100 text-gray-800',
+      'USER_REPORT': 'bg-pink-100 text-pink-800',
       'CORS_ERROR': 'bg-blue-100 text-blue-800'
     };
     
@@ -206,6 +207,7 @@ export function AdminErrorLogs() {
                   <SelectItem value="CONNECTION_TIMEOUT">Connection Timeout</SelectItem>
                   <SelectItem value="STREAM_UNAVAILABLE">Stream Unavailable</SelectItem>
                   <SelectItem value="AUDIO_ERROR">Audio Error</SelectItem>
+                  <SelectItem value="USER_REPORT">User Report</SelectItem>
                   <SelectItem value="CORS_ERROR">CORS Error</SelectItem>
                 </SelectContent>
               </Select>
