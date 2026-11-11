@@ -10,7 +10,7 @@ import { GlobalPlayerProvider } from '@/hooks/useGlobalPlayer';
 import { useGlobalPlayer } from '@/hooks/useGlobalPlayer.shell';
 
 vi.mock('@/services/metadata-client', () => ({ createMetadataClient: () => ({subscribe:vi.fn(),trackStream:vi.fn(),connect:vi.fn(),disconnect:vi.fn(),stop:vi.fn(),destroy:vi.fn()}) }));
-vi.mock('@/lib/analytics', () => ({ trackStationPlay: vi.fn(), trackListeningTime: vi.fn(), trackStationFavorite: vi.fn() }));
+vi.mock('@/lib/analytics', () => ({ trackStationPlay: vi.fn(), trackListeningTime: vi.fn(), trackStationFavorite: vi.fn(), setAnalyticsProperty: vi.fn(), trackStructuredEvent: vi.fn() }));
 vi.mock('@/lib/logger', () => ({ logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 

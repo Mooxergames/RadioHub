@@ -1243,11 +1243,7 @@ function App() {
       // Verify required environment variable is present
       if (!isAdminRoute) {
         // Admin activity must not bootstrap public analytics/Partytown.
-        if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
-          logger.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
-        } else {
-          initGA();
-        }
+        initGA();
       }
       // Initialize background playback if user previously accepted
       initializeBackgroundPlayback();

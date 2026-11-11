@@ -55,6 +55,8 @@ interface UserSubscription {
 }
 
 interface UserProfile {
+  profileGender?: 'female' | 'male' | 'other' | 'undisclosed' | null;
+  profileCountryCode?: string | null;
   _id: string;
   email: string;
   fullName?: string;
@@ -1471,7 +1473,12 @@ export default function AdminUsers() {
 
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                   <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">User Details</h3>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
+                  <section aria-label="Self-declared discovery profile" className="grid grid-cols-2 gap-3 text-sm border-b border-gray-200 pb-4">
+                  <div><span className="text-gray-500">Declared gender</span><p className="font-medium text-gray-900" data-testid="admin-user-profile-gender">{({female:'Female',male:'Male',other:'Other',undisclosed:'Prefer not to say'} as Record<string,string>)[editUser?.profileGender || ''] || 'Not specified'}</p></div>
+                  <div><span className="text-gray-500">Country of residence</span><p className="font-medium text-gray-900" data-testid="admin-user-profile-country">{editUser?.profileCountryCode ? (()=>{try{return new Intl.DisplayNames(['en'],{type:'region'}).of(editUser.profileCountryCode) || editUser.profileCountryCode;}catch{return editUser.profileCountryCode;}})() : 'Not specified'}</p></div>
+                  <p className="col-span-2 text-xs text-gray-500">Optional · supplied by the user. Separate from the radio browsing country.</p>
+                </section>
+                <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <span className="text-gray-500">Auth Method</span>
                       <p className="font-medium text-gray-900">{editUser?.authProvider || "email"}</p>

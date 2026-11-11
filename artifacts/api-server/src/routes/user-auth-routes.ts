@@ -1,3 +1,4 @@
+import {googleIdentity, canLinkGoogleAccount} from '../auth/google-identity-policy';
 import { pgListeningTotalMinutes } from '../data/postgres-listening-store';
 import type { Express } from "express";
 import { profileFieldsSchema, authProfileSchema, notificationSettingsSchema } from '@workspace/api-zod';
@@ -29,7 +30,7 @@ import { notificationStore, pgCreateNotification } from '../data/postgres-notifi
 const ENABLED_LANGUAGE_CODES = new Set(SEO_LANGUAGES.filter((l: any) => l.enabled).map((l: any) => l.code.toLowerCase()));
 function notificationSettingsFor(user: any) {
     const stored = user?.notificationSettings || {};
-    return Object.fromEntries(Object.entries({ favorites: true, nowPlaying: true, newStations: false, recommendations: false }).map(([key, fallback]) => [key, typeof stored[key] === 'boolean' ? stored[key] : fallback]));
+    return Object.fromEntries(Object.entries({ pushEnabled: true, messages: true, followers: true, favorites: true, nowPlaying: true, newStations: false, recommendations: false }).map(([key, fallback]) => [key, typeof stored[key] === 'boolean' ? stored[key] : fallback]));
 }
 async function invalidateProfileCaches(user: any): Promise<void> {
     await invalidateCommunityProfiles();
@@ -607,7 +608,7 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
             void logAuthEvent(req, { method: 'google', event: 'profile_resolved', ok: true, email: user.email, userId: user._id?.toString() });
             try {
                 const token = await generateAuthToken(user._id.toString(), 'web');
-                logger.log(`✅ Google OAuth token generated for: ${user.email} userId=${user._id} tokenPrefix=${token.slice(0, 16)}… len=${token.length}`);
+                logger.log(`✅ Google OAuth token generated for: ${user.email} userId=${user._id} tokenIssued=true`);
                 void logAuthEvent(req, { method: 'google', event: 'token_issued', ok: true, email: user.email, userId: user._id?.toString(), message: `tokenLen=${token.length}` });
                 delete (req.session as any).oauthReturnTo;
                 delete (req.session as any).oauthReturnLang;
@@ -844,8 +845,9 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
             if (!payload || !payload.sub) {
                 return void res.status(401).json({ success: false, error: 'Invalid token payload' });
             }
-            const verifiedGoogleId = payload.sub;
-            const verifiedEmail = payload.email;
+            const identity = googleIdentity(payload);
+            const verifiedGoogleId = identity.id;
+            const verifiedEmail = identity.email;
             const verifiedName = payload.name || name;
             const avatar = payload.picture;
             if (!verifiedEmail) {
@@ -867,6 +869,9 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
                 if (user) {
                     if (user.status !== 'active') {
                         return void res.status(403).json({ success: false, error: 'Account is suspended or inactive' });
+                    }
+                    if (!canLinkGoogleAccount(user.googleId, identity)) {
+                        return void res.status(409).json({success: false, error: 'Sign in with your existing account instead.', code: 'ACCOUNT_LINK_REQUIRED'});
                     }
                     user.googleId = verifiedGoogleId;
                     user.lastLoginAt = new Date();
@@ -1600,6 +1605,7 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
                 message: `${currentUser?.fullName || currentUser?.username || 'Someone'} started following you`,
                 data: { followerId: currentUserId }
             });
+            void import('../services/pushNotificationService').then(({ PushNotificationService }) => PushNotificationService.sendFollowNotification(followingUserId, currentUser?.fullName || currentUser?.username || 'MegaRadio', currentUser?.slug, currentUserId)).catch(() => {});
             const { invalidateSocialCacheForUser } = deps;
             await Promise.all([
                 invalidateSocialCacheForUser(currentUserId, currentUser?.email),

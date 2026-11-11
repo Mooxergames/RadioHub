@@ -2,7 +2,8 @@ import { createContext, useContext, useState, useRef, useEffect, ReactNode } fro
 import type { StationWithCountry as Station } from '@workspace/db-shared/schema';
 import { toast } from '@/hooks/use-toast';
 import { createMetadataClient } from '@/services/metadata-client';
-import { trackStationPlay, trackStationFavorite } from '../lib/analytics';
+import { trackStationFavorite } from '../lib/analytics';
+import {analyticsSession} from '../lib/analytics-runtime';
 import { logger } from '@/lib/logger';
 import { getStreamProxyUrl, resolveStreamUrl } from '@/lib/utils';
 import { addRecentlyPlayed } from '@/utils/recently-played';
@@ -31,6 +32,10 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
   const [favorites] = useState<string[]>([]);
   const [hasError, setHasError] = useState(false);
   const [stationMeta, setStationMeta] = useState<any>(null);
+  useEffect(()=>{
+    analyticsSession.playback(currentStation?{id:currentStation._id,name:currentStation.name,country:currentStation.country||'',genre:currentStation.tags?.split(',')[0]}:null,
+      hasError?'error':isLoading?'buffering':isPlaying?'playing':currentStation?'paused':'idle');
+  },[currentStation?._id,isPlaying,isLoading,hasError]);
   const [stationQueue, setStationQueue] = useState<Station[]>([]);
   const [currentStationIndex, setCurrentStationIndex] = useState(-1);
   

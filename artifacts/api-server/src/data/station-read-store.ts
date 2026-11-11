@@ -1,3 +1,4 @@
+import { stationSearchSql } from '../utils/station-search';
 import { getPostgresPool } from "../postgres-runtime";
 import { stationVisibilityFields } from '../utils/station-visibility';
 import { matchesVerifiedLegacyStationTarget, verifiedLegacyStationAlias } from '../seo/verified-legacy-station-alias';
@@ -239,18 +240,9 @@ export async function listStationsFromPostgres(options: PostgresStationListOptio
   if (options.language) conditions.push(`language ILIKE ${bind(containsPattern(options.language))}`);
   let searchOrder = '';
   if (options.search) {
-    const search = options.search.trim().slice(0, 100);
-    if (search.length === 2) conditions.push(`name ILIKE ${bind(containsPattern(search).slice(1))}`);
-    else if (search.length >= 3) {
-      const words = search.split(/\s+/).filter(Boolean);
-      conditions.push('(' + words.map((word) => {
-        const pattern = bind(containsPattern(word));
-        return `(name ILIKE ${pattern} OR country ILIKE ${pattern} OR tags_raw ILIKE ${pattern})`;
-      }).join(' OR ') + ')');
-      const exact = bind(search);
-      const phrase = bind(containsPattern(search));
-      searchOrder = `(CASE WHEN lower(name)=lower(${exact}) THEN 4 WHEN name ILIKE ${phrase} THEN 3 WHEN tags_raw ILIKE ${phrase} THEN 2 ELSE 1 END) DESC,`;
-    }
+    const search=stationSearchSql(options.search,bind);
+    conditions.push(search.where);
+    searchOrder=search.order;
   }
   if (options.excludeIds?.length) conditions.push(`NOT (id=ANY(${bind(options.excludeIds)}::text[]))`);
   if (Number.isFinite(options.minVotes) && options.minVotes! > 0) conditions.push(`votes>=${bind(options.minVotes)}`);
@@ -265,9 +257,10 @@ export async function listStationsFromPostgres(options: PostgresStationListOptio
   if (options.codec) conditions.push(`lower(codec)=lower(${bind(options.codec)})`);
   if (Number.isFinite(options.minBitrate)) conditions.push(`bitrate>=${bind(options.minBitrate)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const sortMap: Record<string, string> = { az:'name ASC',za:'name DESC',newest:'created_at DESC',oldest:'created_at ASC',votes:'votes DESC' };
+  const sortMap: Record<string, string> = { az:'name ASC',za:'name DESC',newest:'created_at DESC',oldest:'created_at ASC',votes:'votes DESC,click_count DESC' };
   const numericNamesLast = ['az','za'].includes(options.sort || '') ? "(btrim(name) ~ '^[0-9]') ASC," : '';
-  const order = searchOrder + numericNamesLast + `(btrim(COALESCE(favicon,'')) ~* '^(https?://.+|data:image/.+)') DESC,${sortMap[options.sort || 'votes'] || sortMap.votes},id ASC`;
+  // Requested ordering is authoritative; logo quality only breaks equal metrics.
+  const order = searchOrder + numericNamesLast + `${sortMap[options.sort || 'votes'] || sortMap.votes},(btrim(COALESCE(favicon,'')) ~* '^(https?://.+|data:image/.+)') DESC,id ASC`;
   const page = boundedInteger(options.page, 1, 1_000_000);
   const limit = boundedInteger(options.limit, 25, 500);
   // Select the bounded ID page before loading wide station/source columns.

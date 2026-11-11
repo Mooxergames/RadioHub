@@ -35,11 +35,11 @@ for (const fromUrl of [false, true]) it(`publishes all actual resolutions with c
     ? await logoProcessor.processFromUrl('radio', 'radio', 'https://source.example.invalid/misleading.jpg')
     : await logoProcessor.processFromBuffer('radio', 'radio', image, 'misleading.jpg');
   assert.equal(result.success, true);
-  assert.deepEqual(writes.map(w => w.key.split('/').at(-1)), ['original.png', 'logo-48.webp', 'logo-96.webp', 'logo-256.webp']);
+  assert.deepEqual(writes.map(w => w.key.split('/').at(-1)), ['radio-logo-original.png', 'radio-logo-48.webp', 'radio-logo-96.webp', 'radio-logo-256.webp']);
   assert.equal(writes[0].type, 'image/png'); assert.equal(writes[0].buffer, image);
   assert.deepEqual(writes.slice(1).map(w => w.type), Array(3).fill('image/webp'));
   const saved = commits.at(-1).update.$set;
-  for (const size of [48, 96, 256]) assert.ok(saved.logoAssets[`webp${size}`].endsWith(`/logo-${size}.webp`));
+  for (const size of [48, 96, 256]) assert.ok(saved.logoAssets[`webp${size}`].endsWith(`/radio-logo-${size}.webp`));
   assert.equal(saved.logoAssets.status, 'completed'); assert.equal(saved.favicon, saved.logoAssets.webp256);
   assert.equal(commits.at(-1).filter['logoAssets.operationId'], saved.logoAssets.operationId);
 });
@@ -48,7 +48,7 @@ for (const [detected, extension, type] of [['jpeg', 'jpg', 'image/jpeg'], ['webp
   it(`matches validated ${detected} bytes to original extension and MIME`, async () => {
     format = detected;
     assert.equal((await logoProcessor.processFromBuffer('radio', 'radio', image, 'untrusted.png')).success, true);
-    assert.ok(writes[0].key.endsWith(`/original.${extension}`)); assert.equal(writes[0].type, type);
+    assert.ok(writes[0].key.endsWith(`/radio-logo-original.${extension}`)); assert.equal(writes[0].type, type);
   });
 }
 

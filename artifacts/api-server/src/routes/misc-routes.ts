@@ -1,3 +1,4 @@
+import { adminProfileDiscovery } from '../utils/admin-profile-discovery';
 import type { Express } from "express";
 import { socialLinkInput } from '../admin-social-link-input';
 import {
@@ -243,6 +244,7 @@ export function registerMiscRoutes(
         "remove_ads",
         "any_premium",
         "premium_monthly",
+        "premium_quarterly",
         "premium_yearly",
         "premium_lifetime",
       ]);
@@ -385,6 +387,7 @@ export function registerMiscRoutes(
         "remove_ads",
         "any_premium",
         "premium_monthly",
+        "premium_quarterly",
         "premium_yearly",
         "premium_lifetime",
       ]);
@@ -432,6 +435,7 @@ export function registerMiscRoutes(
             lastName: fullNameParts.slice(1).join(" ") || "",
             avatar: user.avatar || "",
             profilePicture: user.profilePicture || "",
+            ...adminProfileDiscovery(user),
             authProvider: user.authProvider || "email",
             googleId: user.googleId || "",
             followers: user.followersCount || 0,
@@ -523,6 +527,7 @@ export function registerMiscRoutes(
     "none",
     "remove_ads",
     "premium_monthly",
+    "premium_quarterly",
     "premium_yearly",
     "premium_lifetime",
   ] as const;
@@ -530,6 +535,7 @@ export function registerMiscRoutes(
   const PRODUCT_TO_PLAN: Record<string, PremiumPlan> = {
     megaradio_remove_ads_yearly1: "remove_ads",
     megaradio_premium_monthly1: "premium_monthly",
+    megaradio_premium_quarterly: "premium_quarterly",
     megaradio_premium_yearly: "premium_yearly",
     megaradio_premium_lifetime: "premium_lifetime",
   };
@@ -537,6 +543,15 @@ export function registerMiscRoutes(
     none: [],
     remove_ads: ["remove_ads"],
     premium_monthly: [
+      "remove_ads",
+      "song_info",
+      "spotify_link",
+      "youtube_link",
+      "hd_stream",
+      "song_history",
+      "stream_record",
+    ],
+    premium_quarterly: [
       "remove_ads",
       "song_info",
       "spotify_link",
@@ -568,8 +583,9 @@ export function registerMiscRoutes(
     none: 0,
     remove_ads: 1,
     premium_monthly: 2,
-    premium_yearly: 3,
-    premium_lifetime: 4,
+    premium_quarterly: 3,
+    premium_yearly: 4,
+    premium_lifetime: 5,
   };
   function getExpiryForPlan(plan: PremiumPlan): Date | null {
     const now = new Date();
@@ -579,6 +595,8 @@ export function registerMiscRoutes(
         return new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
       case "premium_monthly":
         return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      case "premium_quarterly":
+        return new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
       case "premium_lifetime":
         return null;
       default:

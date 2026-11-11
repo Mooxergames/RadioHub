@@ -19,7 +19,7 @@ let resetAvailable = false;
 const source = (id = ownerId) => ({ _id: id, id, username: id === ownerId ? 'listener' : 'other', fullName: 'Listener',
   email: id === ownerId ? 'owner@example.test' : 'other@example.test', emailVerified: true, status: 'active',
   followersCount: 0, followingCount: 0, preferences: { language: 'de', unrelated: true }, isPublicProfile: true,
-  passwordHash: 'stored-hash', notificationSettings: { favorites: true, nowPlaying: true, newStations: false, recommendations: false } });
+  passwordHash: 'stored-hash', notificationSettings: { pushEnabled: true, messages: true, followers: true, favorites: true, nowPlaying: true, newStations: false, recommendations: false } });
 const findUser = async (id: string) => { if (databaseFails) throw new Error('private-db-detail'); return users.get(id) || null; };
 const cache = { get: async () => null, set: async () => {}, del: async (key: string) => { invalidations.push(key); }, clearByPattern: async (key: string) => { invalidations.push(key); } };
 mock.module('../src/cache', { defaultExport: cache, namedExports: { CacheKeys: { userSocial: (email: string) => `social:${email}` } } });
@@ -151,7 +151,14 @@ test('notification settings GET/PATCH/PUT require auth, boolean allowlist and pr
   assert.equal((await request('/api/user/notification-settings', 'PATCH', { favorites: false })).status, 200);
   assert.equal((await request('/api/user/notification-settings', 'PUT', { recommendations: true })).status, 200);
   const body = await (await request('/api/auth/me')).json();
-  assert.deepEqual(body.user.notificationSettings, { favorites: false, nowPlaying: true, newStations: false, recommendations: true });
+  assert.deepEqual(body.user.notificationSettings, { pushEnabled: true, messages: true, followers: true, favorites: false, nowPlaying: true, newStations: false, recommendations: true });
+});
+test('mobile push preference survives a later web notification patch', async () => {
+  assert.equal((await request('/api/user/notification-settings', 'PATCH', { pushEnabled: false })).status, 200);
+  assert.equal((await request('/api/user/notification-settings', 'PATCH', { favorites: false })).status, 200);
+  const body = await (await request('/api/user/notification-settings')).json();
+  assert.equal(body.notificationSettings.pushEnabled, false);
+  assert.equal(body.notificationSettings.messages, true);
 });
 test('logout waits for token revocation and does not claim success on failure', async () => {
   const headers = { authorization: 'Bearer fixture-token-long-enough' };
@@ -180,4 +187,26 @@ test('reset rejects weak passwords and a successfully consumed token cannot be r
   assert.equal((await request('/api/auth/reset-password', 'POST', { token: 'fixture-reset-token', newPassword: 'short' }, null)).status, 400);
   assert.equal((await request('/api/auth/reset-password', 'POST', { token: 'fixture-reset-token', newPassword: 'ValidPassword123' }, null)).status, 200);
   assert.equal((await request('/api/auth/reset-password', 'POST', { token: 'fixture-reset-token', newPassword: 'OtherPassword123' }, null)).status, 400);
+});
+
+test('optional discovery fields save to the owner preferences and round-trip without changing language or privacy', async () => {
+  const response = await request('/api/auth/profile','PUT',{preferences:{profileGender:'female',profileCountryCode:'at'}});
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.user.preferences.profileGender,'female');
+  assert.equal(body.user.preferences.profileCountryCode,'AT');
+  assert.equal(body.user.preferences.language,'de');
+  assert.equal(body.user.isPublicProfile,true);
+  assert.equal(users.get(otherId).preferences.profileGender,undefined);
+  const current=await request('/api/auth/me');
+  assert.equal((await current.json()).user.preferences.profileCountryCode,'AT');
+  const cleared=await request('/api/auth/profile','PUT',{preferences:{profileGender:'undisclosed',profileCountryCode:null}});
+  assert.equal(cleared.status,200);
+  assert.equal((await cleared.json()).user.preferences.profileCountryCode,null);
+});
+test('invalid discovery values are rejected without a profile write', async () => {
+  for (const preferences of [{profileGender:'guessed'},{profileCountryCode:'Global'},{profileCountryCode:42}]) {
+    assert.equal((await request('/api/auth/profile','PUT',{preferences})).status,400);
+  }
+  assert.equal(writes.length,0);
 });

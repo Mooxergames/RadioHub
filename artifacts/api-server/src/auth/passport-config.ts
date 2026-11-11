@@ -1,3 +1,4 @@
+import {googleIdentity, canLinkGoogleAccount} from './google-identity-policy';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
@@ -74,11 +75,14 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         passReqToCallback: false // Standard OAuth2 flow
     }, async (accessToken, refreshToken, profile, done) => {
         try {
-            console.log('🔐 Google OAuth callback received for:', profile.displayName, profile.emails?.[0]?.value);
+            const raw = profile._json as any;
+            const identity = googleIdentity({sub: profile.id, email: raw?.email || profile.emails?.[0]?.value,
+                email_verified: raw?.email_verified ?? raw?.verified_email ?? profile.emails?.[0]?.verified, hd: raw?.hd});
             console.log('🔐 Google OAuth profile photo captured:', profile.photos?.[0]?.value ? 'Yes' : 'No');
             // Check if user already exists with this Google ID
             let user = await findIdentity({ googleId: profile.id });
             if (user) {
+                if (user.status !== 'active') return done(null, false, {message: 'Account is suspended or inactive'});
                 // Update last login AND avatar (always refresh from Google profile)
                 const googleAvatar = profile.photos?.[0]?.value;
                 user.lastLoginAt = new Date();
@@ -97,8 +101,11 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
                 return done(null, user);
             }
             // Check if user exists with same email
-            user = await findIdentity({ email: profile.emails?.[0]?.value });
+            user = await findIdentity({ email: identity.email });
             if (user) {
+                if (user.status !== 'active' || !canLinkGoogleAccount(user.googleId, identity)) {
+                    return done(null, false, {message: 'Sign in with your existing account instead.'});
+                }
                 // Link Google account to existing user, set avatar if not already set
                 const googleAvatar = profile.photos?.[0]?.value;
                 user.googleId = profile.id;
@@ -138,7 +145,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             // Create new user — fullName prefers Google displayName, falls back to
             // the email username part so we never end up with an empty fullName that
             // forces the UI to show the generated user_<id> username string.
-            const emailForName = profile.emails?.[0]?.value || `google-${profile.id}@oauth.invalid`;
+            const emailForName = identity.email;
             const derivedFullName = profile.displayName || emailForName.split('@')[0] || '';
             const newUser = await createIdentity({
                 googleId: profile.id,

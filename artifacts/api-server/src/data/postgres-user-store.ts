@@ -120,7 +120,7 @@ export async function pgListAdminUsers(options: AdminUserListOptions): Promise<{
   if (options.plan === "none") {
     conditions.push("(s.user_id IS NULL OR s.is_active=false OR s.plan='none')");
   } else if (options.plan === "any_premium") {
-    conditions.push("s.is_active=true AND s.plan=ANY(ARRAY['premium_monthly','premium_yearly','premium_lifetime'])");
+    conditions.push("s.is_active=true AND s.plan=ANY(ARRAY['premium_monthly','premium_quarterly','premium_yearly','premium_lifetime'])");
   } else if (options.plan && options.plan !== "all") {
     conditions.push(`s.is_active=true AND s.plan=${bind(options.plan)}`);
   }

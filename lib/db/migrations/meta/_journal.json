@@ -281,6 +281,48 @@
       "when": 1791846000000,
       "tag": "0040_visitor_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794222000000,
+      "tag": "0044_chat_message_deletion",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794222001000,
+      "tag": "0045_chat_reply_pin",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794222002000,
+      "tag": "0046_chat_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794222003000,
+      "tag": "0047_chat_group_music_styles",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794268800000,
+      "tag": "0048_chat_group_message_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794322160150,
+      "tag": "0049_chat_inbox_actions",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+import { ChatRadioMessage } from '@/components/chat-radio-message';
 import { Fragment, useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Circle, CheckCheck, Users, MessageCircle, ArrowLeft, ImagePlus, X } from "lucide-react";
@@ -28,6 +29,7 @@ interface Conversation {
   partnerId: string;
   partner: UserInfo | null;
   lastMessage: string;
+  lastMessageDeleted?: boolean;
   lastMessageAt: string;
   unreadCount: number;
   online?: boolean;
@@ -38,14 +40,18 @@ interface Message {
   fromUserId: string;
   toUserId: string;
   content: string;
-  messageType?: 'text' | 'image' | 'emoji' | 'gif';
+  messageType?: 'text' | 'image' | 'emoji' | 'gif' | 'audio' | 'station';
   imageUrl?: string;
+  deletedAt?: string|null;
   read: boolean;
   createdAt: string;
 }
 
 interface WsEvent {
+  participants?: string[];
+  entries?: {userId:string;messageId:string;expiresAt:number}[];
   type: string;
+  messageId?: string; scope?: 'self'|'everyone'; toUserId?:string; deletedAt?: string|null;
   message?: Message;
   sender?: UserInfo;
   fromUser?: UserInfo;
@@ -123,7 +129,7 @@ function ConvItem({ conv, active, onClick, language }: { conv: Conversation; act
           )}
         </div>
         <div className="flex items-center justify-between mt-0.5">
-          <span className="text-[#C5C5C5] text-sm truncate">{conv.lastMessage || "—"}</span>
+          <span className="text-[#C5C5C5] text-sm truncate">{conv.lastMessageDeleted?(language.startsWith('tr')?'Bu mesaj silindi':language.startsWith('de')?'Nachricht gelöscht':'Message deleted'):conv.lastMessage || '—'}</span>
           {conv.unreadCount > 0 && (
             <span className="ms-2 flex-shrink-0 bg-[#FF4199] text-white text-[10px] font-bold rounded-sm px-1 min-w-4 text-center">
               {conv.unreadCount > 99 ? "99+" : conv.unreadCount}
@@ -137,10 +143,13 @@ function ConvItem({ conv, active, onClick, language }: { conv: Conversation; act
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
-function Bubble({ msg, isOwn, isLast, language }: { msg: Message; isOwn: boolean; isLast: boolean; language: string }) {
+function Bubble({ msg, isOwn, isLast, language, peerExpiresAt }: { msg: Message; isOwn: boolean; isLast: boolean; language: string; peerExpiresAt?:number }) {
+  if(msg.deletedAt)return <div className={`flex ${isOwn?'justify-end':'justify-start'} chat-message-row`}><div className="rounded-2xl bg-white/5 px-4 py-3 text-sm italic text-gray-400">{language.startsWith('tr')?'Bu mesaj silindi':language.startsWith('de')?'Diese Nachricht wurde gelöscht':'This message was deleted'}</div></div>;
   const isEmoji = msg.messageType === 'emoji';
   const isImage = msg.messageType === 'image' && msg.imageUrl;
 
+  if(msg.messageType==='station')return <div className={`flex ${isOwn?'justify-end':'justify-start'} chat-message-row`}><ChatRadioMessage content={msg.content} messageId={msg._id} language={language} peerExpiresAt={peerExpiresAt}/></div>;
+  if(msg.messageType==='audio')return <div className={`flex ${isOwn?'justify-end':'justify-start'} chat-message-row`}><div className="rounded-2xl bg-white/5 p-3"><audio controls preload="none" src={/^\/uploads\/chat\/voice-[a-z0-9_-]+\.(?:m4a|webm|ogg)$/i.test(msg.imageUrl||'')?msg.imageUrl:undefined} aria-label="Voice message"/><span className="text-[10px] text-gray-400">{new Date(msg.createdAt).toLocaleTimeString(language,{hour:'2-digit',minute:'2-digit'})}</span></div></div>;
   if (isEmoji) {
     return (
       <div className={`flex ${isOwn ? "justify-end" : "justify-start"} chat-message-row`}>
@@ -327,6 +336,7 @@ function MessagesSession({ myId }: { myId: string }) {
   });
 
   const { data: chatData, isLoading: chatLoading, isError: chatError } = useQuery<{
+    listening?: {userId:string;messageId:string;expiresAt:number}[];
     messages: Message[];
     partner: UserInfo | null;
     hasMore: boolean;
@@ -396,6 +406,18 @@ function MessagesSession({ myId }: { myId: string }) {
         qc.invalidateQueries({ queryKey: ["/api/user/notifications"] });
         break;
 
+      case "chat:deleted": {
+        if(!ev.messageId||![ev.fromUserId,ev.toUserId].includes(myId))break;
+        const other=ev.fromUserId===myId?ev.toUserId:ev.fromUserId;
+        const apply=(messages:Message[])=>ev.scope==='self'?messages.filter(m=>m._id!==ev.messageId):messages.map(m=>m._id===ev.messageId?{...m,deletedAt:ev.deletedAt||new Date().toISOString(),content:'',imageUrl:undefined,messageType:'text' as const}:m);
+        if(activeIdRef.current===other){setLocalMsgs(apply);setOlderMessages(apply);}
+        qc.setQueryData(["/api/messages/conversation",myId,other],(old:any)=>old?{...old,messages:apply(old.messages||[])}:old);
+        qc.invalidateQueries({queryKey:["/api/messages/conversations"]});qc.invalidateQueries({queryKey:["/api/messages/unread-count"]});qc.invalidateQueries({queryKey:["/api/user/notifications"]});
+        break;
+      }
+      case "chat:listening":
+        if(ev.participants?.includes(myId)&&ev.participants.includes(activeIdRef.current||'')&&Array.isArray(ev.entries))qc.setQueryData(["/api/messages/conversation",myId,activeIdRef.current],(old:any)=>old?{...old,listening:ev.entries}:old);
+        break;
       case "chat:typing":
         if (!ev.fromUserId) break;
         setTyping(prev => new Set([...prev, ev.fromUserId!]));
@@ -882,6 +904,7 @@ function MessagesSession({ myId }: { myId: string }) {
                         isOwn={m.fromUserId === myId}
                         isLast={i === messages.length - 1}
                         language={language}
+                        peerExpiresAt={Math.max(0,...(chatData?.listening||[]).filter(entry=>entry.userId!==myId&&entry.messageId===m._id).map(entry=>entry.expiresAt))}
                       />
                       </Fragment>
                     ))

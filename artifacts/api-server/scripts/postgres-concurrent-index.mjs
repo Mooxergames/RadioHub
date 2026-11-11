@@ -1,10 +1,14 @@
 // This is deliberately not a general non-transactional SQL runner. Only the
-// single reviewed expression-index grammar below can opt out of BEGIN/COMMIT.
+// reviewed expression-index grammars below can opt out of BEGIN/COMMIT.
 export function parseConcurrentIndexMigration(sql) {
   if (!sql.startsWith('-- radiohub:concurrent-index\n') && !sql.startsWith('-- radiohub:concurrent-index\r\n')) return null;
   const statement = sql.replace(/^--[^\r\n]*(?:\r?\n|$)/gm, '').trim();
   const match = /^CREATE INDEX CONCURRENTLY (stations_source_genre_trgm_idx) ON (stations) USING gin \(\(lower\(source->>'genre'\)\) gin_trgm_ops\);$/.exec(statement);
-  if (!match) throw new Error('Unsupported concurrent-index migration: expected the reviewed station source genre index only');
+  if (!match) {
+    if (statement === 'CREATE INDEX CONCURRENTLY stations_name_fold_trgm_idx ON stations USING gin (station_search_key(name) gin_trgm_ops);')
+      return {name:'stations_name_fold_trgm_idx',table:'stations',statement};
+    throw new Error('Unsupported concurrent-index migration: expected a reviewed catalog expression index');
+  }
   return { name: match[1], table: match[2], statement };
 }
 
@@ -19,7 +23,7 @@ async function inspectIndex(client, spec) {
   const row = result.rows[0];
   if (!row) return null;
   if (!row.correct_table || row.method !== 'gin' || row.unique || row.keys !== 1 || !row.no_predicate
-    || row.operator_class !== 'gin_trgm_ops' || row.expression !== "lower((source ->> 'genre'::text))") {
+    || row.operator_class !== 'gin_trgm_ops' || row.expression !== (spec.name === 'stations_name_fold_trgm_idx' ? 'station_search_key(name)' : "lower((source ->> 'genre'::text))")) {
     throw new Error(`Existing concurrent index ${spec.name} has an unexpected definition; refusing to replace it`);
   }
   return row;

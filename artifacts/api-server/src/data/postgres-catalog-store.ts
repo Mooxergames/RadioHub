@@ -690,6 +690,10 @@ export class PostgresCatalogStore {
       await client.query(`INSERT INTO user_favorites(user_id,station_id,created_at)
         SELECT user_id,$1,min(created_at) FROM user_favorites WHERE station_id=ANY($2::text[]) GROUP BY user_id
         ON CONFLICT(user_id,station_id) DO UPDATE SET created_at=least(user_favorites.created_at,excluded.created_at)`,[primary._id,loserIds]);
+      // Preserve one-vote identities through station merges, including old aliases.
+      await client.query(`INSERT INTO station_votes(station_id,user_id,created_at)
+        SELECT $1,user_id,min(created_at) FROM station_votes WHERE station_id=ANY($2::text[])
+        GROUP BY user_id ON CONFLICT (station_id,user_id) DO NOTHING`, [primary._id,loserIds]);
       // Preserve ratings unless that principal already rated the survivor.
       for (const rating of ratings.rows) {
         const conflict = await client.query('SELECT 1 FROM station_ratings WHERE station_id=$1 AND (($2::text IS NOT NULL AND user_id=$2) OR ($3::text IS NOT NULL AND session_id=$3)) LIMIT 1',[primary._id,rating.user_id,rating.session_id]);

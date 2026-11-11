@@ -53,6 +53,12 @@ function assertValidXml(body: string, label: string): unknown {
 // of the same module resolves to the same mock.
 // ---------------------------------------------------------------------------
 
+const playbackReports: Record<string, any>[] = [];
+mock.module(new URL('../src/data/postgres-station-debug-store.ts', import.meta.url).href, {namedExports: {
+  pgReportStationDebugLog: async (input: Record<string, any>) => { const row = {...input, _id: 'test-report-receipt'}; playbackReports.push(row); return {row, created: true}; },
+  pgListStationDebugLogs: async (filter: {stationId?:string}) => { const errors=playbackReports.filter(row=>!filter.stationId||row.stationId===filter.stationId); return {errors,total:errors.length}; },
+}});
+
 interface FakeManifestChunk {
   chunk: number;
   urlCount: number;
@@ -332,8 +338,10 @@ before(async () => {
   };
 
   app = express();
+  app.use(express.json());
   await mod.registerSeoSitemapRoutes(app, {
-    requireAdmin: (_req, res) => {
+    requireAdmin: (req, res, next) => {
+      if(req.headers['x-test-admin']==='allowed')return next();
       res.status(403).end();
     },
   });
@@ -1178,4 +1186,15 @@ test('A clearly-unmatched path DOES fall through to the SPA catch-all (negative 
   const res = await fetch(`${baseUrl}/__definitely-not-a-real-route__`);
   assert.equal(res.headers.get('x-spa-catchall'), '1');
   assert.equal(spaCalls, callsBefore + 1);
+});
+
+
+test('manual radio report reaches the persistence adapter and the protected admin error-log list', async () => {
+ const stationId='offline-test-station';
+ const response=await fetch(`${baseUrl}/api/stations/report-error`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stationId,stationName:'Offline test radio',stationUrl:'https://stream.example.invalid/live',errorType:'USER_REPORT',errorMessage:'Decoder failed',errorDetails:{source:'mobile-player',userInitiated:true},browserInfo:{platform:'ios',language:'tr'}})});
+ assert.equal(response.status,200);const receipt=await response.json();assert.equal(receipt.success,true);assert.equal(receipt.errorId,'test-report-receipt');
+ const saved=playbackReports.find(row=>row.stationId===stationId)!;assert.equal(saved.errorType,'USER_REPORT');assert.equal(saved.errorDetails.userInitiated,true);assert.equal(saved.isResolved,false);
+ assert.equal((await fetch(`${baseUrl}/api/admin/error-logs?stationId=${stationId}`)).status,403);
+ const admin=await fetch(`${baseUrl}/api/admin/error-logs?stationId=${stationId}`,{headers:{'x-test-admin':'allowed'}});assert.equal(admin.status,200);
+ const data=await admin.json();assert.equal(data.pagination.total,1);assert.equal(data.errors[0].stationId,stationId);assert.equal(data.errors[0].errorType,'USER_REPORT');
 });

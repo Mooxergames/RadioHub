@@ -8,107 +8,40 @@ declare global {
   }
 }
 
-// Defer Google Analytics loading to after page is interactive
-// This prevents blocking the critical rendering path
-export const initGA = () => {
-  const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
-
-  if (!measurementId) {
-    console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
-    return;
-  }
-
-  // Load GA script asynchronously - optimized for minimal blocking
-  const loadGA = () => {
-    // Initialize dataLayer first
-    window.dataLayer = window.dataLayer || [];
-    
-    // Initialize gtag function
-    window.gtag = function() { 
-      window.dataLayer.push(arguments); 
-    };
-    
-    window.gtag('js', new Date());
-    window.gtag('config', measurementId);
-    
-    // 2026-05-12 perf: load Google Analytics inside Partytown's Web
-    // Worker (type='text/partytown') so the ~140 KB gtag.js bundle no
-    // longer steals main-thread time. window.dataLayer.push and
-    // window.gtag are forwarded by the Partytown bootstrap in
-    // index.html, so trackPageView/trackEvent below keep working as a
-    // synchronous main-thread API while the actual network + execution
-    // happens off-thread.
-    const script = document.createElement('script');
-    script.type = 'text/partytown';
-    script.async = true;
-    script.defer = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
-    script.onload = () => {
-      // Script loaded, gtag is now ready
-      if (window.gtag) {
-        window.gtag('config', measurementId);
-      }
-    };
-    document.head.appendChild(script);
-    
-    // Remove event listeners after loading
-    document.removeEventListener('scroll', handleUserInteraction);
-    document.removeEventListener('click', handleUserInteraction);
-    document.removeEventListener('touchstart', handleUserInteraction);
-  };
-
-  // Optimized: Load GTM in background after user first interacts with page
-  // This ensures page is fully rendered before GTM loads (140KB file)
-  let gaLoaded = false;
-  const handleUserInteraction = () => {
-    if (!gaLoaded) {
-      gaLoaded = true;
-      loadGA();
-    }
-  };
-
-  // Priority 1: Load on user interaction (scroll/click/touch) - most ideal
-  // This ensures GTM loads in background while user is actively engaging
-  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    document.addEventListener('scroll', handleUserInteraction, { once: true, passive: true });
-    document.addEventListener('click', handleUserInteraction, { once: true, passive: true });
-    document.addEventListener('touchstart', handleUserInteraction, { once: true, passive: true });
-    
-    // Fallback: Load after 8 seconds if user hasn't interacted (longer timeout for slower networks)
-    setTimeout(() => {
-      if (!gaLoaded) {
-        gaLoaded = true;
-        loadGA();
-      }
-    }, 8000);
-  }
+// Existing MegaRadio Web stream, verified in GA4 property 530834250.
+const measurementId=import.meta.env.VITE_GA_MEASUREMENT_ID||'G-3X2WGQC0J3';
+let initialized=false;
+function allowed(){return typeof window!=='undefined'&&typeof document!=='undefined'&&['themegaradio.com','www.themegaradio.com'].includes(window.location.hostname)&&!/^\/admin(?:\/|$|-login(?:\/|$))/.test(window.location.pathname)&&navigator.doNotTrack!=='1'&&!(navigator as Navigator&{globalPrivacyControl?:boolean}).globalPrivacyControl;}
+export const initGA=()=>{
+ if(initialized||!allowed())return;
+ initialized=true;
+ window.dataLayer=window.dataLayer||[];
+ // Queue immediately: navigation before gtag.js finishes must not disappear.
+ window.gtag=window.gtag||function(){window.dataLayer.push(arguments);};
+ window.gtag('js',new Date());
+ window.gtag('config',measurementId,{send_page_view:false,allow_google_signals:false,page_location:window.location.origin+window.location.pathname,page_title:'MegaRadio'});
+ const load=()=>{
+  if(document.querySelector('script[data-mega-ga]'))return;
+  const script=document.createElement('script');script.type='text/partytown';script.async=true;script.dataset.megaGa='1';
+  script.src=`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
+  document.head.appendChild(script);
+  window.dispatchEvent(new CustomEvent('ptupdate'));
+ };
+ if('requestIdleCallback' in window)window.requestIdleCallback(load,{timeout:1500});else setTimeout(load,0);
 };
-
-// Track page views - useful for single-page applications
-export const trackPageView = (url: string) => {
-  if (typeof window !== 'undefined' && window.gtag) {
-    const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
-    if (measurementId) {
-      window.gtag('config', measurementId, { page_path: url });
-    }
-  }
-  faTrackPageView(url);
+export const trackStructuredEvent=(name:string,params:Record<string,string|number>={})=>{
+ if(!allowed())return;initGA();
+ window.gtag('event',name,{...params,send_to:measurementId,page_location:window.location.origin+window.location.pathname});
 };
-
-// Track events
-export const trackEvent = (
-  action: string, 
-  category?: string, 
-  label?: string, 
-  value?: number
-) => {
-  if (typeof window === 'undefined' || !window.gtag) return;
-  
-  window.gtag('event', action, {
-    event_category: category,
-    event_label: label,
-    value: value,
-  });
+export const setAnalyticsUser=(userId:string|null)=>{if(!allowed())return;initGA();window.gtag('config',measurementId,{user_id:userId,send_page_view:false});};
+export const setAnalyticsProperty=(name:string,value:string)=>{if(!allowed())return;initGA();window.gtag('set','user_properties',{[name]:value.slice(0,36)});};
+export const trackPageView=(url:string)=>{
+ const path=url.split(/[?#]/)[0];if(/^\/admin(?:\/|$|-login(?:\/|$))/.test(path))return;
+ trackStructuredEvent('page_view',{page_path:path,page_location:typeof window==='undefined'?path:window.location.origin+path});
+ faTrackPageView(path);
+};
+export const trackEvent=(action:string,category?:string,label?:string,value?:number)=>{
+ trackStructuredEvent(action,{...(category?{event_category:category}:{}),...(label?{event_label:label.slice(0,100)}:{}),...(value!==undefined?{value}:{})});
 };
 
 // Radio-specific analytics events
@@ -153,10 +86,7 @@ export const trackListeningTime = (stationName: string, durationMinutes: number)
   });
 };
 
-export const trackSearch = (searchTerm: string, resultsCount: number) => {
-  trackEvent('search', 'user_interaction', searchTerm, resultsCount);
-  faTrackEvent('search_performed', {
-    query: searchTerm,
-    results_count: resultsCount,
-  });
+export const trackSearch = (_searchTerm: string, resultsCount: number) => {
+  trackStructuredEvent('search', { results_count: resultsCount });
+  faTrackEvent('search_performed', { results_count: resultsCount });
 };

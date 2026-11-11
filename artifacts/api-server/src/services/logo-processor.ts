@@ -540,7 +540,8 @@ export class LogoProcessor {
       }
 
       const originalExt = this.getExtensionFromFormat(validation.format) || this.getExtension(faviconUrl);
-      const originalFilename = `original${originalExt}`;
+      const imageName = this.sanitizeSlug(slug) || 'radio';
+      const originalFilename = `${imageName}-logo-original${originalExt}`;
 
       const logoAssets: Record<string, string> = { folder: folderName };
 
@@ -549,7 +550,7 @@ export class LogoProcessor {
         const s3Key = (filename: string) => `station-logos/${folderName}/${filename}`;
         logoAssets.original = await uploadToS3(s3Key(originalFilename), downloadResult.buffer, this.getContentTypeFromFormat(validation.format));
         for (const size of LOGO_SIZES) {
-          const filename = `logo-${size}.webp`;
+          const filename = `${imageName}-logo-${size}.webp`;
           const buf = await this.safeProcessImage(downloadResult.buffer, size);
           logoAssets[`webp${size}`] = await uploadToS3(s3Key(filename), buf, 'image/webp');
         }
@@ -560,7 +561,7 @@ export class LogoProcessor {
         await fs.writeFile(path.join(folderPath, originalFilename), downloadResult.buffer);
         logoAssets.original = originalFilename;
         for (const size of LOGO_SIZES) {
-          const filename = `logo-${size}.webp`;
+          const filename = `${imageName}-logo-${size}.webp`;
           const buf = await this.safeProcessImage(downloadResult.buffer, size);
           await fs.writeFile(path.join(folderPath, filename), buf);
           logoAssets[`webp${size}`] = filename;
@@ -645,14 +646,15 @@ export class LogoProcessor {
 
       // Trust validated bytes, not a user-supplied extension (e.g. PNG named .jpg).
       const ext = this.getExtensionFromFormat(validation.format) || path.extname(originalFilename) || '.png';
-      const originalFile = `original${ext}`;
+      const imageName = this.sanitizeSlug(slug) || 'radio';
+      const originalFile = `${imageName}-logo-original${ext}`;
       const logoAssets: Record<string, string> = { folder: folderName };
 
       if (useS3) {
         const s3Key = (filename: string) => `station-logos/${folderName}/${filename}`;
         logoAssets.original = await uploadToS3(s3Key(originalFile), buffer, this.getContentTypeFromFormat(validation.format));
         for (const size of LOGO_SIZES) {
-          const filename = `logo-${size}.webp`;
+          const filename = `${imageName}-logo-${size}.webp`;
           const buf = await this.safeProcessImage(buffer, size);
           logoAssets[`webp${size}`] = await uploadToS3(s3Key(filename), buf, 'image/webp');
         }
@@ -663,7 +665,7 @@ export class LogoProcessor {
         await fs.writeFile(path.join(folderPath, originalFile), buffer);
         logoAssets.original = originalFile;
         for (const size of LOGO_SIZES) {
-          const filename = `logo-${size}.webp`;
+          const filename = `${imageName}-logo-${size}.webp`;
           const buf = await this.safeProcessImage(buffer, size);
           await fs.writeFile(path.join(folderPath, filename), buf);
           logoAssets[`webp${size}`] = filename;

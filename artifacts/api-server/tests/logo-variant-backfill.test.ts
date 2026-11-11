@@ -107,3 +107,14 @@ it('rejects malformed, nonsquare, excessive pixel and non-WebP source data', asy
     await assert.rejects(renderSmallLogoVariants(source, [48]));
   }
 });
+
+ it('accepts named new sources without rewriting their original assets', async () => {
+  const station = fixture();
+  station.logoAssets!.webp256 = `${base}station-logos/radio_12345678/ses-fm-logo-256.webp`;
+  const before = structuredClone(station.logoAssets);
+  const h = harness(station);
+  assert.equal((await h.run({ stationIds: [id], dryRun: false })).updated, 1);
+  assert.equal(h.calls.reads[0], 'station-logos/radio_12345678/ses-fm-logo-256.webp');
+  assert.equal(h.station.logoAssets!.webp256, before!.webp256);
+  assert.equal(h.station.logoAssets!.original, before!.original);
+});

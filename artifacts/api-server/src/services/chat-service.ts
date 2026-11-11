@@ -11,8 +11,8 @@ class ChatService {
   // userId → Set of WebSocket clients (user can have multiple tabs/devices)
   private clients = new Map<string, Set<ChatClient>>();
 
-  // userId → partnerId they are currently viewing (null = not in chat)
-  private activeConversations = new Map<string, string>();
+  // Track viewed partners per connection so web and mobile do not overwrite each other.
+  private activeConversations = new Map<string, Map<ChatClient | string, string>>();
 
   private static MAX_CONNECTIONS_PER_USER = 5;
   // If a client can't keep up, drop the connection instead of buffering unbounded frames in ws internal buffer
@@ -44,6 +44,7 @@ class ChatService {
       if (oldest) {
         try { oldest.ws.close(4003, "Too many connections"); } catch {}
         set.delete(oldest);
+        this.activeConversations.get(userId)?.delete(oldest);
       }
     }
     set.add(client);
@@ -56,6 +57,7 @@ class ChatService {
     const set = this.clients.get(userId);
     if (set) {
       set.delete(client);
+      this.activeConversations.get(userId)?.delete(client);
       if (set.size === 0) {
         this.clients.delete(userId);
         this.activeConversations.delete(userId);
@@ -65,17 +67,21 @@ class ChatService {
   }
 
   /** Track which conversation a user is actively viewing */
-  setActiveConversation(userId: string, partnerId: string | null) {
+  setActiveConversation(userId: string, partnerId: string | null, client?: ChatClient) {
+    const key = client || userId;
     if (partnerId) {
-      this.activeConversations.set(userId, partnerId);
+      if (!this.activeConversations.has(userId)) this.activeConversations.set(userId, new Map());
+      this.activeConversations.get(userId)!.set(key, partnerId);
     } else {
-      this.activeConversations.delete(userId);
+      this.activeConversations.get(userId)?.delete(key);
+      if (!this.activeConversations.get(userId)?.size) this.activeConversations.delete(userId);
     }
   }
-
-  /** Get the partnerId a user is currently viewing, or null */
   getActiveConversation(userId: string): string | null {
-    return this.activeConversations.get(userId) ?? null;
+    return this.activeConversations.get(userId)?.values().next().value ?? null;
+  }
+  isViewingConversation(userId: string, partnerId: string): boolean {
+    return [...(this.activeConversations.get(userId)?.values() || [])].includes(partnerId);
   }
 
   /** Check if a user is online */

@@ -2,6 +2,7 @@ import webpush from 'web-push';
 import { pgPushDevices } from '../data/postgres-push-store';
 import https from 'https';
 import {
+  pgFindUserById,
   pgGetUserPushSubscription,
   pgListUserPushSubscriptions,
   pgSetUserPushSubscription,
@@ -46,7 +47,7 @@ async function sendExpoNotifications(tokens: string[], payload: NotificationPayl
     data: { ...(payload.data || {}), url: payload.url, tag: payload.tag },
     sound: 'default',
     badge: 1,
-    channelId: 'default',
+    channelId: payload.data?.type === 'new_message' ? 'messages' : payload.data?.type === 'follow' ? 'followers' : 'default',
   }));
 
   return new Promise((resolve) => {
@@ -150,6 +151,13 @@ export class PushNotificationService {
    * Send to user via ALL channels: web push + mobile push tokens
    */
   static async sendToUserAllChannels(userId: string, payload: NotificationPayload): Promise<boolean> {
+    try {
+      const user = await pgFindUserById(userId);
+      if (!user) return false;
+      const preferences = {pushEnabled:true,messages:true,followers:true,favorites:true,nowPlaying:true,recommendations:false,...user.notificationSettings};
+      const category=({'new_message':'messages',follow:'followers','favorite-added':'favorites','now-playing':'nowPlaying',recommendations:'recommendations'} as const)[payload.data?.type as 'new_message'|'follow'|'favorite-added'|'now-playing'|'recommendations'];
+      if(preferences.pushEnabled===false||(category&&preferences[category]===false))return false;
+    } catch { return false; }
     const [web, mobile] = await Promise.allSettled([
       this.sendToUser(userId, payload),
       this.sendToMobileUser(userId, payload),
@@ -219,7 +227,8 @@ export class PushNotificationService {
   static async sendFollowNotification(
     followedUserId: string,
     followerName: string,
-    followerSlug?: string
+    followerSlug?: string,
+    followerId?: string
   ): Promise<boolean> {
     const payload: NotificationPayload = {
       title: 'New Follower',
@@ -233,7 +242,8 @@ export class PushNotificationService {
         type: 'follow',
         followerName,
         followerSlug,
-        screen: 'Community',
+        screen: 'user-profile',
+        userId: followerId,
       }
     };
 
@@ -278,7 +288,7 @@ export class PushNotificationService {
       }
     };
 
-    return await this.sendToUser(userId, payload);
+    return await this.sendToUserAllChannels(userId, payload);
   }
 
   /**
@@ -309,7 +319,7 @@ export class PushNotificationService {
       }
     };
 
-    return await this.sendToUser(userId, payload);
+    return await this.sendToUserAllChannels(userId, payload);
   }
 
   /**
@@ -343,7 +353,7 @@ export class PushNotificationService {
       }
     };
 
-    return await this.sendToUser(userId, payload);
+    return await this.sendToUserAllChannels(userId, payload);
   }
 
   /**

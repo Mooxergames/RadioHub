@@ -1,6 +1,9 @@
-import { useState, memo } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useRef, memo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { authQueryOptions } from '@/lib/auth-query';
+import { useToast } from '@/hooks/use-toast';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface VoteButtonProps {
   stationId: string;
@@ -32,23 +35,57 @@ const VoteButton = memo(function VoteButton({ stationId, className = "", size = 
   // Figma: mobile icon 18.74x18.74, default icon 24x24
   const iconSize = size === 'mobile' ? '18.74px' : '24px';
   const [isAnimating, setIsAnimating] = useState(false);
-  const [hasVoted, setHasVoted] = useState(false);
+  const { t, language } = useTranslation();
+  const { toast } = useToast();
+  const client = useQueryClient();
+  const {data:auth} = useQuery(authQueryOptions);
+  const owner = auth?.user?._id || null;
+  const active = useRef({stationId,owner}); active.current={stationId,owner};
+  const flight = useRef(false);
+  const mounted=useRef(true);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const voteKey = ['/api/stations',stationId,'vote',owner];
+  const {data:state} = useQuery({queryKey:voteKey,queryFn:async()=>{
+    const res=await apiRequest('GET',`/api/stations/${stationId}/vote`); return res.json() as Promise<{votes:number;hasVoted:boolean}>;
+  },enabled:!!owner,retry:false,staleTime:30000});
+  const hasVoted=!!state?.hasVoted;
+  useEffect(()=>{setIsAnimating(false);if(timer.current)clearTimeout(timer.current);return()=>{if(timer.current)clearTimeout(timer.current);};},[stationId,owner]);
+  const voteMessages: Record<string,Record<string,string>> = {
+    tr:{vote_already_cast:'Bu radyoya zaten oy verdin.',vote_login_required:'Oy vermek için giriş yap.',vote_failed_message:'Oy gönderilemedi. Lütfen tekrar dene.'},
+    de:{vote_already_cast:'Du hast bereits für diesen Sender gestimmt.',vote_login_required:'Melde dich an, um abzustimmen.',vote_failed_message:'Stimme konnte nicht gesendet werden. Bitte versuche es erneut.'},
+  };
+  const notice=(key:string,fallback:string)=>toast({description:t(key,voteMessages[language]?.[key] || fallback)});
 
   const voteMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest('POST', `/api/stations/${stationId}/vote`);
+    mutationFn: async ({id}:{id:string;actor:string}) => {
+      const response=await apiRequest('POST', `/api/stations/${id}/vote`);
+      const result=await response.json();
+      if(result.success!==true||!Number.isFinite(result.votes))throw new Error('Invalid vote response');
+      return result as {votes:number;alreadyVoted?:boolean};
     },
-    onSuccess: () => {
-      setHasVoted(true);
+    onSuccess: (result,{id,actor}) => {
+      if(!mounted.current||active.current.stationId!==id||active.current.owner!==actor)return;
+      client.setQueryData(voteKey,{hasVoted:true,votes:result.votes});
+      void client.invalidateQueries({predicate:query=>query.queryKey.some(part=>typeof part==='string'&&(/\/api\/(stations|radio-browser|admin\/radio-browser)/).test(part))&&query.queryKey[2]!=='vote'});
+      if(result.alreadyVoted){notice('vote_already_cast','You have already voted for this station.');return;}
+      if(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return;
       setIsAnimating(true);
-      setTimeout(() => setIsAnimating(false), 600);
+      timer.current=setTimeout(()=>setIsAnimating(false),600);
     },
+    onError: (_error,{id,actor}) => {
+      if(mounted.current&&active.current.stationId===id&&active.current.owner===actor)notice('vote_failed_message','Your vote could not be saved. Please try again.');
+    },
+    onSettled:()=>{flight.current=false;},
   });
 
   const handleVoteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (voteMutation.isPending) return;
-    voteMutation.mutate();
+    if(flight.current)return;
+    if(!owner){notice('vote_login_required','Sign in to vote for this station.');return;}
+    if(hasVoted){notice('vote_already_cast','You have already voted for this station.');return;}
+    flight.current=true;
+    voteMutation.mutate({id:stationId,actor:owner});
   };
 
   return (
@@ -58,6 +95,7 @@ const VoteButton = memo(function VoteButton({ stationId, className = "", size = 
       className={`relative flex items-center justify-center rounded-full bg-black hover:opacity-80 transition-all ${className}`}
       title={label}
       aria-label={label}
+      aria-pressed={hasVoted}
       data-testid="button-vote-station"
       style={{
         transform: isAnimating ? 'scale(1.15)' : 'scale(1)',

@@ -6,12 +6,14 @@ export type PremiumPlan =
   | "none"
   | "remove_ads"
   | "premium_monthly"
+  | "premium_quarterly"
   | "premium_yearly"
   | "premium_lifetime";
 
 export const PRODUCT_TO_PLAN: Record<string, PremiumPlan> = {
   megaradio_remove_ads_yearly1: "remove_ads",
   megaradio_premium_monthly1: "premium_monthly",
+  megaradio_premium_quarterly: "premium_quarterly",
   megaradio_premium_yearly: "premium_yearly",
   megaradio_premium_lifetime: "premium_lifetime",
 };
@@ -22,6 +24,7 @@ export const PLAN_FEATURES: Record<PremiumPlan, string[]> = {
   none: [],
   remove_ads: ["remove_ads"],
   premium_monthly: ["remove_ads", "song_info", "spotify_link", "youtube_link", "hd_stream", "song_history", "stream_record"],
+  premium_quarterly: ["remove_ads", "song_info", "spotify_link", "youtube_link", "hd_stream", "song_history", "stream_record"],
   premium_yearly: ["remove_ads", "song_info", "spotify_link", "youtube_link", "hd_stream", "song_history", "stream_record"],
   premium_lifetime: ["remove_ads", "song_info", "spotify_link", "youtube_link", "hd_stream", "song_history", "stream_record"],
 };
