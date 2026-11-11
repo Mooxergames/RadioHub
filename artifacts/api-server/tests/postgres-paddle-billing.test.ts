@@ -14,9 +14,12 @@ const connectionString = process.env.PG_TEST_DATABASE_URL;
 describe('one-time Paddle Remove Ads PostgreSQL roundtrip and public projections', { skip: !connectionString }, async () => {
   if (!connectionString) return;
   const target = new URL(connectionString);
+  assert.ok(['postgres:', 'postgresql:'].includes(target.protocol));
   assert.equal(target.hostname, '127.0.0.1', 'only the explicit disposable local fixture is allowed');
-  assert.equal(target.port, '55361');
+  assert.ok(['5432', '55361'].includes(target.port || '5432'), 'only disposable local and CI fixture ports are allowed');
   assert.equal(target.pathname, '/radiohub_test');
+  assert.equal(target.search, '', 'connection overrides are not allowed');
+  assert.equal(target.hash, '');
   const schema = `paddle_once_${process.pid}_${randomBytes(6).toString('hex')}`;
   const admin = new pg.Pool({ connectionString, ssl: false, max: 1, connectionTimeoutMillis: 1500, statement_timeout: 4500 });
   target.searchParams.set('options', `-c search_path=${schema},public`);
