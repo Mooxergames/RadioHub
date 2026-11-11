@@ -28,13 +28,13 @@ function mount(path: string) {
   window.history.replaceState({}, '', path);
   return render(<QueryClientProvider client={client}><audio data-testid="existing-player" /><SeoPageWrapper><LegacyStationGuidePage /></SeoPageWrapper></QueryClientProvider>);
 }
-function payload(index = 0) {
-  const guide = LEGACY_STATION_GUIDES[index];
+function payload(id = LEGACY_STATION_GUIDES[0].id) {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === id)!;
   return { legacyGuideId: guide.id, seoTags: buildLegacyStationGuideSeo(guide), structuredData: { global: [], page: buildLegacyStationGuideSchema(guide) } };
 }
 
 it.each(LEGACY_STATION_GUIDES)('verifies ownership despite an existing SSR head before rendering $id', async guide => {
-  const fetcher = vi.fn(async () => new Response(JSON.stringify(payload(guide.language === 'ar' ? 1 : 0))));
+  const fetcher = vi.fn(async () => new Response(JSON.stringify(payload(guide.id))));
   vi.stubGlobal('fetch', fetcher);
   const view = mount(guide.path);
   await view.findByRole('heading', { level: 1, name: guide.title });
@@ -44,8 +44,12 @@ it.each(LEGACY_STATION_GUIDES)('verifies ownership despite an existing SSR head 
   expect(view.container.querySelector('main')).toHaveAttribute('dir', guide.language === 'ar' ? 'rtl' : 'ltr');
   expect(view.container.querySelectorAll('audio')).toHaveLength(1);
   expect(view.container.querySelector('button[aria-label*="Play"]')).toBeNull();
-  expect(view.container.querySelectorAll('a[target="_blank"]')).toHaveLength(guide.choices.reduce((n, c) => n + 1 + c.sources.length, 0));
-  for (const choice of guide.choices) expect(view.getByText(choice.copy)).toBeVisible();
+  expect(view.container.querySelectorAll('a[target="_blank"]')).toHaveLength(guide.kind === 'history' ? guide.sources.length : guide.choices.reduce((n, c) => n + 1 + c.sources.length, 0));
+  if (guide.kind === 'history') {
+    for (const section of guide.sections) for (const paragraph of section.paragraphs) expect(view.getByText(paragraph)).toBeVisible();
+  } else {
+    for (const choice of guide.choices) expect(view.getByText(choice.copy)).toBeVisible();
+  }
   const player = view.getByTestId('existing-player');
   fireEvent.click(view.container.querySelector(`a[href="/${guide.language}"]`)!);
   await waitFor(() => expect(window.location.pathname).toBe(`/${guide.language}`));
@@ -80,7 +84,7 @@ it('a cached guide payload is rechecked on navigation so it cannot hide a new ca
 });
 
 it('uses the resolved local station redirect rather than displaying the old alias as an owner', async () => {
-  const guide = LEGACY_STATION_GUIDES[1];
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'rock-fm-23')!;
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo: '/ar/mahta/real-owner', seoTags: {} }))));
   const view = mount(guide.path);
   await waitFor(() => expect(window.location.pathname).toBe('/ar/mahta/real-owner'));
@@ -89,10 +93,11 @@ it('uses the resolved local station redirect rather than displaying the old alia
 });
 
 it.each(['https://outside.invalid/station/fm', '//outside.invalid/station/fm', '/admin', '/ar/mahta/rock-fm-23'])('rejects unsafe or self redirect %s', async redirectTo => {
+  const guide = LEGACY_STATION_GUIDES.find(guide => guide.id === 'rock-fm-23')!;
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ legacyGuideId: null, redirectTo, seoTags: {} }))));
-  const view = mount(LEGACY_STATION_GUIDES[1].path);
+  const view = mount(guide.path);
   await view.findByRole('heading', { name: 'Not found' });
-  expect(window.location.pathname).toBe(LEGACY_STATION_GUIDES[1].path);
+  expect(window.location.pathname).toBe(guide.path);
 });
 
 it('a definite410 invalidates even verified initial SSR content, canonical and page entities', async () => {
@@ -142,7 +147,7 @@ it('keeps a route-verified complete SSR guide visible while the fresh ownership 
 });
 
 it('does not accept a different guide ID from a stale or incorrect page payload', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(payload(1)))));
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(payload('rock-fm-23')))));
   const view = mount(LEGACY_STATION_GUIDES[0].path);
   await view.findByRole('heading', { name: 'Real catalogue station' });
   expect(view.container.querySelector('[data-legacy-guide-id]')).toBeNull();
@@ -162,7 +167,10 @@ it('transient metadata failure exposes retry rather than a false restoration', a
 it('route-only manifest cannot drift from reviewed content and never matches neighbouring slugs', () => {
   expect(LEGACY_STATION_GUIDE_ROUTES.map(({ id, path, sourcePaths, language }) => ({ id, path, sourcePaths, language })))
     .toEqual(LEGACY_STATION_GUIDES.map(({ id, path, sourcePaths, language }) => ({ id, path, sourcePaths, language })));
-  for (const path of ['/en/station/radar-4', '/af/station/radar-40', '/af/station/radar-4/extra', '//example.org/af/station/radar-4', '/af/station/%72adar-4']) {
+  for (const path of ['/en/station/radar-4', '/af/station/radar-40', '/af/station/radar-4/extra', '//example.org/af/station/radar-4', '/af/station/%72adar-4',
+    '/en/station/channel-v-international', '/am/station/channel-v-international-2', '/ar/mahta/quran-radio-30',
+    '/en/station/quran-radio-3', '/hu/radio/1-21', '/hu/radios/1-21', '/am/station/disco-2',
+    '/am/station/radio-dil-se-dil-tak', '/no/station/dfm-radio-rwanda', '/it/station/wxb-loud-1023-fm-pampanga']) {
     expect(getLegacyStationGuideRoute(path)).toBeNull();
   }
 });
@@ -177,5 +185,27 @@ it('text and untrusted source URLs cannot inject editorial markup or active link
   expect(html).not.toContain('<script>');
   expect(html).not.toContain('href="javascript:');
   expect(html).not.toContain('href="//example.org');
+  expect(JSON.stringify(buildLegacyStationGuideSchema(guide))).not.toContain('javascript:');
+});
+
+it('history pages use Article metadata and escaped sources, never a listening collection', () => {
+  const original = LEGACY_STATION_GUIDES.find(guide => guide.kind === 'history')!;
+  expect(original.kind).toBe('history');
+  const seo = buildLegacyStationGuideSeo(original);
+  expect(seo.ogType).toBe('article');
+  const schemas = buildLegacyStationGuideSchema(original) as any[];
+  expect(schemas[1]['@type']).toBe('Article');
+  expect(schemas[1].datePublished).toBe('2026-11-11');
+  expect(schemas[1].mainEntity).toBeUndefined();
+  expect(JSON.stringify(schemas)).not.toMatch(/ItemList|RadioStation|RadioBroadcastService|ListenAction|AudioObject/);
+  const guide = structuredClone(original) as any;
+  guide.sections[0].heading = '<script>bad</script>';
+  guide.sections[0].paragraphs = ['<img src=x onerror=alert(1)>'];
+  guide.sources = [{ label: '<img src=x>', url: 'javascript:alert(1)' }];
+  const html = renderLegacyStationGuideHtml(guide);
+  expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');
+  expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  expect(html).not.toContain('<script>');
+  expect(html).not.toContain('href="javascript:');
   expect(JSON.stringify(buildLegacyStationGuideSchema(guide))).not.toContain('javascript:');
 });
