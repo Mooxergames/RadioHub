@@ -1,4 +1,5 @@
 import { pgListeningTotalMinutes } from '../data/postgres-listening-store';
+import { subscriptionAccess } from '@workspace/db-shared/subscription-access';
 import type { Express } from "express";
 import { profileFieldsSchema, authProfileSchema, notificationSettingsSchema } from '@workspace/api-zod';
 import { getPostgresPool } from '../postgres-runtime';
@@ -30,6 +31,21 @@ const ENABLED_LANGUAGE_CODES = new Set(SEO_LANGUAGES.filter((l: any) => l.enable
 function notificationSettingsFor(user: any) {
     const stored = user?.notificationSettings || {};
     return Object.fromEntries(Object.entries({ favorites: true, nowPlaying: true, newStations: false, recommendations: false }).map(([key, fallback]) => [key, typeof stored[key] === 'boolean' ? stored[key] : fallback]));
+}
+function safeSubscriptionForAuth(sub: Record<string, any> | null | undefined) {
+    if (!sub) return null;
+    // Evaluate the full record before omitting private provider identities.
+    const access = subscriptionAccess(sub);
+    const noPaddleSubscription = sub.paddleSubscriptionId == null || sub.paddleSubscriptionId === '';
+    return {
+        plan: sub.plan,
+        platform: sub.platform,
+        isActive: access.active,
+        expiresAt: sub.expiresAt ?? null,
+        ...(sub.platform === 'paddle' && (sub.paddleBillingKind === 'recurring' ||
+            access.active && noPaddleSubscription && sub.paddleBillingKind === 'one_time')
+            ? { paddleBillingKind: sub.paddleBillingKind } : {}),
+    };
 }
 async function invalidateProfileCaches(user: any): Promise<void> {
     await invalidateCommunityProfiles();
@@ -1284,6 +1300,7 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
                         lastLoginAt: u.lastLoginAt,
                         createdAt: u.createdAt,
                         following: [],
+                        subscription: safeSubscriptionForAuth(u.subscription),
                     },
                 });
             });
@@ -1364,7 +1381,8 @@ export function registerUserAuthRoutes(app: Express, deps: any) {
                 totalListeningTime: await pgListeningTotalMinutes(userId),
                 lastLoginAt: user.lastLoginAt,
                 createdAt: user.createdAt,
-                following: following
+                following,
+                subscription: safeSubscriptionForAuth(user.subscription),
             };
             res.json({ user: userData, authenticated: true });
         }

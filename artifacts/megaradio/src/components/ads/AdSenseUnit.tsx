@@ -22,9 +22,9 @@ function AdSensePlacement({ adSlot = '3609188113', adFormat = 'auto', fullWidthR
   // page can remain mounted while the actual URL is already a private page.
   const [location] = useLocation();
   const search = useSearch();
-  const { isPremium, isLoading, error } = usePremiumStatus();
+  const { isActive: isAdFree, isLoading, error } = usePremiumStatus();
   const routeAllowed = isAdSensePage(location + (search ? `?${search}` : '')) && isAdSensePage(window.location.pathname + window.location.search);
-  const allowed = !isPremium && !isLoading && !error && routeAllowed;
+  const allowed = !isAdFree && !isLoading && !error && routeAllowed;
   const containerRef = useRef<HTMLDivElement>(null);
   const pushedRef = useRef<HTMLElement | null>(null);
   const [sdkReady, setSdkReady] = useState(false);
@@ -100,7 +100,7 @@ function AdSensePlacement({ adSlot = '3609188113', adFormat = 'auto', fullWidthR
     } catch { /* Blocked/no-fill ads must not crash the radio page. */ }
   }, [allowed, visible, sdkReady]);
 
-  if (isPremium || !routeAllowed) return null;
+  if (isAdFree || !routeAllowed) return null;
   return (
     <div ref={containerRef} className={`adsense-container ${className}`} style={{ minHeight: '90px' }} data-ad-placement={adSlot}>
       {allowed && <div className="mb-2 text-center text-xs leading-4 text-neutral-400">{getAdvertisementLabel(location.split('/')[1] || 'en')}</div>}

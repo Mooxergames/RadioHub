@@ -47,7 +47,7 @@ it('stops polling after the page unmounts', async () => {
   expect(network).toHaveBeenCalledTimes(count);
 });
 it('requires a verified server response before displaying active status', async () => {
-  state.user.subscription.isActive = true;
+  state.user.subscription = { isActive: true, plan: 'remove_ads', platform: 'paddle', paddleBillingKind: 'one_time', expiresAt: null, paddleSubscriptionId: null };
   mount(<PremiumSuccessPage />);
   await act(async () => { await vi.advanceTimersByTimeAsync(100); });
   expect(screen.getByText('Dein Abonnement ist aktiv')).toBeTruthy();
@@ -64,6 +64,19 @@ it('does not substitute fictional prices or allow checkout when the provider is 
   const purchase = screen.getAllByRole('button').filter(button => /Get |Subscribe/.test(button.textContent || ''));
   expect(purchase.length).toBe(3);
   for (const button of purchase) expect((button as HTMLButtonElement).disabled).toBe(true);
+});
+it.each([[null, null, true], ['month', 1, false], [null, 7, false]] as const)('shows the verified Remove Ads payment type for interval %s and frequency %s', async (billingInterval, billingFrequency, oneTime) => {
+  network.mockImplementation(async () => Response.json({ providerAvailable: true, plans: [
+    { planId: 'remove_ads', label: 'Remove Ads', amount: 599, currency: 'eur', checkoutAvailable: true, billingInterval, billingFrequency },
+  ] }));
+  mount(<PremiumPage />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+  const card = screen.getByRole('button', { name: /Remove Ads.*5,99/ });
+  if (oneTime) expect(card.textContent).toContain('One-time payment');
+  else expect(card.textContent).not.toContain('One-time payment');
+  if (billingInterval === 'month') expect(card.textContent).toContain('/mo');
+  else expect(card.textContent).not.toContain('/mo');
+  expect(state.checkout).not.toHaveBeenCalled();
 });
 it('keeps the billing return path on the signup login link and disables unimplemented OAuth', () => {
   window.history.replaceState({}, '', '/de/signup?returnTo=%2Fde%2Factivate%3Fcode%3D123456');

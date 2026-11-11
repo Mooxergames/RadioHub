@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const moduleLoaded = vi.hoisted(() => vi.fn());
-let premium = { isPremium: false, isLoading: false, error: null as unknown };
+let premium = { isPremium: false, isActive: false, isLoading: false, error: null as unknown };
 vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => premium }));
 vi.mock('@/components/ads/AdSenseUnit', () => {
   moduleLoaded();
@@ -19,7 +19,7 @@ const props = { adSlot: '9151849981', adFormat: 'horizontal' as const, fullWidth
 
 beforeEach(() => {
   window.history.replaceState({}, '', '/de/radios');
-  premium = { isPremium: false, isLoading: false, error: null };
+  premium = { isPremium: false, isActive: false, isLoading: false, error: null };
   rect = { width: 320, height: 90, top: 4000, bottom: 4090, left: 0, right: 320 };
   observers = [];
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect as DOMRect);
@@ -88,16 +88,17 @@ it('waits for the document to become visible', async () => {
 });
 
 it.each([
-  { isPremium: true, isLoading: false, error: null },
-  { isPremium: false, isLoading: true, error: null },
-  { isPremium: false, isLoading: false, error: new Error('auth unavailable') },
+  { isPremium: true, isActive: true, isLoading: false, error: null },
+  { isPremium: false, isActive: true, isLoading: false, error: null },
+  { isPremium: false, isActive: false, isLoading: true, error: null },
+  { isPremium: false, isActive: false, isLoading: false, error: new Error('auth unavailable') },
 ])('does not load for unresolved or ineligible premium status: %j', state => {
   premium = state;
   const view = render(<DeferredAdSenseUnit {...props} />);
   intersect(true);
   expect(screen.queryByTestId('loaded-ad')).toBeNull();
   expect(observers).toHaveLength(0);
-  if (state.isPremium) expect(view.container).toBeEmptyDOMElement();
+  if (state.isActive) expect(view.container).toBeEmptyDOMElement();
 });
 
 it('begins observing only after non-premium authentication resolves', async () => {

@@ -105,6 +105,24 @@ describe("Paddle checkout, portal and TV HTTP contracts", () => {
     const body = await matched.json() as any;
     assert.equal(body.subscription.tier, "free"); assert.equal(body.user.token, "offline-test-token");
   });
+  it("keeps verified one-time Remove Ads ad-free but non-premium across status and TV polling", async () => {
+    const purchased = { plan: "remove_ads", platform: "paddle", paddleBillingKind: "one_time", expiresAt: null, paddleSubscriptionId: null, isActive: true };
+    for (const [patch, adFree] of [
+      [{}, true], [{ isActive: false }, false], [{ paddleBillingKind: undefined }, false],
+      [{ expiresAt: "invalid" }, false], [{ paddleSubscriptionId: "sub_recurring" }, false],
+    ] as const) {
+      subscription = { ...purchased, ...patch };
+      const expected = { tier: "free", status: "active", adFree };
+      const status = await fetch(base + "/api/subscription/status", { headers: { "x-offline-auth": "yes" } });
+      assert.equal(status.status, 200);
+      assert.deepEqual(await status.json(), expected);
+      const tv = await fetch(base + "/api/subscription/tv/code/123456/status?deviceId=real-TV-device");
+      assert.equal(tv.status, 200);
+      const body = await tv.json() as any;
+      assert.deepEqual(body.subscription, expected);
+      assert.equal(body.status, "activated");
+    }
+  });
   it("requires the untouched raw webhook body and a valid signature", async () => {
     assert.equal((await post("/api/webhooks/paddle", {}, false, { "x-no-raw": "1", "paddle-signature": "invalid" })).status, 400);
     assert.equal((await post("/api/webhooks/paddle", {}, false, { "paddle-signature": "invalid" })).status, 400);
@@ -115,6 +133,9 @@ describe("Paddle checkout, portal and TV HTTP contracts", () => {
       { plan: "arbitrary_admin", isActive: true },
       { plan: "premium_yearly", isActive: true, expiresAt: "invalid" },
     ]) assert.equal(formatSubscriptionStatus(sub).tier, "free");
-    assert.equal(formatSubscriptionStatus({ plan: "remove_ads", isActive: true }).adFree, true);
+    assert.equal(formatSubscriptionStatus({ plan: "remove_ads", isActive: true }).adFree, false);
+    assert.equal(formatSubscriptionStatus({
+      plan: "remove_ads", isActive: true, platform: "paddle", paddleBillingKind: "one_time", expiresAt: null,
+    }).adFree, true);
   });
 });

@@ -14,7 +14,7 @@ vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => ({
   language: state.language, localeTranslations: {}, t: (_key: string, fallback: string) => fallback,
 }) }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null, isAuthenticated: false }) }));
-vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ isPremium: true, isLoading: false }) }));
+vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ isPremium: true, isActive: true, isLoading: false }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/hooks/useGlobalPlayer', () => ({ useGlobalPlayer: () => ({

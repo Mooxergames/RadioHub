@@ -45,6 +45,7 @@ export function paddleSubscriptionPatch(data: Data): Data {
   if (liveStatus && !expiresAt) throw new Error("Paddle subscription has no verified billing period");
   const cancelAtPeriodEnd = data.scheduled_change?.action === "cancel";
   return {
+    paddleBillingKind: "recurring",
     subscriptionStatus: data.status,
     // Keep the existing past-due grace policy, but never beyond the provider's period.
     isActive: liveStatus && !!expiresAt && expiresAt.getTime() > Date.now(),
@@ -126,12 +127,18 @@ export async function processPaddleEvent(event: Data, options: {
     patch = { ...patch, ...paddleSubscriptionPatch(data) };
   } else {
     const recurring = (price.billing_cycle ?? price.billingCycle) != null;
-    const expiresAt = date(data.billing_period?.ends_at);
+    // Missing cycle data is not proof that a paid entitlement has no expiry.
+    const oneTime = price.billing_cycle === null || price.billingCycle === null;
+    if (!recurring && !oneTime) return ignored("unverified_billing_kind");
+    if (!recurring && subscriptionId) return ignored("billing_kind_mismatch");
+    const expiresAt = recurring ? date(data.billing_period?.ends_at) : null;
     // Initial recurring checkouts can precede their subscription event. Without
     // a verified period, wait for that event rather than manufacture lifetime access.
     if (recurring && !subscriptionId) return ignored("missing_subscription_identity");
-    patch = { ...patch, transactionId, isActive: recurring ? !!expiresAt && expiresAt.getTime() > Date.now() : true,
-      subscriptionStatus: recurring && !expiresAt ? "pending" : "active", isTrial: false, expiresAt, renewsAt: expiresAt,
+    patch = { ...patch, transactionId, paddleBillingKind: recurring ? "recurring" : "one_time",
+      isActive: recurring ? !!expiresAt && expiresAt.getTime() > Date.now() : true,
+      subscriptionStatus: recurring && !expiresAt ? "pending" : "active", isTrial: false, expiresAt,
+      renewsAt: recurring ? expiresAt : null,
       cancelAtPeriodEnd: false, cancelledAt: null, startedAt: occurredAt };
   }
   const amount = transactionEvent && /^\d+$/.test(text(data.details?.totals?.total)) ? Number(data.details.totals.total) : null;

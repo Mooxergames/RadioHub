@@ -15,6 +15,7 @@ import { ACTIVE_SITEMAP_LANGUAGES } from "@workspace/seo-shared/seo-config";
 import { processPaddleEvent, signedPaddleCustomData, validPaddlePrice } from "../services/paddle-billing";
 import { configuredPaddlePriceId } from "../services/paddle-plan-catalog";
 import { paddleClientConfig } from '../services/paddle-client-config';
+import { subscriptionAccess } from '@workspace/db-shared/subscription-access';
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
@@ -90,8 +91,7 @@ async function persistSubscription(
 }
 
 export function formatSubscriptionStatus(sub: Record<string, any>): Record<string, unknown> {
-  const expiry = sub.expiresAt == null ? null : new Date(sub.expiresAt).getTime();
-  const active = !!sub.isActive && (expiry === null || Number.isFinite(expiry) && expiry > Date.now());
+  const { active } = subscriptionAccess(sub);
   const isPremium = active && ["premium_monthly", "premium_yearly", "premium_lifetime"].includes(sub.plan);
   if (!isPremium) return { tier: "free", status: "active", adFree: active && sub.plan === "remove_ads" };
   const plan = sub.plan === "premium_monthly" ? "monthly" : sub.plan === "premium_yearly"
