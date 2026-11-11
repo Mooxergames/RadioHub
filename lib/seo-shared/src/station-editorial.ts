@@ -1,9 +1,12 @@
-export interface StationEditorialLink {
-  label: string;
-  href: string;
-}
+import type { ReviewedStationEditorial, StationEditorialLink } from './station-editorial-types';
+import { REVIEWED_STATION_EDITORIALS } from './reviewed-station-editorials';
 
-export interface StationEditorial {
+export { applyReviewedStationMetadata, getStationEditorialLabels } from './station-editorial-types';
+export type { ReviewedStationEditorial, StationEditorialLink } from './station-editorial-types';
+export { REVIEWED_STATION_EDITORIALS };
+
+export interface PilotStationEditorial {
+  kind: 'pilot';
   summary: string;
   historyHeading: string;
   historyText: string;
@@ -43,7 +46,8 @@ const profile = 'https://der.orf.at/unternehmen/programmangebote/radio/oe-drei/i
 const playerHelp = `${official}/kontakt/stories/faq/`;
 
 // An explicitly scoped editorial pilot, not a fallback for other stations/locales.
-const oe3German: StationEditorial = {
+const oe3German: PilotStationEditorial = {
+  kind: 'pilot',
   summary: 'Bei Hitradio Ö3 treffen neue Popsongs auf bekannte Titel aus den Achtzigern, Neunzigern und Zweitausendern. Dazwischen informiert der österreichweite ORF-Sender mit Nachrichten, Wetter und Verkehr. Auf MegaRadio hörst du das laufende Ö3-Programm als Livestream.',
   historyHeading: 'Ö3: Sendestart und Studio in Wien',
   historyText: 'Ö3 ging am 1. Oktober 1967 im Zuge der ORF-Programmreform auf Sendung. Heute gehört das deutschsprachige Programm zum österreichweiten Radioangebot des ORF. Im November 2022 wechselte die Redaktion nach fast 25 Jahren in Heiligenstadt auf den ORF-Mediencampus am Küniglberg. Die Studios liegen in der Hugo-Portisch-Gasse 1 in Wien.',
@@ -108,10 +112,19 @@ const oe3German: StationEditorial = {
   reviewedLabel: 'Quellen geprüft am 8. November 2026',
 };
 
+export type StationEditorial = PilotStationEditorial | ReviewedStationEditorial;
+
+const reviewedByPath = new Map(REVIEWED_STATION_EDITORIALS.map(record => [record.path, record]));
+
 export function getStationEditorial(
-  station: { _id?: string; slug?: string } | null | undefined,
+  station: { _id?: string; slug?: string; stationPageMode?: string } | null | undefined,
   language: string,
+  pathname?: string,
 ): StationEditorial | null {
-  return language === 'de' && station?._id === '68a8c483bd66579311ab2ffa'
-    && station.slug === 'orf-hitradio-o3' ? oe3German : null;
+  if (language === 'de' && station?._id === '68a8c483bd66579311ab2ffa'
+    && station.slug === 'orf-hitradio-o3') return oe3German;
+  if (!pathname || station?.stationPageMode === 'information') return null;
+  const record = reviewedByPath.get(pathname);
+  return record && record.language === language && record.stationId === station?._id
+    && record.slug === station.slug ? record : null;
 }

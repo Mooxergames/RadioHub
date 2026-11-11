@@ -9,7 +9,7 @@ import { normalizePublicStationLogoUrl } from '@workspace/seo-shared/station-log
 import { getStationBroadcastLanguages, getSchemaCountry, generateOrganizationSchema, generateWebSiteSchema, generateDeveloperOrganizationSchema } from '@workspace/seo-shared/structured-data';
 import { getStationPageCopy, getStationRelatedHeading, getStationStreamUnavailableNotice, isStationInformationPage, getStationInformationCopy } from '@workspace/seo-shared/station-page-copy';
 import { selectStationVisibleDescription } from '@workspace/seo-shared/station-description-template';
-import { getStationEditorial } from '@workspace/seo-shared/station-editorial';
+import { getStationEditorial, applyReviewedStationMetadata } from '@workspace/seo-shared/station-editorial';
 import { renderStationEditorialHtml } from '@workspace/seo-shared/station-editorial-html';
 import { withPublicStationDeadline } from './utils/public-station-deadline';
 import { withSeoReadDeadline } from './utils/seo-read-deadline';
@@ -1396,6 +1396,7 @@ export class SeoRenderer {
     // Pass localized path to use translated paths in canonical URL
     // Also pass urlTranslations map for hreflang tags with translated paths
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (pageType === 'station') additionalData.stationEditorialPath = cleanUrl;
     const stationLinkQualification: { languages?: readonly string[] } = {};
     let seoTags = await this.generateEnhancedSeoTags(pageType, language, translations, cleanPath, domain, stationData, additionalData, cleanUrl, localizedPath, urlTranslations,
       pageType === 'stations' ? stationLinkQualification : undefined);
@@ -1751,6 +1752,12 @@ export class SeoRenderer {
     if (customMetadata) {
       logger.log(`🎯 Using custom SEO metadata for ${dbPageType}/${routeKey}/${language}`);
       seoTags = this.applyCustomSeoMetadata(seoTags, customMetadata);
+    }
+    if (pageType === 'station' && !isStationInformationPage(stationData)) {
+      const editorial = getStationEditorial(stationData, language, cleanUrl);
+      if (editorial?.kind === 'reviewed') {
+        seoTags = applyReviewedStationMetadata(seoTags, editorial, customMetadata);
+      }
     }
     // Legacy admin titles must not promise playback on explicit information pages.
     if (pageType === 'station' && isStationInformationPage(stationData)) {
@@ -2710,7 +2717,7 @@ export class SeoRenderer {
                 <h2>${this.escapeHtml(getStationPageCopy(language, translations).about)}</h2>
                 <!-- DALGA 4: H1-keyword echo intro (single sentence, station-specific interpolation: name + country) -->
                 ${(() => {
-                  if (getStationEditorial(stationData, language) && !isStationInformationPage(stationData)) return '';
+                  if (getStationEditorial(stationData, language, additionalData?.stationEditorialPath) && !isStationInformationPage(stationData)) return '';
                   const introTemplate = getStationPageCopy(language, translations, stationData).intro;
                   const stationName = stationData.name || 'Radio Station';
                   const country = getStationCountryName(stationData, language);
@@ -2720,7 +2727,7 @@ export class SeoRenderer {
                   return `<p class="station-intro">${this.escapeHtml(introText)}</p>`;
                 })()}
                 ${(() => {
-                  const fullText = getStationEditorial(stationData, language)?.summary
+                  const fullText = getStationEditorial(stationData, language, additionalData?.stationEditorialPath)?.summary
                     ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
                   if (fullText && fullText.length > 300) {
                     // Require whitespace after sentence punctuation so URL tokens
@@ -2746,7 +2753,7 @@ export class SeoRenderer {
                 })()}
                 <!-- DALGA 4: Station-specific outro (25-35 words, interpolation: name + country + tags — NOT scaled boilerplate) -->
                 ${(() => {
-                  if (getStationEditorial(stationData, language) || isStationInformationPage(stationData)) return '';
+                  if (getStationEditorial(stationData, language, additionalData?.stationEditorialPath) || isStationInformationPage(stationData)) return '';
                   const outroTemplate = getStationPageCopy(language, translations).outro;
                   const stationName = stationData.name || 'Radio Station';
                   const country = getStationCountryName(stationData, language);
@@ -2876,7 +2883,7 @@ export class SeoRenderer {
                   return sections.join('\n');
                 })()}
 
-                ${renderStationEditorialHtml(stationData, language)}
+                ${renderStationEditorialHtml(stationData, language, additionalData?.stationEditorialPath)}
                 <!-- Navigation -->
                 <nav class="explore-nav">
                   <ul>
@@ -3705,7 +3712,7 @@ export class SeoRenderer {
       // it — see generateHtmlBody case 'station' (~line 1461).
       const schemaDescriptionSource = isStationInformationPage(stationData)
         ? getStationInformationCopy(language, stationData.name).description
-        : getStationEditorial(stationData, language)?.summary
+        : getStationEditorial(stationData, language, additionalData?.stationEditorialPath)?.summary
           ?? selectStationVisibleDescription(stationData, language, getStationCountryName(stationData, "en"));
 
       // 2026-05-12 SEO audit (138 invalid items): switched primary type

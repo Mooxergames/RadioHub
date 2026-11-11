@@ -8,7 +8,9 @@ import { renderStationEditorialHtml } from '@workspace/seo-shared/station-editor
 import { StationEditorial } from '../src/components/stations/station-editorial';
 
 const station = { _id: '68a8c483bd66579311ab2ffa', slug: 'orf-hitradio-o3' };
-const content = getStationEditorial(station, 'de')!;
+const pilot = getStationEditorial(station, 'de');
+if (pilot?.kind !== 'pilot') throw new Error('Expected the original Ö3 pilot');
+const content = pilot;
 afterEach(cleanup);
 
 it('only enables the explicitly selected German Ö3 record', () => {

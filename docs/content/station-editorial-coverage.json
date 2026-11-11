@@ -1,0 +1,842 @@
+{
+  "reviewedAt": "2026-11-11",
+  "source": "Round18 failed-cohort union, fresh Round19 station identity inventory.",
+  "scope": "Exact path, language, stationId and slug; no translation fanout or alias expansion.",
+  "entries": [
+    {
+      "path": "/en/station/107-9-kbpi",
+      "stationId": "68a8c45abd66579311aacc35",
+      "slug": "107-9-kbpi",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/radio-lautaru",
+      "stationId": "68a8c48dbd66579311ab4abc",
+      "slug": "radio-lautaru",
+      "language": "en",
+      "decision": "withheld",
+      "reason": "Saved publisher redirects to a different station; continuity is unverified."
+    },
+    {
+      "path": "/en/station/kpcw",
+      "stationId": "68a8c478bd66579311ab1728",
+      "slug": "kpcw",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/deutscher-soldatensender-von-1970",
+      "stationId": "6a079162bef34beb9148be44",
+      "slug": "deutscher-soldatensender-von-1970",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/gd-radio-low",
+      "stationId": "68a8c472bd66579311ab057a",
+      "slug": "gd-radio-low",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/free-99",
+      "stationId": "68a8c470bd66579311ab037d",
+      "slug": "free-99",
+      "language": "en",
+      "decision": "preserve",
+      "reason": "Preserve the recently corrected factual copy; additional primary facts do not justify padding."
+    },
+    {
+      "path": "/en/station/radio-neue-hoffnung-aac-96-kbps",
+      "stationId": "68a8c48ebd66579311ab4e41",
+      "slug": "radio-neue-hoffnung-aac-96-kbps",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/radio-hamburg",
+      "stationId": "68a8c48dbd66579311ab47f7",
+      "slug": "radio-hamburg",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/fenomen-turk",
+      "stationId": "68a8c46fbd66579311aafef5",
+      "slug": "fenomen-turk",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/virgin-radio-uk-rock-n-roll-radio-from-the-top-of-the-tower",
+      "stationId": "69ffd89bda362ab542d50995",
+      "slug": "virgin-radio-uk-rock-n-roll-radio-from-the-top-of-the-tower",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-hitradio-o3",
+      "stationId": "68a8c483bd66579311ab2ffa",
+      "slug": "orf-hitradio-o3",
+      "language": "de",
+      "decision": "preserve",
+      "reason": "Preserve the existing German editorial pilot."
+    },
+    {
+      "path": "/tr/istasyon/metro-fm",
+      "stationId": "68a8c47fbd66579311ab2576",
+      "slug": "metro-fm",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/radio-eins",
+      "stationId": "68a8c48bbd66579311ab445a",
+      "slug": "radio-eins",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/wqxr-105-9-fm",
+      "stationId": "6a0791e4bef34beb9148dabf",
+      "slug": "wqxr-105-9-fm",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/greatest-hits-radio",
+      "stationId": "6a079171bef34beb9148c226",
+      "slug": "greatest-hits-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-radio-niederosterreich",
+      "stationId": "68a8c483bd66579311ab3006",
+      "slug": "orf-radio-niederosterreich",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/show-radyo",
+      "stationId": "6a485b8b650a8a3403be171c",
+      "slug": "show-radyo",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/magic-radio-uk",
+      "stationId": "68a8c47dbd66579311ab2236",
+      "slug": "magic-radio-uk",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-radio-burgenland",
+      "stationId": "68a8c483bd66579311ab3003",
+      "slug": "orf-radio-burgenland",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/88-6-on-air",
+      "stationId": "68a8c45cbd66579311aacfec",
+      "slug": "88-6-on-air",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/trt-fm",
+      "stationId": "68a8c49fbd66579311ab7837",
+      "slug": "trt-fm",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/102-7-kiis-fm-los-angeles",
+      "stationId": "68a8c45abd66579311aacb29",
+      "slug": "102-7-kiis-fm-los-angeles",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/1live",
+      "stationId": "68a8c45abd66579311aacd1e",
+      "slug": "1live",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/hits-radio",
+      "stationId": "6924cc51495dd2a8e2a58158",
+      "slug": "hits-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/bbc-world-service",
+      "stationId": "68a8c462bd66579311aadfaf",
+      "slug": "bbc-world-service",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/bbc-radio-2-128k",
+      "stationId": "68a8c462bd66579311aadf80",
+      "slug": "bbc-radio-2-128k",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/smooth-radio",
+      "stationId": "68a8c49bbd66579311ab6bab",
+      "slug": "smooth-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-radio-salzburg",
+      "stationId": "68a8c483bd66579311ab2ff9",
+      "slug": "orf-radio-salzburg",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/wdr-2-rheinland",
+      "stationId": "68a8c4a1bd66579311ab7d9d",
+      "slug": "wdr-2-rheinland",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/104-6-rtl",
+      "stationId": "68a8c45abd66579311aacb85",
+      "slug": "104-6-rtl",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/swr1-bw",
+      "stationId": "6a0791d7bef34beb9148d799",
+      "slug": "swr1-bw",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/kalp-fm",
+      "stationId": "6a07917cbef34beb9148c447",
+      "slug": "kalp-fm",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/z100-new-york-s-1-hit-music-station-whtz",
+      "stationId": "68a8c4a5bd66579311ab8505",
+      "slug": "z100-new-york-s-1-hit-music-station-whtz",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/classical-kdfc",
+      "stationId": "68a8c468bd66579311aaee26",
+      "slug": "classical-kdfc",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/kiss-uk",
+      "stationId": "68a8c478bd66579311ab1529",
+      "slug": "kiss-uk",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/kisstory",
+      "stationId": "6924cc54495dd2a8e2a581cb",
+      "slug": "kisstory",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/mdr-sachsen",
+      "stationId": "6a079190bef34beb9148c7b9",
+      "slug": "mdr-sachsen",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/wltw-litefm-106-7-fm-new-york-ny",
+      "stationId": "68a8c4a3bd66579311ab8013",
+      "slug": "wltw-litefm-106-7-fm-new-york-ny",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/deutschlandfunk-dlf-mp3-128k",
+      "stationId": "68a8c46abd66579311aaf424",
+      "slug": "deutschlandfunk-dlf-mp3-128k",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/bbc-radio-5-live-128k",
+      "stationId": "68a8c462bd66579311aadf8a",
+      "slug": "bbc-radio-5-live-128k",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/bbc-radio-1",
+      "stationId": "6a074ada6d96297555914a80",
+      "slug": "bbc-radio-1",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/bbc-radio-3-128k",
+      "stationId": "68a8c462bd66579311aadf83",
+      "slug": "bbc-radio-3-128k",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/power-fm-turkiye",
+      "stationId": "6924cc61495dd2a8e2a58300",
+      "slug": "power-fm-turkiye",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/radio-u1-tirol",
+      "stationId": "68a8c493bd66579311ab5872",
+      "slug": "radio-u1-tirol",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/bbc-radio-6-music",
+      "stationId": "68a8c462bd66579311aadf8c",
+      "slug": "bbc-radio-6-music",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/bbc-radio-4-128k",
+      "stationId": "68a8c462bd66579311aadf87",
+      "slug": "bbc-radio-4-128k",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/rock-antenne",
+      "stationId": "68a8c498bd66579311ab63a6",
+      "slug": "rock-antenne",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/slow-turk",
+      "stationId": "68a8c49bbd66579311ab6b3e",
+      "slug": "slow-turk",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/hit-radio-ffh",
+      "stationId": "68a8c474bd66579311ab0a60",
+      "slug": "hit-radio-ffh",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/radyo-45lik-yeni",
+      "stationId": "68a8c495bd66579311ab5d7c",
+      "slug": "radyo-45lik-yeni",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/ntv-radyo",
+      "stationId": "6a07919fbef34beb9148c9d7",
+      "slug": "ntv-radyo",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/joy-turk-turkey",
+      "stationId": "68a8c477bd66579311ab11a4",
+      "slug": "joy-turk-turkey",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/npr-24-hour-program-stream",
+      "stationId": "68a8c482bd66579311ab2d35",
+      "slug": "npr-24-hour-program-stream",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/radio-vorarlberg",
+      "stationId": "68a8c493bd66579311ab59f1",
+      "slug": "radio-vorarlberg",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-radio-oberosterreich",
+      "stationId": "68a8c483bd66579311ab3008",
+      "slug": "orf-radio-oberosterreich",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/antenne-karnten",
+      "stationId": "68a8c461bd66579311aada27",
+      "slug": "antenne-karnten",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/bayern-3",
+      "stationId": "68a8c462bd66579311aadf3d",
+      "slug": "bayern-3",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/antenne-vorarlberg",
+      "stationId": "68a8c461bd66579311aada77",
+      "slug": "antenne-vorarlberg",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/kral-fm",
+      "stationId": "68a8c478bd66579311ab175d",
+      "slug": "kral-fm",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/radyo-seymen",
+      "stationId": "6a0791c9bef34beb9148d375",
+      "slug": "radyo-seymen",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-radio-wien",
+      "stationId": "68a8c483bd66579311ab300e",
+      "slug": "orf-radio-wien",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/wtop-103-5-fm",
+      "stationId": "68a8c4a3bd66579311ab8211",
+      "slug": "wtop-103-5-fm",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/jazz-cafe-2",
+      "stationId": "68a8c477bd66579311ab105a",
+      "slug": "jazz-cafe-2",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/nashville-fm",
+      "stationId": "68a8c480bd66579311ab29ba",
+      "slug": "nashville-fm",
+      "language": "en",
+      "decision": "withheld",
+      "reason": "Saved broadcaster domain is repurposed; no current primary identity source."
+    },
+    {
+      "path": "/en/station/kfi",
+      "stationId": "68a8c477bd66579311ab13ef",
+      "slug": "kfi",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/power-105-1",
+      "stationId": "68a8c485bd66579311ab3488",
+      "slug": "power-105-1",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/kronehit-radio",
+      "stationId": "6a079180bef34beb9148c546",
+      "slug": "kronehit-radio",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/kexp-90-3-seattle-wa",
+      "stationId": "6a07917dbef34beb9148c491",
+      "slug": "kexp-90-3-seattle-wa",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-radio-steiermark",
+      "stationId": "68a8c483bd66579311ab300b",
+      "slug": "orf-radio-steiermark",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/radyo-fenomen",
+      "stationId": "68a8c495bd66579311ab5da4",
+      "slug": "radyo-fenomen",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/antenne-steiermark",
+      "stationId": "68a8c461bd66579311aada5e",
+      "slug": "antenne-steiermark",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/arabella-wien",
+      "stationId": "68a8c461bd66579311aadb0a",
+      "slug": "arabella-wien",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/radio-hamburg",
+      "stationId": "68a8c48dbd66579311ab47f7",
+      "slug": "radio-hamburg",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/classical-kusc",
+      "stationId": "68a8c468bd66579311aaee2b",
+      "slug": "classical-kusc",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/somafm-groove-salad",
+      "stationId": "68a8c49bbd66579311ab6c2a",
+      "slug": "somafm-groove-salad",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/heart",
+      "stationId": "68a8c474bd66579311ab0948",
+      "slug": "heart",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/power-turk-fm",
+      "stationId": "68a8c485bd66579311ab34c1",
+      "slug": "power-turk-fm",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/bayern-1-oberbayern",
+      "stationId": "68a8c462bd66579311aadf3a",
+      "slug": "bayern-1-oberbayern",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/o1-orf",
+      "stationId": "68a8c482bd66579311ab2e37",
+      "slug": "o1-orf",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/absolute-radio",
+      "stationId": "6a0749ec6d962975559148ba",
+      "slug": "absolute-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/lbc-radio",
+      "stationId": "68a8c47bbd66579311ab1d38",
+      "slug": "lbc-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/nbc-news-radio",
+      "stationId": "68a8c480bd66579311ab2a3a",
+      "slug": "nbc-news-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/wbez-91-5-chicago-public-radio",
+      "stationId": "68a8c4a1bd66579311ab7d08",
+      "slug": "wbez-91-5-chicago-public-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/wdr4",
+      "stationId": "68a8c4a1bd66579311ab7dce",
+      "slug": "wdr4",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/kost-103-5",
+      "stationId": "68a8c478bd66579311ab170a",
+      "slug": "kost-103-5",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/wnyc-93-9-fm",
+      "stationId": "68a8c4a3bd66579311ab8080",
+      "slug": "wnyc-93-9-fm",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/fm4-orf",
+      "stationId": "68a8c470bd66579311ab01ef",
+      "slug": "fm4-orf",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/radio-x-london",
+      "stationId": "68a8c493bd66579311ab5a85",
+      "slug": "radio-x-london",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/radio-ffn",
+      "stationId": "68a8c48bbd66579311ab45c8",
+      "slug": "radio-ffn",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/fox-news-radio",
+      "stationId": "68a8c470bd66579311ab02a3",
+      "slug": "fox-news-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/klassik-radio-live",
+      "stationId": "68a8c478bd66579311ab15bb",
+      "slug": "klassik-radio-live",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-tirol",
+      "stationId": "68a8c483bd66579311ab3014",
+      "slug": "orf-tirol",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/orf-radio-karnten",
+      "stationId": "68a8c483bd66579311ab3004",
+      "slug": "orf-radio-karnten",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/mdr-jump",
+      "stationId": "6a079190bef34beb9148c7b3",
+      "slug": "mdr-jump",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/kral-pop",
+      "stationId": "68a8c478bd66579311ab175f",
+      "slug": "kral-pop",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/capital-uk",
+      "stationId": "6a079156bef34beb9148bc4f",
+      "slug": "capital-uk",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/swr3",
+      "stationId": "68a8c49cbd66579311ab7206",
+      "slug": "swr3",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/tr/istasyon/virgin-radio-turkiye",
+      "stationId": "68a8c4a1bd66579311ab7b7b",
+      "slug": "virgin-radio-turkiye",
+      "language": "tr",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/radyonne",
+      "stationId": "68a8c495bd66579311ab5e47",
+      "slug": "radyonne",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/90-1-kpft",
+      "stationId": "68a8c45cbd66579311aad070",
+      "slug": "90-1-kpft",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/radio-svoboda-fm",
+      "stationId": "68a8c4a8bd66579311ab8c7f",
+      "slug": "radio-svoboda-fm",
+      "language": "en",
+      "decision": "withheld",
+      "reason": "Redirected publisher site does not establish the saved stream's operator."
+    },
+    {
+      "path": "/en/station/the-beat-alternative-rock-revolution-headquarters",
+      "stationId": "68a8c49ebd66579311ab73f6",
+      "slug": "the-beat-alternative-rock-revolution-headquarters",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/fluxfm-lofi",
+      "stationId": "68a8c470bd66579311ab00a0",
+      "slug": "fluxfm-lofi",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/de/sender/newsradio-630-wlap",
+      "stationId": "68a8c480bd66579311ab2b2e",
+      "slug": "newsradio-630-wlap",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/kmjj-99-7-shreveport-la",
+      "stationId": "68a8c478bd66579311ab1642",
+      "slug": "kmjj-99-7-shreveport-la",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/sam-meyers-classic-country",
+      "stationId": "68a8c499bd66579311ab6822",
+      "slug": "sam-meyers-classic-country",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/muddy-country-radio",
+      "stationId": "68a8c480bd66579311ab2824",
+      "slug": "muddy-country-radio",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/radio-totall-89-5",
+      "stationId": "68a8c493bd66579311ab5816",
+      "slug": "radio-totall-89-5",
+      "language": "en",
+      "decision": "withheld",
+      "reason": "Publisher player identity is readable, but the catalogue spelling, frequency and programme are unverified."
+    },
+    {
+      "path": "/de/sender/0-n-heavy-metal-on-radio",
+      "stationId": "68a8c458bd66579311aac7d7",
+      "slug": "0-n-heavy-metal-on-radio",
+      "language": "de",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/orf-radio-niederosterreich-hq",
+      "stationId": "68a8c483bd66579311ab3007",
+      "slug": "orf-radio-niederosterreich-hq",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/heiligenkreuz-101-102k",
+      "stationId": "68a8c474bd66579311ab09a8",
+      "slug": "heiligenkreuz-101-102k",
+      "language": "en",
+      "decision": "withheld",
+      "reason": "Radio Maria connection does not establish a distinct channel or exact stream identity."
+    },
+    {
+      "path": "/en/station/radio-symphony",
+      "stationId": "68a8c493bd66579311ab573f",
+      "slug": "radio-symphony",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/radio-heimatmelodie",
+      "stationId": "6a0791b9bef34beb9148cea1",
+      "slug": "radio-heimatmelodie",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/radio-24-de-julio-97-1-fm-villa-montes-traija",
+      "stationId": "68a8c486bd66579311ab38b5",
+      "slug": "radio-24-de-julio-97-1-fm-villa-montes-traija",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/dressfm-new-yorker-germany",
+      "stationId": "6a079164bef34beb9148bed6",
+      "slug": "dressfm-new-yorker-germany",
+      "language": "en",
+      "decision": "withheld",
+      "reason": "Brand connection alone does not verify this saved channel's current format."
+    },
+    {
+      "path": "/en/station/altin-sarkilar",
+      "stationId": "68a8c45fbd66579311aad814",
+      "slug": "altin-sarkilar",
+      "language": "en",
+      "decision": "withheld",
+      "reason": "Saved network link does not establish a current matching publisher channel."
+    },
+    {
+      "path": "/en/station/min-yao-lan-diao",
+      "stationId": "68a8c4abbd66579311ab92c6",
+      "slug": "min-yao-lan-diao",
+      "language": "en",
+      "decision": "reviewed"
+    },
+    {
+      "path": "/en/station/estacion-711-95-7-fm",
+      "stationId": "68a8c46dbd66579311aafb6a",
+      "slug": "estacion-711-95-7-fm",
+      "language": "en",
+      "decision": "reviewed"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { ArrowUpRight, ChevronDown } from 'lucide-react';
 import { Link } from 'wouter';
-import type { StationEditorial as Editorial, StationEditorialLink } from '@workspace/seo-shared/station-editorial';
+import { getStationEditorialLabels, type StationEditorial as Editorial,
+  type PilotStationEditorial, type ReviewedStationEditorial, type StationEditorialLink } from '@workspace/seo-shared/station-editorial';
 
 function SourceLink({ label, href }: StationEditorialLink) {
   return <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1.5 text-sm text-[#FF4199] underline decoration-[#FF4199]/40 underline-offset-4 hover:decoration-[#FF4199] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#FF4199]">
@@ -8,13 +9,51 @@ function SourceLink({ label, href }: StationEditorialLink) {
   </a>;
 }
 
-function StationEditorialIntro({ content }: { content: Editorial }) {
+function StationEditorialIntro({ content }: { content: PilotStationEditorial }) {
   return <div className="max-w-4xl space-y-3 leading-relaxed text-[#D6D6D6]" data-testid="station-editorial-intro">
     {content.paragraphs.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
   </div>;
 }
 
+function ReviewedEditorial({ content }: { content: ReviewedStationEditorial }) {
+  const labels = getStationEditorialLabels(content.language);
+  return <div className="container m-auto pb-8 pt-2 text-white" lang={content.language} data-testid="station-editorial">
+    {content.sections.map((section, index) => <section key={section.heading} className="border-t border-[#313131] py-6" aria-labelledby={`station-editorial-section-${index}`}>
+      <h2 id={`station-editorial-section-${index}`} className="mb-4 text-lg font-bold">{section.heading}</h2>
+      <div className="max-w-4xl space-y-3 text-sm leading-relaxed text-[#BDBDBD]">
+        {section.paragraphs.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
+      </div>
+      {!!section.links?.length && <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+        {section.links.map(item => <li key={item.href}><SourceLink {...item} /></li>)}
+      </ul>}
+    </section>)}
+    {!!content.questions.length && <section className="border-t border-[#313131] pt-6" aria-labelledby="station-editorial-questions">
+      <h2 id="station-editorial-questions" className="mb-2 text-lg font-bold">{labels.questions}</h2>
+      {content.questions.map(item => <details key={item.question} className="group border-b border-[#313131]">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-medium focus-visible:outline focus-visible:outline-[#FF4199] [&::-webkit-details-marker]:hidden">
+          <span>{item.question}</span><ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="max-w-4xl space-y-3 pb-4 text-sm leading-relaxed text-[#BDBDBD]">
+          <p>{item.answer}</p>{item.link && <SourceLink {...item.link} />}
+        </div>
+      </details>)}
+    </section>}
+    {!!content.relatedLinks.length && <section className="border-t border-[#313131] py-6" aria-labelledby="station-editorial-related">
+      <h2 id="station-editorial-related" className="mb-4 text-lg font-bold">{labels.related}</h2>
+      <ul className="flex flex-wrap gap-x-6 gap-y-3">{content.relatedLinks.map(item => <li key={item.href}>
+        <Link href={item.href} className="text-sm text-[#FF4199] underline underline-offset-4 focus-visible:outline focus-visible:outline-[#FF4199]">{item.label}</Link>
+      </li>)}</ul>
+    </section>}
+    <section className="pt-6" aria-labelledby="station-editorial-sources">
+      <h2 id="station-editorial-sources" className="mb-3 text-sm font-medium text-[#BDBDBD]">{labels.sources}</h2>
+      <ul className="flex flex-wrap gap-x-6 gap-y-3">{content.sources.map(item => <li key={item.href}><SourceLink {...item} /></li>)}</ul>
+      <p className="mt-4 text-xs text-[#999]">{labels.reviewed} <time dateTime={content.reviewedAt}>{content.reviewedAt}</time></p>
+    </section>
+  </div>;
+}
+
 export function StationEditorial({ content }: { content: Editorial }) {
+  if (content.kind === 'reviewed') return <ReviewedEditorial content={content} />;
   return <div className="container m-auto pb-8 pt-2 text-white" lang="de" data-testid="station-editorial">
     <section className="border-t border-[#313131] py-6" aria-labelledby="oe3-history">
       <h2 id="oe3-history" className="mb-4 text-lg font-bold">{content.historyHeading}</h2>
