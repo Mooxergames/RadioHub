@@ -837,6 +837,15 @@
       "slug": "estacion-711-95-7-fm",
       "language": "en",
       "decision": "reviewed"
+    },
+    {
+      "path": "/fr/station/radio-couleur-chartreuse",
+      "stationId": "68a8c48abd66579311ab4280",
+      "slug": "radio-couleur-chartreuse",
+      "language": "fr",
+      "decision": "reviewed",
+      "reviewedAt": "2026-11-12",
+      "source": "French-language editorial pilot, checked against the broadcaster's presentation, programme guide and dated local publications."
     }
   ]
 }

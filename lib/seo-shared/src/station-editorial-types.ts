@@ -8,7 +8,7 @@ export interface ReviewedStationEditorial {
   path: string;
   stationId: string;
   slug: string;
-  language: 'en' | 'de' | 'tr';
+  language: 'en' | 'de' | 'tr' | 'fr';
   summary: string;
   title?: string;
   metaDescription?: string;
@@ -28,6 +28,7 @@ export function getStationEditorialLabels(language: ReviewedStationEditorial['la
     en: { questions: 'Frequently asked questions', related: 'Explore related radio', sources: 'Publisher sources', reviewed: 'Sources checked on' },
     de: { questions: 'Häufige Fragen', related: 'Weitere Radios entdecken', sources: 'Quellen des Senders', reviewed: 'Quellen geprüft am' },
     tr: { questions: 'Sık sorulan sorular', related: 'İlgili radyoları keşfet', sources: 'Yayıncı kaynakları', reviewed: 'Kaynak kontrol tarihi' },
+    fr: { questions: 'Questions fréquentes', related: 'Explorer d’autres radios', sources: 'Sources de la radio', reviewed: 'Sources vérifiées le' },
   }[language];
 }
 

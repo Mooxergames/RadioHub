@@ -8617,5 +8617,92 @@ export const REVIEWED_STATION_EDITORIALS: readonly ReviewedStationEditorial[] = 
       }
     ],
     "reviewedAt": "2026-11-11"
+  },
+  {
+    "kind": "reviewed",
+    "path": "/fr/station/radio-couleur-chartreuse",
+    "stationId": "68a8c48abd66579311ab4280",
+    "slug": "radio-couleur-chartreuse",
+    "language": "fr",
+    "summary": "Radio Couleur Chartreuse est une radio associative installée à Saint-Laurent-du-Pont. Ses reportages, entretiens et chroniques culturelles font entendre la vie du massif de la Chartreuse, entre l’Isère et la Savoie. Les conseils de lecture donnent notamment la parole aux bibliothèques et librairies du territoire.",
+    "title": "Radio Couleur Chartreuse en direct | Mega Radio",
+    "metaDescription": "Écoutez Radio Couleur Chartreuse en direct. Découvrez cette radio associative de Saint-Laurent-du-Pont, ses reportages locaux et ses chroniques à réécouter.",
+    "sections": [
+      {
+        "heading": "Une radio associative née en Chartreuse",
+        "paragraphs": [
+          "L’histoire de RCC commence à Saint-Pierre-de-Chartreuse en 1989. Selon sa présentation officielle, la radio s’installe à Saint-Laurent-du-Pont en 2014. Son ancrage reste celui du massif de la Chartreuse, à la rencontre de l’Isère et de la Savoie.",
+          "L’association met le micro à disposition des acteurs de ce territoire : habitants, associations, collectivités et initiatives culturelles."
+        ],
+        "links": [
+          { "label": "La présentation de RCC par son équipe", "href": "https://www.radiocc.fr/a-propos/" }
+        ]
+      },
+      {
+        "heading": "Des reportages et des voix du territoire",
+        "paragraphs": [
+          "Un sujet publié le 9 novembre 2026 illustre ce travail de proximité : un reportage sur l’atelier cuisine du PAJ, Pour l’Action Jeunes, organisé à Saint-Pierre-de-Chartreuse le 28 octobre. On y retrouve les paroles de l’animateur, du jeune qui a organisé l’atelier et d’une élue municipale.",
+          "Cette publication donne un point d’entrée concret dans les initiatives de la Chartreuse. Sa fiche contient un lecteur propre au reportage, à distinguer du programme diffusé en direct sur cette page."
+        ],
+        "links": [
+          { "label": "Retrouver le reportage sur l’atelier cuisine du PAJ", "href": "https://www.radiocc.fr/reportage-avec-le-paj-lors-dun-atelier-cuisine-a-st-pierre-de-chartreuse/" }
+        ]
+      },
+      {
+        "heading": "Les lectures des bibliothèques et librairies locales",
+        "paragraphs": [
+          "La rubrique Coup de cœur livre rassemble des choix de lecture présentés à l’antenne. Les publications sont datées et les pages suivantes permettent de parcourir des sélections plus anciennes. Les intervenants viennent notamment des bibliothèques et librairies de la région.",
+          "Par exemple, la chronique du 6 novembre 2026 présente Athéna avec Natalène, de la bibliothèque de Saint-Laurent-du-Pont. Pour retrouver une recommandation entendue à la radio, le titre du livre et la date de la chronique sont deux repères utiles."
+        ],
+        "links": [
+          { "label": "Parcourir les archives de Coup de cœur livre", "href": "https://www.radiocc.fr/category/chroniques/coup-de-coeur-livre/" },
+          { "label": "La chronique consacrée à Athéna", "href": "https://www.radiocc.fr/coup-de-coeur-livre-du-vendredi-6-novembre-2026-athena/" }
+        ]
+      },
+      {
+        "heading": "Écouter le direct ou retrouver une émission",
+        "paragraphs": [
+          "Le lecteur MegaRadio de cette page ouvre le flux du direct. Pour réécouter un sujet précis, recherchez sa publication sur le site de RCC et utilisez le lecteur qui accompagne ce sujet. Toutes les émissions ne sont pas nécessairement proposées en intégralité dans les archives.",
+          "La grille officielle permet de préparer une prochaine écoute. Elle présente notamment Bonjour la Chartreuse, Culture & vous et Bouillon de Chartreuse. Consultez-la auprès de la radio pour les jours et horaires : ils ne sont pas figés dans ce guide."
+        ],
+        "links": [
+          { "label": "Consulter la grille des programmes de RCC", "href": "https://www.radiocc.fr/grille-programmes/" }
+        ]
+      }
+    ],
+    "questions": [
+      {
+        "question": "Faut-il connaître une fréquence FM pour écouter ici ?",
+        "answer": "Non. Le lecteur MegaRadio utilise le flux Internet de Radio Couleur Chartreuse, pas le tuner FM de votre appareil. Une connexion Internet est donc nécessaire."
+      },
+      {
+        "question": "Où retrouver un conseil de lecture entendu à l’antenne ?",
+        "answer": "Ouvrez la rubrique Coup de cœur livre sur le site de RCC. Cherchez le titre ou la date de la chronique et parcourez les pages d’archives si la publication est plus ancienne.",
+        "link": { "label": "Les sélections de lecture de RCC", "href": "https://www.radiocc.fr/category/chroniques/coup-de-coeur-livre/" }
+      },
+      {
+        "question": "Le lecteur de cette page permet-il de choisir un ancien reportage ?",
+        "answer": "Non, il sert à écouter le direct. Les enregistrements disponibles se trouvent sur les fiches des sujets publiés par la radio, comme celle de l’atelier cuisine du PAJ.",
+        "link": { "label": "Ouvrir la fiche et le lecteur du reportage PAJ", "href": "https://www.radiocc.fr/reportage-avec-le-paj-lors-dun-atelier-cuisine-a-st-pierre-de-chartreuse/" }
+      },
+      {
+        "question": "Comment proposer une idée de chronique ou d’émission ?",
+        "answer": "RCC invite les personnes ayant un projet de chronique ou d’émission à en discuter avec son équipe. Le courriel de contact publié par la radio est contact@radiocc.fr.",
+        "link": { "label": "Contacter l’équipe de Radio Couleur Chartreuse", "href": "https://www.radiocc.fr/a-propos/" }
+      }
+    ],
+    "relatedLinks": [
+      { "label": "D’autres radios de France", "href": "/fr/regions/europe/france" },
+      { "label": "Radyonne, une autre radio locale française", "href": "/fr/station/radyonne" },
+      { "label": "France Info, pour l’actualité nationale", "href": "/fr/station/france-info" }
+    ],
+    "sources": [
+      { "label": "Présentation officielle de Radio Couleur Chartreuse", "href": "https://www.radiocc.fr/a-propos/" },
+      { "label": "Grille des programmes publiée par RCC", "href": "https://www.radiocc.fr/grille-programmes/" },
+      { "label": "Reportage PAJ publié le 9 novembre 2026", "href": "https://www.radiocc.fr/reportage-avec-le-paj-lors-dun-atelier-cuisine-a-st-pierre-de-chartreuse/" },
+      { "label": "Chronique Athéna du 6 novembre 2026", "href": "https://www.radiocc.fr/coup-de-coeur-livre-du-vendredi-6-novembre-2026-athena/" },
+      { "label": "Rubrique Coup de cœur livre", "href": "https://www.radiocc.fr/category/chroniques/coup-de-coeur-livre/" }
+    ],
+    "reviewedAt": "2026-11-12"
   }
 ];

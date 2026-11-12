@@ -35,7 +35,7 @@ it('keeps the lower editorial distinct from the overview, with native FAQs and o
 });
 
 it('uses the actual editorial language for headings and does not introduce English fallback copy', () => {
-  for (const [language, label] of [['de', 'Häufige Fragen'], ['tr', 'Sık sorulan sorular']] as const) {
+  for (const [language, label] of [['de', 'Häufige Fragen'], ['tr', 'Sık sorulan sorular'], ['fr', 'Questions fréquentes']] as const) {
     const { container, unmount } = render(<StationEditorial content={{ ...fixture, language }} />);
     expect(screen.getByRole('heading', { name: label })).toBeInTheDocument();
     expect(container.querySelector('[data-testid="station-editorial"]')).toHaveAttribute('lang', language);
@@ -61,16 +61,16 @@ it('keeps published administrator metadata independently authoritative', () => {
 });
 
 it('covers exactly the reviewed cohort, without enabling aliases, other records or other languages', () => {
-  expect(coverage.entries).toHaveLength(118);
-  expect(new Set(coverage.entries.map((item: { path: string }) => item.path)).size).toBe(118);
+  expect(coverage.entries).toHaveLength(119);
+  expect(new Set(coverage.entries.map((item: { path: string }) => item.path)).size).toBe(119);
   const tuple = (item: { path: string; language: string; stationId: string; slug: string }) =>
     JSON.stringify([item.path, item.language, item.stationId, item.slug]);
   expect(REVIEWED_STATION_EDITORIALS.map(tuple).sort()).toEqual(coverage.entries
     .filter((item: { decision: string }) => item.decision === 'reviewed').map(tuple).sort());
-  expect(REVIEWED_STATION_EDITORIALS).toHaveLength(109);
-  expect(new Set(REVIEWED_STATION_EDITORIALS.map(item => item.path)).size).toBe(109);
-  expect(Object.fromEntries(['en', 'de', 'tr'].map(language => [language,
-    REVIEWED_STATION_EDITORIALS.filter(item => item.language === language).length]))).toEqual({ en: 57, de: 37, tr: 15 });
+  expect(REVIEWED_STATION_EDITORIALS).toHaveLength(110);
+  expect(new Set(REVIEWED_STATION_EDITORIALS.map(item => item.path)).size).toBe(110);
+  expect(Object.fromEntries(['en', 'de', 'tr', 'fr'].map(language => [language,
+    REVIEWED_STATION_EDITORIALS.filter(item => item.language === language).length]))).toEqual({ en: 57, de: 37, tr: 15, fr: 1 });
   for (const item of coverage.entries.filter((entry: { decision: string }) => entry.decision !== 'reviewed')) {
     const content = getStationEditorial({ _id: item.stationId, slug: item.slug }, item.language, item.path);
     expect(content?.kind === 'reviewed', item.path).toBe(false);
@@ -86,8 +86,31 @@ it('covers exactly the reviewed cohort, without enabling aliases, other records 
     expect(getStationEditorial({ ...station, _id: 'different' }, item.language, item.path)).toBeNull();
     expect(getStationEditorial({ ...station, slug: 'different' }, item.language, item.path)).toBeNull();
     expect(getStationEditorial({ ...station, stationPageMode: 'information' }, item.language, item.path)).toBeNull();
-    expect(getStationEditorial(station, 'fr', item.path)).toBeNull();
+    expect(getStationEditorial(station, item.language === 'fr' ? 'en' : 'fr', item.path)).toBeNull();
   }
+});
+
+it('limits the French Chartreuse pilot to its persisted identity and canonical French path', () => {
+  const station = { _id: '68a8c48abd66579311ab4280', slug: 'radio-couleur-chartreuse' };
+  const item = getStationEditorial(station, 'fr', '/fr/station/radio-couleur-chartreuse');
+  expect(item?.kind).toBe('reviewed');
+  if (item?.kind !== 'reviewed') throw new Error('French pilot missing');
+  expect(item.title).toBe('Radio Couleur Chartreuse en direct | Mega Radio');
+  expect(item.title!.length).toBeLessThanOrEqual(60);
+  expect(item.metaDescription!.length).toBeLessThanOrEqual(160);
+  expect(item.questions).toHaveLength(4);
+  expect(item.sections).toHaveLength(4);
+  expect(item.reviewedAt).toBe('2026-11-12');
+  for (const locale of ['en', 'de', 'tr', 'es', 'pt', 'it', 'ar', 'ru', 'zh', 'ja', 'ko', 'hi', 'nl', 'sv']) {
+    expect(getStationEditorial(station, locale, `/${locale}/station/${station.slug}`)).toBeNull();
+  }
+  expect(getStationEditorial(station, 'fr', `/fr/stations/${station._id}`)).toBeNull();
+  const { container } = render(<StationEditorial content={item} />);
+  expect(screen.getByRole('heading', { name: 'Sources de la radio' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Questions fréquentes' })).toBeInTheDocument();
+  expect(container.querySelectorAll('details')).toHaveLength(4);
+  expect(container.querySelector('audio,video,iframe,script,h1,table')).toBeNull();
+  expect(container.textContent).not.toMatch(/Frequently asked questions|Sources checked on/);
 });
 
 it('renders identical reviewed text and links in initial HTML and React for the entire cohort', () => {
