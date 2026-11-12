@@ -19,7 +19,7 @@ const esc = (value: string) => value.replace(/[&<>"']/g, char => ({
 }[char]!));
 
 test('the full reviewed cohort has matching visible and structured descriptions without database reads', () => {
-  assert.equal(REVIEWED_STATION_EDITORIALS.length, 109);
+  assert.equal(REVIEWED_STATION_EDITORIALS.length, 110);
   for (const editorial of REVIEWED_STATION_EDITORIALS) {
     const station = { _id: editorial.stationId, slug: editorial.slug, name: editorial.slug,
       country: 'Germany', tags: 'pop', descriptions: { [editorial.language]: { full: 'Old unreviewed copy.' } } };

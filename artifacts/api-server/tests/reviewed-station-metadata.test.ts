@@ -7,7 +7,7 @@ import { REVIEWED_STATION_EDITORIALS, type ReviewedStationEditorial } from '@wor
 import type { StaticPageData } from '../src/seo-renderer';
 
 const origin = 'https://themegaradio.com';
-const languages = ['en', 'de', 'tr'] as const;
+const languages = ['en', 'de', 'tr', 'fr'] as const;
 const fields = ['title', 'description', 'ogTitle', 'ogDescription', 'twitterTitle', 'twitterDescription'] as const;
 type MetadataField = typeof fields[number];
 type Administrator = Partial<Record<MetadataField, string>> & { noIndex?: boolean; noFollow?: boolean };
@@ -109,6 +109,7 @@ function prepareStation(editorial: ReviewedStationEditorial, language = editoria
     en: { country: 'The United States Of America', countryCode: 'US' },
     de: { country: 'Germany', countryCode: 'DE' },
     tr: { country: 'Turkey', countryCode: 'TR' },
+    fr: { country: 'France', countryCode: 'FR' },
   }[language];
   stationPatch = {
     _id: editorial.stationId, slug: editorial.slug, name: 'Editorial Fixture Radio',
@@ -222,7 +223,7 @@ function assertSurfaces(page: StaticPageData, editorial: ReviewedStationEditoria
   }
 }
 
-test('approved data is present for en/de/tr rather than vacuously passing empty cohort loops', () => {
+test('approved data is present for en/de/tr/fr rather than vacuously passing empty cohort loops', () => {
   assert.ok(REVIEWED_STATION_EDITORIALS.length > 0);
   for (const language of languages) firstApproved(language);
 });
